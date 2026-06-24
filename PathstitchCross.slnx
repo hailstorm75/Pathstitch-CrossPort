@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/Domain/">
+    <Project Path="Domain.App/Domain.App.csproj" />
+    <Project Path="Domain.MVVM/Domain.MVVM.csproj" />
+  </Folder>
+  <Project Path="src/Pathstitch.App/Pathstitch.App.csproj" />
+</Solution>
