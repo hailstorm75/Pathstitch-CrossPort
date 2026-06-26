@@ -40,6 +40,7 @@ public abstract partial class BasePageViewModel(ILogger<BasePageViewModel> logge
         finally
         {
             IsLoading = false;
+            _isLoaded = true;
         }
     }
 
