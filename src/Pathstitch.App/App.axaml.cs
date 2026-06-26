@@ -3,9 +3,11 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using CommunityToolkit.Mvvm.DependencyInjection;
 using CommunityToolkit.Mvvm.Messaging;
+using Domain.App.Services;
 using Domain.MVVM.Navigation;
 using Microsoft.Extensions.DependencyInjection;
 using Pathstitch.App.AppExtensions;
+using Pathstitch.App.Services;
 using UI.Navigation;
 
 namespace Pathstitch.App;
@@ -20,6 +22,14 @@ public partial class App : Application
         serviceCollection
             .AddPages()
             .AddTelemetry()
+            .AddSingleton<RecentProjectsService>()
+            .AddSingleton<ProjectSessionService>()
+            .AddSingleton<Project3DStateService>()
+            .AddSingleton<IProjectFileDialogService, ProjectFileDialogService>()
+            .AddSingleton<IEditorOutputLauncherService, EditorOutputLauncherService>()
+            .AddSingleton<IEditorOutputPreviewService, PathstitchCoreOutputPreviewService>()
+            .AddSingleton<IEditorViewportAssetLocator, EditorViewportAssetLocator>()
+            .AddSingleton<IEditor3DOperationService, PathstitchCoreStepOperationService>()
             .AddSingleton<INavigationManager, NavigationManager>();
 
         Ioc.Default.ConfigureServices(serviceCollection.BuildServiceProvider());

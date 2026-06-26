@@ -15,6 +15,7 @@
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.0.5" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Controls.WebView" Version="12.0.1" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.5" />
     <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
@@ -25,11 +26,19 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.9" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\UI.Navigation\UI.Navigation.csproj" />
     <ProjectReference Include="..\Domain\Domain.App\Domain.App.csproj" />
     <ProjectReference Include="..\Domain\Domain.MVVM\Domain.MVVM.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\Pathstitch\Pathstitch\Modes\ThreeDMode\viewport3d.html"
+          Link="Assets\Web\viewport3d.html"
+          CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Web\vendor\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

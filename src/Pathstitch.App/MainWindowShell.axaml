@@ -1,9 +1,19 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-        x:Class="Pathstitch.App.MainWindowShell"
-        Title="Pathstitch CAD">
-  <ContentControl x:Name="PART_PageContainer"/>
+<Window
+  x:Class="Pathstitch.App.MainWindowShell"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  Title="Pathstitch CAD"
+  Width="1440"
+  Height="900"
+  MinWidth="1100"
+  MinHeight="700"
+  d:DesignHeight="900"
+  d:DesignWidth="1440"
+  Background="#0D0D10"
+  WindowStartupLocation="CenterScreen"
+  WindowState="Maximized"
+  mc:Ignorable="d">
+  <ContentControl x:Name="PART_PageContainer" />
 </Window>

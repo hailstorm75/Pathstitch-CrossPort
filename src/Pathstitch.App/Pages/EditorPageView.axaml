@@ -1,0 +1,939 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorPageView"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  d:DesignHeight="900"
+  d:DesignWidth="1440"
+  mc:Ignorable="d">
+  <UserControl.Resources>
+    <SolidColorBrush x:Key="BaseBackgroundBrush" Color="#0D0D10" />
+    <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#141418" />
+    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#1C1C22" />
+    <SolidColorBrush x:Key="PrimaryTextBrush" Color="#E4E4EA" />
+    <SolidColorBrush x:Key="SecondaryTextBrush" Color="#6A6A74" />
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#3E3E48" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#4D7FFF" />
+    <SolidColorBrush x:Key="AccentDimBrush" Color="#1F2D52" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#1FFFFFFF" />
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <Style Selector="Button.tool-button">
+      <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <Style Selector="Button.tool-button:pointerover">
+      <Setter Property="Background" Value="#23232A" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+    </Style>
+
+    <Style Selector="Button.tool-button.active">
+      <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.panel-button">
+      <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="Padding" Value="10,8" />
+    </Style>
+
+    <Style Selector="Button.panel-button:pointerover">
+      <Setter Property="Background" Value="#23232A" />
+    </Style>
+
+    <Style Selector="Button.face-row">
+      <Setter Property="Background" Value="#11000000" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="Padding" Value="8,6" />
+    </Style>
+
+    <Style Selector="Button.face-row:pointerover">
+      <Setter Property="Background" Value="#23232A" />
+    </Style>
+
+    <Style Selector="Button.face-row.active">
+      <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.chip-button">
+      <Setter Property="Background" Value="#11000000" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+      <Setter Property="Padding" Value="10,6" />
+    </Style>
+
+    <Style Selector="Button.chip-button.active">
+      <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid Background="{StaticResource BaseBackgroundBrush}" RowDefinitions="Auto,*">
+    <Border
+      Background="{StaticResource PanelBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      BorderThickness="0,0,0,1"
+      Padding="18,14">
+      <DockPanel LastChildFill="True">
+        <StackPanel Spacing="3">
+          <TextBlock
+            FontSize="18"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource PrimaryTextBrush}"
+            Text="{Binding ProjectTitle}" />
+          <TextBlock
+            FontSize="11"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding ProjectSubtitle}" />
+        </StackPanel>
+
+        <Border
+          DockPanel.Dock="Right"
+          Padding="10,6"
+          Background="{StaticResource InputBackgroundBrush}"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="8">
+          <TextBlock
+            FontSize="11"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding StatusText}" />
+        </Border>
+      </DockPanel>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="56,220,*,280">
+      <Border
+        Grid.Column="0"
+        Background="{StaticResource PanelBackgroundBrush}"
+        BorderBrush="{StaticResource BorderBrush}"
+        BorderThickness="0,0,1,0"
+        Padding="10,16">
+        <StackPanel Spacing="10">
+          <Button
+            Width="36"
+            Height="36"
+            Classes="tool-button"
+            Classes.active="{Binding IsSelectToolActive}"
+            Content="V"
+            Click="OnSelectToolClicked" />
+          <Button
+            Width="36"
+            Height="36"
+            Classes="tool-button"
+            Classes.active="{Binding IsMoveToolActive}"
+            Content="M"
+            Click="OnMoveToolClicked" />
+          <Button
+            Width="36"
+            Height="36"
+            Classes="tool-button"
+            Classes.active="{Binding IsPlaneToolActive}"
+            Content="P"
+            Click="OnPlaneToolClicked" />
+
+          <Border
+            Margin="0,4,0,0"
+            Height="1"
+            Background="{StaticResource BorderBrush}" />
+
+          <Button
+            Width="36"
+            Height="36"
+            Classes="tool-button"
+            Content="{Binding OrthographicLabel}"
+            Click="OnOrthographicToggleClicked" />
+        </StackPanel>
+      </Border>
+
+      <Border
+        Grid.Column="1"
+        Background="{StaticResource PanelBackgroundBrush}"
+        BorderBrush="{StaticResource BorderBrush}"
+        BorderThickness="0,0,1,0"
+        Padding="14">
+        <StackPanel Spacing="12">
+          <TextBlock
+            FontSize="13"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="SOLID BODIES" />
+
+          <TextBlock
+            FontSize="11"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding ViewportStateText}" />
+
+          <Button
+            Classes="panel-button"
+            Content="Open 3D Model..."
+            Click="OnOpenSourceModelClicked" />
+
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Bodies}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="models:Body3D">
+                  <Border
+                    Margin="0,0,0,10"
+                    Padding="10"
+                    Background="{StaticResource InputBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                    <StackPanel Spacing="8">
+                      <DockPanel>
+                        <Button
+                          DockPanel.Dock="Left"
+                          Width="22"
+                          Height="22"
+                          Margin="0,0,8,0"
+                          Padding="0"
+                          Tag="{Binding BodyIndex}"
+                          Click="OnBodyVisibilityClicked">
+                          <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="10"
+                            Foreground="{StaticResource SecondaryTextBrush}"
+                            Text="{Binding VisibilityLabel}" />
+                        </Button>
+                        <TextBlock
+                          FontSize="12"
+                          FontWeight="SemiBold"
+                          Foreground="{StaticResource PrimaryTextBrush}"
+                          Text="{Binding Name}" />
+                        <TextBlock
+                          DockPanel.Dock="Right"
+                          FontSize="10"
+                          Foreground="{StaticResource SecondaryTextBrush}"
+                          Text="{Binding Faces.Count}" />
+                      </DockPanel>
+
+                      <ItemsControl IsVisible="{Binding Visible}" ItemsSource="{Binding Faces}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="models:Face3D">
+                            <Button
+                              Classes="face-row"
+                              Classes.active="{Binding IsSelected}"
+                              Margin="0,0,0,4"
+                              Tag="{Binding FaceKey}"
+                              PointerPressed="OnFaceSelectionPressed">
+                              <DockPanel>
+                                <TextBlock
+                                  FontSize="11"
+                                  Foreground="{StaticResource PrimaryTextBrush}"
+                                  Text="{Binding FaceIndex}" />
+                                <TextBlock
+                                  DockPanel.Dock="Right"
+                                  FontSize="10"
+                                  Foreground="{StaticResource SecondaryTextBrush}"
+                                  Text="{Binding Type}" />
+                              </DockPanel>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </StackPanel>
+      </Border>
+
+      <Border
+        x:Name="WorkspaceViewportSurface"
+        Grid.Column="2"
+        Background="{StaticResource BaseBackgroundBrush}"
+        DragDrop.AllowDrop="True">
+        <Grid>
+          <NativeWebView x:Name="ViewportWebView" IsVisible="{Binding IsShowing3DWorkspace}" />
+          <NativeWebView x:Name="GeneratedOutputPreviewWebView" IsVisible="{Binding IsShowingGeneratedOutputWorkspace}" />
+
+          <Button
+            Name="HomeFrameButton"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Margin="12"
+            Padding="0"
+            Width="34"
+            Height="34"
+            Background="#E6141418"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            IsVisible="{Binding CanFrameHome}"
+            Click="OnHomeFrameClicked">
+            <TextBlock
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              FontSize="13"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="⌂" />
+          </Button>
+
+          <Border
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            MaxWidth="360"
+            Padding="22"
+            Background="#DD141418"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="12"
+            IsVisible="{Binding ShowViewportEmptyState}">
+            <StackPanel Spacing="12">
+              <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="26"
+                FontWeight="Bold"
+                Foreground="{StaticResource MutedTextBrush}"
+                Text="3D" />
+              <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="14"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource PrimaryTextBrush}"
+                Text="{Binding ViewportEmptyStateTitle}" />
+              <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="11"
+                TextAlignment="Center"
+                TextWrapping="Wrap"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="{Binding ViewportEmptyStateDescription}" />
+              <Button
+                HorizontalAlignment="Center"
+                Padding="14,8"
+                Background="{StaticResource AccentBrush}"
+                BorderBrush="{StaticResource AccentBrush}"
+                Foreground="White"
+                Click="OnOpenSourceModelClicked">
+                Open 3D Model...
+              </Button>
+              <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="10"
+                TextAlignment="Center"
+                TextWrapping="Wrap"
+                Foreground="{StaticResource MutedTextBrush}"
+                Text="{Binding ViewportStateText}" />
+            </StackPanel>
+          </Border>
+
+          <Border
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Margin="12"
+            Padding="8"
+            Background="#E6141418"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <StackPanel Spacing="8">
+              <TextBlock
+                FontSize="11"
+                Foreground="{StaticResource PrimaryTextBrush}"
+                Text="{Binding WorkspaceSurfaceTitle}" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button
+                  Classes="chip-button"
+                  Classes.active="{Binding IsShowing3DWorkspace}"
+                  Content="3D"
+                  Click="OnShow3DWorkspaceClicked" />
+                <Button
+                  Classes="chip-button"
+                  Classes.active="{Binding IsShowingGeneratedOutputWorkspace}"
+                  IsEnabled="{Binding HasGeneratedOutputPreview}"
+                  Content="2D Result"
+                  Click="OnShowGeneratedOutputWorkspaceClicked" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            IsVisible="{Binding IsLoading}"
+            Padding="14,10"
+            Background="#DD141418"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10">
+            <StackPanel Spacing="8">
+              <ProgressBar IsIndeterminate="True" Width="180" />
+              <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="11"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="{Binding ViewportStateText}" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
+
+      <Border
+        Grid.Column="3"
+        Background="{StaticResource PanelBackgroundBrush}"
+        BorderBrush="{StaticResource BorderBrush}"
+        BorderThickness="1,0,0,0"
+        Padding="14">
+        <ScrollViewer>
+          <StackPanel Spacing="18">
+            <StackPanel Spacing="8">
+              <TextBlock
+                FontSize="13"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="SELECTED FACES" />
+              <Border
+                Padding="10"
+                Background="{StaticResource InputBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <StackPanel Spacing="6">
+                  <TextBlock
+                    FontSize="11"
+                    Foreground="{StaticResource SecondaryTextBrush}"
+                    Text="{Binding SelectionSummary}" />
+                  <TextBlock
+                    FontSize="10"
+                    Foreground="{StaticResource MutedTextBrush}"
+                    Text="{Binding LastViewportEvent}" />
+
+                  <ItemsControl ItemsSource="{Binding SelectedFaceDetails}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="models:SelectedFaceDetails">
+                        <Border
+                          Margin="0,4,0,0"
+                          Padding="8"
+                          Background="#11000000"
+                          BorderBrush="{StaticResource BorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="4">
+                          <StackPanel Spacing="2">
+                            <TextBlock
+                              FontSize="11"
+                              Foreground="{StaticResource PrimaryTextBrush}"
+                              Text="{Binding BodyName}" />
+                            <TextBlock
+                              FontSize="10"
+                              Foreground="{StaticResource SecondaryTextBrush}"
+                              Text="{Binding FaceType}" />
+                            <TextBlock
+                              FontSize="10"
+                              Foreground="{StaticResource MutedTextBrush}"
+                              Text="{Binding Area}" />
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+              <TextBlock
+                FontSize="13"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="MOVE BODIES" />
+              <Border
+                Padding="10"
+                Background="{StaticResource InputBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <StackPanel Spacing="8">
+                  <ToggleSwitch
+                    Content="Move Tool"
+                    IsChecked="{Binding IsMoveToolActive}"
+                    IsCheckedChanged="OnMoveToolIsCheckedChanged" />
+                  <TextBlock
+                    FontSize="11"
+                    Foreground="{StaticResource PrimaryTextBrush}"
+                    Text="{Binding SelectedBodySummary}" />
+                  <TextBlock
+                    FontSize="10"
+                    Foreground="{StaticResource MutedTextBrush}"
+                    Text="{Binding MoveBodiesHint}" />
+                  <TextBlock
+                    FontSize="10"
+                    Foreground="{StaticResource MutedTextBrush}"
+                    Text="{Binding BodyOffsetsSummary}" />
+
+                  <StackPanel IsVisible="{Binding CanEditSelectedBodyOffset}" Spacing="8">
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                      <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontSize="10"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="X (mm)" />
+                      <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SelectedBodyOffsetXText}" />
+
+                      <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontSize="10"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="Y (mm)" />
+                      <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SelectedBodyOffsetYText}" />
+
+                      <TextBlock
+                        Grid.Row="2"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontSize="10"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="Z (mm)" />
+                      <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedBodyOffsetZText}" />
+
+                      <TextBlock
+                        Grid.Row="3"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontSize="10"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="Step" />
+                      <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding BodyMoveStepText}" />
+                    </Grid>
+
+                    <UniformGrid Columns="2" Rows="3">
+                      <Button Classes="panel-button" Content="-X" Tag="0:-1" Click="OnBodyNudgeClicked" />
+                      <Button Classes="panel-button" Content="+X" Tag="0:1" Click="OnBodyNudgeClicked" />
+                      <Button Classes="panel-button" Content="-Y" Tag="1:-1" Click="OnBodyNudgeClicked" />
+                      <Button Classes="panel-button" Content="+Y" Tag="1:1" Click="OnBodyNudgeClicked" />
+                      <Button Classes="panel-button" Content="-Z" Tag="2:-1" Click="OnBodyNudgeClicked" />
+                      <Button Classes="panel-button" Content="+Z" Tag="2:1" Click="OnBodyNudgeClicked" />
+                    </UniformGrid>
+
+                    <Button
+                      Classes="panel-button"
+                      Content="Reset Position"
+                      Click="OnBodyResetClicked" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+              <TextBlock
+                FontSize="13"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="PROJECTION SKETCH" />
+              <Border
+                Padding="10"
+                Background="{StaticResource InputBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <StackPanel Spacing="8">
+                  <Button
+                    IsVisible="{Binding CanStartPlaneSelection}"
+                    Classes="panel-button"
+                    Content="Add Plane"
+                    Click="OnAddPlaneClicked" />
+
+                  <StackPanel IsVisible="{Binding IsPlaneSelectionActive}" Spacing="8">
+                    <TextBlock
+                      FontSize="10"
+                      Foreground="{StaticResource SecondaryTextBrush}"
+                      Text="DEFINE PLANE BY" />
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                      <Button
+                        Grid.Column="0"
+                        Classes="chip-button"
+                        Classes.active="{Binding IsProjectionOriginMode}"
+                        Content="Origin Planes"
+                        Click="OnOriginPlaneModeClicked" />
+                      <Button
+                        Grid.Column="1"
+                        Classes="chip-button"
+                        Classes.active="{Binding IsProjectionFaceMode}"
+                        Content="Shape Face"
+                        Click="OnFacePlaneModeClicked" />
+                    </Grid>
+
+                    <TextBlock
+                      FontSize="11"
+                      TextWrapping="Wrap"
+                      Foreground="{StaticResource SecondaryTextBrush}"
+                      IsVisible="{Binding IsProjectionOriginMode}"
+                      Text="Click an origin plane square (XY, YZ, ZX) in the viewport." />
+                    <TextBlock
+                      FontSize="11"
+                      TextWrapping="Wrap"
+                      Foreground="{StaticResource SecondaryTextBrush}"
+                      IsVisible="{Binding IsProjectionFaceMode}"
+                      Text="Click a flat face of the 3D model in the viewport." />
+
+                    <TextBlock
+                      FontSize="11"
+                      Foreground="{StaticResource PrimaryTextBrush}"
+                      Text="{Binding ProjectionSelectionSummary}" />
+
+                    <StackPanel IsVisible="{Binding CanConfirmProjection}" Spacing="6">
+                      <TextBlock
+                        FontSize="10"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="OFFSET (MM)" />
+                      <TextBox Text="{Binding PlaneOffsetText}" />
+                    </StackPanel>
+
+                    <Button
+                      IsVisible="{Binding CanConfirmProjection}"
+                      Classes="panel-button"
+                      Content="Confirm Projection"
+                      Click="OnConfirmProjectionClicked" />
+                    <Button
+                      Classes="panel-button"
+                      Content="Cancel"
+                      Click="OnCancelProjectionClicked" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+              <TextBlock
+                FontSize="13"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="UNFOLD" />
+              <Border
+                Padding="10"
+                Background="{StaticResource InputBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <StackPanel Spacing="10">
+                  <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                    <TextBlock
+                      Grid.Row="0"
+                      Grid.Column="0"
+                      VerticalAlignment="Center"
+                      FontSize="10"
+                      Foreground="{StaticResource SecondaryTextBrush}"
+                      Text="Layout" />
+                    <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding NetLayoutIndex}">
+                      <ComboBoxItem Content="Connected Net" />
+                      <ComboBoxItem Content="Separate Pieces" />
+                    </ComboBox>
+
+                    <TextBlock
+                      Grid.Row="1"
+                      Grid.Column="0"
+                      VerticalAlignment="Center"
+                      FontSize="10"
+                      Foreground="{StaticResource SecondaryTextBrush}"
+                      Text="Distort" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" SelectedIndex="{Binding DistortionModeIndex}">
+                      <ComboBoxItem Content="Conformal" />
+                      <ComboBoxItem Content="Equal-Area" />
+                      <ComboBoxItem Content="Equidistant" />
+                      <ComboBoxItem Content="Balanced" />
+                    </ComboBox>
+
+                    <TextBlock
+                      Grid.Row="2"
+                      Grid.Column="0"
+                      VerticalAlignment="Center"
+                      FontSize="10"
+                      Foreground="{StaticResource SecondaryTextBrush}"
+                      IsVisible="{Binding IsConnectedNetLayout}"
+                      Text="Unroll" />
+                    <ComboBox
+                      Grid.Row="2"
+                      Grid.Column="1"
+                      IsVisible="{Binding IsConnectedNetLayout}"
+                      SelectedIndex="{Binding UnrollModeIndex}">
+                      <ComboBoxItem Content="Radial" />
+                      <ComboBoxItem Content="Strip" />
+                      <ComboBoxItem Content="Spanning Tree" />
+                    </ComboBox>
+
+                    <TextBlock
+                      Grid.Row="3"
+                      Grid.Column="0"
+                      VerticalAlignment="Center"
+                      FontSize="10"
+                      Foreground="{StaticResource SecondaryTextBrush}"
+                      IsVisible="{Binding IsConnectedNetLayout}"
+                      Text="Seams" />
+                    <ComboBox
+                      Grid.Row="3"
+                      Grid.Column="1"
+                      IsVisible="{Binding IsConnectedNetLayout}"
+                      SelectedIndex="{Binding GlobalSeamDecorationIndex}">
+                      <ComboBoxItem Content="Plain" />
+                      <ComboBoxItem Content="Glue Tabs" />
+                      <ComboBoxItem Content="Sew Holes" />
+                    </ComboBox>
+
+                    <TextBlock
+                      Grid.Row="4"
+                      Grid.Column="0"
+                      VerticalAlignment="Center"
+                      FontSize="10"
+                      Foreground="{StaticResource SecondaryTextBrush}"
+                      IsVisible="{Binding IsConnectedNetLayout}"
+                      Text="Control" />
+                    <ComboBox
+                      Grid.Row="4"
+                      Grid.Column="1"
+                      IsVisible="{Binding IsConnectedNetLayout}"
+                      SelectedIndex="{Binding SeamControlModeIndex}">
+                      <ComboBoxItem Content="Auto" />
+                      <ComboBoxItem Content="Manual (Cuts)" />
+                      <ComboBoxItem Content="Hybrid (Folds)" />
+                    </ComboBox>
+
+                    <TextBlock
+                      Grid.Row="5"
+                      Grid.Column="0"
+                      Grid.ColumnSpan="2"
+                      FontSize="10"
+                      Foreground="{StaticResource PrimaryTextBrush}"
+                      Text="{Binding AnchorSummary}" />
+
+                    <StackPanel
+                      Grid.Row="6"
+                      Grid.Column="0"
+                      Grid.ColumnSpan="2"
+                      Orientation="Horizontal"
+                      Spacing="8"
+                      IsVisible="{Binding IsConnectedNetLayout}">
+                      <Button
+                        Classes="panel-button"
+                        IsVisible="{Binding CanSetSelectedAnchor}"
+                        Content="Set Selected"
+                        Click="OnSetAnchorClicked" />
+                      <Button
+                        Classes="panel-button"
+                        IsVisible="{Binding HasAnchorFace}"
+                        Content="Reset"
+                        Click="OnResetAnchorClicked" />
+                    </StackPanel>
+                  </Grid>
+
+                  <StackPanel IsVisible="{Binding HasSelectedEdge}" Spacing="6">
+                    <TextBlock
+                      FontSize="10"
+                      Foreground="{StaticResource PrimaryTextBrush}"
+                      Text="{Binding SelectedEdgeSummary}" />
+                    <ComboBox SelectedIndex="{Binding SelectedEdgeDecorationIndex}">
+                      <ComboBoxItem Content="Default (Use Global)" />
+                      <ComboBoxItem Content="Plain (Cut)" />
+                      <ComboBoxItem Content="Glue Tabs" />
+                      <ComboBoxItem Content="Sew Holes" />
+                    </ComboBox>
+
+                  </StackPanel>
+
+                  <Button
+                    Classes="panel-button"
+                    IsVisible="{Binding CanClearManualCuts}"
+                    Content="Clear Manual Cuts"
+                    Click="OnClearManualCutsClicked" />
+                  <Button
+                    Classes="panel-button"
+                    IsVisible="{Binding CanClearForcedFolds}"
+                    Content="Clear Forced Folds"
+                    Click="OnClearForcedFoldsClicked" />
+
+                  <TextBlock
+                    FontSize="10"
+                    Foreground="{StaticResource SecondaryTextBrush}"
+                    IsVisible="{Binding CanClearManualCuts}"
+                    Text="{Binding ForcedSeamsSummary}" />
+                  <TextBlock
+                    FontSize="10"
+                    Foreground="{StaticResource SecondaryTextBrush}"
+                    IsVisible="{Binding CanClearForcedFolds}"
+                    Text="{Binding ForbiddenSeamsSummary}" />
+
+                  <StackPanel IsVisible="{Binding IsConnectedNetLayout}" Spacing="8">
+                    <TextBlock
+                      FontSize="10"
+                      Foreground="{StaticResource PrimaryTextBrush}"
+                      Text="DECORATION SIZES" />
+
+                    <Grid
+                      ColumnDefinitions="Auto,*"
+                      RowDefinitions="Auto,Auto,Auto,Auto"
+                      ColumnSpacing="8"
+                      RowSpacing="8">
+                      <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontSize="10"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="Tab Height" />
+                      <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding GlueTabHeightText}" />
+
+                      <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontSize="10"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="Hole Dia." />
+                      <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding HoleDiameterText}" />
+
+                      <TextBlock
+                        Grid.Row="2"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontSize="10"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="Hole Space" />
+                      <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding HoleSpacingText}" />
+
+                      <TextBlock
+                        Grid.Row="3"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontSize="10"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="Hole Margin" />
+                      <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding HoleMarginText}" />
+                    </Grid>
+                  </StackPanel>
+
+                  <CheckBox
+                    Foreground="{StaticResource PrimaryTextBrush}"
+                    IsChecked="{Binding LiveRecomputeEnabled}"
+                    Content="Live Recompute" />
+
+                  <Button
+                    Classes="panel-button"
+                    IsEnabled="{Binding CanUnfoldSelected}"
+                    Content="{Binding UnfoldSelectedButtonText}"
+                    Click="OnUnfoldSelectedClicked" />
+
+                  <Button
+                    Classes="panel-button"
+                    IsVisible="{Binding IsConnectedNetLayout}"
+                    IsEnabled="{Binding CanUnfoldEntireBody}"
+                    Content="Unfold Entire Body"
+                    Click="OnUnfoldEntireBodyClicked" />
+
+                  <TextBlock
+                    FontSize="10"
+                    TextWrapping="Wrap"
+                    Foreground="{StaticResource SecondaryTextBrush}"
+                    Text="{Binding UnfoldHintText}" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+              <TextBlock
+                FontSize="13"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="OUTPUT" />
+              <Border
+                Padding="10"
+                Background="{StaticResource InputBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <StackPanel Spacing="8">
+                  <TextBlock
+                    FontSize="11"
+                    Foreground="{StaticResource PrimaryTextBrush}"
+                    Text="{Binding GeneratedOutputFileName}" />
+                  <TextBlock
+                    FontSize="10"
+                    TextWrapping="Wrap"
+                    Foreground="{StaticResource SecondaryTextBrush}"
+                    Text="{Binding GeneratedOutputFolder}" />
+
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                    <Button
+                      Grid.Column="0"
+                      Classes="panel-button"
+                      IsEnabled="{Binding HasGeneratedOutputPreview}"
+                      Content="Show Preview"
+                      Click="OnShowGeneratedOutputWorkspaceClicked" />
+                    <Button
+                      Grid.Column="1"
+                      Classes="panel-button"
+                      IsEnabled="{Binding HasGeneratedOutput}"
+                      Content="Open DXF"
+                      Click="OnOpenGeneratedOutputClicked" />
+                  </Grid>
+
+                  <Button
+                    Classes="panel-button"
+                    IsEnabled="{Binding HasGeneratedOutput}"
+                    Content="Reveal File"
+                    Click="OnRevealGeneratedOutputClicked" />
+
+                  <TextBlock
+                    FontSize="10"
+                    TextWrapping="Wrap"
+                    Foreground="{StaticResource SecondaryTextBrush}"
+                    IsVisible="{Binding HasGeneratedOutputPreview}"
+                    Text="Preview ready for in-app viewing." />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+              <TextBlock
+                FontSize="13"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="ERRORS" />
+              <Border
+                Padding="10"
+                Background="{StaticResource InputBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <TextBlock
+                  FontSize="11"
+                  TextWrapping="Wrap"
+                  Foreground="{StaticResource SecondaryTextBrush}"
+                  Text="{Binding ErrorMessage}" />
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

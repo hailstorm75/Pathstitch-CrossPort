@@ -78,6 +78,10 @@ xcschememanagement.plist
 # ===================== Distribution artifacts =====================
 *.dmg
 *.app
+!src/Pathstitch.App/
+!src/Pathstitch.App/**
+src/Pathstitch.App/bin/
+src/Pathstitch.App/obj/
 *.xcarchive
 dist/
 release/

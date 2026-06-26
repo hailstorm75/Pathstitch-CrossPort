@@ -1,0 +1,14 @@
+namespace Domain.App.Services;
+
+public interface IProjectFileDialogService
+{
+    Task<string?> PickExistingProjectFileAsync(CancellationToken cancellationToken = default);
+
+    Task<string?> PickNewProjectFileAsync(string suggestedFileName, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> PickWorkspaceFilesAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> PickSourceModelFilesAsync(CancellationToken cancellationToken = default);
+
+    Task<string?> PickSourceModelFileAsync(CancellationToken cancellationToken = default);
+}

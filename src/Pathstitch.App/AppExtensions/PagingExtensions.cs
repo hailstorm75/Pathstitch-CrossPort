@@ -12,6 +12,8 @@ public static class PagingExtensions
         // Add `KeyedTransient` Views and corresponding ViewModels here under the same navigation identifier
         services.AddKeyedTransient<INavigablePageView, HomePageView>(NavigationAddressBook.HomePage);
         services.AddKeyedTransient<INavigablePageViewModel, HomePageViewModel>(NavigationAddressBook.HomePage);
+        services.AddKeyedTransient<INavigablePageView, EditorPageView>(NavigationAddressBook.EditorPage);
+        services.AddKeyedTransient<INavigablePageViewModel, EditorPageViewModel>(NavigationAddressBook.EditorPage);
 
         return services;
     }
