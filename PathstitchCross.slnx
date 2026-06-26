@@ -1,7 +1,10 @@
 <Solution>
   <Folder Name="/Domain/">
-    <Project Path="Domain.App/Domain.App.csproj" />
-    <Project Path="Domain.MVVM/Domain.MVVM.csproj" />
+    <Project Path="src/Domain/Domain.App/Domain.App.csproj" />
+    <Project Path="src/Domain/Domain.MVVM/Domain.MVVM.csproj" />
+  </Folder>
+  <Folder Name="/UI/">
+    <Project Path="UI.Navigation/UI.Navigation.csproj" Id="76ef138a-13b6-44d9-82b8-89ceaae41a68" />
   </Folder>
   <Project Path="src/Pathstitch.App/Pathstitch.App.csproj" />
 </Solution>
