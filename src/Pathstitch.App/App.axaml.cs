@@ -17,6 +17,7 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        OcctConfiguration.Configure();
 
         var serviceCollection = new ServiceCollection();
         serviceCollection
@@ -27,9 +28,10 @@ public partial class App : Application
             .AddSingleton<Project3DStateService>()
             .AddSingleton<IProjectFileDialogService, ProjectFileDialogService>()
             .AddSingleton<IEditorOutputLauncherService, EditorOutputLauncherService>()
-            .AddSingleton<IEditorOutputPreviewService, PathstitchCoreOutputPreviewService>()
+            .AddSingleton<IEditorOutputPreviewService, DxfOutputPreviewService>()
+            .AddSingleton<IGeometryKernelDescriptorProvider, OcctGeometryKernelDescriptorProvider>()
             .AddSingleton<IEditorViewportAssetLocator, EditorViewportAssetLocator>()
-            .AddSingleton<IEditor3DOperationService, PathstitchCoreStepOperationService>()
+            .AddSingleton<IEditor3DOperationService, OcctEditor3DOperationService>()
             .AddSingleton<INavigationManager, NavigationManager>();
 
         Ioc.Default.ConfigureServices(serviceCollection.BuildServiceProvider());

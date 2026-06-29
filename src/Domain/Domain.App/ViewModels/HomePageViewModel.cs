@@ -11,8 +11,10 @@ namespace Domain.App.ViewModels;
 [NavigationPage(NavigationAddressBook.HomePage)]
 public sealed partial class HomePageViewModel(
     ILogger<HomePageViewModel> logger,
-    ProjectSessionService projectSessionService) : BasePageViewModel(logger)
+    ProjectSessionService projectSessionService,
+    IGeometryKernelDescriptorProvider geometryKernelDescriptorProvider) : BasePageViewModel(logger)
 {
+    private readonly GeometryKernelDescriptor _geometryKernel = geometryKernelDescriptorProvider.Current;
     private ProjectTemplateDefinition _selectedTemplate = new(
         TemplateId: "blank-project",
         DisplayName: "Blank project",
@@ -82,6 +84,18 @@ public sealed partial class HomePageViewModel(
     }
 
     public bool HasSelectedRecentProject => SelectedRecentProject is not null;
+
+    public string GeometryKernelDisplayName => _geometryKernel.DisplayName;
+
+    public string GeometryKernelImplementationName => _geometryKernel.ImplementationName;
+
+    public string GeometryKernelRuntimeSummary => _geometryKernel.RuntimeSummary;
+
+    public string GeometryKernelCapabilitySummary => _geometryKernel.CapabilitySummary;
+
+    public string GeometryKernelRequirementSummary => _geometryKernel.RequirementSummary;
+
+    public string GeometryKernelSupportedSourceModelSummary => _geometryKernel.SupportedSourceModelSummary;
 
     public string HomeStatusText
     {
