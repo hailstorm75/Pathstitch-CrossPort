@@ -16,6 +16,20 @@ cut‑ready DXF/SVG/PDF — or import a 3D `.step` model and **unfold it into fl
 and sew. It's a fast, native SwiftUI app backed by a real geometry kernel (`ezdxf`, `shapely`, OpenCASCADE),
 not a web wrapper.
 
+> Repository note: this repo now contains two implementation paths. The original macOS app under
+> [`Pathstitch/`](Pathstitch) still uses the Python/OpenCASCADE worker described below. The active Avalonia/.NET
+> port under [`src/`](src) uses the `Occt.NET` NuGet package directly for 3D import, projection, flattening,
+> and DXF generation, and does not depend on a bundled Python runtime.
+
+## Avalonia/.NET port
+
+The active cross-port lives under [`src/`](src) and targets `net10.0-windows7.0`.
+
+- **3D kernel**: OpenCASCADE loaded directly in-process through the `Occt.NET` NuGet package
+- **No Python runtime**: no Python worker, conda environment, or bundled Python backend is required for the Avalonia editor
+- **Current native editor slice**: STEP/OBJ/STL import, body combination, projection, separate-piece flattening, distortion analysis, and DXF preview
+- **Build**: `dotnet build PathstitchCross.slnx`
+
 <img width="1313" height="913" alt="Screenshot 2026-06-15 at 4 52 39 PM" src="https://github.com/user-attachments/assets/63cfbd20-b581-47fe-a3eb-1ff0c9cac5cb" />
 
 ---
@@ -166,7 +180,10 @@ Tools without a default key (Scale, Polygon, Text, Mirror, Patterning, Paper Fol
 
 ---
 
-## Under the hood
+## Legacy macOS architecture
+
+The section below describes the original SwiftUI implementation under [`Pathstitch/`](Pathstitch), not the
+active Avalonia/.NET port.
 
 Pathstitch is a thin, fast SwiftUI front‑end over a persistent Python geometry worker. The UI never blocks on
 geometry: every operation is a JSON request streamed to a long‑lived backend process and rendered back.
@@ -194,6 +211,17 @@ For a packaged build, a trimmed copy of the Python environment and the engine ar
 ## Build from source
 
 You only need this if you want to develop Pathstitch; users just download the `.dmg`.
+
+### Avalonia/.NET port (active)
+
+The active editor build does not need Python. Restore NuGet packages and build the solution directly:
+
+```powershell
+dotnet build PathstitchCross.slnx
+dotnet run --project src/Pathstitch.App/Pathstitch.App.csproj
+```
+
+### Legacy macOS app
 
 **Requirements**
 
