@@ -19,8 +19,7 @@ public sealed class DxfOutputPreviewService : IEditorOutputPreviewService
             return Task.FromResult<Editor2DPreviewDocument?>(null);
 
         var previewDocument = EditorDxfDocument.LoadPreviewDocument(outputPath);
-        if (previewDocument.Paths.Count == 0 || !TryMeasureBounds(previewDocument.Paths, out var minX, out var minY, out var maxX, out var maxY))
-            return Task.FromResult<Editor2DPreviewDocument?>(null);
+        var hasBounds = TryMeasureBounds(previewDocument.Paths, out var minX, out var minY, out var maxX, out var maxY);
 
         var document = new Editor2DPreviewDocument(
             previewDocument.Paths
@@ -40,7 +39,9 @@ public sealed class DxfOutputPreviewService : IEditorOutputPreviewService
                     StartAngleDegrees: path.StartAngleDegrees,
                     EndAngleDegrees: path.EndAngleDegrees))
                 .ToArray(),
-            new Editor2DBounds(minX, minY, maxX, maxY),
+            hasBounds
+                ? new Editor2DBounds(minX, minY, maxX, maxY)
+                : new Editor2DBounds(0.0, 0.0, 0.0, 0.0),
             new Dictionary<string, int>(previewDocument.EntityCounts, StringComparer.OrdinalIgnoreCase),
             previewDocument.UnsupportedEntityTypes.ToArray());
 

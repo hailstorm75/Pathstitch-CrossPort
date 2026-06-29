@@ -90,12 +90,12 @@ public sealed partial class EditorPageViewModel
     public bool CanFrameHome
         => IsShowing3DWorkspace
             ? HasLoadedModel
-            : HasGeneratedOutputPreview;
+            : HasGeneratedOutputWorkspaceDocument;
 
     public string ViewportEmptyStateTitle => "DRAG & DROP 3D MODELS";
 
     public string ViewportEmptyStateDescription
-        => "Open one or more .step, .stp, .obj, or .stl files to start the 3D workspace for this template project.";
+        => "Open one or more .step, .stp, .obj, or .stl files to start the 3D workspace, or switch to the 2D workspace to sketch directly.";
 
     private EditorWorkspaceState BuildPersistedEditorWorkspaceState()
         => new(
@@ -142,7 +142,7 @@ public sealed partial class EditorPageViewModel
             return;
         }
 
-        if (HasGeneratedOutputPreview)
+        if (HasGeneratedOutputWorkspaceDocument)
             IsShowingGeneratedOutputWorkspace = true;
     }
 }

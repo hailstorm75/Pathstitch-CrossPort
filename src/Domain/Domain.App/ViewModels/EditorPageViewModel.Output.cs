@@ -188,6 +188,7 @@ public sealed partial class EditorPageViewModel
             if (!documentChanged)
                 return;
 
+            OnPropertyChanged(nameof(HasGeneratedOutputWorkspaceDocument));
             OnPropertyChanged(nameof(HasGeneratedOutputPreview));
             OnPropertyChanged(nameof(HasNoGeneratedOutputPreview));
             OnPropertyChanged(nameof(GeneratedOutputViewportSummary));
@@ -195,6 +196,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(OutputStatusSummary));
             OnPropertyChanged(nameof(OutputPreviewButtonLabel));
             OnPropertyChanged(nameof(CanFrameHome));
+            OnPropertyChanged(nameof(WorkspaceModeHint));
             OnPropertyChanged(nameof(HasGeneratedOutputConvertibleLineSelection));
             OnPropertyChanged(nameof(CanApplyGeneratedOutputConvertLines));
             OnPropertyChanged(nameof(GeneratedOutputConvertLineSummary));
@@ -425,6 +427,8 @@ public sealed partial class EditorPageViewModel
         : $"Generated: {GeneratedOutputContext.CreatedUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
 
     public bool HasGeneratedOutputPreview => GeneratedOutputPreviewDocument is { Paths.Count: > 0 };
+
+    public bool HasGeneratedOutputWorkspaceDocument => GeneratedOutputPreviewDocument is not null;
 
     public bool HasNoGeneratedOutputPreview => !HasGeneratedOutputPreview;
 
@@ -939,6 +943,13 @@ public sealed partial class EditorPageViewModel
     {
         get
         {
+            if (HasGeneratedOutputWorkspaceDocument)
+            {
+                return IsShowingGeneratedOutputWorkspace
+                    ? "Native 2D workspace active."
+                    : "2D workspace ready.";
+            }
+
             if (!HasGeneratedOutput)
                 return "Run Projection or Unfold to create a 2D result.";
 
@@ -947,13 +958,6 @@ public sealed partial class EditorPageViewModel
 
             if (!GeneratedOutputSummary.FileExists)
                 return "The saved DXF path no longer exists on disk. Regenerate or restore the file.";
-
-            if (HasGeneratedOutputPreview)
-            {
-                return IsShowingGeneratedOutputWorkspace
-                    ? "Native 2D workspace active."
-                    : "2D workspace ready.";
-            }
 
             return GeneratedOutputSummary.PreviewPathCount == 0
                 ? GeneratedOutputSummary.UnsupportedEntityCount > 0
@@ -966,20 +970,26 @@ public sealed partial class EditorPageViewModel
     public string OutputPreviewButtonLabel
         => IsShowingGeneratedOutputWorkspace
             ? "2D Workspace Visible"
-            : !HasGeneratedOutputFileOnDisk
-                ? "File Missing"
-                : HasGeneratedOutputPreview
-                    ? "Show 2D Workspace"
-                    : "Preview Unavailable";
+            : HasGeneratedOutputWorkspaceDocument
+                ? "Show 2D Workspace"
+                : HasGeneratedOutputFileOnDisk
+                    ? "Preview Unavailable"
+                    : "Start 2D Workspace";
 
-    public string GeneratedOutputViewportSummary => GeneratedOutputPreviewDocument is { Paths.Count: > 0 } document
-        ? GeneratedOutputViewportZoom > 0.0
-            ? $"Native viewport · {document.Paths.Count} path(s) · {GeneratedOutputViewportZoom * 100.0:0}%"
-            : $"Native viewport · {document.Paths.Count} path(s)"
+    public string GeneratedOutputViewportSummary => GeneratedOutputPreviewDocument is { } document
+        ? document.Paths.Count == 0
+            ? GeneratedOutputViewportZoom > 0.0
+                ? $"Native viewport · empty sketch · {GeneratedOutputViewportZoom * 100.0:0}%"
+                : "Native viewport · empty sketch"
+            : GeneratedOutputViewportZoom > 0.0
+                ? $"Native viewport · {document.Paths.Count} path(s) · {GeneratedOutputViewportZoom * 100.0:0}%"
+                : $"Native viewport · {document.Paths.Count} path(s)"
         : "No native 2D viewport loaded.";
 
-    public string GeneratedOutputSelectionSummary => !HasGeneratedOutputPreview
+    public string GeneratedOutputSelectionSummary => GeneratedOutputPreviewDocument is null
         ? "No 2D geometry loaded."
+        : GeneratedOutputPreviewDocument.Paths.Count == 0
+            ? "Empty 2D sketch. Start drawing with the native tools."
         : GeneratedOutputSelectionCount switch
         {
             0 => "No 2D entities selected.",
@@ -1058,7 +1068,9 @@ public sealed partial class EditorPageViewModel
     public string WorkspaceModeHint => IsShowingGeneratedOutputWorkspace
         ? "Viewing the native 2D workspace. Use the 2D tool chips for selection, moving, scaling, mirroring, offsetting, thickening, cleanup, patterning, paper folding, dimensioning, trimming, filleting, chamfering, line conversion, drawing, pen paths, text, panning, and manual measurements. Rectangles and circles now generate attached auto dimensions."
         : !HasLoadedModel
-            ? "Load a model to begin the 3D workspace."
+            ? HasGeneratedOutputWorkspaceDocument
+                ? "A dedicated 2D workspace is ready. Load a model any time if you also want to project or unfold 3D geometry."
+                : "Load a model to begin the 3D workspace, or switch to the 2D workspace to sketch directly."
             : !HasUsableSourceModelAsset
                 ? "Viewing a restored 3D workspace. Native operations stay disabled until the source asset is restored."
                 : "Viewing the interactive 3D workspace.";
@@ -1134,14 +1146,22 @@ public sealed partial class EditorPageViewModel
         StatusText = "3D workspace active";
     }
 
-    public void ShowGeneratedOutputWorkspace()
+    public void ShowGeneratedOutputWorkspace() => _ = ShowGeneratedOutputWorkspaceAsync();
+
+    public async Task ShowGeneratedOutputWorkspaceAsync(CancellationToken cancellationToken = default)
     {
-        if (!HasGeneratedOutputPreview)
+        if (GeneratedOutputPreviewDocument is null)
+            await EnsureGeneratedOutputWorkspaceDocumentAsync(cancellationToken).ConfigureAwait(true);
+
+        if (GeneratedOutputPreviewDocument is null)
             return;
 
         ActivateOutputTool();
         IsShowingGeneratedOutputWorkspace = true;
-        StatusText = "2D workspace active";
+        StatusText = HasGeneratedOutputPreview
+            ? "2D workspace active"
+            : "Blank 2D sketch workspace active";
+        ViewportStateText = OutputStatusSummary;
     }
 
     public void ActivateGeneratedOutputSelectTool() => GeneratedOutputActiveTool = Editor2DTool.Select;
@@ -1709,7 +1729,7 @@ public sealed partial class EditorPageViewModel
 
     public void FrameGeneratedOutputToContent()
     {
-        if (!HasGeneratedOutputPreview)
+        if (!HasGeneratedOutputWorkspaceDocument)
             return;
 
         GeneratedOutputFrameRequestToken++;
@@ -1776,7 +1796,7 @@ public sealed partial class EditorPageViewModel
         }
 
         Editor2DPreviewDocument? previewDocument = null;
-        if (summary is { FileExists: true, PreviewPathCount: > 0 })
+        if (summary is { FileExists: true })
         {
             previewDocument = await _editorOutputPreviewService
                 .LoadPreviewDocumentAsync(outputPath, cancellationToken)
@@ -1796,6 +1816,39 @@ public sealed partial class EditorPageViewModel
         GeneratedOutputContext = null;
         SetGeneratedOutputPreviewDocument(null, activatePreviewWorkspace: false);
     }
+
+    private async Task EnsureGeneratedOutputWorkspaceDocumentAsync(CancellationToken cancellationToken)
+    {
+        var document = GeneratedOutputPreviewDocument ?? CreateEmptyGeneratedOutputPreviewDocument();
+
+        if (ProjectSession is not null)
+        {
+            var outputPath = string.IsNullOrWhiteSpace(LastGeneratedOutputPath)
+                ? _project3DStateService.GetEditableGeneratedOutputPath(ProjectSession.ProjectFilePath)
+                : LastGeneratedOutputPath;
+
+            ApplyGeneratedOutput(outputPath);
+            await _editorOutputPreviewService
+                .SavePreviewDocumentAsync(document, outputPath, cancellationToken)
+                .ConfigureAwait(true);
+
+            _generatedOutputDataBase64 = await TryReadGeneratedOutputDataBase64Async(outputPath, cancellationToken)
+                .ConfigureAwait(true);
+            GeneratedOutputSummary = await _editorOutputPreviewService
+                .InspectOutputAsync(outputPath, cancellationToken)
+                .ConfigureAwait(true);
+        }
+
+        SetGeneratedOutputPreviewDocument(document, activatePreviewWorkspace: false);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+    }
+
+    private static Editor2DPreviewDocument CreateEmptyGeneratedOutputPreviewDocument()
+        => new(
+            [],
+            new Editor2DBounds(0.0, 0.0, 0.0, 0.0),
+            new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+            []);
 
     private void SetGeneratedOutputPreviewDocument(
         Editor2DPreviewDocument? document,

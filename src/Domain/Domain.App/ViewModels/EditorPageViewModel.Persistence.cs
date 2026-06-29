@@ -7,7 +7,7 @@ public sealed partial class EditorPageViewModel
 {
     private void Request3DStatePersistence(TimeSpan? delay = null)
     {
-        if (ProjectSession is null || string.IsNullOrWhiteSpace(StepJsonContent))
+        if (ProjectSession is null || (!HasLoadedModel && !HasGeneratedOutputWorkspaceDocument))
             return;
 
         var nextCancellationTokenSource = new CancellationTokenSource();
@@ -26,7 +26,7 @@ public sealed partial class EditorPageViewModel
             if (delay > TimeSpan.Zero)
                 await Task.Delay(delay, cancellationTokenSource.Token).ConfigureAwait(true);
 
-            if (ProjectSession is null || string.IsNullOrWhiteSpace(StepJsonContent))
+            if (ProjectSession is null || (!HasLoadedModel && !HasGeneratedOutputWorkspaceDocument))
                 return;
 
             await _project3DStateService.SaveAsync(

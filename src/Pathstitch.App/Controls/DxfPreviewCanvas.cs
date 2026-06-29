@@ -17,6 +17,7 @@ public sealed class DxfPreviewCanvas : Control
     private const double PointerDragThreshold = 4.0;
     private const double PenCloseHitTolerance = 10.0;
     private const double ScaleHandleHitTolerance = 12.0;
+    private const double EmptyWorkspaceSpan = 200.0;
     private const double DefaultTextHeight = 10.0;
     private const string DefaultTextValue = "Label";
 
@@ -262,11 +263,25 @@ public sealed class DxfPreviewCanvas : Control
             return;
         }
 
+        var availableWidth = Math.Max(Bounds.Width - 48.0, 32.0);
+        var availableHeight = Math.Max(Bounds.Height - 48.0, 32.0);
+        if (Document.Paths.Count == 0)
+        {
+            var emptyScale = Math.Min(availableWidth / EmptyWorkspaceSpan, availableHeight / EmptyWorkspaceSpan);
+            if (!double.IsFinite(emptyScale) || emptyScale <= 0.0)
+                emptyScale = 1.0;
+
+            SetCurrentValue(ZoomProperty, emptyScale);
+            SetCurrentValue(OffsetXProperty, 0.0);
+            SetCurrentValue(OffsetYProperty, 0.0);
+            _pendingFrameToDocument = false;
+            InvalidateVisual();
+            return;
+        }
+
         var documentBounds = Document.Bounds;
         var width = Math.Max(documentBounds.Width, 1.0);
         var height = Math.Max(documentBounds.Height, 1.0);
-        var availableWidth = Math.Max(Bounds.Width - 48.0, 32.0);
-        var availableHeight = Math.Max(Bounds.Height - 48.0, 32.0);
         var scale = Math.Min(availableWidth / width, availableHeight / height);
         if (!double.IsFinite(scale) || scale <= 0.0)
             scale = 1.0;
@@ -391,11 +406,12 @@ public sealed class DxfPreviewCanvas : Control
         var size = Bounds.Size;
         context.FillRectangle(new SolidColorBrush(Color.Parse("#0D0D10")), new Rect(size));
 
-        if (Document is null || Document.Paths.Count == 0 || Zoom <= 0.0)
+        if (Document is null || Zoom <= 0.0)
             return;
 
         DrawGrid(context, size);
-        DrawPaperBounds(context, size, Document.Bounds);
+        if (Document.Paths.Count > 0)
+            DrawPaperBounds(context, size, Document.Bounds);
         DrawPaths(context, size, Document.Paths);
         DrawEditableVertexHandles(context, size, Document.Paths);
         DrawConstrainedRectangleHandles(context, size, Document.Paths);

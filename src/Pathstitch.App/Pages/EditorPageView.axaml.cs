@@ -251,10 +251,10 @@ public partial class EditorPageView : BasePageView
             viewModel.Show3DWorkspace();
     }
 
-    private void OnShowGeneratedOutputWorkspaceClicked(object? sender, RoutedEventArgs e)
+    private async void OnShowGeneratedOutputWorkspaceClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)
-            viewModel.ShowGeneratedOutputWorkspace();
+            await viewModel.ShowGeneratedOutputWorkspaceAsync();
     }
 
     private void OnGeneratedOutputSelectToolClicked(object? sender, RoutedEventArgs e)

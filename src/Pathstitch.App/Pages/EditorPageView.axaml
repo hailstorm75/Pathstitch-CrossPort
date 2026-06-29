@@ -447,6 +447,12 @@
                 Click="OnOpenSourceModelClicked">
                 Open 3D Model...
               </Button>
+              <Button
+                HorizontalAlignment="Center"
+                Classes="panel-button"
+                Click="OnShowGeneratedOutputWorkspaceClicked">
+                Start 2D Sketch
+              </Button>
               <TextBlock
                 HorizontalAlignment="Center"
                 FontSize="10"
@@ -480,7 +486,6 @@
                 <Button
                   Classes="chip-button"
                   Classes.active="{Binding IsShowingGeneratedOutputWorkspace}"
-                  IsEnabled="{Binding HasGeneratedOutputPreview}"
                   Content="2D Workspace"
                   Click="OnShowGeneratedOutputWorkspaceClicked" />
               </StackPanel>
@@ -2050,7 +2055,6 @@
                     <Button
                       Grid.Column="0"
                       Classes="panel-button"
-                      IsEnabled="{Binding HasGeneratedOutputPreview}"
                       Content="{Binding OutputPreviewButtonLabel}"
                       Click="OnShowGeneratedOutputWorkspaceClicked" />
                     <Button
