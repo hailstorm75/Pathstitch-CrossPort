@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleDisplayName</key><string>Pathstitch</string>
+  <key>CFBundleExecutable</key><string>Pathstitch.App</string>
+  <key>CFBundleIdentifier</key><string>com.pathstitch.crossport</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>Pathstitch</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.0.0</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key><string>com.pathstitch.project</string>
+      <key>UTTypeDescription</key><string>Pathstitch Project</string>
+      <key>UTTypeConformsTo</key><array><string>public.data</string><string>public.content</string></array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key><array><string>stch</string></array>
+        <key>public.mime-type</key><string>application/x-pathstitch</string>
+      </dict>
+    </dict>
+  </array>
+  <key>UTImportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key><string>com.pathstitch.dxf</string>
+      <key>UTTypeDescription</key><string>Drawing Exchange Format</string>
+      <key>UTTypeConformsTo</key><array><string>public.data</string><string>public.text</string></array>
+      <key>UTTypeTagSpecification</key>
+      <dict><key>public.filename-extension</key><array><string>dxf</string></array><key>public.mime-type</key><string>image/vnd.dxf</string></dict>
+    </dict>
+    <dict>
+      <key>UTTypeIdentifier</key><string>com.pathstitch.step</string>
+      <key>UTTypeDescription</key><string>STEP Product Model</string>
+      <key>UTTypeConformsTo</key><array><string>public.data</string><string>public.3d-content</string></array>
+      <key>UTTypeTagSpecification</key>
+      <dict><key>public.filename-extension</key><array><string>step</string><string>stp</string></array><key>public.mime-type</key><string>model/step</string></dict>
+    </dict>
+  </array>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key><string>Pathstitch Project</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Owner</string>
+      <key>LSItemContentTypes</key><array><string>com.pathstitch.project</string></array>
+      <key>CFBundleTypeExtensions</key><array><string>stch</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>DXF Drawing</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>com.pathstitch.dxf</string></array>
+      <key>CFBundleTypeExtensions</key><array><string>dxf</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>STEP Model</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>com.pathstitch.step</string></array>
+      <key>CFBundleTypeExtensions</key><array><string>step</string><string>stp</string></array>
+    </dict>
+  </array>
+</dict>
+</plist>

@@ -1,0 +1,74 @@
+name: macOS release readiness
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  package-osx-arm64:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Run unified release-readiness gate
+        shell: pwsh
+        run: ./scripts/verify-release-readiness.ps1 -EvidenceLabel macos-ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pathstitch-readiness-osx-arm64
+          path: artifacts/readiness
+      - name: Build application bundle
+        shell: pwsh
+        run: ./scripts/package-avalonia-macos.ps1 -SigningIdentity "-"
+      - name: Verify package contents
+        shell: pwsh
+        run: |
+          $app = "artifacts/macos/Pathstitch.app"
+          @(
+            "$app/Contents/Info.plist",
+            "$app/Contents/MacOS/Pathstitch.App",
+            "$app/Contents/MacOS/libAvaloniaNative.dylib",
+            "$app/Contents/MacOS/Assets/OpenGeometry/runtime/node",
+            "$app/Contents/PlugIns/PathstitchQuickLook.appex/Contents/MacOS/PathstitchQuickLook",
+            "$app/Contents/PlugIns/PathstitchThumbnail.appex/Contents/MacOS/PathstitchThumbnail"
+          ) | ForEach-Object { if (-not (Test-Path -LiteralPath $_)) { throw "Missing package item: $_" } }
+          & plutil -lint "$app/Contents/Info.plist"
+          & plutil -extract CFBundleDocumentTypes xml1 -o - "$app/Contents/Info.plist" | Select-String "com.pathstitch.project|com.pathstitch.dxf|com.pathstitch.step"
+          & plutil -extract NSExtension.NSExtensionAttributes.QLSupportedContentTypes xml1 -o - "$app/Contents/PlugIns/PathstitchQuickLook.appex/Contents/Info.plist"
+          & plutil -extract NSExtension.NSExtensionAttributes.QLSupportedContentTypes xml1 -o - "$app/Contents/PlugIns/PathstitchThumbnail.appex/Contents/Info.plist"
+          & codesign --verify --deep --strict --verbose=2 $app
+      - name: Launch smoke test
+        shell: pwsh
+        run: |
+          $process = Start-Process "artifacts/macos/Pathstitch.app/Contents/MacOS/Pathstitch.App" -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) { throw "Pathstitch exited during launch smoke test with $($process.ExitCode)" }
+          Stop-Process -Id $process.Id
+      - name: Finder Quick Look smoke test
+        shell: pwsh
+        run: |
+          $fixtures = "artifacts/macos/quicklook-fixtures"
+          $previews = "artifacts/macos/quicklook-previews"
+          New-Item -ItemType Directory -Force $fixtures, $previews | Out-Null
+          Set-Content "$fixtures/sample.dxf" "0`nSECTION`n2`nENTITIES`n0`nLINE`n10`n0`n20`n0`n11`n10`n21`n10`n0`nENDSEC`n0`nEOF"
+          Set-Content "$fixtures/sample.step" "ISO-10303-21;`nHEADER;`nFILE_DESCRIPTION(('Pathstitch preview fixture'),'2;1');`nENDSEC;`nDATA;`nENDSEC;`nEND-ISO-10303-21;"
+          Set-Content "$fixtures/project.json" '{"projectName":"Quick Look Fixture"}'
+          Compress-Archive "$fixtures/project.json" "$fixtures/sample.zip"
+          Move-Item "$fixtures/sample.zip" "$fixtures/sample.stch"
+          & "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister" -f "artifacts/macos/Pathstitch.app"
+          & qlmanage -r cache
+          foreach ($fixture in Get-ChildItem $fixtures -File | Where-Object { $_.Extension -in @('.stch','.dxf','.step') }) {
+            & qlmanage -t -s 256 -o $previews $fixture.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Quick Look failed for $($fixture.Name)" }
+          }
+          if ((Get-ChildItem $previews -Filter '*.png').Count -lt 3) { throw "Quick Look did not generate all fixture thumbnails" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Pathstitch-osx-arm64
+          path: artifacts/macos/Pathstitch-osx-arm64.zip
