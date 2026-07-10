@@ -1,0 +1,70 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.Editor3DView"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.workspace.3d">
+  <Border
+    x:Name="WorkspaceViewportSurface"
+    AutomationProperties.AutomationId="editor.canvas.3d"
+    Background="{StaticResource BaseBackgroundBrush}"
+    DragDrop.AllowDrop="True">
+    <Grid>
+      <NativeWebView
+        x:Name="ViewportWebView"
+        AutomationProperties.AutomationId="editor.canvas.3d.webview"
+        IsVisible="{Binding IsShowing3DWorkspace}" />
+      <Border
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        MaxWidth="360"
+        Padding="22"
+        Background="#DD141418"
+        BorderBrush="{StaticResource BorderBrush}"
+        BorderThickness="1"
+        CornerRadius="12"
+        IsVisible="{Binding ShowViewportEmptyState}">
+        <StackPanel Spacing="12">
+          <TextBlock
+            HorizontalAlignment="Center"
+            FontSize="26"
+            FontWeight="Bold"
+            Foreground="{StaticResource MutedTextBrush}"
+            Text="3D" />
+          <TextBlock
+            HorizontalAlignment="Center"
+            FontSize="14"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource PrimaryTextBrush}"
+            Text="{Binding ViewportEmptyStateTitle}" />
+          <TextBlock
+            HorizontalAlignment="Center"
+            FontSize="11"
+            TextAlignment="Center"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding ViewportEmptyStateDescription}" />
+          <Button
+            AutomationProperties.AutomationId="editor.dialog.open-3d-model"
+            HorizontalAlignment="Center"
+            Padding="14,8"
+            Background="{StaticResource AccentBrush}"
+            BorderBrush="{StaticResource AccentBrush}"
+            Foreground="White"
+            Click="OnOpenSourceModelClicked">
+            Open 3D Model...
+          </Button>
+          <TextBlock
+            HorizontalAlignment="Center"
+            FontSize="10"
+            TextAlignment="Center"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource MutedTextBrush}"
+            Text="{Binding ViewportStateText}" />
+        </StackPanel>
+      </Border>
+
+    </Grid>
+  </Border>
+</UserControl>

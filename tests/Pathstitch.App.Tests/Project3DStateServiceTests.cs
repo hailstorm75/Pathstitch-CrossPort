@@ -1,0 +1,396 @@
+using System.Globalization;
+using System.IO.Compression;
+using System.Text.Json;
+using Domain.App.Models;
+using Domain.App.Services;
+using Domain.App.ViewModels;
+
+namespace Pathstitch.App.Tests;
+
+public sealed class Project3DStateServiceTests
+{
+    [Fact]
+    public async Task LoadAsync_MapsLegacySavedStepJsonToViewportJson()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.WriteText(
+            "legacy-project.json",
+            """
+            {
+              "savedStepJson": "{\"bodies\":[],\"bbox\":{}}",
+              "savedBodies3D": []
+            }
+            """);
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        Assert.Equal("{\"bodies\":[],\"bbox\":{}}", state.ViewportJson);
+        Assert.True(state.HasModel);
+    }
+
+    [Fact]
+    public async Task SaveAsync_WritesViewportJsonAndLegacyCompatibilityAlias()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("project.stch");
+        var service = new Project3DStateService();
+        var body = new Body3D(0, "Body", [new Face3D(0, "Mesh", 50.0) { BodyIndex = 0 }]);
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(
+                ViewportJson: "{\"bodies\":[{\"body_index\":0}],\"bbox\":{}}",
+                Bodies: [body],
+                BodyOffsets: []));
+
+        await using var fileStream = File.OpenRead(projectPath);
+        using var archive = new ZipArchive(fileStream, ZipArchiveMode.Read);
+        var entry = archive.GetEntry("project.json");
+        Assert.NotNull(entry);
+        await using var entryStream = entry.Open();
+        using var document = await JsonDocument.ParseAsync(entryStream);
+        var root = document.RootElement;
+
+        Assert.Equal("{\"bodies\":[{\"body_index\":0}],\"bbox\":{}}", root.GetProperty("savedViewportJson").GetString());
+        Assert.Equal("{\"bodies\":[{\"body_index\":0}],\"bbox\":{}}", root.GetProperty("savedStepJson").GetString());
+    }
+
+    [Fact]
+    public async Task SaveAndLoadAsync_RestoresJsonMeshWorkspaceAsActiveSourceAsset()
+    {
+        using var workspace = TestWorkspace.Create();
+        var sourcePath = workspace.WriteText(
+            "mesh_workspace.json",
+            """
+            {"bodies":[]}
+            """);
+        var projectPath = workspace.GetPath("combined.stch");
+        var service = new Project3DStateService();
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(
+                ViewportJson: "{\"bodies\":[],\"bbox\":{}}",
+                Bodies: [],
+                BodyOffsets: [],
+                SourceModelPath: sourcePath));
+
+        var restored = await service.LoadAsync(projectPath);
+
+        Assert.NotNull(restored.SourceModelPath);
+        Assert.True(File.Exists(restored.SourceModelPath));
+        Assert.Equal(".json", Path.GetExtension(restored.SourceModelPath));
+        Assert.Equal("{\"bodies\":[]}", await File.ReadAllTextAsync(restored.SourceModelPath));
+    }
+
+    [Fact]
+    public async Task LoadAsync_IgnoresLegacyStepArchiveEntryAsActiveSourceAsset()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("legacy-step.stch");
+        await using (var fileStream = File.Create(projectPath))
+        using (var archive = new ZipArchive(fileStream, ZipArchiveMode.Create))
+        {
+            var projectEntry = archive.CreateEntry("project.json");
+            await using (var projectStream = projectEntry.Open())
+            await using (var writer = new StreamWriter(projectStream))
+            {
+                await writer.WriteAsync(
+                    """
+                    {
+                      "savedViewportJson": "{\"bodies\":[],\"bbox\":{}}",
+                      "savedBodies3D": []
+                    }
+                    """);
+            }
+
+            var sourceEntry = archive.CreateEntry("active.step");
+            await using var sourceStream = sourceEntry.Open();
+            await using var sourceWriter = new StreamWriter(sourceStream);
+            await sourceWriter.WriteAsync("ISO-10303-21;");
+        }
+        var service = new Project3DStateService();
+
+        var restored = await service.LoadAsync(projectPath);
+
+        Assert.Null(restored.SourceModelPath);
+    }
+
+    [Fact]
+    public async Task SaveAndLoadAsync_RoundTripsBlankIndependentTwoDWorkspace()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("blank-2d.stch");
+        var service = new Project3DStateService();
+        var line = new Editor2DPreviewPath(
+            "line-1",
+            "LINE",
+            [new Editor2DPoint(1, 2), new Editor2DPoint(3, 4)],
+            IsClosed: false);
+        var document = Editor2DWorkspaceState.Empty.Document with
+        {
+            Paths = [line],
+            Bounds = new Editor2DBounds(1, 2, 3, 4),
+            EntityCounts = new Dictionary<string, int> { ["LINE"] = 1 },
+        };
+        var twoDState = new Editor2DWorkspaceState(
+            document,
+            ActiveTool: Editor2DTool.Move,
+            SelectedPathIds: [line.Id],
+            PolygonSides: 8,
+            ViewportZoom: 2.5,
+            ViewportOffsetX: 12,
+            ViewportOffsetY: -4);
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(null, [], [], TwoDWorkspaceState: twoDState));
+
+        var restored = await service.LoadAsync(projectPath);
+
+        Assert.False(restored.HasGeneratedOutput);
+        Assert.NotNull(restored.TwoDWorkspaceState);
+        Assert.Equal(Editor2DTool.Move, restored.TwoDWorkspaceState.ActiveTool);
+        var restoredLine = Assert.Single(restored.TwoDWorkspaceState.Document.Paths);
+        Assert.Equal(line.Id, restoredLine.Id);
+        Assert.Equal(line.EntityType, restoredLine.EntityType);
+        Assert.Equal(line.Points, restoredLine.Points);
+        Assert.Equal([line.Id], restored.TwoDWorkspaceState.SelectedPathIds);
+        Assert.Equal(2.5, restored.TwoDWorkspaceState.ViewportZoom);
+    }
+
+    [Fact]
+    public async Task SaveAndLoadAsync_RoundTripsTwoDLayersAndMembership()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("layers.stch");
+        var service = new Project3DStateService();
+        var path = new Editor2DPreviewPath("path", "LINE", [new Editor2DPoint(0, 0), new Editor2DPoint(5, 0)], false);
+        var layer = new Editor2DLayer("cut", "Cut", [path.Id], IsVisible: false, IsLocked: true);
+        var state = Editor2DWorkspaceState.Empty with
+        {
+            IsInitialized = true,
+            Document = Editor2DWorkspaceState.Empty.Document with { Paths = [path] },
+            Layers = [layer],
+            ActiveLayerId = layer.Id,
+        };
+
+        await service.SaveAsync(projectPath, new Project3DState(null, [], [], TwoDWorkspaceState: state));
+        var restored = await service.LoadAsync(projectPath);
+
+        var restoredLayer = Assert.Single(restored.TwoDWorkspaceState!.Layers!);
+        Assert.Equal(layer.Id, restoredLayer.Id);
+        Assert.Equal(layer.Name, restoredLayer.Name);
+        Assert.Equal(layer.PathIds, restoredLayer.PathIds);
+        Assert.False(restoredLayer.IsVisible);
+        Assert.True(restoredLayer.IsLocked);
+        Assert.Equal(layer.Id, restored.TwoDWorkspaceState.ActiveLayerId);
+    }
+
+    [Fact]
+    public async Task SaveAndLoadAsync_RoundTripsReferenceImageLayerWithoutCreatingGeometry()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("reference-image.stch");
+        var service = new Project3DStateService();
+        var referenceImage = new Editor2DReferenceImage(
+            "reference-1",
+            "pattern.png",
+            Convert.ToBase64String([1, 2, 3, 4]),
+            800,
+            600,
+            X: 12.5,
+            Y: -8.5,
+            Width: 200,
+            Height: 150,
+            RotationDegrees: 17,
+            Opacity: 0.35,
+            CalibrationUnitsPerPixel: 0.25,
+            TraceThreshold: 0.72);
+        var referenceLayer = new Editor2DLayer(
+            referenceImage.Id,
+            "Pattern reference",
+            [],
+            IsLocked: true,
+            Kind: Editor2DLayerKind.ReferenceImage,
+            ReferenceImage: referenceImage);
+        var twoDState = Editor2DWorkspaceState.Empty with
+        {
+            IsInitialized = true,
+            Layers = [new Editor2DLayer("geometry", "Geometry", []), referenceLayer],
+            ActiveLayerId = referenceLayer.Id,
+        };
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(null, [], [], TwoDWorkspaceState: twoDState));
+        var restored = await service.LoadAsync(projectPath);
+
+        Assert.False(restored.HasGeneratedOutput);
+        Assert.NotNull(restored.TwoDWorkspaceState);
+        Assert.Empty(restored.TwoDWorkspaceState.Document.Paths);
+        var restoredLayer = Assert.Single(
+            restored.TwoDWorkspaceState.Layers!,
+            layer => layer.Kind == Editor2DLayerKind.ReferenceImage);
+        Assert.Empty(restoredLayer.PathIds);
+        Assert.True(restoredLayer.IsLocked);
+        Assert.Equal(referenceImage, restoredLayer.ReferenceImage);
+    }
+
+    [Fact]
+    public async Task SaveAndLoadAsync_RoundTripsEditableCornerSourceAndValue()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("corners.stch");
+        var service = new Project3DStateService();
+        var path = new Editor2DPreviewPath(
+            "shape",
+            "LWPOLYLINE",
+            [new Editor2DPoint(0, 0), new Editor2DPoint(10, 0), new Editor2DPoint(10, 10)],
+            true);
+        var parameter = new Editor2DCornerParameter("shape:1", path.Id, 1, Editor2DCornerKind.Chamfer, 2.5, path.Points);
+        var state = Editor2DWorkspaceState.Empty with
+        {
+            IsInitialized = true,
+            Document = Editor2DWorkspaceState.Empty.Document with { Paths = [path] },
+            CornerParameters = [parameter],
+        };
+
+        await service.SaveAsync(projectPath, new Project3DState(null, [], [], TwoDWorkspaceState: state));
+        var restored = await service.LoadAsync(projectPath);
+
+        var restoredParameter = Assert.Single(restored.TwoDWorkspaceState!.CornerParameters!);
+        Assert.Equal(parameter.Id, restoredParameter.Id);
+        Assert.Equal(2.5, restoredParameter.Value);
+        Assert.Equal(parameter.SourcePoints, restoredParameter.SourcePoints);
+        var reopenedWorkspace = new Domain.App.ViewModels.Editor2DWorkspaceViewModel();
+        reopenedWorkspace.Apply(restored.TwoDWorkspaceState, recordHistory: false);
+        Assert.True(reopenedWorkspace.UpdateCornerParameter(restoredParameter.Id, 4));
+        Assert.Equal(4, reopenedWorkspace.CornerParameters.Single().Value);
+        Assert.NotEqual(parameter.SourcePoints.Count, reopenedWorkspace.Document.Paths.Single().Points.Count);
+    }
+
+    [Fact]
+    public async Task BlankTwoDProject_CanCreateEditSaveCloseAndReopenWithoutTwoDState()
+    {
+        using var files = TestWorkspace.Create();
+        var projectPath = files.GetPath("blank-editable-2d.stch");
+        var service = new Project3DStateService();
+        var workspace = new Editor2DWorkspaceViewModel();
+        var line = new Editor2DPreviewPath(
+            "blank-line",
+            "LINE",
+            [new Editor2DPoint(2, 3), new Editor2DPoint(14, 3)],
+            IsClosed: false);
+        var measurement = new Editor2DMeasurement(
+            "blank-measurement",
+            line.Points[0],
+            line.Points[1]);
+        workspace.Edit(state => state with
+        {
+            Document = state.Document with { Paths = [line] },
+            IsInitialized = true,
+            ActiveTool = Editor2DTool.Move,
+            SelectedPathIds = [line.Id],
+            Measurements = [measurement],
+        });
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(
+                ViewportJson: null,
+                Bodies: [],
+                BodyOffsets: [],
+                GeneratedOutputPath: null,
+                GeneratedOutputDataBase64: null,
+                TwoDWorkspaceState: workspace.State));
+
+        workspace = null!; // Close the editing session; only the project archive remains.
+        var restoredProject = await service.LoadAsync(projectPath);
+        var reopenedWorkspace = new Editor2DWorkspaceViewModel();
+        reopenedWorkspace.Apply(restoredProject.TwoDWorkspaceState!, recordHistory: false);
+
+        Assert.False(restoredProject.HasGeneratedOutput);
+        Assert.Null(restoredProject.GeneratedOutputPath);
+        Assert.Null(restoredProject.GeneratedOutputDataBase64);
+        Assert.True(reopenedWorkspace.IsInitialized);
+        Assert.Equal(Editor2DTool.Move, reopenedWorkspace.ActiveTool);
+        var reopenedLine = Assert.Single(reopenedWorkspace.Document.Paths);
+        Assert.Equal(line.Id, reopenedLine.Id);
+        Assert.Equal(line.EntityType, reopenedLine.EntityType);
+        Assert.Equal(line.Points, reopenedLine.Points);
+        Assert.Equal([line.Id], reopenedWorkspace.SelectedPathIds);
+        Assert.Equal(measurement, Assert.Single(reopenedWorkspace.Measurements));
+        Assert.False(reopenedWorkspace.CanUndo);
+    }
+
+    [Fact]
+    public async Task SaveAndLoadAsync_RoundTripsToolCustomizationInEditorWorkspaceState()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("customized-tools.stch");
+        var service = new Project3DStateService();
+        var editorState = new EditorWorkspaceState(
+            Editor3DTool.Select,
+            ThreeDOrthographic: false,
+            ShowTwoDWorkspace: false,
+            ToolCustomizations:
+            [
+                new EditorToolCustomization("2d.circle", -10, "G"),
+                new EditorToolCustomization("3d.project", 2, "P"),
+            ]);
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(null, [], [], WorkspaceState: editorState));
+
+        var restored = await service.LoadAsync(projectPath);
+
+        Assert.NotNull(restored.WorkspaceState);
+        Assert.Equal(editorState.ToolCustomizations, restored.WorkspaceState.ToolCustomizations);
+    }
+
+    private sealed class TestWorkspace : IDisposable
+    {
+        private TestWorkspace(string directory)
+        {
+            Directory = directory;
+        }
+
+        private string Directory { get; }
+
+        public static TestWorkspace Create()
+        {
+            var directory = Path.Combine(
+                Path.GetTempPath(),
+                "Pathstitch-CrossPort-ProjectStateTests",
+                Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
+            System.IO.Directory.CreateDirectory(directory);
+            return new TestWorkspace(directory);
+        }
+
+        public string GetPath(string fileName)
+            => Path.Combine(Directory, fileName);
+
+        public string WriteText(string fileName, string contents)
+        {
+            var path = GetPath(fileName);
+            File.WriteAllText(path, contents);
+            return path;
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                if (System.IO.Directory.Exists(Directory))
+                    System.IO.Directory.Delete(Directory, recursive: true);
+            }
+            catch
+            {
+                // Test cleanup is best-effort; stale temp files do not affect assertions.
+            }
+        }
+    }
+}

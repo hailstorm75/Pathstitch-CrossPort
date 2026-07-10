@@ -1,0 +1,165 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.Editor3DBodiesPanel"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.context.3d-bodies">
+  <Border
+    Grid.Column="1"
+    Background="{StaticResource PanelBackgroundBrush}"
+    BorderBrush="{StaticResource BorderBrush}"
+    BorderThickness="0,0,1,0"
+    Padding="14">
+    <StackPanel Spacing="12">
+      <TextBlock
+        FontSize="13"
+        FontWeight="SemiBold"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="SOLID BODIES" />
+
+      <TextBlock
+        FontSize="11"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="{Binding ViewportStateText}" />
+
+      <Border
+        Padding="10"
+        Background="{StaticResource InputBackgroundBrush}"
+        BorderBrush="{StaticResource BorderBrush}"
+        BorderThickness="1"
+        CornerRadius="8">
+        <StackPanel Spacing="4">
+          <TextBlock
+            FontSize="10"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="IN-PROCESS 3D KERNEL" />
+          <TextBlock
+            FontSize="11"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource PrimaryTextBrush}"
+            Text="{Binding GeometryKernelDisplayName}" />
+          <TextBlock
+            FontSize="10"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding GeometryKernelRuntimeSummary}" />
+          <TextBlock
+            FontSize="10"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding GeometryKernelSupportedSourceModelSummary}" />
+          <TextBlock
+            FontSize="10"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource MutedTextBrush}"
+            Text="{Binding GeometryKernelRequirementSummary}" />
+        </StackPanel>
+      </Border>
+
+      <Button
+        Classes="panel-button"
+        Content="{Binding SourceModelActionLabel}"
+        Click="OnOpenSourceModelClicked" />
+      <TextBlock
+        FontSize="10"
+        TextWrapping="Wrap"
+        Foreground="{StaticResource MutedTextBrush}"
+        Text="{Binding SourceModelWorkflowHint}" />
+      <TextBlock
+        FontSize="10"
+        TextWrapping="Wrap"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="{Binding SourceModelAssetStatusSummary}" />
+      <TextBlock
+        FontSize="10"
+        Foreground="{StaticResource MutedTextBrush}"
+        Text="{Binding BodyInventorySummary}" />
+      <TextBlock
+        FontSize="10"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="{Binding VisibleBodyScopeSummary}" />
+
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Bodies}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="models:Body3D">
+              <Border
+                Classes="body-card"
+                Margin="0,0,0,10"
+                Padding="10"
+                Background="{StaticResource InputBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Classes.active="{Binding IsSelected}">
+                <StackPanel Spacing="8">
+                  <DockPanel>
+                    <Button
+                      DockPanel.Dock="Left"
+                      Width="22"
+                      Height="22"
+                      Margin="0,0,8,0"
+                      Padding="0"
+                      Tag="{Binding BodyIndex}"
+                      Click="OnBodyVisibilityClicked">
+                      <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="10"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="{Binding VisibilityLabel}" />
+                    </Button>
+                    <Button
+                      Classes="body-select"
+                      Classes.active="{Binding IsSelected}"
+                      Tag="{Binding BodyIndex}"
+                      Click="OnBodySelectClicked">
+                      <TextBlock
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Foreground="{Binding $parent[Button].Foreground}"
+                        Text="{Binding Name}" />
+                    </Button>
+                    <TextBlock
+                      DockPanel.Dock="Right"
+                      FontSize="10"
+                      Foreground="{StaticResource SecondaryTextBrush}"
+                      Text="{Binding Faces.Count}" />
+                  </DockPanel>
+
+                  <ItemsControl IsVisible="{Binding Visible}" ItemsSource="{Binding Faces}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="models:Face3D">
+                        <Button
+                          Classes="face-row"
+                          Classes.active="{Binding IsSelected}"
+                          Margin="0,0,0,4"
+                          Tag="{Binding FaceKey}"
+                          PointerPressed="OnFaceSelectionPressed">
+                          <DockPanel>
+                            <TextBlock
+                              FontSize="11"
+                              Foreground="{StaticResource PrimaryTextBrush}"
+                              Text="{Binding FaceIndex}" />
+                            <TextBlock
+                              DockPanel.Dock="Right"
+                              FontSize="10"
+                              Foreground="{StaticResource SecondaryTextBrush}"
+                              Text="{Binding Type}" />
+                          </DockPanel>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </StackPanel>
+  </Border>
+</UserControl>
