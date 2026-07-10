@@ -1,0 +1,49 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorBatchContextPanel"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorBatchWorkspaceViewModel"
+  AutomationProperties.AutomationId="editor.context.batch">
+  <Border
+    Background="{StaticResource PanelBackgroundBrush}"
+    BorderBrush="{StaticResource BorderBrush}"
+    BorderThickness="0,0,1,0"
+    Padding="14">
+    <StackPanel Spacing="12">
+      <TextBlock
+        FontSize="13"
+        FontWeight="SemiBold"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="BATCH ACTIONS" />
+      <TextBlock
+        FontSize="10"
+        TextWrapping="Wrap"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="Queue projects here without opening them in the 2D or 3D editor." />
+      <ComboBox
+        AutomationProperties.AutomationId="editor.batch.action"
+        ItemsSource="{Binding AvailableActions}"
+        SelectedItem="{Binding SelectedAction}" />
+      <TextBox
+        AutomationProperties.AutomationId="editor.batch.input-path"
+        PlaceholderText="Path to a .stch project"
+        Text="{Binding InputPath, Mode=TwoWay}" />
+      <Button
+        AutomationProperties.AutomationId="editor.batch.add"
+        Classes="panel-button"
+        Content="Add project"
+        Click="OnAddProjectClicked" />
+      <ToggleSwitch
+        AutomationProperties.AutomationId="editor.batch.continue-on-error"
+        Content="Continue after errors"
+        IsChecked="{Binding ContinueOnError}" />
+      <Button
+        AutomationProperties.AutomationId="editor.batch.run"
+        Classes="panel-button"
+        Content="Run batch"
+        IsEnabled="{Binding CanRun}"
+        Click="OnRunBatchClicked" />
+    </StackPanel>
+  </Border>
+</UserControl>

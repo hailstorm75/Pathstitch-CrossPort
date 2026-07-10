@@ -1,0 +1,47 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorBatchView"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorBatchWorkspaceViewModel"
+  AutomationProperties.AutomationId="editor.workspace.batch">
+  <Grid Margin="28" RowDefinitions="Auto,*">
+    <StackPanel Spacing="4">
+      <TextBlock
+        FontSize="20"
+        FontWeight="SemiBold"
+        Foreground="{StaticResource PrimaryTextBrush}"
+        Text="Batch validation" />
+      <TextBlock
+        AutomationProperties.AutomationId="editor.batch.summary"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="{Binding Summary}" />
+    </StackPanel>
+    <ScrollViewer Grid.Row="1" Margin="0,18,0,0">
+      <ItemsControl ItemsSource="{Binding Items}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="models:EditorBatchItem">
+            <Border
+              AutomationProperties.AutomationId="{Binding FilePath, StringFormat=batch.item.{0}}"
+              Margin="0,0,0,10"
+              Padding="14"
+              Background="{StaticResource PanelBackgroundBrush}"
+              BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4">
+                  <TextBlock Foreground="{StaticResource PrimaryTextBrush}" Text="{Binding FileName}" />
+                  <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding FilePath}" />
+                  <TextBlock FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding Message}" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Foreground="{StaticResource AccentBrush}" Text="{Binding Status}" />
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </Grid>
+</UserControl>
