@@ -1,0 +1,25 @@
+name: Windows release readiness
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify-win-x64:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Run unified release-readiness gate
+        shell: pwsh
+        run: ./scripts/verify-release-readiness.ps1 -EvidenceLabel windows-ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pathstitch-readiness-win-x64
+          path: artifacts/readiness
