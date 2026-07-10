@@ -9,7 +9,7 @@ public sealed partial class EditorPageViewModel
         get => _threeDWorkspace.SelectedFaces;
         private set
         {
-            if (!_threeDWorkspace.UpdateSelectedFaces(value))
+            if (!_threeDWorkspace.SetSelectedFaces(value))
                 return;
 
             OnPropertyChanged();
@@ -40,7 +40,7 @@ public sealed partial class EditorPageViewModel
         get => _threeDWorkspace.SelectedFaceDetails;
         private set
         {
-            if (!_threeDWorkspace.UpdateSelectedFaceDetails(value))
+            if (!_threeDWorkspace.SetSelectedFaceDetails(value))
                 return;
 
             OnPropertyChanged();
@@ -72,7 +72,7 @@ public sealed partial class EditorPageViewModel
         => SelectFaceFromPanel(bodyIndex, faceIndex, isShiftKey: false);
 
     public void SelectFaceFromPanel(int bodyIndex, int faceIndex, bool isShiftKey)
-        => ApplyFaceSelection(new SelectedFace3D(bodyIndex, faceIndex), isShiftKey, syncViewport: true);
+        => ApplyFaceSelection(CreateSelectedFace(bodyIndex, faceIndex), isShiftKey, syncViewport: true);
 
     public void ClearSelectedFaces()
     {
@@ -87,8 +87,8 @@ public sealed partial class EditorPageViewModel
 
     public void RemoveSelectedFaceFromQueue(int bodyIndex, int faceIndex)
     {
-        var selection = new SelectedFace3D(bodyIndex, faceIndex);
-        if (!SelectedFaces.Contains(selection))
+        var selection = SelectedFaces.FirstOrDefault(face => HasSameViewportIndex(face, bodyIndex, faceIndex));
+        if (selection is null)
             return;
 
         SelectedFaces = SelectedFaces
@@ -108,7 +108,7 @@ public sealed partial class EditorPageViewModel
             return;
 
         ApplyFaceSelection(
-            new SelectedFace3D(message.BodyIndex.Value, message.FaceIndex.Value),
+            CreateSelectedFace(message.BodyIndex.Value, message.FaceIndex.Value),
             message.IsShiftKey,
             syncViewport: false);
     }
@@ -170,8 +170,9 @@ public sealed partial class EditorPageViewModel
 
         if (isShiftKey)
         {
-            if (SelectedFaces.Contains(selection))
-                SelectedFaces = SelectedFaces.Where(x => x != selection).ToArray();
+            var existing = SelectedFaces.FirstOrDefault(face => HasSameViewportIndex(face, selection.BodyIndex, selection.FaceIndex));
+            if (existing is not null)
+                SelectedFaces = SelectedFaces.Where(x => x != existing).ToArray();
             else
                 SelectedFaces = SelectedFaces.Concat([selection]).ToArray();
         }
@@ -203,7 +204,7 @@ public sealed partial class EditorPageViewModel
         if (Bodies.Count == 0)
             return;
 
-        var selectedFaces = SelectedFaces.ToHashSet();
+        var selectedFaces = SelectedFaces.Select(face => (face.BodyIndex, face.FaceIndex)).ToHashSet();
         Bodies = Bodies
             .Select(body => body with
             {
@@ -211,10 +212,32 @@ public sealed partial class EditorPageViewModel
                     .Select(face => face with
                     {
                         BodyIndex = body.BodyIndex,
-                        IsSelected = selectedFaces.Contains(new SelectedFace3D(body.BodyIndex, face.FaceIndex)),
+                        IsSelected = selectedFaces.Contains((body.BodyIndex, face.FaceIndex)),
                     })
                     .ToArray(),
             })
             .ToArray();
     }
+
+    private SelectedFace3D CreateSelectedFace(int bodyIndex, int faceIndex)
+    {
+        if (_stepTopology is not null
+            && bodyIndex >= 0 && bodyIndex < _stepTopology.Bodies.Count
+            && faceIndex >= 0 && faceIndex < _stepTopology.Bodies[bodyIndex].Faces.Count)
+        {
+            var body = _stepTopology.Bodies[bodyIndex];
+            return new SelectedFace3D(bodyIndex, faceIndex, body.Id, body.Faces[faceIndex].Id);
+        }
+
+        return new SelectedFace3D(bodyIndex, faceIndex);
+    }
+
+    private IReadOnlyList<SelectedFace3D> HydrateStableFaceReferences(IReadOnlyList<SelectedFace3D> faces)
+        => faces.Select(face => face.FaceId is null
+                ? CreateSelectedFace(face.BodyIndex, face.FaceIndex)
+                : face)
+            .ToArray();
+
+    private static bool HasSameViewportIndex(SelectedFace3D face, int bodyIndex, int faceIndex)
+        => face.BodyIndex == bodyIndex && face.FaceIndex == faceIndex;
 }

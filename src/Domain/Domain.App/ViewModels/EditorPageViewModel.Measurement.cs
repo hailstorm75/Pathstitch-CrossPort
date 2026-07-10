@@ -17,7 +17,7 @@ public sealed partial class EditorPageViewModel
         get => _distortionModeIndex;
         set
         {
-            if (!SetProperty(ref _distortionModeIndex, value))
+            if (!SetWorkspaceFacadeValue(_distortionModeIndex, value, updated => _distortionModeIndex = updated))
                 return;
 
             OnPropertyChanged(nameof(DistortionModeLabel));
@@ -138,11 +138,7 @@ public sealed partial class EditorPageViewModel
 
         StatusText = $"Analyzing {DistortionModeLabel.ToLowerInvariant()} distortion";
 
-        var nextCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var previousCancellationTokenSource = _distortionRefreshCancellationTokenSource;
-        _distortionRefreshCancellationTokenSource = nextCancellationTokenSource;
-        previousCancellationTokenSource?.Cancel();
-        previousCancellationTokenSource?.Dispose();
+        var nextCancellationTokenSource = _threeDWorkspace.BeginDistortionRefresh(cancellationToken);
 
         await RefreshDistortionAsync(nextCancellationTokenSource, TimeSpan.Zero).ConfigureAwait(true);
 
@@ -153,11 +149,7 @@ public sealed partial class EditorPageViewModel
 
     private void RequestDistortionRefresh(TimeSpan? delay = null)
     {
-        var nextCancellationTokenSource = new CancellationTokenSource();
-        var previousCancellationTokenSource = _distortionRefreshCancellationTokenSource;
-        _distortionRefreshCancellationTokenSource = nextCancellationTokenSource;
-        previousCancellationTokenSource?.Cancel();
-        previousCancellationTokenSource?.Dispose();
+        var nextCancellationTokenSource = _threeDWorkspace.BeginDistortionRefresh();
 
         _ = RefreshDistortionAsync(nextCancellationTokenSource, delay ?? TimeSpan.Zero);
     }
@@ -178,7 +170,7 @@ public sealed partial class EditorPageViewModel
                 return;
             }
 
-            var result = await _editor3DOperationService.ComputeFaceDistortionAsync(
+            var result = await _threeDWorkspace.ComputeDistortionAsync(
                 _sourceModelPath,
                 SelectedFaces[0],
                 GetDistortionModeValue(),
@@ -206,10 +198,7 @@ public sealed partial class EditorPageViewModel
         }
         finally
         {
-            if (ReferenceEquals(_distortionRefreshCancellationTokenSource, cancellationTokenSource))
-                _distortionRefreshCancellationTokenSource = null;
-
-            cancellationTokenSource.Dispose();
+            _threeDWorkspace.CompleteDistortionRefresh(cancellationTokenSource);
         }
     }
 

@@ -11,7 +11,7 @@ public sealed partial class EditorPageViewModel
         get => _isPlaneSelectionActive;
         private set
         {
-            if (!SetProperty(ref _isPlaneSelectionActive, value))
+            if (!SetWorkspaceFacadeValue(_isPlaneSelectionActive, value, updated => _isPlaneSelectionActive = updated))
                 return;
 
             OnPropertyChanged(nameof(ShowProjectionStartAction));
@@ -40,7 +40,7 @@ public sealed partial class EditorPageViewModel
         get => _planeSelectionModeType;
         private set
         {
-            if (!SetProperty(ref _planeSelectionModeType, value))
+            if (!SetWorkspaceFacadeValue(_planeSelectionModeType, value, updated => _planeSelectionModeType = updated))
                 return;
 
             OnPropertyChanged(nameof(CanConfirmProjection));
@@ -91,7 +91,7 @@ public sealed partial class EditorPageViewModel
         get => _selectedProjectionPlane;
         private set
         {
-            if (!SetProperty(ref _selectedProjectionPlane, value))
+            if (!SetWorkspaceFacadeValue(_selectedProjectionPlane, value, updated => _selectedProjectionPlane = updated))
                 return;
 
             OnPropertyChanged(nameof(CanConfirmProjection));
@@ -115,7 +115,7 @@ public sealed partial class EditorPageViewModel
         get => _selectedProjectionFaceIndex;
         private set
         {
-            if (!SetProperty(ref _selectedProjectionFaceIndex, value))
+            if (!SetWorkspaceFacadeValue(_selectedProjectionFaceIndex, value, updated => _selectedProjectionFaceIndex = updated))
                 return;
 
             OnPropertyChanged(nameof(CanConfirmProjection));
@@ -135,7 +135,7 @@ public sealed partial class EditorPageViewModel
         get => _selectedProjectionBodyIndex;
         private set
         {
-            if (!SetProperty(ref _selectedProjectionBodyIndex, value))
+            if (!SetWorkspaceFacadeValue(_selectedProjectionBodyIndex, value, updated => _selectedProjectionBodyIndex = updated))
                 return;
 
             OnPropertyChanged(nameof(CanConfirmProjection));
@@ -155,7 +155,7 @@ public sealed partial class EditorPageViewModel
         get => _planeOffset;
         private set
         {
-            if (!SetProperty(ref _planeOffset, value))
+            if (!SetWorkspaceFacadeValue(_planeOffset, value, updated => _planeOffset = updated))
                 return;
 
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
@@ -167,7 +167,7 @@ public sealed partial class EditorPageViewModel
         get => _isPlaneOffsetTextValid;
         private set
         {
-            if (!SetProperty(ref _isPlaneOffsetTextValid, value))
+            if (!SetWorkspaceFacadeValue(_isPlaneOffsetTextValid, value, updated => _isPlaneOffsetTextValid = updated))
                 return;
 
             OnPropertyChanged(nameof(CanConfirmProjection));
@@ -180,7 +180,7 @@ public sealed partial class EditorPageViewModel
         get => _planeOffsetText;
         set
         {
-            if (!SetProperty(ref _planeOffsetText, value))
+            if (!SetWorkspaceFacadeValue(_planeOffsetText, value, updated => _planeOffsetText = updated))
                 return;
 
             if (TryParsePlaneOffsetText(value, out var parsed))
@@ -200,7 +200,7 @@ public sealed partial class EditorPageViewModel
     public string ProjectionSelectionSummary
     {
         get => _projectionSelectionSummary;
-        private set => SetProperty(ref _projectionSelectionSummary, value);
+        private set => SetWorkspaceFacadeValue(_projectionSelectionSummary, value, updated => _projectionSelectionSummary = updated);
     }
 
     public string ProjectionOriginPlaneSummary => !IsProjectionOriginMode
@@ -364,7 +364,7 @@ public sealed partial class EditorPageViewModel
 
         try
         {
-            var result = await _editor3DOperationService.ProjectEdgesAsync(
+            var result = await _threeDWorkspace.ProjectAsync(
                 BuildProjectionRequest(),
                 cancellationToken).ConfigureAwait(true);
 
@@ -400,7 +400,17 @@ public sealed partial class EditorPageViewModel
             FaceIndex: SelectedProjectionFaceIndex,
             FaceBodyIndex: SelectedProjectionBodyIndex,
             VisibleBodyIndices: Bodies.Where(x => x.Visible).Select(x => x.BodyIndex).ToArray(),
-            BodyOffsets: BodyOffsets);
+            BodyOffsets: BodyOffsets,
+            FaceId: SelectedProjectionBodyIndex is { } bodyIndex && SelectedProjectionFaceIndex is { } faceIndex
+                ? CreateSelectedFace(bodyIndex, faceIndex).FaceId
+                : null,
+            VisibleBodyIds: Bodies.Where(x => x.Visible)
+                .Select(body => _stepTopology is not null && body.BodyIndex >= 0 && body.BodyIndex < _stepTopology.Bodies.Count
+                    ? _stepTopology.Bodies[body.BodyIndex].Id
+                    : null)
+                .Where(id => id is not null)
+                .Cast<string>()
+                .ToArray());
 
     private string BuildSetPlaneSelectionStateScript()
     {

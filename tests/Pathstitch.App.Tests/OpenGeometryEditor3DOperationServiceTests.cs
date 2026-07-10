@@ -257,7 +257,7 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
     }
 
     [Fact]
-    public async Task LoadModelAsync_RejectsStepUntilOpenGeometryProvidesDesktopImport()
+    public async Task LoadModelAsync_ReportsTypedFailureWhenPackagedStepRuntimeIsMissing()
     {
         using var workspace = TestWorkspace.Create();
         var stepPath = workspace.WriteText("part.step", "ISO-10303-21;");
@@ -266,10 +266,10 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
         var result = await service.LoadModelAsync(stepPath);
 
         Assert.False(result.IsSuccess);
-        Assert.Contains("STEP import is not available through OpenGeometry", result.Message, StringComparison.Ordinal);
-        Assert.Contains("Convert STEP files to OBJ or STL", result.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("macOS", result.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Python", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(result.Failure);
+        Assert.Equal(GeometryKernelFailureCode.SourceUnavailable, result.Failure.Code);
+        Assert.Equal(GeometryKernelOperation.Import, result.Failure.Operation);
+        Assert.Contains("app-owned STEP geometry worker", result.Message, StringComparison.Ordinal);
     }
 
     private static OpenGeometryEditor3DOperationService CreateService()

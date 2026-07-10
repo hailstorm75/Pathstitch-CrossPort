@@ -17,19 +17,19 @@ public sealed partial class EditorPageViewModel
     public string ViewportStateText
     {
         get => _viewportStateText;
-        private set => SetProperty(ref _viewportStateText, value);
+        private set => SetWorkspaceFacadeValue(_viewportStateText, value, updated => _viewportStateText = updated);
     }
 
     public string SelectionSummary
     {
         get => _selectionSummary;
-        private set => SetProperty(ref _selectionSummary, value);
+        private set => SetWorkspaceFacadeValue(_selectionSummary, value, updated => _selectionSummary = updated);
     }
 
     public string LastViewportEvent
     {
         get => _lastViewportEvent;
-        private set => SetProperty(ref _lastViewportEvent, value);
+        private set => SetWorkspaceFacadeValue(_lastViewportEvent, value, updated => _lastViewportEvent = updated);
     }
 
     public string? ErrorMessage
@@ -41,13 +41,13 @@ public sealed partial class EditorPageViewModel
     public bool ViewportReady
     {
         get => _viewportReady;
-        private set => SetProperty(ref _viewportReady, value);
+        private set => SetWorkspaceFacadeValue(_viewportReady, value, updated => _viewportReady = updated);
     }
 
     public int SelectedFaceCount
     {
         get => _selectedFaceCount;
-        private set => SetProperty(ref _selectedFaceCount, value);
+        private set => SetWorkspaceFacadeValue(_selectedFaceCount, value, updated => _selectedFaceCount = updated);
     }
 
     public string? ViewportJsonContent
@@ -55,7 +55,7 @@ public sealed partial class EditorPageViewModel
         get => _threeDWorkspace.ViewportJsonContent;
         private set
         {
-            if (!_threeDWorkspace.UpdateViewportJson(value))
+            if (!_threeDWorkspace.SetViewportJson(value))
                 return;
 
             OnPropertyChanged();

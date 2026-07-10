@@ -11,7 +11,7 @@ public sealed partial class EditorPageViewModel
         get => _threeDOrthographic;
         private set
         {
-            if (!SetProperty(ref _threeDOrthographic, value))
+            if (!SetWorkspaceFacadeValue(_threeDOrthographic, value, updated => _threeDOrthographic = updated))
                 return;
 
             SyncSidebarToolStates();

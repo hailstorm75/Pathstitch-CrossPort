@@ -85,7 +85,7 @@ public sealed class Project3DStateServiceTests
     }
 
     [Fact]
-    public async Task LoadAsync_IgnoresLegacyStepArchiveEntryAsActiveSourceAsset()
+    public async Task LoadAsync_RestoresEmbeddedStepAsActiveSourceAsset()
     {
         using var workspace = TestWorkspace.Create();
         var projectPath = workspace.GetPath("legacy-step.stch");
@@ -114,7 +114,10 @@ public sealed class Project3DStateServiceTests
 
         var restored = await service.LoadAsync(projectPath);
 
-        Assert.Null(restored.SourceModelPath);
+        Assert.NotNull(restored.SourceModelPath);
+        Assert.True(File.Exists(restored.SourceModelPath));
+        Assert.Equal(".step", Path.GetExtension(restored.SourceModelPath), ignoreCase: true);
+        Assert.Equal("ISO-10303-21;", await File.ReadAllTextAsync(restored.SourceModelPath));
     }
 
     [Fact]

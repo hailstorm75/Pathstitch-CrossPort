@@ -200,7 +200,15 @@ public sealed partial class EditorPageViewModel
             SelectedFaces: SelectedFaces,
             WholeBody: wholeBody,
             VisibleBodyIndices: Bodies.Where(x => x.Visible).Select(x => x.BodyIndex).ToArray(),
-            DistortionMode: GetDistortionModeValue());
+            DistortionMode: GetDistortionModeValue(),
+            SelectedFaceIds: SelectedFaces.Where(face => face.FaceId is not null).Select(face => face.FaceId!).ToArray(),
+            VisibleBodyIds: Bodies.Where(x => x.Visible)
+                .Select(body => _stepTopology is not null && body.BodyIndex >= 0 && body.BodyIndex < _stepTopology.Bodies.Count
+                    ? _stepTopology.Bodies[body.BodyIndex].Id
+                    : null)
+                .Where(id => id is not null)
+                .Cast<string>()
+                .ToArray());
 
     private void NotifyUnfoldPreviewScopeChanged()
     {

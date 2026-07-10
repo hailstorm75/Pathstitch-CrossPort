@@ -14,6 +14,8 @@ public sealed class ProjectSessionService(
     {
         ".obj",
         ".stl",
+        ".step",
+        ".stp",
     };
 
     private static readonly ProjectTemplateDefinition[] Templates =
@@ -111,7 +113,7 @@ public sealed class ProjectSessionService(
             .ToArray();
 
         if (unsupportedFiles.Length > 0)
-            throw new InvalidOperationException("The home screen currently supports existing .stch projects or OpenGeometry mesh source models (.obj, .stl).");
+            throw new InvalidOperationException("The home screen supports existing .stch projects, STEP/STP B-rep models, and OBJ/STL meshes.");
 
         if (projectFiles.Length > 1)
         {

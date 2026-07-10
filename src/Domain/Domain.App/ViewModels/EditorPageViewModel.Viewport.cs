@@ -10,9 +10,6 @@ public sealed partial class EditorPageViewModel
 {
     private void FlushPendingScripts()
     {
-        while (_pendingViewportScripts.Count > 0)
-            _threeDWorkspace.RequestViewportScript(_pendingViewportScripts.Dequeue());
-
         if (SelectedFaces.Count > 0)
             _threeDWorkspace.RequestViewportScript(BuildSetSelectedFacesScript(SelectedFaces));
 
@@ -25,13 +22,7 @@ public sealed partial class EditorPageViewModel
 
     private void RequestViewportScript(string script)
     {
-        if (ViewportReady)
-        {
-            _threeDWorkspace.RequestViewportScript(script);
-            return;
-        }
-
-        _pendingViewportScripts.Enqueue(script);
+        _threeDWorkspace.DispatchViewportScript(script);
     }
 
     private static string BuildLoadModelScript(string viewportJson)

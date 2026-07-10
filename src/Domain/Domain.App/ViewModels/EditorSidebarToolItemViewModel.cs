@@ -72,6 +72,7 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
     public bool StartsSection { get; }
 
     private bool _isEnabled;
+    private bool _isCustomizationMode;
 
     public bool IsActive
     {
@@ -83,5 +84,11 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
     {
         get => _isEnabled;
         set => SetProperty(ref _isEnabled, value);
+    }
+
+    public bool IsCustomizationMode
+    {
+        get => _isCustomizationMode;
+        set => SetProperty(ref _isCustomizationMode, value);
     }
 }

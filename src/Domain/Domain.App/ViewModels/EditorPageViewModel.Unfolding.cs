@@ -13,7 +13,7 @@ public sealed partial class EditorPageViewModel
             if (value && !CanUseLiveRecompute)
                 value = false;
 
-            if (!SetProperty(ref _liveRecomputeEnabled, value))
+            if (!SetWorkspaceFacadeValue(_liveRecomputeEnabled, value, updated => _liveRecomputeEnabled = updated))
                 return;
 
             OnPropertyChanged(nameof(UnfoldPreviewModeSummary));
@@ -88,23 +88,14 @@ public sealed partial class EditorPageViewModel
     }
 
     private void CancelLiveRecompute()
-    {
-        var cancellationTokenSource = _liveRecomputeCancellationTokenSource;
-        _liveRecomputeCancellationTokenSource = null;
-        cancellationTokenSource?.Cancel();
-        cancellationTokenSource?.Dispose();
-    }
+        => _threeDWorkspace.CancelLiveRecompute();
 
     private void RequestLiveRecompute(TimeSpan? delay = null)
     {
         if (!LiveRecomputeEnabled || !CanUseLiveRecompute)
             return;
 
-        var nextCancellationTokenSource = new CancellationTokenSource();
-        var previousCancellationTokenSource = _liveRecomputeCancellationTokenSource;
-        _liveRecomputeCancellationTokenSource = nextCancellationTokenSource;
-        previousCancellationTokenSource?.Cancel();
-        previousCancellationTokenSource?.Dispose();
+        var nextCancellationTokenSource = _threeDWorkspace.BeginLiveRecompute();
 
         _ = RunLiveRecomputeAsync(nextCancellationTokenSource, delay ?? TimeSpan.FromMilliseconds(300));
     }
@@ -143,10 +134,7 @@ public sealed partial class EditorPageViewModel
         }
         finally
         {
-            if (ReferenceEquals(_liveRecomputeCancellationTokenSource, cancellationTokenSource))
-                _liveRecomputeCancellationTokenSource = null;
-
-            cancellationTokenSource.Dispose();
+            _threeDWorkspace.CompleteLiveRecompute(cancellationTokenSource);
         }
     }
 
@@ -159,7 +147,7 @@ public sealed partial class EditorPageViewModel
         StatusText = $"{actionLabel} running";
         ErrorMessage = null;
 
-        var result = await _editor3DOperationService.UnfoldAsync(
+        var result = await _threeDWorkspace.UnfoldAsync(
             BuildUnfoldRequest(wholeBody),
             cancellationToken).ConfigureAwait(true);
 

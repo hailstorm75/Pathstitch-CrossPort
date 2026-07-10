@@ -9,6 +9,7 @@ public sealed partial class EditorPageViewModel
     private IReadOnlyList<EditorToolDescriptor> _toolDescriptors = EditorToolCatalog.All;
     private IReadOnlyList<EditorSidebarToolItemViewModel> _sidebarTools = CreateSidebarTools(EditorToolCatalog.All);
     private string _commandSearchQuery = string.Empty;
+    private bool _isToolbarCustomizationMode;
 
     public IReadOnlyList<EditorSidebarToolItemViewModel> SidebarTools
         => _sidebarTools
@@ -57,6 +58,18 @@ public sealed partial class EditorPageViewModel
                 descriptor.Order,
                 descriptor.ShortcutText))
             .ToArray();
+
+    public bool IsToolbarCustomizationMode
+    {
+        get => _isToolbarCustomizationMode;
+        set
+        {
+            if (!SetProperty(ref _isToolbarCustomizationMode, value))
+                return;
+            foreach (var tool in _sidebarTools)
+                tool.IsCustomizationMode = value;
+        }
+    }
 
     public Editor3DTool ActiveTool
     {
@@ -169,6 +182,49 @@ public sealed partial class EditorPageViewModel
         var customizations = ToolCustomizations
             .Select(customization => string.Equals(customization.Identifier, identifier, StringComparison.Ordinal)
                 ? customization with { Order = order, ShortcutText = shortcutText }
+                : customization)
+            .ToArray();
+        ApplyToolCustomizations(customizations, requestPersistence: true);
+    }
+
+    public bool MoveToolCustomization(string identifier, int direction)
+    {
+        var ordered = _toolDescriptors
+            .Where(descriptor => descriptor.Mode == ActiveEditorMode)
+            .OrderBy(descriptor => descriptor.Order)
+            .ThenBy(descriptor => descriptor.Identifier, StringComparer.Ordinal)
+            .ToArray();
+        var index = Array.FindIndex(ordered, descriptor => string.Equals(
+            descriptor.Identifier,
+            identifier,
+            StringComparison.Ordinal));
+        var target = index + Math.Sign(direction);
+        if (index < 0 || target < 0 || target >= ordered.Length)
+            return false;
+
+        var first = ordered[index];
+        var second = ordered[target];
+        var customizations = ToolCustomizations
+            .Select(customization => customization.Identifier switch
+            {
+                var value when string.Equals(value, first.Identifier, StringComparison.Ordinal)
+                    => customization with { Order = second.Order },
+                var value when string.Equals(value, second.Identifier, StringComparison.Ordinal)
+                    => customization with { Order = first.Order },
+                _ => customization,
+            })
+            .ToArray();
+        ApplyToolCustomizations(customizations, requestPersistence: true);
+        return true;
+    }
+
+    public void ResetToolbarCustomizationForActiveMode()
+    {
+        var defaults = EditorToolCatalog.ForMode(ActiveEditorMode)
+            .ToDictionary(descriptor => descriptor.Identifier, StringComparer.Ordinal);
+        var customizations = ToolCustomizations
+            .Select(customization => defaults.TryGetValue(customization.Identifier, out var descriptor)
+                ? customization with { Order = descriptor.Order, ShortcutText = descriptor.ShortcutText }
                 : customization)
             .ToArray();
         ApplyToolCustomizations(customizations, requestPersistence: true);
@@ -342,6 +398,8 @@ public sealed partial class EditorPageViewModel
     {
         _toolDescriptors = EditorToolCatalog.ApplyCustomizations(customizations);
         _sidebarTools = CreateSidebarTools(_toolDescriptors);
+        foreach (var tool in _sidebarTools)
+            tool.IsCustomizationMode = IsToolbarCustomizationMode;
         SyncSidebarToolStates();
         OnPropertyChanged(nameof(SidebarTools));
         OnPropertyChanged(nameof(CommandSearchResults));

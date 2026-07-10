@@ -53,6 +53,27 @@ public sealed class EditorDirectToolTests
         Assert.Contains("Orientation=\"Horizontal\"", rail, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ToolRail_CustomizationUiReordersByStableIdentifierAndPersistsTheOrder()
+    {
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests();
+        await editor.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var initial = editor.SidebarTools.Select(tool => tool.Identifier).ToArray();
+        var movedIdentifier = initial[1];
+
+        Assert.True(editor.MoveToolCustomization(movedIdentifier, -1));
+
+        Assert.Equal(movedIdentifier, editor.SidebarTools[0].Identifier);
+        Assert.Equal(
+            editor.SidebarTools[0].Order,
+            editor.ToolCustomizations.Single(item => item.Identifier == movedIdentifier).Order);
+        var rail = ReadPage("EditorToolRail.axaml");
+        Assert.Contains("editor.tool-rail.customize", rail, StringComparison.Ordinal);
+        Assert.Contains("OnMoveToolEarlierClicked", rail, StringComparison.Ordinal);
+        Assert.Contains("OnMoveToolLaterClicked", rail, StringComparison.Ordinal);
+        Assert.Contains("Identifier, StringFormat={}{0}.move-up", rail, StringComparison.Ordinal);
+    }
+
     private static string ReadPage(string fileName)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

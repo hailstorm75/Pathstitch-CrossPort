@@ -123,14 +123,14 @@ public abstract class Editor3DOperationServiceConformanceTests
     }
 
     [Fact]
-    public async Task UnsupportedStepImport_ReturnsTypedFailureWithoutClaimingBrepParity()
+    public async Task StepImportWithoutPackagedRuntime_ReturnsTypedMissingRuntimeFailure()
     {
         using var fixture = KernelFixture.Create();
         var service = CreateService();
         var result = await service.LoadModelAsync(fixture.WriteText("unsupported.step", "ISO-10303-21;\nEND-ISO-10303-21;"));
 
         AssertFailure(result.IsSuccess, result.Message, result.Failure,
-            GeometryKernelFailureCode.UnsupportedFormat, GeometryKernelOperation.Import);
+            GeometryKernelFailureCode.SourceUnavailable, GeometryKernelOperation.Import);
         Assert.Null(result.SourceModelPath);
         Assert.Null(result.ViewportJson);
         Assert.Null(result.Bodies);

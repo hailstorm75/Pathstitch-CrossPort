@@ -10,7 +10,7 @@ public sealed partial class EditorPageViewModel
         get => _threeDWorkspace.SelectedBodyIndex;
         private set
         {
-            if (!_threeDWorkspace.UpdateSelectedBodyIndex(value))
+            if (!_threeDWorkspace.SetSelectedBodyIndex(value))
                 return;
 
             OnPropertyChanged();
@@ -38,7 +38,7 @@ public sealed partial class EditorPageViewModel
         get => _isSelectedBodyOffsetXTextValid;
         private set
         {
-            if (!SetProperty(ref _isSelectedBodyOffsetXTextValid, value))
+            if (!SetWorkspaceFacadeValue(_isSelectedBodyOffsetXTextValid, value, updated => _isSelectedBodyOffsetXTextValid = updated))
                 return;
 
             OnPropertyChanged(nameof(AreSelectedBodyOffsetInputsValid));
@@ -53,7 +53,7 @@ public sealed partial class EditorPageViewModel
         get => _isSelectedBodyOffsetYTextValid;
         private set
         {
-            if (!SetProperty(ref _isSelectedBodyOffsetYTextValid, value))
+            if (!SetWorkspaceFacadeValue(_isSelectedBodyOffsetYTextValid, value, updated => _isSelectedBodyOffsetYTextValid = updated))
                 return;
 
             OnPropertyChanged(nameof(AreSelectedBodyOffsetInputsValid));
@@ -68,7 +68,7 @@ public sealed partial class EditorPageViewModel
         get => _isSelectedBodyOffsetZTextValid;
         private set
         {
-            if (!SetProperty(ref _isSelectedBodyOffsetZTextValid, value))
+            if (!SetWorkspaceFacadeValue(_isSelectedBodyOffsetZTextValid, value, updated => _isSelectedBodyOffsetZTextValid = updated))
                 return;
 
             OnPropertyChanged(nameof(AreSelectedBodyOffsetInputsValid));
@@ -93,19 +93,19 @@ public sealed partial class EditorPageViewModel
     public string SelectedBodyOffsetXText
     {
         get => _selectedBodyOffsetXText;
-        set => SetBodyOffsetText(ref _selectedBodyOffsetXText, value, 0);
+        set => SetBodyOffsetText(_selectedBodyOffsetXText, value, 0, updated => _selectedBodyOffsetXText = updated, nameof(SelectedBodyOffsetXText));
     }
 
     public string SelectedBodyOffsetYText
     {
         get => _selectedBodyOffsetYText;
-        set => SetBodyOffsetText(ref _selectedBodyOffsetYText, value, 1);
+        set => SetBodyOffsetText(_selectedBodyOffsetYText, value, 1, updated => _selectedBodyOffsetYText = updated, nameof(SelectedBodyOffsetYText));
     }
 
     public string SelectedBodyOffsetZText
     {
         get => _selectedBodyOffsetZText;
-        set => SetBodyOffsetText(ref _selectedBodyOffsetZText, value, 2);
+        set => SetBodyOffsetText(_selectedBodyOffsetZText, value, 2, updated => _selectedBodyOffsetZText = updated, nameof(SelectedBodyOffsetZText));
     }
 
     public string BodyMoveStepText
@@ -113,7 +113,7 @@ public sealed partial class EditorPageViewModel
         get => _bodyMoveStepText;
         set
         {
-            if (!SetProperty(ref _bodyMoveStepText, value))
+            if (!SetWorkspaceFacadeValue(_bodyMoveStepText, value, updated => _bodyMoveStepText = updated))
                 return;
 
             OnPropertyChanged(nameof(IsBodyMoveStepValid));
@@ -127,7 +127,7 @@ public sealed partial class EditorPageViewModel
         get => _threeDWorkspace.BodyOffsets;
         private set
         {
-            if (!_threeDWorkspace.UpdateBodyOffsets(value))
+            if (!_threeDWorkspace.SetBodyOffsets(value))
                 return;
 
             OnPropertyChanged();
@@ -147,7 +147,7 @@ public sealed partial class EditorPageViewModel
         get => _bodyOffsetCount;
         private set
         {
-            if (!SetProperty(ref _bodyOffsetCount, value))
+            if (!SetWorkspaceFacadeValue(_bodyOffsetCount, value, updated => _bodyOffsetCount = updated))
                 return;
 
             OnPropertyChanged(nameof(BodyOffsetsSummary));
@@ -331,10 +331,12 @@ public sealed partial class EditorPageViewModel
         StatusText = $"Body reset: {bodyName}";
     }
 
-    private void SetBodyOffsetText(ref string field, string value, int axis)
+    private void SetBodyOffsetText(string current, string value, int axis, Action<string> assign, string propertyName)
     {
-        if (!SetProperty(ref field, value))
+        if (string.Equals(current, value, StringComparison.Ordinal))
             return;
+        assign(value);
+        OnPropertyChanged(propertyName);
 
         if (_isUpdatingBodyOffsetText || !HasSelectedBody)
             return;

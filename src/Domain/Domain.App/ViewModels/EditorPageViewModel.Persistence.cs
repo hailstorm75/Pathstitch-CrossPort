@@ -43,9 +43,7 @@ public sealed partial class EditorPageViewModel
                     ProjectionWorkspaceState: BuildPersistedProjectionWorkspaceState(),
                     WorkspaceState: BuildPersistedEditorWorkspaceState(),
                     TwoDWorkspaceState: BuildPersistedTwoDWorkspaceState(),
-                    ThreeDWorkspaceState: _threeDWorkspace.CaptureState(
-                        BuildPersistedProjectionWorkspaceState(),
-                        BuildPersistedUnfoldWorkspaceState()),
+                    ThreeDWorkspaceState: _threeDWorkspace.CaptureState(),
                     StepTopology: _stepTopology),
                 cancellationTokenSource.Token).ConfigureAwait(true);
         }

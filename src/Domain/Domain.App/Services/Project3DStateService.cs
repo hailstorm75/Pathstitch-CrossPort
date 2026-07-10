@@ -348,6 +348,8 @@ public sealed class Project3DStateService
         var extension = Path.GetExtension(fileName);
         return extension.Equals(".obj", StringComparison.OrdinalIgnoreCase)
                || extension.Equals(".stl", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".step", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".stp", StringComparison.OrdinalIgnoreCase)
                || extension.Equals(".json", StringComparison.OrdinalIgnoreCase);
     }
 

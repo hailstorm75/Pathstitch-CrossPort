@@ -31,7 +31,8 @@ public sealed partial class EditorPageViewModel
             SelectionSummary = "No selection";
             LastViewportEvent = "SessionLoaded";
             ErrorMessage = null;
-            ViewportReady = false;
+            _threeDWorkspace.ResetViewportLifecycle();
+            OnPropertyChanged(nameof(ViewportReady));
             SelectedFaceCount = 0;
             ViewportJsonContent = null;
             SetSourceModelPath(null);
@@ -61,7 +62,6 @@ public sealed partial class EditorPageViewModel
             SelectedBodyOffsetYText = "0";
             SelectedBodyOffsetZText = "0";
             BodyMoveStepText = "1";
-            _pendingViewportScripts.Clear();
         }
     }
 
@@ -176,6 +176,7 @@ public sealed partial class EditorPageViewModel
         if (state.ThreeDWorkspaceState is { } threeDState)
         {
             _threeDWorkspace.RestoreState(threeDState);
+            SelectedFaces = HydrateStableFaceReferences(SelectedFaces);
             ApplyPersistedProjectionWorkspaceState(threeDState.Projection);
             ApplyPersistedUnfoldWorkspaceState(threeDState.Unfold);
             NotifyThreeDWorkspaceFacadeProperties();

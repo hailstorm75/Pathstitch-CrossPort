@@ -25,6 +25,7 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     private bool _threeDOrthographic;
     private bool _isPlaneSelectionActive;
     private PlaneSelectionModeType _planeSelectionModeType = PlaneSelectionModeType.Origin;
+    private string _planeSelectionModeValue = "origin";
     private string? _selectedProjectionPlane;
     private int? _selectedProjectionFaceIndex;
     private int? _selectedProjectionBodyIndex;
@@ -79,6 +80,35 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     public int? SelectedBodyIndex => _selectedBodyIndex;
     public string? ViewportJsonContent => _viewportJsonContent;
     public string? SourceModelPath => _sourceModelPath;
+    public string ViewportStateText => _viewportStateText;
+    public string SelectionSummary => _selectionSummary;
+    public string LastViewportEvent => _lastViewportEvent;
+    public bool ViewportReady => _viewportReady;
+    public int SelectedFaceCount => _selectedFaceCount;
+    public string DistortionDataJson => _distortionDataJson;
+    public bool ThreeDOrthographic => _threeDOrthographic;
+    public bool IsPlaneSelectionActive => _isPlaneSelectionActive;
+    public PlaneSelectionModeType PlaneSelectionModeType => _planeSelectionModeType;
+    public string? SelectedProjectionPlane => _selectedProjectionPlane;
+    public int? SelectedProjectionFaceIndex => _selectedProjectionFaceIndex;
+    public int? SelectedProjectionBodyIndex => _selectedProjectionBodyIndex;
+    public double PlaneOffset => _planeOffset;
+    public string PlaneOffsetText => _planeOffsetText;
+    public bool IsPlaneOffsetTextValid => _isPlaneOffsetTextValid;
+    public string ProjectionSelectionSummary => _projectionSelectionSummary;
+    public int BodyOffsetCount => _bodyOffsetCount;
+    public bool IsSelectedBodyOffsetXTextValid => _isSelectedBodyOffsetXTextValid;
+    public bool IsSelectedBodyOffsetYTextValid => _isSelectedBodyOffsetYTextValid;
+    public bool IsSelectedBodyOffsetZTextValid => _isSelectedBodyOffsetZTextValid;
+    public int DistortionModeIndex => _distortionModeIndex;
+    public bool LiveRecomputeEnabled => _liveRecomputeEnabled;
+    public bool WholeBodyRecompute => _wholeBodyRecompute;
+    public string SelectedBodyOffsetXText => _selectedBodyOffsetXText;
+    public string SelectedBodyOffsetYText => _selectedBodyOffsetYText;
+    public string SelectedBodyOffsetZText => _selectedBodyOffsetZText;
+    public string BodyMoveStepText => _bodyMoveStepText;
+    public bool IsUpdatingBodyOffsetText => _isUpdatingBodyOffsetText;
+    public IReadOnlyList<string> PendingSourceModelPaths => _pendingSourceModelPaths;
 
     public bool ActivateTool(Editor3DTool tool)
     {
@@ -92,8 +122,8 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     public void ReplaceBodies(IReadOnlyList<Body3D> bodies, string? viewportJson, string? sourceModelPath)
     {
         ArgumentNullException.ThrowIfNull(bodies);
-        UpdateBodies(bodies);
-        UpdateViewportJson(viewportJson);
+        SetBodies(bodies);
+        SetViewportJson(viewportJson);
         SetProperty(ref _sourceModelPath, sourceModelPath, nameof(SourceModelPath));
         RequestCoordination(Editor3DWorkspaceCoordinationKind.PersistState);
     }
@@ -104,33 +134,140 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(selectedFaces);
         ArgumentNullException.ThrowIfNull(selectedFaceDetails);
-        UpdateSelectedFaces(selectedFaces);
-        UpdateSelectedFaceDetails(selectedFaceDetails);
+        SetSelectedFaces(selectedFaces);
+        SetSelectedFaceDetails(selectedFaceDetails);
         _selectedFaceCount = selectedFaces.Count;
         RequestCoordination(Editor3DWorkspaceCoordinationKind.SelectionChanged);
     }
 
-    internal bool UpdateBodies(IReadOnlyList<Body3D> bodies)
+    internal bool SetBodies(IReadOnlyList<Body3D> bodies)
         => SetProperty(ref _bodies, bodies, nameof(Bodies));
 
-    internal bool UpdateSelectedFaces(IReadOnlyList<SelectedFace3D> selectedFaces)
+    internal bool SetSelectedFaces(IReadOnlyList<SelectedFace3D> selectedFaces)
         => SetProperty(ref _selectedFaces, selectedFaces, nameof(SelectedFaces));
 
-    internal bool UpdateSelectedFaceDetails(IReadOnlyList<SelectedFaceDetails> selectedFaceDetails)
+    internal bool SetSelectedFaceDetails(IReadOnlyList<SelectedFaceDetails> selectedFaceDetails)
         => SetProperty(ref _selectedFaceDetails, selectedFaceDetails, nameof(SelectedFaceDetails));
 
-    internal bool UpdateSelectedBodyIndex(int? selectedBodyIndex)
+    internal bool SetSelectedBodyIndex(int? selectedBodyIndex)
         => SetProperty(ref _selectedBodyIndex, selectedBodyIndex, nameof(SelectedBodyIndex));
 
-    internal bool UpdateBodyOffsets(IReadOnlyList<BodyOffset3D> bodyOffsets)
+    internal bool SetBodyOffsets(IReadOnlyList<BodyOffset3D> bodyOffsets)
         => SetProperty(ref _bodyOffsets, bodyOffsets, nameof(BodyOffsets));
 
-    internal bool UpdateViewportJson(string? viewportJson)
+    internal bool SetViewportJson(string? viewportJson)
         => SetProperty(ref _viewportJsonContent, viewportJson, nameof(ViewportJsonContent));
 
-    public Editor3DWorkspaceState CaptureState(
-        EditorProjectionWorkspaceState projection,
-        EditorUnfoldWorkspaceState unfold)
+    internal bool SetSourceModelPath(string? value) => SetProperty(ref _sourceModelPath, value, nameof(SourceModelPath));
+    internal bool SetViewportStateText(string value) => SetProperty(ref _viewportStateText, value, nameof(ViewportStateText));
+    internal bool SetSelectionSummary(string value) => SetProperty(ref _selectionSummary, value, nameof(SelectionSummary));
+    internal bool SetLastViewportEvent(string value) => SetProperty(ref _lastViewportEvent, value, nameof(LastViewportEvent));
+    internal bool SetViewportReady(bool value) => SetProperty(ref _viewportReady, value, nameof(ViewportReady));
+    internal bool SetSelectedFaceCount(int value) => SetProperty(ref _selectedFaceCount, value, nameof(SelectedFaceCount));
+    internal bool SetDistortionDataJson(string value) => SetProperty(ref _distortionDataJson, value, nameof(DistortionDataJson));
+    internal bool SetThreeDOrthographic(bool value) => SetProperty(ref _threeDOrthographic, value, nameof(ThreeDOrthographic));
+    internal bool SetPlaneSelectionActive(bool value) => SetProperty(ref _isPlaneSelectionActive, value, nameof(IsPlaneSelectionActive));
+    internal bool SetPlaneSelectionMode(PlaneSelectionModeType value)
+    {
+        _planeSelectionModeValue = value == PlaneSelectionModeType.Face ? "face" : "origin";
+        return SetProperty(ref _planeSelectionModeType, value, nameof(PlaneSelectionModeType));
+    }
+    internal bool SetSelectedProjectionPlane(string? value) => SetProperty(ref _selectedProjectionPlane, value, nameof(SelectedProjectionPlane));
+    internal bool SetSelectedProjectionFaceIndex(int? value) => SetProperty(ref _selectedProjectionFaceIndex, value, nameof(SelectedProjectionFaceIndex));
+    internal bool SetSelectedProjectionBodyIndex(int? value) => SetProperty(ref _selectedProjectionBodyIndex, value, nameof(SelectedProjectionBodyIndex));
+    internal bool SetPlaneOffset(double value) => SetProperty(ref _planeOffset, value, nameof(PlaneOffset));
+    internal bool SetPlaneOffsetText(string value) => SetProperty(ref _planeOffsetText, value, nameof(PlaneOffsetText));
+    internal bool SetPlaneOffsetTextValid(bool value) => SetProperty(ref _isPlaneOffsetTextValid, value, nameof(IsPlaneOffsetTextValid));
+    internal bool SetProjectionSelectionSummary(string value) => SetProperty(ref _projectionSelectionSummary, value, nameof(ProjectionSelectionSummary));
+    internal bool SetBodyOffsetCount(int value) => SetProperty(ref _bodyOffsetCount, value, nameof(BodyOffsetCount));
+    internal bool SetBodyOffsetTextValid(char axis, bool value) => axis switch
+    {
+        'X' => SetProperty(ref _isSelectedBodyOffsetXTextValid, value, nameof(IsSelectedBodyOffsetXTextValid)),
+        'Y' => SetProperty(ref _isSelectedBodyOffsetYTextValid, value, nameof(IsSelectedBodyOffsetYTextValid)),
+        _ => SetProperty(ref _isSelectedBodyOffsetZTextValid, value, nameof(IsSelectedBodyOffsetZTextValid)),
+    };
+    internal bool SetDistortionModeIndex(int value) => SetProperty(ref _distortionModeIndex, value, nameof(DistortionModeIndex));
+    internal bool SetLiveRecomputeEnabled(bool value) => SetProperty(ref _liveRecomputeEnabled, value, nameof(LiveRecomputeEnabled));
+    internal bool SetWholeBodyRecompute(bool value) => SetProperty(ref _wholeBodyRecompute, value, nameof(WholeBodyRecompute));
+    internal bool SetSelectedBodyOffsetText(char axis, string value) => axis switch
+    {
+        'X' => SetProperty(ref _selectedBodyOffsetXText, value, nameof(SelectedBodyOffsetXText)),
+        'Y' => SetProperty(ref _selectedBodyOffsetYText, value, nameof(SelectedBodyOffsetYText)),
+        _ => SetProperty(ref _selectedBodyOffsetZText, value, nameof(SelectedBodyOffsetZText)),
+    };
+    internal bool SetBodyMoveStepText(string value) => SetProperty(ref _bodyMoveStepText, value, nameof(BodyMoveStepText));
+    internal bool SetUpdatingBodyOffsetText(bool value) => SetProperty(ref _isUpdatingBodyOffsetText, value, nameof(IsUpdatingBodyOffsetText));
+    internal bool SetPendingSourceModelPaths(IReadOnlyList<string> value) => SetProperty(ref _pendingSourceModelPaths, value, nameof(PendingSourceModelPaths));
+    internal CancellationTokenSource BeginDistortionRefresh(CancellationToken cancellationToken = default)
+    {
+        var next = cancellationToken.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : new CancellationTokenSource();
+        var previous = _distortionRefreshCancellationTokenSource;
+        _distortionRefreshCancellationTokenSource = next;
+        previous?.Cancel();
+        previous?.Dispose();
+        return next;
+    }
+    internal void CompleteDistortionRefresh(CancellationTokenSource request)
+    {
+        if (ReferenceEquals(_distortionRefreshCancellationTokenSource, request))
+            _distortionRefreshCancellationTokenSource = null;
+        request.Dispose();
+    }
+    internal CancellationTokenSource BeginLiveRecompute()
+    {
+        var next = new CancellationTokenSource();
+        CancelLiveRecompute();
+        _liveRecomputeCancellationTokenSource = next;
+        return next;
+    }
+    internal void CancelLiveRecompute()
+    {
+        var current = _liveRecomputeCancellationTokenSource;
+        _liveRecomputeCancellationTokenSource = null;
+        current?.Cancel();
+        current?.Dispose();
+    }
+    internal void CompleteLiveRecompute(CancellationTokenSource request)
+    {
+        if (ReferenceEquals(_liveRecomputeCancellationTokenSource, request))
+            _liveRecomputeCancellationTokenSource = null;
+        request.Dispose();
+    }
+
+    internal bool ResetViewportLifecycle()
+    {
+        _pendingViewportScripts.Clear();
+        return SetViewportReady(false);
+    }
+    internal bool MarkViewportReady()
+    {
+        var changed = SetViewportReady(true);
+        while (_pendingViewportScripts.TryDequeue(out var script))
+            RequestViewportScript(script);
+        return changed;
+    }
+    internal void DispatchViewportScript(string script)
+    {
+        if (_viewportReady)
+            RequestViewportScript(script);
+        else
+            _pendingViewportScripts.Enqueue(script);
+    }
+
+    public Task<EditorModelLoadResult> LoadModelAsync(string path, CancellationToken token = default)
+        => _operationService.LoadModelAsync(path, token);
+    public Task<EditorModelLoadResult> LoadModelsAsync(IReadOnlyList<string> paths, string? existing, CancellationToken token = default)
+        => _operationService.LoadModelsAsync(paths, existing, token);
+    public Task<EditorOperationResult> ProjectAsync(EditorProjectionRequest request, CancellationToken token = default)
+        => _operationService.ProjectEdgesAsync(request, token);
+    public Task<EditorOperationResult> UnfoldAsync(EditorUnfoldRequest request, CancellationToken token = default)
+        => _operationService.UnfoldAsync(request, token);
+    public Task<EditorFaceDistortionResult> ComputeDistortionAsync(string? path, SelectedFace3D face, string mode, CancellationToken token = default)
+        => _operationService.ComputeFaceDistortionAsync(path, face, mode, token);
+
+    public Editor3DWorkspaceState CaptureState()
         => new(
             _activeTool,
             _threeDOrthographic,
@@ -141,8 +278,16 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
             _selectedFaces,
             _selectedFaceDetails,
             _selectedBodyIndex,
-            projection,
-            unfold);
+            new EditorProjectionWorkspaceState(
+                _planeSelectionModeValue,
+                _selectedProjectionPlane,
+                _selectedProjectionFaceIndex,
+                _selectedProjectionBodyIndex,
+                _planeOffset),
+            new EditorUnfoldWorkspaceState(
+                1, _distortionModeIndex, 0, 0, 0,
+                _liveRecomputeEnabled, _wholeBodyRecompute,
+                "5", "1", "4", "2"));
 
     public void RestoreState(Editor3DWorkspaceState state)
     {
@@ -158,6 +303,17 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
         _selectedFaceDetails = state.SelectedFaceDetails ?? [];
         _selectedFaceCount = _selectedFaces.Count;
         _selectedBodyIndex = state.SelectedBodyIndex;
+        _planeSelectionModeValue = state.Projection.PlaneSelectionModeType;
+        _planeSelectionModeType = string.Equals(_planeSelectionModeValue, "face", StringComparison.OrdinalIgnoreCase)
+            ? PlaneSelectionModeType.Face
+            : PlaneSelectionModeType.Origin;
+        _selectedProjectionPlane = state.Projection.SelectedProjectionPlane;
+        _selectedProjectionFaceIndex = state.Projection.SelectedProjectionFaceIndex;
+        _selectedProjectionBodyIndex = state.Projection.SelectedProjectionBodyIndex;
+        _planeOffset = state.Projection.PlaneOffset;
+        _distortionModeIndex = state.Unfold.DistortionModeIndex;
+        _liveRecomputeEnabled = state.Unfold.LiveRecomputeEnabled;
+        _wholeBodyRecompute = state.Unfold.WholeBodyRecompute;
         RaiseStateProperties();
     }
 
@@ -184,49 +340,17 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedBodyIndex));
         OnPropertyChanged(nameof(ViewportJsonContent));
         OnPropertyChanged(nameof(SourceModelPath));
+        OnPropertyChanged(nameof(ThreeDOrthographic));
+        OnPropertyChanged(nameof(PlaneSelectionModeType));
+        OnPropertyChanged(nameof(SelectedProjectionPlane));
+        OnPropertyChanged(nameof(SelectedProjectionFaceIndex));
+        OnPropertyChanged(nameof(SelectedProjectionBodyIndex));
+        OnPropertyChanged(nameof(PlaneOffset));
+        OnPropertyChanged(nameof(DistortionModeIndex));
+        OnPropertyChanged(nameof(LiveRecomputeEnabled));
+        OnPropertyChanged(nameof(WholeBodyRecompute));
     }
 
-    internal IEditor3DOperationService OperationService => _operationService;
-    internal Queue<string> PendingViewportScripts => _pendingViewportScripts;
-    internal ref string ViewportStateTextStorage => ref _viewportStateText;
-    internal ref string SelectionSummaryStorage => ref _selectionSummary;
-    internal ref string LastViewportEventStorage => ref _lastViewportEvent;
-    internal ref bool ViewportReadyStorage => ref _viewportReady;
-    internal ref int SelectedFaceCountStorage => ref _selectedFaceCount;
-    internal ref string? ViewportJsonContentStorage => ref _viewportJsonContent;
-    internal ref string? SourceModelPathStorage => ref _sourceModelPath;
-    internal ref string DistortionDataJsonStorage => ref _distortionDataJson;
-    internal ref Editor3DTool ActiveToolStorage => ref _activeTool;
-    internal ref bool ThreeDOrthographicStorage => ref _threeDOrthographic;
-    internal ref bool IsPlaneSelectionActiveStorage => ref _isPlaneSelectionActive;
-    internal ref PlaneSelectionModeType PlaneSelectionModeTypeStorage => ref _planeSelectionModeType;
-    internal ref string? SelectedProjectionPlaneStorage => ref _selectedProjectionPlane;
-    internal ref int? SelectedProjectionFaceIndexStorage => ref _selectedProjectionFaceIndex;
-    internal ref int? SelectedProjectionBodyIndexStorage => ref _selectedProjectionBodyIndex;
-    internal ref double PlaneOffsetStorage => ref _planeOffset;
-    internal ref string PlaneOffsetTextStorage => ref _planeOffsetText;
-    internal ref bool IsPlaneOffsetTextValidStorage => ref _isPlaneOffsetTextValid;
-    internal ref string ProjectionSelectionSummaryStorage => ref _projectionSelectionSummary;
-    internal ref int? SelectedBodyIndexStorage => ref _selectedBodyIndex;
-    internal ref IReadOnlyList<Body3D> BodiesStorage => ref _bodies;
-    internal ref IReadOnlyList<SelectedFace3D> SelectedFacesStorage => ref _selectedFaces;
-    internal ref IReadOnlyList<SelectedFaceDetails> SelectedFaceDetailsStorage => ref _selectedFaceDetails;
-    internal ref IReadOnlyList<BodyOffset3D> BodyOffsetsStorage => ref _bodyOffsets;
-    internal ref int BodyOffsetCountStorage => ref _bodyOffsetCount;
-    internal ref bool IsSelectedBodyOffsetXTextValidStorage => ref _isSelectedBodyOffsetXTextValid;
-    internal ref bool IsSelectedBodyOffsetYTextValidStorage => ref _isSelectedBodyOffsetYTextValid;
-    internal ref bool IsSelectedBodyOffsetZTextValidStorage => ref _isSelectedBodyOffsetZTextValid;
-    internal ref int DistortionModeIndexStorage => ref _distortionModeIndex;
-    internal ref bool LiveRecomputeEnabledStorage => ref _liveRecomputeEnabled;
-    internal ref bool WholeBodyRecomputeStorage => ref _wholeBodyRecompute;
-    internal ref string SelectedBodyOffsetXTextStorage => ref _selectedBodyOffsetXText;
-    internal ref string SelectedBodyOffsetYTextStorage => ref _selectedBodyOffsetYText;
-    internal ref string SelectedBodyOffsetZTextStorage => ref _selectedBodyOffsetZText;
-    internal ref string BodyMoveStepTextStorage => ref _bodyMoveStepText;
-    internal ref bool IsUpdatingBodyOffsetTextStorage => ref _isUpdatingBodyOffsetText;
-    internal ref IReadOnlyList<string> PendingSourceModelPathsStorage => ref _pendingSourceModelPaths;
-    internal ref CancellationTokenSource? DistortionRefreshCancellationStorage => ref _distortionRefreshCancellationTokenSource;
-    internal ref CancellationTokenSource? LiveRecomputeCancellationStorage => ref _liveRecomputeCancellationTokenSource;
 }
 
 public enum Editor3DWorkspaceCoordinationKind

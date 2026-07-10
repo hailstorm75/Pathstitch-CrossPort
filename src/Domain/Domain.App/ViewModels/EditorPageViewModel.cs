@@ -3,6 +3,7 @@ using Domain.App.Navigation;
 using Domain.App.Services;
 using Domain.MVVM.Navigation;
 using Microsoft.Extensions.Logging;
+using System.Runtime.CompilerServices;
 
 namespace Domain.App.ViewModels;
 
@@ -16,7 +17,8 @@ public sealed partial class EditorPageViewModel(
     IEditorOutputPreviewService editorOutputPreviewService,
     IEditor2DGeometryKernelService editor2DGeometryKernelService,
     IEditor3DOperationService editor3DOperationService,
-    IGeometryKernelDescriptorProvider geometryKernelDescriptorProvider) : BasePageViewModel(logger)
+    IGeometryKernelDescriptorProvider geometryKernelDescriptorProvider,
+    IReferenceImageTraceService? referenceImageTraceService = null) : BasePageViewModel(logger)
 {
     private static readonly HashSet<string> SupportedSourceModelExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -37,7 +39,7 @@ public sealed partial class EditorPageViewModel(
     private readonly IEditorOutputPreviewService _editorOutputPreviewService = editorOutputPreviewService;
     private readonly IProjectFileDialogService _projectFileDialogService = projectFileDialogService;
     private readonly Project3DStateService _project3DStateService = project3DStateService;
-    private readonly Editor2DWorkspaceViewModel _twoDWorkspace = new();
+    private readonly Editor2DWorkspaceViewModel _twoDWorkspace = new(referenceImageTraceService);
     private readonly EditorBatchWorkspaceViewModel _batchWorkspace = new();
     private CancellationTokenSource? _persist3DStateCancellationTokenSource;
     private CancellationTokenSource? _persistTwoDDocumentCancellationTokenSource;
@@ -51,21 +53,7 @@ public sealed partial class EditorPageViewModel(
     private string? _lastGeneratedOutputPath;
     private string? _generatedOutputDataBase64;
     private EditorGeneratedOutputSummary? _generatedOutputSummary;
-    private int _twoDPolygonSides = 6;
-    private IReadOnlyList<string> _twoDExpandedRectanglePathIds = [];
-    private string _twoDSelectedTextDraft = string.Empty;
-    private string _twoDSelectedTextHeightText = "5";
-    private string _twoDSelectedTextFontFamily = "Inter";
-    private string _twoDSelectedTextCharacterSpacingText = "0";
-    private bool _twoDSelectedTextBold;
-    private bool _twoDSelectedTextItalic;
-    private bool _twoDSelectedTextUnderline;
-    private bool _isTwoDSelectedTextHeightValid = true;
     private EditorMode _activeEditorMode = EditorMode.ThreeD;
-    private double _twoDViewportZoom;
-    private double _twoDViewportOffsetX;
-    private double _twoDViewportOffsetY;
-    private int _twoDFrameRequestToken;
     private StepGeometryDocument? _stepTopology;
     private bool _suppressTwoDDocumentPersistence;
     private bool _suppressTwoDViewportPersistence;
@@ -88,39 +76,44 @@ public sealed partial class EditorPageViewModel(
 
     private string _viewportHtml => _threeDWorkspace.ViewportHtml;
     private Uri _viewportBaseUri => _threeDWorkspace.ViewportBaseUri;
-    private Queue<string> _pendingViewportScripts => _threeDWorkspace.PendingViewportScripts;
-    private IEditor3DOperationService _editor3DOperationService => _threeDWorkspace.OperationService;
     private GeometryKernelDescriptor _geometryKernel => _threeDWorkspace.GeometryKernel;
-    private ref string _viewportStateText => ref _threeDWorkspace.ViewportStateTextStorage;
-    private ref string _selectionSummary => ref _threeDWorkspace.SelectionSummaryStorage;
-    private ref string _lastViewportEvent => ref _threeDWorkspace.LastViewportEventStorage;
-    private ref bool _viewportReady => ref _threeDWorkspace.ViewportReadyStorage;
-    private ref int _selectedFaceCount => ref _threeDWorkspace.SelectedFaceCountStorage;
-    private ref string? _sourceModelPath => ref _threeDWorkspace.SourceModelPathStorage;
-    private ref string _distortionDataJson => ref _threeDWorkspace.DistortionDataJsonStorage;
-    private ref bool _threeDOrthographic => ref _threeDWorkspace.ThreeDOrthographicStorage;
-    private ref bool _isPlaneSelectionActive => ref _threeDWorkspace.IsPlaneSelectionActiveStorage;
-    private ref PlaneSelectionModeType _planeSelectionModeType => ref _threeDWorkspace.PlaneSelectionModeTypeStorage;
-    private ref string? _selectedProjectionPlane => ref _threeDWorkspace.SelectedProjectionPlaneStorage;
-    private ref int? _selectedProjectionFaceIndex => ref _threeDWorkspace.SelectedProjectionFaceIndexStorage;
-    private ref int? _selectedProjectionBodyIndex => ref _threeDWorkspace.SelectedProjectionBodyIndexStorage;
-    private ref double _planeOffset => ref _threeDWorkspace.PlaneOffsetStorage;
-    private ref string _planeOffsetText => ref _threeDWorkspace.PlaneOffsetTextStorage;
-    private ref bool _isPlaneOffsetTextValid => ref _threeDWorkspace.IsPlaneOffsetTextValidStorage;
-    private ref string _projectionSelectionSummary => ref _threeDWorkspace.ProjectionSelectionSummaryStorage;
-    private ref int _bodyOffsetCount => ref _threeDWorkspace.BodyOffsetCountStorage;
-    private ref bool _isSelectedBodyOffsetXTextValid => ref _threeDWorkspace.IsSelectedBodyOffsetXTextValidStorage;
-    private ref bool _isSelectedBodyOffsetYTextValid => ref _threeDWorkspace.IsSelectedBodyOffsetYTextValidStorage;
-    private ref bool _isSelectedBodyOffsetZTextValid => ref _threeDWorkspace.IsSelectedBodyOffsetZTextValidStorage;
-    private ref int _distortionModeIndex => ref _threeDWorkspace.DistortionModeIndexStorage;
-    private ref bool _liveRecomputeEnabled => ref _threeDWorkspace.LiveRecomputeEnabledStorage;
-    private ref bool _wholeBodyRecompute => ref _threeDWorkspace.WholeBodyRecomputeStorage;
-    private ref string _selectedBodyOffsetXText => ref _threeDWorkspace.SelectedBodyOffsetXTextStorage;
-    private ref string _selectedBodyOffsetYText => ref _threeDWorkspace.SelectedBodyOffsetYTextStorage;
-    private ref string _selectedBodyOffsetZText => ref _threeDWorkspace.SelectedBodyOffsetZTextStorage;
-    private ref string _bodyMoveStepText => ref _threeDWorkspace.BodyMoveStepTextStorage;
-    private ref bool _isUpdatingBodyOffsetText => ref _threeDWorkspace.IsUpdatingBodyOffsetTextStorage;
-    private ref IReadOnlyList<string> _pendingSourceModelPaths => ref _threeDWorkspace.PendingSourceModelPathsStorage;
-    private ref CancellationTokenSource? _distortionRefreshCancellationTokenSource => ref _threeDWorkspace.DistortionRefreshCancellationStorage;
-    private ref CancellationTokenSource? _liveRecomputeCancellationTokenSource => ref _threeDWorkspace.LiveRecomputeCancellationStorage;
+    private string _viewportStateText { get => _threeDWorkspace.ViewportStateText; set => _threeDWorkspace.SetViewportStateText(value); }
+    private string _selectionSummary { get => _threeDWorkspace.SelectionSummary; set => _threeDWorkspace.SetSelectionSummary(value); }
+    private string _lastViewportEvent { get => _threeDWorkspace.LastViewportEvent; set => _threeDWorkspace.SetLastViewportEvent(value); }
+    private bool _viewportReady { get => _threeDWorkspace.ViewportReady; set => _threeDWorkspace.SetViewportReady(value); }
+    private int _selectedFaceCount { get => _threeDWorkspace.SelectedFaceCount; set => _threeDWorkspace.SetSelectedFaceCount(value); }
+    private string? _sourceModelPath { get => _threeDWorkspace.SourceModelPath; set => _threeDWorkspace.SetSourceModelPath(value); }
+    private string _distortionDataJson { get => _threeDWorkspace.DistortionDataJson; set => _threeDWorkspace.SetDistortionDataJson(value); }
+    private bool _threeDOrthographic { get => _threeDWorkspace.ThreeDOrthographic; set => _threeDWorkspace.SetThreeDOrthographic(value); }
+    private bool _isPlaneSelectionActive { get => _threeDWorkspace.IsPlaneSelectionActive; set => _threeDWorkspace.SetPlaneSelectionActive(value); }
+    private PlaneSelectionModeType _planeSelectionModeType { get => _threeDWorkspace.PlaneSelectionModeType; set => _threeDWorkspace.SetPlaneSelectionMode(value); }
+    private string? _selectedProjectionPlane { get => _threeDWorkspace.SelectedProjectionPlane; set => _threeDWorkspace.SetSelectedProjectionPlane(value); }
+    private int? _selectedProjectionFaceIndex { get => _threeDWorkspace.SelectedProjectionFaceIndex; set => _threeDWorkspace.SetSelectedProjectionFaceIndex(value); }
+    private int? _selectedProjectionBodyIndex { get => _threeDWorkspace.SelectedProjectionBodyIndex; set => _threeDWorkspace.SetSelectedProjectionBodyIndex(value); }
+    private double _planeOffset { get => _threeDWorkspace.PlaneOffset; set => _threeDWorkspace.SetPlaneOffset(value); }
+    private string _planeOffsetText { get => _threeDWorkspace.PlaneOffsetText; set => _threeDWorkspace.SetPlaneOffsetText(value); }
+    private bool _isPlaneOffsetTextValid { get => _threeDWorkspace.IsPlaneOffsetTextValid; set => _threeDWorkspace.SetPlaneOffsetTextValid(value); }
+    private string _projectionSelectionSummary { get => _threeDWorkspace.ProjectionSelectionSummary; set => _threeDWorkspace.SetProjectionSelectionSummary(value); }
+    private int _bodyOffsetCount { get => _threeDWorkspace.BodyOffsetCount; set => _threeDWorkspace.SetBodyOffsetCount(value); }
+    private bool _isSelectedBodyOffsetXTextValid { get => _threeDWorkspace.IsSelectedBodyOffsetXTextValid; set => _threeDWorkspace.SetBodyOffsetTextValid('X', value); }
+    private bool _isSelectedBodyOffsetYTextValid { get => _threeDWorkspace.IsSelectedBodyOffsetYTextValid; set => _threeDWorkspace.SetBodyOffsetTextValid('Y', value); }
+    private bool _isSelectedBodyOffsetZTextValid { get => _threeDWorkspace.IsSelectedBodyOffsetZTextValid; set => _threeDWorkspace.SetBodyOffsetTextValid('Z', value); }
+    private int _distortionModeIndex { get => _threeDWorkspace.DistortionModeIndex; set => _threeDWorkspace.SetDistortionModeIndex(value); }
+    private bool _liveRecomputeEnabled { get => _threeDWorkspace.LiveRecomputeEnabled; set => _threeDWorkspace.SetLiveRecomputeEnabled(value); }
+    private bool _wholeBodyRecompute { get => _threeDWorkspace.WholeBodyRecompute; set => _threeDWorkspace.SetWholeBodyRecompute(value); }
+    private string _selectedBodyOffsetXText { get => _threeDWorkspace.SelectedBodyOffsetXText; set => _threeDWorkspace.SetSelectedBodyOffsetText('X', value); }
+    private string _selectedBodyOffsetYText { get => _threeDWorkspace.SelectedBodyOffsetYText; set => _threeDWorkspace.SetSelectedBodyOffsetText('Y', value); }
+    private string _selectedBodyOffsetZText { get => _threeDWorkspace.SelectedBodyOffsetZText; set => _threeDWorkspace.SetSelectedBodyOffsetText('Z', value); }
+    private string _bodyMoveStepText { get => _threeDWorkspace.BodyMoveStepText; set => _threeDWorkspace.SetBodyMoveStepText(value); }
+    private bool _isUpdatingBodyOffsetText { get => _threeDWorkspace.IsUpdatingBodyOffsetText; set => _threeDWorkspace.SetUpdatingBodyOffsetText(value); }
+    private IReadOnlyList<string> _pendingSourceModelPaths { get => _threeDWorkspace.PendingSourceModelPaths; set => _threeDWorkspace.SetPendingSourceModelPaths(value); }
+
+    private bool SetWorkspaceFacadeValue<T>(T current, T value, Action<T> assign, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(current, value))
+            return false;
+        assign(value);
+        OnPropertyChanged(propertyName);
+        return true;
+    }
 }

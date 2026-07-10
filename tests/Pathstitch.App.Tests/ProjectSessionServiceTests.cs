@@ -7,16 +7,18 @@ namespace Pathstitch.App.Tests;
 public sealed class ProjectSessionServiceTests
 {
     [Fact]
-    public async Task OpenWorkspaceFilesAsync_RejectsStepSourceModelsForOpenGeometryImport()
+    public async Task OpenWorkspaceFilesAsync_CreatesImportedWorkspaceForStepSource()
     {
         using var workspace = TestWorkspace.Create();
         var stepPath = workspace.WriteText("part.step", "ISO-10303-21;");
         var service = CreateService();
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.OpenWorkspaceFilesAsync([stepPath]));
+        var request = await service.OpenWorkspaceFilesAsync([stepPath]);
 
-        Assert.Contains(".obj, .stl", ex.Message, StringComparison.Ordinal);
+        Assert.NotNull(request);
+        Assert.Equal(ProjectSessionOrigin.Imported, request.Session.Origin);
+        Assert.Equal([Path.GetFullPath(stepPath)], request.PendingSourceModelPaths);
+        File.Delete(request.Session.ProjectFilePath);
     }
 
     [Fact]

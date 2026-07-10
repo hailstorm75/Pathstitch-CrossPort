@@ -81,12 +81,13 @@ public sealed class Editor3DWorkspaceViewModelTests
         var projection = new EditorProjectionWorkspaceState("face", "face", 0, 0, 2.5);
         var unfold = new EditorUnfoldWorkspaceState(1, 2, 0, 0, 0, true, false, "5", "1", "4", "2");
 
-        var json = JsonSerializer.Serialize(original.CaptureState(projection, unfold));
+        original.RestoreState(original.CaptureState() with { Projection = projection, Unfold = unfold });
+        var json = JsonSerializer.Serialize(original.CaptureState());
         var persisted = JsonSerializer.Deserialize<Editor3DWorkspaceState>(json);
         Assert.NotNull(persisted);
         var restored = CreateWorkspace();
         restored.RestoreState(persisted);
-        var roundTripped = restored.CaptureState(persisted.Projection, persisted.Unfold);
+        var roundTripped = restored.CaptureState();
 
         Assert.Equal(Editor3DTool.Unfold, roundTripped.ActiveTool);
         Assert.Equal("sample.obj", roundTripped.SourceModelPath);
@@ -124,7 +125,8 @@ public sealed class Editor3DWorkspaceViewModelTests
             [new SelectedFaceDetails(0, "Body 1", 0, "PLANAR", 12)]);
         var projection = new EditorProjectionWorkspaceState("XY", "XY", null, null, 3);
         var unfold = new EditorUnfoldWorkspaceState(1, 1, 0, 0, 0, true, false, "5", "1", "4", "2");
-        var state = workspace.CaptureState(projection, unfold);
+        workspace.RestoreState(workspace.CaptureState() with { Projection = projection, Unfold = unfold });
+        var state = workspace.CaptureState();
         var projectPath = Path.Combine(
             Path.GetTempPath(),
             $"pathstitch-3d-workspace-{Guid.NewGuid():N}.stch");

@@ -1,7 +1,9 @@
 using Avalonia;
 using Domain.App.Models;
+using Domain.App.Services;
 using Domain.App.ViewModels;
 using Pathstitch.App.Controls;
+using Pathstitch.App.Services;
 
 namespace Pathstitch.App.Tests;
 
@@ -10,7 +12,9 @@ public sealed class ReferenceImageWorkflowTests
     [Fact]
     public void ImportReferenceImage_RemainsNonGeometryUntilExplicitTrace()
     {
-        var workspace = new Editor2DWorkspaceViewModel();
+        var tracer = new RecordingReferenceImageTraceService(
+            [[new(40, 20), new(360, 30), new(200, 180)]]);
+        var workspace = new Editor2DWorkspaceViewModel(tracer);
         workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
 
         var layer = workspace.ImportReferenceImage(
@@ -47,6 +51,7 @@ public sealed class ReferenceImageWorkflowTests
         var trace = workspace.TraceReferenceImageBounds(layer.Id);
 
         Assert.NotNull(trace);
+        Assert.Equal(0.8, tracer.LastThreshold, 6);
         Assert.Equal("REFERENCE_TRACE", trace.EntityType);
         Assert.Equal(trace, Assert.Single(workspace.Document.Paths));
         Assert.Equal([trace.Id], workspace.SelectedPathIds);
@@ -58,6 +63,7 @@ public sealed class ReferenceImageWorkflowTests
             candidate => candidate.Kind == Editor2DLayerKind.Geometry && candidate.PathIds.Contains(trace.Id));
         Assert.False(workspace.AssignPathsToLayer(restoredReferenceLayer.Id, [trace.Id]));
         Assert.Contains(trace.Id, geometryLayer.PathIds);
+        Assert.Equal(3, trace.Points.Count);
     }
 
     [Fact]
@@ -80,6 +86,25 @@ public sealed class ReferenceImageWorkflowTests
         Assert.True(Editor2DReferenceImageMetadata.TryReadPixelSize(header, out var width, out var height));
         Assert.Equal(640, width);
         Assert.Equal(480, height);
+    }
+
+    [Fact]
+    public void AvaloniaTracer_UsesThresholdedPixelsInsteadOfTheImageBounds()
+    {
+        var fixture = RepositoryFile(
+            "Pathstitch", "Pathstitch", "Assets.xcassets", "StchDocument.imageset", "stchdoc_512.png");
+        var tracer = new AvaloniaReferenceImageTraceService();
+        var contours = tracer.TraceContours(
+            Convert.ToBase64String(File.ReadAllBytes(fixture)),
+            threshold: 0.45);
+
+        Assert.NotEmpty(contours);
+        Assert.Contains(contours, contour => contour.Count > 4);
+        Assert.All(contours.SelectMany(contour => contour), point =>
+        {
+            Assert.InRange(point.X, 0, 512);
+            Assert.InRange(point.Y, 0, 512);
+        });
     }
 
     [Fact]
@@ -148,5 +173,31 @@ public sealed class ReferenceImageWorkflowTests
         }
 
         throw new FileNotFoundException($"Could not locate repository file: {Path.Combine(pathParts)}");
+    }
+
+    private sealed class RecordingReferenceImageTraceService(
+        IReadOnlyList<IReadOnlyList<Editor2DPoint>> contours) : IReferenceImageTraceService
+    {
+        public double LastThreshold { get; private set; }
+
+        public IReadOnlyList<IReadOnlyList<Editor2DPoint>> TraceContours(
+            string imageDataBase64,
+            double threshold)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(imageDataBase64));
+            LastThreshold = threshold;
+            return contours;
+        }
+    }
+
+    private static string RepositoryFile(params string[] pathParts)
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            var candidate = Path.Combine([directory.FullName, .. pathParts]);
+            if (File.Exists(candidate))
+                return candidate;
+        }
+        throw new FileNotFoundException(Path.Combine(pathParts));
     }
 }

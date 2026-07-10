@@ -24,7 +24,8 @@ public sealed partial class EditorPageViewModel
         switch (message.Operation)
         {
             case "ready":
-                ViewportReady = true;
+                _threeDWorkspace.MarkViewportReady();
+                OnPropertyChanged(nameof(ViewportReady));
                 StatusText = "Viewport ready";
                 ViewportStateText = "Three.js viewport initialized";
                 ErrorMessage = null;

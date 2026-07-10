@@ -8,16 +8,101 @@ namespace Domain.App.ViewModels;
 /// Owns the editable 2D document and its interaction state independently from
 /// the editor shell and from exported DXF artifacts.
 /// </summary>
-public sealed class Editor2DWorkspaceViewModel : ObservableObject
+public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 {
+    private readonly IReferenceImageTraceService? _referenceImageTraceService;
     private readonly Stack<Editor2DWorkspaceState> _undo = new();
     private readonly Stack<Editor2DWorkspaceState> _redo = new();
     private Editor2DWorkspaceState _state = Editor2DWorkspaceState.Empty;
+    private int _polygonSides = 6;
+    private IReadOnlyList<string> _expandedRectanglePathIds = [];
+    private string _selectedTextDraft = string.Empty;
+    private string _selectedTextHeightText = "5";
+    private string _selectedTextFontFamily = "Inter";
+    private string _selectedTextCharacterSpacingText = "0";
+    private bool _selectedTextBold;
+    private bool _selectedTextItalic;
+    private bool _selectedTextUnderline;
+    private bool _isSelectedTextHeightValid = true;
+    private double _viewportZoom;
+    private double _viewportOffsetX;
+    private double _viewportOffsetY;
+    private int _frameRequestToken;
+    private string _convertLineStyle = "dashed";
+    private readonly Dictionary<string, string> _convertLineParameterText = new(StringComparer.OrdinalIgnoreCase);
+    private string _offsetMode = "Curve";
+    private string _offsetSide = "Outward";
+    private string _offsetDistanceText = "12";
+    private string _offsetBBoxDistanceText = "12";
+    private string _offsetBBoxFilletText = "0";
+    private string _addThicknessWidthText = "3";
+    private string _cleanupToleranceText = "0.1";
+    private string _patternMode = "Rectangular";
+    private string _patternCopiesXText = "3";
+    private string _patternCopiesYText = "1";
+    private string _patternSpacingXText = "10";
+    private string _patternSpacingYText = "10";
+    private string _patternCircularCountText = "6";
+    private string _patternCircularAngleText = "360";
+    private string _glueTabHeightText = "5";
+    private string _glueTabType = "Trapezoid";
+    private string _glueTabSide = "Left";
+    private string _glueTabStartOffsetText = "0";
+    private string _glueTabEndOffsetText = "0";
     private IReadOnlyList<Editor2DPreviewPath> _sewingHolePreviewPaths = [];
     private string? _editingSewingHoleOperationId;
     private Editor2DSewingHoleOperation? _selectedSewingHoleOperation;
 
+    public Editor2DWorkspaceViewModel(IReferenceImageTraceService? referenceImageTraceService = null)
+    {
+        _referenceImageTraceService = referenceImageTraceService;
+    }
+
     public Editor2DWorkspaceState State => _state;
+
+    internal int PolygonSides { get => _polygonSides; set => SetProperty(ref _polygonSides, value); }
+    internal IReadOnlyList<string> ExpandedRectanglePathIds { get => _expandedRectanglePathIds; set => SetProperty(ref _expandedRectanglePathIds, value); }
+    internal string SelectedTextDraft { get => _selectedTextDraft; set => SetProperty(ref _selectedTextDraft, value); }
+    internal string SelectedTextHeightText { get => _selectedTextHeightText; set => SetProperty(ref _selectedTextHeightText, value); }
+    internal string SelectedTextFontFamily { get => _selectedTextFontFamily; set => SetProperty(ref _selectedTextFontFamily, value); }
+    internal string SelectedTextCharacterSpacingText { get => _selectedTextCharacterSpacingText; set => SetProperty(ref _selectedTextCharacterSpacingText, value); }
+    internal bool SelectedTextBold { get => _selectedTextBold; set => SetProperty(ref _selectedTextBold, value); }
+    internal bool SelectedTextItalic { get => _selectedTextItalic; set => SetProperty(ref _selectedTextItalic, value); }
+    internal bool SelectedTextUnderline { get => _selectedTextUnderline; set => SetProperty(ref _selectedTextUnderline, value); }
+    internal bool IsSelectedTextHeightValid { get => _isSelectedTextHeightValid; set => SetProperty(ref _isSelectedTextHeightValid, value); }
+    internal double ViewportZoom { get => _viewportZoom; set => SetProperty(ref _viewportZoom, value); }
+    internal double ViewportOffsetX { get => _viewportOffsetX; set => SetProperty(ref _viewportOffsetX, value); }
+    internal double ViewportOffsetY { get => _viewportOffsetY; set => SetProperty(ref _viewportOffsetY, value); }
+    internal int FrameRequestToken { get => _frameRequestToken; set => SetProperty(ref _frameRequestToken, value); }
+    internal string ConvertLineStyle { get => _convertLineStyle; set => SetProperty(ref _convertLineStyle, value); }
+    internal Dictionary<string, string> GetOrInitializeConvertLineParameterText(IReadOnlyDictionary<string, string> defaults)
+    {
+        if (_convertLineParameterText.Count == 0)
+        {
+            foreach (var (key, value) in defaults)
+                _convertLineParameterText[key] = value;
+        }
+        return _convertLineParameterText;
+    }
+    internal string OffsetMode { get => _offsetMode; set => SetProperty(ref _offsetMode, value); }
+    internal string OffsetSide { get => _offsetSide; set => SetProperty(ref _offsetSide, value); }
+    internal string OffsetDistanceText { get => _offsetDistanceText; set => SetProperty(ref _offsetDistanceText, value); }
+    internal string OffsetBBoxDistanceText { get => _offsetBBoxDistanceText; set => SetProperty(ref _offsetBBoxDistanceText, value); }
+    internal string OffsetBBoxFilletText { get => _offsetBBoxFilletText; set => SetProperty(ref _offsetBBoxFilletText, value); }
+    internal string AddThicknessWidthText { get => _addThicknessWidthText; set => SetProperty(ref _addThicknessWidthText, value); }
+    internal string CleanupToleranceText { get => _cleanupToleranceText; set => SetProperty(ref _cleanupToleranceText, value); }
+    internal string PatternMode { get => _patternMode; set => SetProperty(ref _patternMode, value); }
+    internal string PatternCopiesXText { get => _patternCopiesXText; set => SetProperty(ref _patternCopiesXText, value); }
+    internal string PatternCopiesYText { get => _patternCopiesYText; set => SetProperty(ref _patternCopiesYText, value); }
+    internal string PatternSpacingXText { get => _patternSpacingXText; set => SetProperty(ref _patternSpacingXText, value); }
+    internal string PatternSpacingYText { get => _patternSpacingYText; set => SetProperty(ref _patternSpacingYText, value); }
+    internal string PatternCircularCountText { get => _patternCircularCountText; set => SetProperty(ref _patternCircularCountText, value); }
+    internal string PatternCircularAngleText { get => _patternCircularAngleText; set => SetProperty(ref _patternCircularAngleText, value); }
+    internal string GlueTabHeightText { get => _glueTabHeightText; set => SetProperty(ref _glueTabHeightText, value); }
+    internal string GlueTabType { get => _glueTabType; set => SetProperty(ref _glueTabType, value); }
+    internal string GlueTabSide { get => _glueTabSide; set => SetProperty(ref _glueTabSide, value); }
+    internal string GlueTabStartOffsetText { get => _glueTabStartOffsetText; set => SetProperty(ref _glueTabStartOffsetText, value); }
+    internal string GlueTabEndOffsetText { get => _glueTabEndOffsetText; set => SetProperty(ref _glueTabEndOffsetText, value); }
 
     public Editor2DPreviewDocument Document => _state.Document;
 
@@ -151,6 +236,73 @@ public sealed class Editor2DWorkspaceViewModel : ObservableObject
     public void SetSelectedMeasurement(string? selectedMeasurementId)
         => Apply(_state with { SelectedMeasurementId = selectedMeasurementId }, recordHistory: false);
 
+    public void CommitDocumentEdit(
+        Editor2DPreviewDocument document,
+        IReadOnlyList<string> selectedPathIds,
+        string? selectedMeasurementId = null)
+        => Apply(_state with
+        {
+            Document = document,
+            IsInitialized = true,
+            SelectedPathIds = selectedPathIds,
+            SelectedMeasurementId = selectedMeasurementId,
+        });
+
+    public void ClearManualMeasurements()
+        => SetMeasurements(
+            Measurements.Where(static measurement => measurement.IsAutoDimension).ToArray(),
+            selectedMeasurementId: null);
+
+    public bool DeleteSelectedMeasurement()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedMeasurementId))
+            return false;
+
+        SetMeasurements(
+            Measurements.Where(measurement => !string.Equals(measurement.Id, SelectedMeasurementId, StringComparison.Ordinal)).ToArray(),
+            selectedMeasurementId: null);
+        return true;
+    }
+
+    public int DeleteSelection()
+    {
+        if (SelectedPathIds.Count == 0)
+            return 0;
+
+        var selected = SelectedPathIds.ToHashSet(StringComparer.Ordinal);
+        var paths = Document.Paths.Where(path => !selected.Contains(path.Id)).ToArray();
+        var deleted = Document.Paths.Count - paths.Length;
+        if (deleted == 0)
+            return 0;
+
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, paths),
+            SelectedPathIds = [],
+            SelectedMeasurementId = null,
+        });
+        return deleted;
+    }
+
+    public int ExpandSelectedRectangles()
+    {
+        if (SelectedPathIds.Count == 0)
+            return 0;
+
+        var selected = SelectedPathIds.ToHashSet(StringComparer.Ordinal);
+        var expanded = 0;
+        var paths = Document.Paths.Select(path =>
+        {
+            if (!path.IsAxisAlignedRectangle || !selected.Contains(path.Id))
+                return path;
+            expanded++;
+            return path with { IsAxisAlignedRectangle = false };
+        }).ToArray();
+        if (expanded > 0)
+            Apply(_state with { Document = RebuildDocument(Document, paths) });
+        return expanded;
+    }
+
     public Editor2DLayer CreateLayer(string? name = null)
     {
         var layers = Layers.OrderBy(layer => layer.Order).ToList();
@@ -242,29 +394,38 @@ public sealed class Editor2DWorkspaceViewModel : ObservableObject
     {
         var sourceLayer = Layers.FirstOrDefault(layer => layer.Id == layerId && layer.IsReferenceImage);
         var image = sourceLayer?.ReferenceImage;
-        if (sourceLayer is null || image is null || sourceLayer.IsLocked || !sourceLayer.IsVisible)
+        if (sourceLayer is null
+            || image is null
+            || sourceLayer.IsLocked
+            || !sourceLayer.IsVisible
+            || _referenceImageTraceService is null)
             return null;
 
-        var halfWidth = image.Width / 2.0;
-        var halfHeight = image.Height / 2.0;
+        var contours = _referenceImageTraceService.TraceContours(image.DataBase64, image.TraceThreshold);
+        if (contours.Count == 0)
+            return null;
+
         var radians = image.RotationDegrees * Math.PI / 180.0;
         var cosine = Math.Cos(radians);
         var sine = Math.Sin(radians);
-        Editor2DPoint Rotate(double x, double y) => new(
-            image.X + (x * cosine) - (y * sine),
-            image.Y + (x * sine) + (y * cosine));
-        var points = new[]
+        Editor2DPoint Transform(Editor2DPoint pixel)
         {
-            Rotate(-halfWidth, -halfHeight),
-            Rotate(halfWidth, -halfHeight),
-            Rotate(halfWidth, halfHeight),
-            Rotate(-halfWidth, halfHeight),
-        };
-        var trace = new Editor2DPreviewPath(
-            $"trace-{Guid.NewGuid():N}",
-            "REFERENCE_TRACE",
-            points,
-            IsClosed: true);
+            var localX = ((pixel.X / image.PixelWidth) - 0.5) * image.Width;
+            var localY = ((pixel.Y / image.PixelHeight) - 0.5) * image.Height;
+            return new Editor2DPoint(
+                image.X + (localX * cosine) - (localY * sine),
+                image.Y + (localX * sine) + (localY * cosine));
+        }
+        var traces = contours
+            .Where(contour => contour.Count >= 3)
+            .Select(contour => new Editor2DPreviewPath(
+                $"trace-{Guid.NewGuid():N}",
+                "REFERENCE_TRACE",
+                contour.Select(Transform).ToArray(),
+                IsClosed: true))
+            .ToArray();
+        if (traces.Length == 0)
+            return null;
 
         var layers = Layers.OrderBy(layer => layer.Order).ToList();
         var geometryLayerIndex = layers.FindIndex(layer => layer.Kind == Editor2DLayerKind.Geometry && !layer.IsLocked);
@@ -273,36 +434,30 @@ public sealed class Editor2DWorkspaceViewModel : ObservableObject
             layers.Add(new Editor2DLayer(
                 Guid.NewGuid().ToString("N"),
                 "Traced geometry",
-                [trace.Id],
+                traces.Select(trace => trace.Id).ToArray(),
                 Order: layers.Count));
         }
         else
         {
             layers[geometryLayerIndex] = layers[geometryLayerIndex] with
             {
-                PathIds = layers[geometryLayerIndex].PathIds.Append(trace.Id).ToArray(),
+                PathIds = layers[geometryLayerIndex].PathIds
+                    .Concat(traces.Select(trace => trace.Id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray(),
             };
         }
 
-        var nextPaths = _state.Document.Paths.Append(trace).ToArray();
-        var minX = nextPaths.SelectMany(path => path.Points).Min(point => point.X);
-        var minY = nextPaths.SelectMany(path => path.Points).Min(point => point.Y);
-        var maxX = nextPaths.SelectMany(path => path.Points).Max(point => point.X);
-        var maxY = nextPaths.SelectMany(path => path.Points).Max(point => point.Y);
+        var nextPaths = _state.Document.Paths.Concat(traces).ToArray();
         var entityCounts = new Dictionary<string, int>(_state.Document.EntityCounts, StringComparer.OrdinalIgnoreCase);
-        entityCounts[trace.EntityType] = entityCounts.GetValueOrDefault(trace.EntityType) + 1;
+        entityCounts["REFERENCE_TRACE"] = entityCounts.GetValueOrDefault("REFERENCE_TRACE") + traces.Length;
         Apply(_state with
         {
-            Document = _state.Document with
-            {
-                Paths = nextPaths,
-                Bounds = new Editor2DBounds(minX, minY, maxX, maxY),
-                EntityCounts = entityCounts,
-            },
+            Document = RebuildDocument(_state.Document with { EntityCounts = entityCounts }, nextPaths),
             Layers = layers,
-            SelectedPathIds = [trace.Id],
+            SelectedPathIds = traces.Select(trace => trace.Id).ToArray(),
         });
-        return trace;
+        return traces[0];
     }
 
     public bool SelectLayer(string layerId)

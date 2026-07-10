@@ -40,7 +40,7 @@ public sealed partial class EditorPageViewModel
         get => _threeDWorkspace.Bodies;
         private set
         {
-            if (!_threeDWorkspace.UpdateBodies(value))
+            if (!_threeDWorkspace.SetBodies(value))
                 return;
 
             OnPropertyChanged();
@@ -121,7 +121,7 @@ public sealed partial class EditorPageViewModel
 
         try
         {
-            var result = await _editor3DOperationService
+            var result = await _threeDWorkspace
                 .LoadModelsAsync(normalizedSourceModelPaths, _sourceModelPath, cancellationToken)
                 .ConfigureAwait(true);
 
@@ -162,7 +162,7 @@ public sealed partial class EditorPageViewModel
             : "Importing 3D models";
         ViewportStateText = $"Preparing {_pendingSourceModelPaths.Count} source model(s)";
 
-        var result = await _editor3DOperationService
+        var result = await _threeDWorkspace
             .LoadModelsAsync(_pendingSourceModelPaths, existingState.SourceModelPath, cancellationToken)
             .ConfigureAwait(true);
 
@@ -238,9 +238,7 @@ public sealed partial class EditorPageViewModel
                     UnfoldWorkspaceState: BuildPersistedUnfoldWorkspaceState(),
                     ProjectionWorkspaceState: BuildPersistedProjectionWorkspaceState(),
                     WorkspaceState: BuildPersistedEditorWorkspaceState(),
-                    ThreeDWorkspaceState: _threeDWorkspace.CaptureState(
-                        BuildPersistedProjectionWorkspaceState(),
-                        BuildPersistedUnfoldWorkspaceState()),
+                    ThreeDWorkspaceState: _threeDWorkspace.CaptureState(),
                     StepTopology: result.StepTopology),
                 cancellationToken).ConfigureAwait(true);
         }

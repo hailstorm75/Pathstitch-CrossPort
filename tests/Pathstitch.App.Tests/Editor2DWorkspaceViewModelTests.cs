@@ -97,7 +97,53 @@ public sealed class Editor2DWorkspaceViewModelTests
         Assert.DoesNotContain("_twoDSelectedPathIds", fieldNames);
         Assert.DoesNotContain("_twoDMeasurements", fieldNames);
         Assert.DoesNotContain("_twoDSelectedMeasurementId", fieldNames);
+        Assert.DoesNotContain("_twoDPolygonSides", fieldNames);
+        Assert.DoesNotContain("_twoDExpandedRectanglePathIds", fieldNames);
+        Assert.DoesNotContain("_twoDSelectedTextDraft", fieldNames);
+        Assert.DoesNotContain("_twoDViewportZoom", fieldNames);
+        Assert.DoesNotContain("_twoDConvertLineStyle", fieldNames);
+        Assert.DoesNotContain("_twoDOffsetMode", fieldNames);
+        Assert.DoesNotContain("_twoDPatternMode", fieldNames);
+        Assert.DoesNotContain("_twoDGlueTabType", fieldNames);
         Assert.Contains("_twoDWorkspace", fieldNames);
+    }
+
+    [Fact]
+    public void WorkspaceOwnsCoreEditingOperationsParametersAndHistory()
+    {
+        var workspaceType = typeof(Editor2DWorkspaceViewModel);
+        var workspaceFields = workspaceType
+            .GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .Select(field => field.Name)
+            .ToArray();
+
+        Assert.Contains("_state", workspaceFields);
+        Assert.Contains("_undo", workspaceFields);
+        Assert.Contains("_redo", workspaceFields);
+        Assert.Contains("_polygonSides", workspaceFields);
+        Assert.Contains("_convertLineStyle", workspaceFields);
+        Assert.Contains("_offsetMode", workspaceFields);
+        Assert.Contains("_patternMode", workspaceFields);
+        Assert.Contains("_glueTabType", workspaceFields);
+        Assert.NotNull(workspaceType.GetMethod(nameof(Editor2DWorkspaceViewModel.DeleteSelection)));
+        Assert.NotNull(workspaceType.GetMethod(nameof(Editor2DWorkspaceViewModel.DeleteSelectedMeasurement)));
+        Assert.NotNull(workspaceType.GetMethod(nameof(Editor2DWorkspaceViewModel.ExpandSelectedRectangles)));
+        Assert.NotNull(workspaceType.GetMethod(nameof(Editor2DWorkspaceViewModel.ClearManualMeasurements)));
+    }
+
+    [Fact]
+    public void OutputPartial_HasNoDuplicateTwoDStorageOrDirectEditCommits()
+    {
+        var output = File.ReadAllText(FindRepositoryFile(
+            "src", "Domain", "Domain.App", "ViewModels", "EditorPageViewModel.Output.cs"));
+
+        Assert.DoesNotContain("private string _twoDOffset", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("private string _twoDPattern", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("private string _twoDGlue", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("private string _twoDConvert", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("TwoDDocument = CreateUpdatedTwoDDocument", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CommitTwoDWorkspaceEdit", output, StringComparison.Ordinal);
+        Assert.Contains("_twoDWorkspace.Apply", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -175,5 +221,16 @@ public sealed class Editor2DWorkspaceViewModelTests
         Assert.Equal(1, workspace.CornerParameters.Single(item => item.Id == second.Id).Value);
         Assert.True(workspace.Document.Paths.Single().Points.Count > source.Points.Count);
         Assert.Equal(source.Points, workspace.CornerParameters[0].SourcePoints);
+    }
+
+    private static string FindRepositoryFile(params string[] parts)
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            var candidate = Path.Combine([directory.FullName, .. parts]);
+            if (File.Exists(candidate))
+                return candidate;
+        }
+        throw new FileNotFoundException(Path.Combine(parts));
     }
 }
