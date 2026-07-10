@@ -1,10 +1,12 @@
 using System.Buffers.Binary;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
@@ -59,6 +61,7 @@ public sealed class PackagedStepGeometryKernelService(
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ILogger<PackagedStepGeometryKernelService> _logger = logger;
     private readonly IGeometryWorkerRuntimeResolver _runtimeResolver = runtimeResolver;
+    private readonly ConcurrentDictionary<string, StepGeometryDocument> _documentsById = new(StringComparer.Ordinal);
     private Process? _process;
     private Stream? _input;
     private Stream? _output;
@@ -71,9 +74,15 @@ public sealed class PackagedStepGeometryKernelService(
             return _protocol;
         var response = await SendAsync("handshake", new { }, cancellationToken).ConfigureAwait(false);
         _protocol = response.GetProperty("protocol").Deserialize<StepGeometryProtocolInfo>(JsonOptions)
-            ?? throw new InvalidDataException("Geometry worker returned an empty handshake.");
+            ?? throw new GeometryWorkerException(new GeometryKernelFailure(
+                GeometryKernelFailureCode.ProtocolMismatch,
+                GeometryKernelOperation.Import,
+                "Geometry worker returned an empty protocol handshake."));
         if (_protocol.ProtocolVersion != ProtocolVersion)
-            throw new InvalidDataException($"Geometry worker protocol {_protocol.ProtocolVersion} does not match app protocol {ProtocolVersion}.");
+            throw new GeometryWorkerException(new GeometryKernelFailure(
+                GeometryKernelFailureCode.ProtocolMismatch,
+                GeometryKernelOperation.Import,
+                $"Geometry worker protocol {_protocol.ProtocolVersion} does not match app protocol {ProtocolVersion}."));
         return _protocol;
     }
 
@@ -84,6 +93,8 @@ public sealed class PackagedStepGeometryKernelService(
             var protocol = await HandshakeAsync(cancellationToken).ConfigureAwait(false);
             var response = await SendAsync("import", new { sourcePath }, cancellationToken).ConfigureAwait(false);
             var topology = response.GetProperty("topology").Deserialize<StepGeometryDocument>(JsonOptions);
+            if (topology is not null)
+                _documentsById[topology.DocumentId] = topology;
             var viewport = response.GetProperty("viewport");
             var bodies = viewport.GetProperty("bodies").EnumerateArray().Select(ParseBody).ToArray();
             return new StepGeometryImportResult(
@@ -115,15 +126,21 @@ public sealed class PackagedStepGeometryKernelService(
     public async Task<EditorOperationResult> ProjectAsync(EditorProjectionRequest request, CancellationToken cancellationToken = default)
     {
         var output = CreateOutputPath("step-projection");
+        var document = TryFindDocument(request.SourceModelPath);
+        var faceId = request.FaceId ?? TryGetFaceId(document, request.FaceBodyIndex, request.FaceIndex);
+        var visibleBodyIds = request.VisibleBodyIds ?? TryGetBodyIds(document, request.VisibleBodyIndices);
         var bodyOffsets = request.BodyOffsets.ToDictionary(
             offset => offset.BodyIndex.ToString(),
             offset => new[] { offset.X, offset.Y, offset.Z });
         try
         {
-            await SendAsync("project", new
+            var response = await SendAsync("project", new
             {
                 input = request.SourceModelPath,
                 output,
+                document_id = document?.DocumentId,
+                face_id = faceId,
+                visible_body_ids = visibleBodyIds,
                 body_index = 0,
                 plane_type = request.PlaneType,
                 face_index = request.FaceIndex,
@@ -132,7 +149,9 @@ public sealed class PackagedStepGeometryKernelService(
                 body_offsets = bodyOffsets,
                 offset = request.Offset,
             }, cancellationToken).ConfigureAwait(false);
-            return new EditorOperationResult(true, "Projected STEP B-rep through packaged OCCT worker.", output);
+            var geometry = response.GetProperty("data").GetProperty("typedGeometry")
+                .Deserialize<StepOperationGeometry>(JsonOptions);
+            return new EditorOperationResult(true, "Projected STEP B-rep through packaged OCCT worker.", output, Geometry: geometry);
         }
         catch (GeometryWorkerException ex)
         {
@@ -143,19 +162,31 @@ public sealed class PackagedStepGeometryKernelService(
     public async Task<EditorOperationResult> UnfoldAsync(EditorUnfoldRequest request, CancellationToken cancellationToken = default)
     {
         var output = CreateOutputPath("step-unfold");
+        var document = TryFindDocument(request.SourceModelPath);
+        var selectedFaceIds = request.SelectedFaceIds ?? request.SelectedFaces
+            .Select(face => face.FaceId ?? TryGetFaceId(document, face.BodyIndex, face.FaceIndex))
+            .Where(id => id is not null)
+            .Cast<string>()
+            .ToArray();
+        var visibleBodyIds = request.VisibleBodyIds ?? TryGetBodyIds(document, request.VisibleBodyIndices);
         try
         {
-            await SendAsync("unfold", new
+            var response = await SendAsync("unfold", new
             {
                 input = request.SourceModelPath,
                 output,
+                document_id = document?.DocumentId,
+                face_ids = selectedFaceIds,
+                visible_body_ids = visibleBodyIds,
                 whole_body = request.WholeBody,
                 faces = request.SelectedFaces.Select(face => new { body_index = face.BodyIndex, face_index = face.FaceIndex }).ToArray(),
                 distortion_mode = request.DistortionMode,
                 mode = "radial",
                 decoration = "none",
             }, cancellationToken).ConfigureAwait(false);
-            return new EditorOperationResult(true, "Unfolded STEP B-rep through packaged OCCT worker.", output);
+            var geometry = response.GetProperty("data").GetProperty("typedGeometry")
+                .Deserialize<StepOperationGeometry>(JsonOptions);
+            return new EditorOperationResult(true, "Unfolded STEP B-rep through packaged OCCT worker.", output, Geometry: geometry);
         }
         catch (GeometryWorkerException ex)
         {
@@ -169,11 +200,15 @@ public sealed class PackagedStepGeometryKernelService(
         string distortionMode,
         CancellationToken cancellationToken = default)
     {
+        var document = TryFindDocument(sourcePath);
+        var faceId = face.FaceId ?? TryGetFaceId(document, face.BodyIndex, face.FaceIndex);
         try
         {
             var response = await SendAsync("distortion", new
             {
                 input = sourcePath,
+                document_id = document?.DocumentId,
+                face_id = faceId,
                 body_index = face.BodyIndex,
                 face_index = face.FaceIndex,
                 distortion_mode = distortionMode,
@@ -217,10 +252,33 @@ public sealed class PackagedStepGeometryKernelService(
                 throw CreateWorkerException(response.GetProperty("error"), operation);
             return response;
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            StopWorker();
+            throw new GeometryWorkerException(new GeometryKernelFailure(
+                GeometryKernelFailureCode.Timeout,
+                MapOperation(operation),
+                $"The packaged geometry worker timed out while performing {operation}.",
+                IsRetryable: true));
+        }
         catch (OperationCanceledException)
         {
             StopWorker();
             throw;
+        }
+        catch (GeometryWorkerException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            StopWorker();
+            throw new GeometryWorkerException(new GeometryKernelFailure(
+                GeometryKernelFailureCode.BackendFailure,
+                MapOperation(operation),
+                $"The packaged geometry worker transport failed while performing {operation}.",
+                ex.Message,
+                IsRetryable: true));
         }
         finally
         {
@@ -283,29 +341,56 @@ public sealed class PackagedStepGeometryKernelService(
         return new Body3D(bodyIndex, body.GetProperty("name").GetString() ?? $"Body {bodyIndex + 1}", faces);
     }
 
+    private StepGeometryDocument? TryFindDocument(string? sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+            return null;
+        using var stream = File.OpenRead(sourcePath);
+        var documentId = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant()[..24];
+        return _documentsById.TryGetValue(documentId, out var document) ? document : null;
+    }
+
+    private static string? TryGetFaceId(StepGeometryDocument? document, int? bodyIndex, int? faceIndex)
+        => document is not null
+            && bodyIndex is >= 0 && bodyIndex < document.Bodies.Count
+            && faceIndex is >= 0 && faceIndex < document.Bodies[bodyIndex.Value].Faces.Count
+                ? document.Bodies[bodyIndex.Value].Faces[faceIndex.Value].Id
+                : null;
+
+    private static IReadOnlyList<string> TryGetBodyIds(
+        StepGeometryDocument? document,
+        IReadOnlyList<int> bodyIndices)
+        => document is null
+            ? []
+            : bodyIndices.Where(index => index >= 0 && index < document.Bodies.Count)
+                .Select(index => document.Bodies[index].Id)
+                .ToArray();
+
     private static GeometryWorkerException CreateWorkerException(JsonElement error, string operation)
     {
         var code = error.GetProperty("code").GetString() switch
         {
             "source-unavailable" => GeometryKernelFailureCode.SourceUnavailable,
             "invalid-input" => GeometryKernelFailureCode.InvalidInput,
+            "geometry-not-found" => GeometryKernelFailureCode.GeometryNotFound,
             "protocol-mismatch" => GeometryKernelFailureCode.ProtocolMismatch,
             _ => GeometryKernelFailureCode.BackendFailure,
         };
-        var kernelOperation = operation switch
-        {
-            "project" => GeometryKernelOperation.Projection,
-            "unfold" => GeometryKernelOperation.Unfold,
-            "distortion" => GeometryKernelOperation.Distortion,
-            _ => GeometryKernelOperation.Import,
-        };
         return new GeometryWorkerException(new GeometryKernelFailure(
             code,
-            kernelOperation,
+            MapOperation(operation),
             error.GetProperty("message").GetString() ?? "Geometry worker failed.",
             error.TryGetProperty("diagnostic", out var diagnostic) ? diagnostic.GetString() : null,
             error.TryGetProperty("retryable", out var retryable) && retryable.GetBoolean()));
     }
+
+    private static GeometryKernelOperation MapOperation(string operation) => operation switch
+    {
+        "project" => GeometryKernelOperation.Projection,
+        "unfold" => GeometryKernelOperation.Unfold,
+        "distortion" => GeometryKernelOperation.Distortion,
+        _ => GeometryKernelOperation.Import,
+    };
 
     private static string CreateOutputPath(string prefix)
     {

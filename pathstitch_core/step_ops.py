@@ -411,6 +411,7 @@ def op_unfold_face(args: Dict[str, Any]) -> Dict[str, Any]:
             doc.layers.new("UNFOLDED_3D", dxfattribs={"color": 6})
 
         # Translate to correct position and add to layout
+        output_polylines = []
         for poly in polylines:
             translated = []
             for pt in poly:
@@ -692,6 +693,68 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
             origin[1] + normal[1] * offset,
             origin[2] + normal[2] * offset
         )
+
+        def _project_point(point):
+            dx, dy, dz = point.X() - origin[0], point.Y() - origin[1], point.Z() - origin[2]
+            return [
+                float(dx * u_axis[0] + dy * u_axis[1] + dz * u_axis[2]),
+                float(dx * v_axis[0] + dy * v_axis[1] + dz * v_axis[2]),
+            ]
+
+        def _exact_curve_2d(edge):
+            from OCC.Core.BRepAdaptor import BRepAdaptor_Curve
+            from OCC.Core.GeomAbs import GeomAbs_Line, GeomAbs_Circle, GeomAbs_BSplineCurve
+            curve = BRepAdaptor_Curve(edge)
+            first, last = float(curve.FirstParameter()), float(curve.LastParameter())
+            geometry = {"scalars": {"firstParameter": first, "lastParameter": last},
+                        "poles": [], "knots": [], "multiplicities": [], "weights": []}
+            kind, closed = "other", False
+            if curve.GetType() == GeomAbs_Line:
+                line = curve.Line()
+                location = _project_point(line.Location())
+                direction = line.Direction()
+                geometry["scalars"].update({
+                    "originX": location[0], "originY": location[1],
+                    "directionX": float(direction.X() * u_axis[0] + direction.Y() * u_axis[1] + direction.Z() * u_axis[2]),
+                    "directionY": float(direction.X() * v_axis[0] + direction.Y() * v_axis[1] + direction.Z() * v_axis[2]),
+                })
+                kind = "line"
+            elif curve.GetType() == GeomAbs_Circle:
+                circle = curve.Circle()
+                center = _project_point(circle.Location())
+                position = circle.Position()
+                x_direction, y_direction = position.XDirection(), position.YDirection()
+                radius = float(circle.Radius())
+                x_axis = [radius * (x_direction.X() * u_axis[0] + x_direction.Y() * u_axis[1] + x_direction.Z() * u_axis[2]),
+                          radius * (x_direction.X() * v_axis[0] + x_direction.Y() * v_axis[1] + x_direction.Z() * v_axis[2])]
+                y_axis = [radius * (y_direction.X() * u_axis[0] + y_direction.Y() * u_axis[1] + y_direction.Z() * u_axis[2]),
+                          radius * (y_direction.X() * v_axis[0] + y_direction.Y() * v_axis[1] + y_direction.Z() * v_axis[2])]
+                x_length, y_length = math.hypot(*x_axis), math.hypot(*y_axis)
+                orthogonality = x_axis[0] * y_axis[0] + x_axis[1] * y_axis[1]
+                if abs(x_length - y_length) <= 1e-7 * max(1.0, radius) and abs(orthogonality) <= 1e-7 * max(1.0, radius * radius):
+                    geometry["scalars"].update({"centerX": center[0], "centerY": center[1], "radius": 0.5 * (x_length + y_length)})
+                    kind = "circle"
+                else:
+                    geometry["scalars"].update({
+                        "centerX": center[0], "centerY": center[1],
+                        "xAxisX": float(x_axis[0]), "xAxisY": float(x_axis[1]),
+                        "yAxisX": float(y_axis[0]), "yAxisY": float(y_axis[1]),
+                    })
+                    kind = "ellipse"
+                closed = abs((last - first) - 2.0 * math.pi) <= 1e-6
+            elif curve.GetType() == GeomAbs_BSplineCurve:
+                spline = curve.BSpline()
+                geometry["scalars"].update({
+                    "degree": float(spline.Degree()), "periodic": 1.0 if spline.IsPeriodic() else 0.0,
+                    "rational": 1.0 if spline.IsRational() else 0.0,
+                })
+                geometry["poles"] = [{"x": point[0], "y": point[1]}
+                                     for point in (_project_point(spline.Pole(i)) for i in range(1, spline.NbPoles() + 1))]
+                geometry["knots"] = [float(spline.Knot(i)) for i in range(1, spline.NbKnots() + 1)]
+                geometry["multiplicities"] = [int(spline.Multiplicity(i)) for i in range(1, spline.NbKnots() + 1)]
+                geometry["weights"] = [float(spline.Weight(i)) for i in range(1, spline.NbPoles() + 1)]
+                kind, closed = "bspline", bool(spline.IsClosed())
+            return {"kind": kind, "closed": closed, "geometry": geometry}
         
         from OCC.Core.gp import gp_Ax2, gp_Pnt, gp_Dir, gp_Pln
         from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Section
@@ -719,6 +782,7 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
                 pass
                 
         polylines = []
+        exact_curves = []
         seen_projections = set()
         
         if section_edges:
@@ -747,6 +811,7 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
                         continue
                     seen_projections.add(key)
                     polylines.append(pts2d)
+                    exact_curves.append(_exact_curve_2d(edge))
                 except Exception:
                     pass
                     
@@ -804,6 +869,7 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
                             continue
                         seen_projections.add(key)
                         polylines.append(pts2d)
+                        exact_curves.append(_exact_curve_2d(edge))
                     except Exception:
                         pass
                         
@@ -831,7 +897,8 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
             
         if "PROJECTED_SKETCH" not in doc.layers:
             doc.layers.new("PROJECTED_SKETCH", dxfattribs={"color": 5})
-            
+
+        output_polylines = []
         for poly in polylines:
             translated = []
             for pt in poly:
@@ -839,13 +906,19 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
                 ty = pt[1] - min_y + start_y
                 translated.append((tx, ty))
             msp.add_lwpolyline(translated, dxfattribs={"layer": "PROJECTED_SKETCH"})
+            output_polylines.append([[float(x), float(y)] for x, y in translated])
             
         doc.saveas(output_path)
+        for curve, approximation in zip(exact_curves, output_polylines):
+            curve["display_approximation"] = approximation
         return {
             "status": "ok",
             "data": {
                 "output": output_path,
-                "polylines_count": len(polylines)
+                "polylines_count": len(polylines),
+                "projection_mode": "section" if any_intersection else "silhouette",
+                "polylines": output_polylines,
+                "exact_curves": exact_curves,
             }
         }
     except Exception as e:

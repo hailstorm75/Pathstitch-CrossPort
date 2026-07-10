@@ -1,16 +1,76 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows7.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifiers>win-x64;osx-arm64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <OpenGeometryPackageVersion>2.0.11</OpenGeometryPackageVersion>
+    <OpenGeometryPackageSha512>566A5862A6C21761899433713D42A23A014AE112CA88A24B95E03212A1781129BE502A5B0809692F7A4A14F3F1263F751EB063767211DEFC24BFB5CD2D516163</OpenGeometryPackageSha512>
+    <PackagedNodeVersion>22.22.0</PackagedNodeVersion>
+    <PackagedRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</PackagedRuntimeIdentifier>
+    <PackagedRuntimeIdentifier Condition="'$(PackagedRuntimeIdentifier)' == '' And '$(OS)' == 'Windows_NT'">win-x64</PackagedRuntimeIdentifier>
+    <PackagedRuntimeIdentifier Condition="'$(PackagedRuntimeIdentifier)' == '' And '$(OS)' != 'Windows_NT'">osx-arm64</PackagedRuntimeIdentifier>
+    <GeometryWorkerRoot>$(MSBuildProjectDirectory)\..\..\artifacts\geometry-worker\$(PackagedRuntimeIdentifier)</GeometryWorkerRoot>
+    <OpenGeometryCacheRoot>$(BaseIntermediateOutputPath)packaged-opengeometry\</OpenGeometryCacheRoot>
+    <OpenGeometryPackageArchive>$(OpenGeometryCacheRoot)opengeometry-$(OpenGeometryPackageVersion).tgz</OpenGeometryPackageArchive>
+    <OpenGeometryPackageExtractRoot>$(OpenGeometryCacheRoot)package-$(OpenGeometryPackageVersion)</OpenGeometryPackageExtractRoot>
+    <PackagedNodeArchiveName Condition="'$(PackagedRuntimeIdentifier)' == 'win-x64'">node-v$(PackagedNodeVersion)-win-x64.zip</PackagedNodeArchiveName>
+    <PackagedNodeArchiveSha256 Condition="'$(PackagedRuntimeIdentifier)' == 'win-x64'">C97FA376D2BECDC8863FCD3CA2DD9A83A9F3468EE7CCF7A6D076EC66A645C77A</PackagedNodeArchiveSha256>
+    <PackagedNodeArchiveName Condition="'$(PackagedRuntimeIdentifier)' == 'osx-arm64'">node-v$(PackagedNodeVersion)-darwin-arm64.tar.gz</PackagedNodeArchiveName>
+    <PackagedNodeArchiveSha256 Condition="'$(PackagedRuntimeIdentifier)' == 'osx-arm64'">5ED4DB0FCF1EAF84D91AD12462631D73BF4576C1377E192D222E48026A902640</PackagedNodeArchiveSha256>
+    <PackagedNodeArchive>$(OpenGeometryCacheRoot)$(PackagedNodeArchiveName)</PackagedNodeArchive>
+    <PackagedNodeExtractRoot>$(OpenGeometryCacheRoot)node-$(PackagedRuntimeIdentifier)-$(PackagedNodeVersion)</PackagedNodeExtractRoot>
+    <PackagedNodeExecutable Condition="'$(PackagedRuntimeIdentifier)' == 'win-x64'">$(PackagedNodeExtractRoot)\node-v$(PackagedNodeVersion)-win-x64\node.exe</PackagedNodeExecutable>
+    <PackagedNodeExecutable Condition="'$(PackagedRuntimeIdentifier)' == 'osx-arm64'">$(PackagedNodeExtractRoot)\node-v$(PackagedNodeVersion)-darwin-arm64\bin\node</PackagedNodeExecutable>
+    <PackagedNodeLicense Condition="'$(PackagedRuntimeIdentifier)' == 'win-x64'">$(PackagedNodeExtractRoot)\node-v$(PackagedNodeVersion)-win-x64\LICENSE</PackagedNodeLicense>
+    <PackagedNodeLicense Condition="'$(PackagedRuntimeIdentifier)' == 'osx-arm64'">$(PackagedNodeExtractRoot)\node-v$(PackagedNodeVersion)-darwin-arm64\LICENSE</PackagedNodeLicense>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64' Or ('$(RuntimeIdentifier)' == '' And '$(OS)' == 'Windows_NT')">
+    <OutputType>WinExe</OutputType>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
   <ItemGroup>
-    <AvaloniaResource Include="Assets\**" />
+    <AvaloniaResource Include="Assets\**"
+                      Exclude="Assets\OpenGeometry\node_modules\**;Assets\OpenGeometry\package*.json;Assets\OpenGeometry\opengeometry-worker.mjs;Assets\OpenGeometry\runtime-manifest.json" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('$(GeometryWorkerRoot)')">
+    <Content Include="$(GeometryWorkerRoot)\**\*.*"
+             Link="GeometryWorker\$(PackagedRuntimeIdentifier)\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(PackagedNodeArchiveName)' != ''">
+    <Content Include="$(PackagedNodeExecutable)"
+             Link="Assets\OpenGeometry\runtime\$([System.IO.Path]::GetFileName('$(PackagedNodeExecutable)'))"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(PackagedNodeLicense)"
+             Link="Assets\OpenGeometry\runtime\LICENSE.node.txt"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(OpenGeometryPackageExtractRoot)\package\package.json"
+             Link="Assets\OpenGeometry\node_modules\opengeometry\package.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(OpenGeometryPackageExtractRoot)\package\opengeometry_bg.wasm"
+             Link="Assets\OpenGeometry\node_modules\opengeometry\opengeometry_bg.wasm"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(OpenGeometryPackageExtractRoot)\package\opengeometry\pkg\opengeometry.js"
+             Link="Assets\OpenGeometry\node_modules\opengeometry\opengeometry\pkg\opengeometry.js"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(OpenGeometryPackageExtractRoot)\package\opengeometry\pkg\opengeometry_bg.wasm"
+             Link="Assets\OpenGeometry\node_modules\opengeometry\opengeometry\pkg\opengeometry_bg.wasm"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,18 +88,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.9" />
-    <PackageReference Include="Occt.NET" Version="7.9.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="$(NuGetPackageRoot)occt.net\7.9.0\lib\net8.0-windows7.0\x64\Ijwhost.dll"
-             Link="Ijwhost.dll"
-             CopyToOutputDirectory="PreserveNewest"
-             Condition="Exists('$(NuGetPackageRoot)occt.net\\7.9.0\\lib\\net8.0-windows7.0\\x64\\Ijwhost.dll')" />
-    <Content Include="$(NuGetPackageRoot)occt.net\7.9.0\build\occt\x64\**\*.*"
-             Link="occt\x64\%(RecursiveDir)%(Filename)%(Extension)"
-             CopyToOutputDirectory="PreserveNewest"
-             Condition="Exists('$(NuGetPackageRoot)occt.net\\7.9.0\\build\\occt\\x64')" />
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
   </ItemGroup>
 
   <ItemGroup>
@@ -49,9 +98,73 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\Pathstitch\Pathstitch\Modes\ThreeDMode\viewport3d.html"
-          Link="Assets\Web\viewport3d.html"
-          CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Web\viewport3d.html" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\Web\vendor\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\OpenGeometry\opengeometry-worker.mjs" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\OpenGeometry\runtime-manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="PreparePackagedOpenGeometryRuntime"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(PackagedNodeArchiveName)' != ''">
+    <MakeDir Directories="$(OpenGeometryCacheRoot);$(OpenGeometryPackageExtractRoot);$(PackagedNodeExtractRoot)" />
+    <DownloadFile SourceUrl="https://registry.npmjs.org/opengeometry/-/opengeometry-$(OpenGeometryPackageVersion).tgz"
+                  DestinationFolder="$(OpenGeometryCacheRoot)"
+                  SkipUnchangedFiles="true"
+                  Retries="3"
+                  Condition="!Exists('$(OpenGeometryPackageArchive)')" />
+    <GetFileHash Files="$(OpenGeometryPackageArchive)" Algorithm="SHA512">
+      <Output TaskParameter="Items" ItemName="_OpenGeometryPackageWithHash" />
+    </GetFileHash>
+    <Error Condition="'%(_OpenGeometryPackageWithHash.FileHash)' != '$(OpenGeometryPackageSha512)'"
+           Text="OpenGeometry package checksum mismatch. Delete $(OpenGeometryPackageArchive) and rebuild." />
+    <Exec Command="tar -xzf &quot;$(OpenGeometryPackageArchive)&quot; -C &quot;$(OpenGeometryPackageExtractRoot)&quot;"
+          Condition="!Exists('$(OpenGeometryPackageExtractRoot)\package\opengeometry\pkg\opengeometry.js')" />
+
+    <DownloadFile SourceUrl="https://nodejs.org/download/release/v$(PackagedNodeVersion)/$(PackagedNodeArchiveName)"
+                  DestinationFolder="$(OpenGeometryCacheRoot)"
+                  SkipUnchangedFiles="true"
+                  Retries="3"
+                  Condition="!Exists('$(PackagedNodeArchive)')" />
+    <GetFileHash Files="$(PackagedNodeArchive)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_PackagedNodeArchiveWithHash" />
+    </GetFileHash>
+    <Error Condition="'%(_PackagedNodeArchiveWithHash.FileHash)' != '$(PackagedNodeArchiveSha256)'"
+           Text="Packaged Node.js checksum mismatch. Delete $(PackagedNodeArchive) and rebuild." />
+    <Unzip SourceFiles="$(PackagedNodeArchive)"
+           DestinationFolder="$(PackagedNodeExtractRoot)"
+           SkipUnchangedFiles="true"
+           Condition="'$(PackagedRuntimeIdentifier)' == 'win-x64' And !Exists('$(PackagedNodeExecutable)')" />
+    <Exec Command="tar -xzf &quot;$(PackagedNodeArchive)&quot; -C &quot;$(PackagedNodeExtractRoot)&quot;"
+          Condition="'$(PackagedRuntimeIdentifier)' == 'osx-arm64' And !Exists('$(PackagedNodeExecutable)')" />
+    <Error Condition="!Exists('$(PackagedNodeExecutable)')" Text="Packaged Node.js executable was not extracted." />
+    <Error Condition="!Exists('$(OpenGeometryPackageExtractRoot)\package\opengeometry_bg.wasm')" Text="Pinned OpenGeometry package was not extracted." />
+  </Target>
+
+  <Target Name="RequirePackagedStepGeometryWorker"
+          BeforeTargets="Publish"
+          Condition="'$(RequirePackagedStepGeometryWorker)' != 'false' And ('$(RuntimeIdentifier)' == 'win-x64' Or '$(RuntimeIdentifier)' == 'osx-arm64')">
+    <Error Condition="!Exists('$(GeometryWorkerRoot)')"
+           Text="The packaged STEP geometry worker for $(RuntimeIdentifier) is missing. Run geometry-worker/build-runtime.ps1 -RuntimeIdentifier $(RuntimeIdentifier) before publishing." />
+    <Error Condition="'$(RuntimeIdentifier)' == 'win-x64' And !Exists('$(GeometryWorkerRoot)\python.exe')"
+           Text="The packaged STEP geometry worker for win-x64 is missing python.exe." />
+    <Error Condition="'$(RuntimeIdentifier)' == 'osx-arm64' And !Exists('$(GeometryWorkerRoot)\bin\python3.11')"
+           Text="The packaged STEP geometry worker for osx-arm64 is missing bin/python3.11." />
+    <Error Condition="!Exists('$(GeometryWorkerRoot)\pathstitch_core\geometry_worker.py')"
+           Text="The packaged STEP geometry worker for $(RuntimeIdentifier) is missing pathstitch_core/geometry_worker.py." />
+    <Error Condition="!Exists('$(GeometryWorkerRoot)\environment.lock')"
+           Text="The packaged STEP geometry worker for $(RuntimeIdentifier) is missing environment.lock." />
+    <Error Condition="!Exists('$(GeometryWorkerRoot)\runtime-spec.json')"
+           Text="The packaged STEP geometry worker for $(RuntimeIdentifier) is missing runtime-spec.json." />
+    <Error Condition="!Exists('$(GeometryWorkerRoot)\runtime-manifest.json')"
+           Text="The packaged STEP geometry worker for $(RuntimeIdentifier) is missing runtime-manifest.json." />
+    <Error Condition="!Exists('$(GeometryWorkerRoot)\sbom.spdx.json')"
+           Text="The packaged STEP geometry worker for $(RuntimeIdentifier) is missing sbom.spdx.json." />
+    <Error Condition="!Exists('$(GeometryWorkerRoot)\third-party-notices.json')"
+           Text="The packaged STEP geometry worker for $(RuntimeIdentifier) is missing third-party-notices.json." />
+    <Error Condition="!Exists('$(GeometryWorkerRoot)\sitecustomize.py')"
+           Text="The packaged STEP geometry worker for $(RuntimeIdentifier) is missing sitecustomize.py." />
+  </Target>
 </Project>

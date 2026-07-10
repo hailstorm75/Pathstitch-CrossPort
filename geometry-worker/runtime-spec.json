@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": 1,
+  "backend": "packaged-pythonocc-occt",
+  "python": "3.11.15",
+  "pythonoccCore": "7.9.3",
+  "ezdxf": "1.4.2",
+  "numpy": "2.3.5",
+  "scipy": "1.16.3",
+  "shapely": "2.1.2",
+  "runtimeIdentifiers": ["win-x64", "osx-arm64"],
+  "entryPoint": "pathstitch_core.geometry_worker",
+  "requiredCapabilities": ["brep-topology", "analytic-surfaces", "exact-curves", "pcurves", "projection", "unfold", "distortion"]
+}

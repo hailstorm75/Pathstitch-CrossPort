@@ -427,7 +427,11 @@ public sealed class OpenGeometryEditor3DOperationService(
     }
 
     private static bool IsStepPath(string path)
-        => Path.GetExtension(path) is ".step" or ".stp" or ".STEP" or ".STP";
+    {
+        var extension = Path.GetExtension(path);
+        return extension.Equals(".step", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".stp", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static EditorOperationResult MissingStepRuntimeOperation(GeometryKernelOperation operation)
     {

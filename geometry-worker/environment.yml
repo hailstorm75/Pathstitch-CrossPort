@@ -1,0 +1,11 @@
+name: pathstitch-geometry-worker
+channels:
+  - conda-forge
+channel_priority: strict
+dependencies:
+  - python=3.11
+  - pythonocc-core=7.9.*
+  - ezdxf=1.4.*
+  - shapely=2.1.*
+  - numpy=2.3.*
+  - scipy=1.16.*

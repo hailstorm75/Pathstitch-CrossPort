@@ -160,7 +160,55 @@ class MeshMapper:
         return (float(self.uv2d[idx][0]), float(self.uv2d[idx][1]))
 
 
-def _sample_edge(edge, face, mapper, surf=None) -> Optional[Dict[str, Any]]:
+def _exact_unfold_curve(curve2d, t0, t1, kind, mapper):
+    name = curve2d.DynamicType().Name().replace("Geom2d_", "").lower()
+    empty = lambda scalars: {"scalars": scalars, "poles": [], "knots": [], "multiplicities": [], "weights": []}
+    try:
+        if "line" in name and "bspline" not in name:
+            from OCC.Core.Geom2d import Geom2d_Line
+            line = Geom2d_Line.DownCast(curve2d).Lin2d()
+            direction = line.Direction()
+            p0, p1 = curve2d.Value(t0), curve2d.Value(t1)
+            start, end = mapper(p0.X(), p0.Y()), mapper(p1.X(), p1.Y())
+            if kind in ("Plane", "Cylinder") or (kind == "Cone" and abs(direction.X()) <= 1e-10):
+                return {"kind": "line", "closed": False,
+                        "geometry": empty({"startX": start[0], "startY": start[1], "endX": end[0], "endY": end[1]})}
+            if kind == "Cone" and abs(direction.Y()) <= 1e-10:
+                mid = mapper(curve2d.Value((t0 + t1) * 0.5).X(), curve2d.Value((t0 + t1) * 0.5).Y())
+                radius = math.hypot(*start)
+                return {"kind": "arc", "closed": False,
+                        "geometry": empty({"centerX": 0.0, "centerY": 0.0, "radius": radius,
+                                           "startX": start[0], "startY": start[1], "midX": mid[0], "midY": mid[1],
+                                           "endX": end[0], "endY": end[1]})}
+        elif "circle" in name and kind in ("Plane", "Cylinder"):
+            from OCC.Core.Geom2d import Geom2d_Circle
+            circle = Geom2d_Circle.DownCast(curve2d).Circ2d()
+            center_uv = circle.Location()
+            center = mapper(center_uv.X(), center_uv.Y())
+            px, py = curve2d.Value(0.0), curve2d.Value(math.pi * 0.5)
+            x_point, y_point = mapper(px.X(), px.Y()), mapper(py.X(), py.Y())
+            scalars = {"centerX": center[0], "centerY": center[1],
+                       "xAxisX": x_point[0] - center[0], "xAxisY": x_point[1] - center[1],
+                       "yAxisX": y_point[0] - center[0], "yAxisY": y_point[1] - center[1],
+                       "firstParameter": float(t0), "lastParameter": float(t1)}
+            full = abs(abs(t1 - t0) - 2.0 * math.pi) <= 1e-7
+            return {"kind": "ellipse" if full else "ellipse_arc", "closed": full, "geometry": empty(scalars)}
+        elif "bspline" in name and kind in ("Plane", "Cylinder"):
+            from OCC.Core.Geom2d import Geom2d_BSplineCurve
+            spline = Geom2d_BSplineCurve.DownCast(curve2d)
+            poles = [mapper(spline.Pole(i).X(), spline.Pole(i).Y()) for i in range(1, spline.NbPoles() + 1)]
+            return {"kind": "bspline", "closed": bool(spline.IsClosed()),
+                    "geometry": {"scalars": {"degree": float(spline.Degree()), "firstParameter": float(t0), "lastParameter": float(t1)},
+                                 "poles": [{"x": p[0], "y": p[1]} for p in poles],
+                                 "knots": [float(spline.Knot(i)) for i in range(1, spline.NbKnots() + 1)],
+                                 "multiplicities": [int(spline.Multiplicity(i)) for i in range(1, spline.NbKnots() + 1)],
+                                 "weights": [float(spline.Weight(i)) for i in range(1, spline.NbPoles() + 1)]}}
+    except Exception:
+        pass
+    return None
+
+
+def _sample_edge(edge, face, mapper, surf=None, kind="Other") -> Optional[Dict[str, Any]]:
     """Samples one edge of `face`: matched lists of 2D (unfolded) and 3D points, plus normal at midpoint."""
     try:
         curve2d, t0, t1 = BRep_Tool.CurveOnSurface(edge, face)
@@ -184,7 +232,8 @@ def _sample_edge(edge, face, mapper, surf=None) -> Optional[Dict[str, Any]]:
         pts2d.append(mapper(u, v))
         p3 = surf.Value(u, v)
         pts3d.append((p3.X(), p3.Y(), p3.Z()))
-    return {"pts2d": pts2d, "pts3d": pts3d, "normal": normal}
+    return {"pts2d": pts2d, "pts3d": pts3d, "normal": normal,
+            "exact": _exact_unfold_curve(curve2d, t0, t1, kind, mapper)}
 
 
 def _is_straight(pts: List[Tuple[float, float]]) -> bool:
@@ -228,6 +277,12 @@ class Rigid2D:
     def apply_all(self, pts):
         return [self.apply(p) for p in pts]
 
+    def apply_vector(self, p):
+        x, y = p
+        if self.m:
+            y = -y
+        return (self.c * x - self.s * y, self.s * x + self.c * y)
+
     @staticmethod
     def aligning(a_src, b_src, a_dst, b_dst, mirror):
         """Maps segment (a_src→b_src) onto (a_dst→b_dst); lengths must agree."""
@@ -253,6 +308,26 @@ class Rigid2D:
 
 def _side_of(a, b, p) -> float:
     return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])
+
+
+def _transform_exact_curve(exact, xf):
+    if exact is None:
+        return None
+    result = {"kind": exact["kind"], "closed": exact["closed"],
+              "geometry": {key: (dict(value) if isinstance(value, dict) else list(value))
+                           for key, value in exact["geometry"].items()}}
+    scalars = result["geometry"]["scalars"]
+    for prefix in ("start", "mid", "end", "center"):
+        x_key, y_key = f"{prefix}X", f"{prefix}Y"
+        if x_key in scalars and y_key in scalars:
+            scalars[x_key], scalars[y_key] = xf.apply((scalars[x_key], scalars[y_key]))
+    for prefix in ("xAxis", "yAxis"):
+        x_key, y_key = f"{prefix}X", f"{prefix}Y"
+        if x_key in scalars and y_key in scalars:
+            scalars[x_key], scalars[y_key] = xf.apply_vector((scalars[x_key], scalars[y_key]))
+    result["geometry"]["poles"] = [dict(zip(("x", "y"), xf.apply((pole["x"], pole["y"]))))
+                                      for pole in result["geometry"]["poles"]]
+    return result
 
 
 def _centroid(pts):
@@ -347,7 +422,7 @@ def _build_records(body, wanted: Optional[set], distortion_mode: str = "conforma
             edge = topods.Edge(eexp.Current())
             eexp.Next()
             degenerated = BRep_Tool.Degenerated(edge)
-            rec = None if degenerated else _sample_edge(edge, face, mapper, surf=surf)
+            rec = None if degenerated else _sample_edge(edge, face, mapper, surf=surf, kind=kind)
             if rec is None:
                 continue
             eid = emap.Add(edge)
@@ -360,6 +435,7 @@ def _build_records(body, wanted: Optional[set], distortion_mode: str = "conforma
                 "length": _polyline_length(rec["pts2d"]),
                 "is_seam": is_seam,
                 "normal": rec["normal"],
+                "exact": rec["exact"],
             })
             if not is_seam:
                 edge_to_faces.setdefault(eid, [])
@@ -740,7 +816,7 @@ def unfold_connected(body, wanted: Optional[set], mode: str, anchor: Optional[in
                 else:
                     aci = 1 # Red
                 
-                draw_ops.append(("solid", "DISTORTION", [p0_2d, p1_2d, p2_2d], (patch, aci)))
+                draw_ops.append(("solid", "DISTORTION", [p0_2d, p1_2d, p2_2d], (patch, aci), None))
 
         for e in rec["edges"]:
             placed = xf.apply_all(e["pts2d"])
@@ -753,10 +829,10 @@ def unfold_connected(body, wanted: Optional[set], mode: str, anchor: Optional[in
             if is_fold:
                 # Folds are shared geometry: draw once, from the earlier face
                 if placed_rank[f] < placed_rank[partner[0]]:
-                    draw_ops.append(("polyline", "CREASE", placed, patch))
+                    draw_ops.append(("polyline", "CREASE", placed, patch, _transform_exact_curve(e.get("exact"), xf)))
                 continue
 
-            draw_ops.append(("polyline", "SEAM_CUT", placed, patch))
+            draw_ops.append(("polyline", "SEAM_CUT", placed, patch, _transform_exact_curve(e.get("exact"), xf)))
             n_seams += 1
 
             # Decorations only where both mating pieces are in the net: either a
@@ -780,18 +856,21 @@ def unfold_connected(body, wanted: Optional[set], mode: str, anchor: Optional[in
                         tab = _glue_tab(placed, face_poly_placed,
                                         deco_params.get("tab_height", 8.0))
                         if tab:
-                            draw_ops.append(("polyline", "GLUE_TABS", tab, patch))
+                            draw_ops.append(("polyline", "GLUE_TABS", tab, patch, None))
                 elif edge_deco == "holes":
                     for (c, r) in _sew_holes(placed, face_poly_placed,
                                              deco_params.get("hole_diameter", 2.0),
                                              deco_params.get("hole_spacing", 8.0),
                                              deco_params.get("hole_margin", 4.0)):
-                        draw_ops.append(("circle", "SEW_HOLES", (c, r), patch))
+                        draw_ops.append(("circle", "SEW_HOLES", (c, r), patch,
+                                         {"kind": "circle", "closed": True,
+                                          "geometry": {"scalars": {"centerX": c[0], "centerY": c[1], "radius": r},
+                                                       "poles": [], "knots": [], "multiplicities": [], "weights": []}}))
 
     # Lay disconnected patches out left → right (offset computed over ALL the
     # patch's drawn geometry so tabs/holes can't poke outside the slot)
     patch_pts: Dict[int, List[Tuple[float, float]]] = {}
-    for (kind, _layer, payload, patch) in draw_ops:
+    for (kind, _layer, payload, patch, _exact) in draw_ops:
         p_idx = patch[0] if isinstance(patch, tuple) else patch
         if kind == "circle":
             (cx, cy), r = payload
@@ -811,18 +890,19 @@ def unfold_connected(body, wanted: Optional[set], mode: str, anchor: Optional[in
         cursor += (max(xs) - min(xs)) + GAP
 
     shifted: List[Tuple[str, str, Any]] = []
-    for (kind, layer, payload, patch) in draw_ops:
+    for (kind, layer, payload, patch, exact) in draw_ops:
         p_idx = patch[0] if isinstance(patch, tuple) else patch
         ox, oy = offsets.get(p_idx, (0.0, 0.0))
         if kind == "circle":
             (cx, cy), r = payload
-            shifted.append((kind, layer, ((cx + ox, cy + oy), r)))
+            shifted.append((kind, layer, ((cx + ox, cy + oy), r), _transform_exact_curve(exact, Rigid2D(tx=ox, ty=oy))))
         elif kind == "solid":
             pts = [(x + ox, y + oy) for (x, y) in payload]
             aci = patch[1]
-            shifted.append((kind, layer, (pts, aci)))
+            shifted.append((kind, layer, (pts, aci), None))
         else:
-            shifted.append((kind, layer, [(x + ox, y + oy) for (x, y) in payload]))
+            shifted.append((kind, layer, [(x + ox, y + oy) for (x, y) in payload],
+                            _transform_exact_curve(exact, Rigid2D(tx=ox, ty=oy))))
 
     stats = {
         "patches": len(patch_pts),
@@ -937,19 +1017,20 @@ def op_unfold_connected(args: Dict[str, Any]) -> Dict[str, Any]:
 
             # Place this body's nets after the previous body's
             max_x = cursor_x
-            for (kind, layer, payload) in ops:
+            for (kind, layer, payload, exact) in ops:
                 if kind == "circle":
                     (cx, cy), r = payload
-                    all_ops.append((kind, layer, ((cx + cursor_x, cy), r)))
+                    all_ops.append((kind, layer, ((cx + cursor_x, cy), r),
+                                    _transform_exact_curve(exact, Rigid2D(tx=cursor_x))))
                     max_x = max(max_x, cx + cursor_x + r)
                 elif kind == "solid":
                     pts, aci = payload
                     translated = [(x + cursor_x, y) for (x, y) in pts]
-                    all_ops.append((kind, layer, (translated, aci)))
+                    all_ops.append((kind, layer, (translated, aci), None))
                     max_x = max(max_x, max(p[0] for p in translated))
                 else:
                     pts = [(x + cursor_x, y) for (x, y) in payload]
-                    all_ops.append((kind, layer, pts))
+                    all_ops.append((kind, layer, pts, _transform_exact_curve(exact, Rigid2D(tx=cursor_x))))
                     max_x = max(max_x, max(p[0] for p in pts))
             cursor_x = max_x + GAP
 
@@ -975,11 +1056,15 @@ def op_unfold_connected(args: Dict[str, Any]) -> Dict[str, Any]:
 
         _ensure_layers(doc)
 
-        for (kind, layer, payload) in all_ops:
+        typed_geometry = []
+        for (kind, layer, payload, exact) in all_ops:
             if kind == "circle":
                 (cx, cy), r = payload
                 msp.add_circle((cx + start_x, cy + start_y), r,
                                dxfattribs={"layer": layer})
+                item = _transform_exact_curve(exact, Rigid2D(tx=start_x, ty=start_y))
+                item["role"] = layer.lower()
+                typed_geometry.append(item)
             elif kind == "solid":
                 # Distortion facelet triangles: skip unless explicitly requested
                 # so the DXF stays a clean set of cut/crease lines (MAS-157).
@@ -992,6 +1077,14 @@ def op_unfold_connected(args: Dict[str, Any]) -> Dict[str, Any]:
                 pts = [(x + start_x, y + start_y) for (x, y) in payload]
                 if len(pts) >= 2:
                     msp.add_lwpolyline(pts, dxfattribs={"layer": layer})
+                    item = _transform_exact_curve(exact, Rigid2D(tx=start_x, ty=start_y))
+                    if item is None:
+                        item = {"kind": "polyline", "geometry": None,
+                                "closed": (abs(pts[0][0] - pts[-1][0]) <= 1e-6 and
+                                           abs(pts[0][1] - pts[-1][1]) <= 1e-6)}
+                    item["role"] = layer.lower()
+                    item["points"] = pts
+                    typed_geometry.append(item)
 
         doc.saveas(output_path)
 
@@ -1004,6 +1097,7 @@ def op_unfold_connected(args: Dict[str, Any]) -> Dict[str, Any]:
                 "fold_edges": totals["folds"],
                 "seam_edges": totals["seams"],
                 "skipped_faces": all_skipped,
+                "geometry": typed_geometry,
             },
         }
     except Exception as e:
