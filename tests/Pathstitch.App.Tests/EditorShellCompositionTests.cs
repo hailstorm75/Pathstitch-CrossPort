@@ -44,7 +44,7 @@ public sealed class EditorShellCompositionTests
         Assert.DoesNotContain("SOLID BODIES", twoD, StringComparison.Ordinal);
         Assert.DoesNotContain("OnTwoDSelectToolClicked", twoD, StringComparison.Ordinal);
 
-        Assert.Contains("NativeWebView", threeD, StringComparison.Ordinal);
+        Assert.Contains("EditorViewportWebView", threeD, StringComparison.Ordinal);
         Assert.DoesNotContain("DxfPreviewCanvas", threeD, StringComparison.Ordinal);
         Assert.DoesNotContain("TwoD", threeD, StringComparison.Ordinal);
         Assert.DoesNotContain("2D Selection", threeD, StringComparison.Ordinal);
@@ -71,7 +71,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("ItemsSource=\"{Binding SidebarTools}\"", rail, StringComparison.Ordinal);
         Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", rail, StringComparison.Ordinal);
         Assert.Contains("HorizontalScrollBarVisibility=\"Disabled\"", rail, StringComparison.Ordinal);
-        Assert.Equal(1, CountOccurrences(rail, "<Button"));
+        Assert.Equal(1, CountOccurrences(rail, "Click=\"OnSidebarToolClicked\""));
         Assert.Contains("Tag=\"{Binding Key}\"", rail, StringComparison.Ordinal);
         Assert.Contains("Click=\"OnSidebarToolClicked\"", rail, StringComparison.Ordinal);
         Assert.DoesNotContain("TwoD", rail, StringComparison.Ordinal);

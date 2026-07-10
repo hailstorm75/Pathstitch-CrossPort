@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using System;
 using CommunityToolkit.Mvvm.DependencyInjection;
 using CommunityToolkit.Mvvm.Messaging;
 using Domain.App.Services;
@@ -14,6 +15,8 @@ namespace Pathstitch.App;
 
 public partial class App : Application
 {
+    private IServiceProvider? _services;
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -37,11 +40,13 @@ public partial class App : Application
             .AddSingleton<OpenGeometryKernelBridge>()
             .AddSingleton<IGeometryWorkerRuntimeResolver, AppOwnedGeometryWorkerRuntimeResolver>()
             .AddSingleton<IStepGeometryKernelService, PackagedStepGeometryKernelService>()
+            .AddSingleton<IReferenceImageTraceService, AvaloniaReferenceImageTraceService>()
             .AddSingleton<IEditor2DGeometryKernelService, OpenGeometryEditor2DGeometryKernelService>()
             .AddSingleton<IEditor3DOperationService, OpenGeometryEditor3DOperationService>()
             .AddSingleton<INavigationManager, NavigationManager>();
 
-        Ioc.Default.ConfigureServices(serviceCollection.BuildServiceProvider());
+        _services = serviceCollection.BuildServiceProvider();
+        Ioc.Default.ConfigureServices(_services);
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -51,6 +56,19 @@ public partial class App : Application
             desktop.MainWindow = new MainWindowShell(Ioc.Default);
 
             WeakReferenceMessenger.Default.Send(new NavigationChangeRequestMessage(NavigationAddressBook.HomePage));
+
+            var acceptanceOutput = Environment.GetEnvironmentVariable("PATHSTITCH_MACOS_ACCEPTANCE_OUTPUT");
+            if (!string.IsNullOrWhiteSpace(acceptanceOutput) && _services is not null)
+            {
+                desktop.MainWindow.Opened += async (_, _) =>
+                {
+                    var exitCode = await MacOSPackagedAcceptance.RunAsync(
+                        _services,
+                        desktop.MainWindow,
+                        acceptanceOutput).ConfigureAwait(true);
+                    desktop.Shutdown(exitCode);
+                };
+            }
         }
 
         base.OnFrameworkInitializationCompleted();

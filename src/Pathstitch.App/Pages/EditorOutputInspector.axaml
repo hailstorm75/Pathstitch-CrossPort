@@ -5,7 +5,8 @@
   xmlns:models="using:Domain.App.Models"
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:EditorPageViewModel"
-  AutomationProperties.AutomationId="editor.inspector.output">
+  AutomationProperties.AutomationId="editor.inspector.output"
+  IsVisible="{Binding ShowOutputPanel}">
   <StackPanel IsVisible="{Binding ShowOutputPanel}" Spacing="8">
     <TextBlock
       FontSize="13"

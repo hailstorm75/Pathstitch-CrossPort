@@ -3,6 +3,8 @@ using System.Runtime.InteropServices;
 using System.Xml.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Avalonia.LogicalTree;
 
 namespace Pathstitch.App.Tests.Fixtures;
@@ -13,6 +15,39 @@ namespace Pathstitch.App.Tests.Fixtures;
 /// </summary>
 public sealed class HeadlessUiFixture
 {
+    public HeadlessUiFixture() => AvaloniaHeadlessTestHost.EnsureInitialized();
+
+    public async Task<HeadlessViewSession<TControl>> MountAsync<TControl>(
+        TControl control,
+        double width = 1280,
+        double height = 800)
+        where TControl : Control
+    {
+        return await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var window = new Window
+            {
+                Width = width,
+                Height = height,
+                Content = control,
+            };
+            window.Show();
+            window.UpdateLayout();
+            return new HeadlessViewSession<TControl>(window, control);
+        });
+    }
+
+    public Task RunAsync(Action action)
+        => Dispatcher.UIThread.InvokeAsync(action).GetTask();
+
+    public Task<T> RunAsync<T>(Func<T> action)
+        => Dispatcher.UIThread.InvokeAsync(action).GetTask();
+
+    public async Task RunAsync(Func<Task> action)
+    {
+        await Dispatcher.UIThread.InvokeAsync(action);
+    }
+
     public TControl FindByAutomationId<TControl>(Control root, string automationId)
         where TControl : Control
     {
@@ -27,6 +62,13 @@ public sealed class HeadlessUiFixture
 
         return Assert.Single(matches);
     }
+
+    public Control FindByAutomationId(Control root, string automationId)
+        => FindByAutomationId<Control>(root, automationId);
+
+    public bool IsEffectivelyVisible(Control control)
+        => control.IsVisible
+           && control.GetVisualAncestors().All(ancestor => ancestor.IsVisible);
 
     public XDocument LoadXaml(params string[] relativePath)
         => XDocument.Load(RepositoryFile(relativePath));
@@ -65,6 +107,18 @@ public sealed class HeadlessUiFixture
     }
 }
 
+public sealed class HeadlessViewSession<TControl>(Window window, TControl root) : IAsyncDisposable
+    where TControl : Control
+{
+    public Window Window { get; } = window;
+    public TControl Root { get; } = root;
+
+    public async ValueTask DisposeAsync()
+    {
+        await Dispatcher.UIThread.InvokeAsync(Window.Close);
+    }
+}
+
 /// <summary>
 /// Shared target and process setup for packaged, platform-level launch smoke tests.
 /// The fixture intentionally does not assume a Windows executable name on macOS.
@@ -91,6 +145,37 @@ public sealed class PlatformSmokeTestFixture
             startInfo.ArgumentList.Add(argument);
 
         return startInfo;
+    }
+
+    public async Task<Process> LaunchAndObserveAsync(
+        string artifactRoot,
+        TimeSpan observationWindow,
+        CancellationToken cancellationToken = default,
+        params string[] arguments)
+        => await LaunchAndObserveAsync(
+            CreateLaunchInfo(artifactRoot, arguments),
+            observationWindow,
+            cancellationToken).ConfigureAwait(false);
+
+    public async Task<Process> LaunchAndObserveAsync(
+        ProcessStartInfo startInfo,
+        TimeSpan observationWindow,
+        CancellationToken cancellationToken = default)
+    {
+        var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to launch the packaged UI artifact.");
+        try
+        {
+            await Task.Delay(observationWindow, cancellationToken).ConfigureAwait(false);
+            if (process.HasExited)
+                throw new InvalidOperationException($"Packaged UI exited with code {process.ExitCode} during smoke observation.");
+            return process;
+        }
+        catch
+        {
+            process.Dispose();
+            throw;
+        }
     }
 }
 

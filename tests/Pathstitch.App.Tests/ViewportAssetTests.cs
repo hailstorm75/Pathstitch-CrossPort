@@ -35,11 +35,11 @@ public sealed class ViewportAssetTests
     [Fact]
     public async Task TwoDAddThickness_RoutesThroughOpenGeometryKernelService()
     {
-        var outputViewModelPath = FindRepositoryFile("src", "Domain", "Domain.App", "ViewModels", "EditorPageViewModel.Output.cs");
+        var workspaceOperationsPath = FindRepositoryFile("src", "Domain", "Domain.App", "ViewModels", "Editor2DWorkspaceViewModel.Operations.cs");
 
-        var source = await File.ReadAllTextAsync(outputViewModelPath);
+        var source = await File.ReadAllTextAsync(workspaceOperationsPath);
 
-        Assert.Contains("_editor2DGeometryKernelService", source, StringComparison.Ordinal);
+        Assert.Contains("IEditor2DGeometryKernelService", source, StringComparison.Ordinal);
         Assert.Contains("BuildThicknessOutlinesAsync", source, StringComparison.Ordinal);
         Assert.DoesNotContain("TryBuildThicknessPath(path", source, StringComparison.Ordinal);
     }
@@ -47,11 +47,11 @@ public sealed class ViewportAssetTests
     [Fact]
     public async Task TwoDOffset_RoutesThroughOpenGeometryKernelService()
     {
-        var outputViewModelPath = FindRepositoryFile("src", "Domain", "Domain.App", "ViewModels", "EditorPageViewModel.Output.cs");
+        var workspaceOperationsPath = FindRepositoryFile("src", "Domain", "Domain.App", "ViewModels", "Editor2DWorkspaceViewModel.Operations.cs");
 
-        var source = await File.ReadAllTextAsync(outputViewModelPath);
+        var source = await File.ReadAllTextAsync(workspaceOperationsPath);
 
-        Assert.Contains("_editor2DGeometryKernelService", source, StringComparison.Ordinal);
+        Assert.Contains("IEditor2DGeometryKernelService", source, StringComparison.Ordinal);
         Assert.Contains("BuildCurveOffsetPathsAsync", source, StringComparison.Ordinal);
         Assert.DoesNotContain("TryBuildCurveOffsetPath(path", source, StringComparison.Ordinal);
     }

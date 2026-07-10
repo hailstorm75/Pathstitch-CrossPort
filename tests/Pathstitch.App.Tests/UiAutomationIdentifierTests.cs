@@ -91,19 +91,22 @@ public sealed class UiAutomationIdentifierTests
     }
 
     [Fact]
-    public void HeadlessFixture_SelectsByIdWhenSiblingOrderChanges()
+    public async Task HeadlessFixture_SelectsByIdWhenSiblingOrderChanges()
     {
-        var expected = new Button();
-        AutomationProperties.SetAutomationId(expected, "fixture.target");
-        var unrelated = new Button();
-        AutomationProperties.SetAutomationId(unrelated, "fixture.other");
-        var root = new Grid { Children = { unrelated, expected } };
+        await _ui.RunAsync(() =>
+        {
+            var expected = new Button();
+            AutomationProperties.SetAutomationId(expected, "fixture.target");
+            var unrelated = new Button();
+            AutomationProperties.SetAutomationId(unrelated, "fixture.other");
+            var root = new Grid { Children = { unrelated, expected } };
 
-        Assert.Same(expected, _ui.FindByAutomationId<Button>(root, "fixture.target"));
+            Assert.Same(expected, _ui.FindByAutomationId<Button>(root, "fixture.target"));
 
-        root.Children.Move(1, 0);
+            root.Children.Move(1, 0);
 
-        Assert.Same(expected, _ui.FindByAutomationId<Button>(root, "fixture.target"));
+            Assert.Same(expected, _ui.FindByAutomationId<Button>(root, "fixture.target"));
+        });
     }
 
     [Fact]

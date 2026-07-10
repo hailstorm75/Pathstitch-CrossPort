@@ -5,7 +5,8 @@
   xmlns:models="using:Domain.App.Models"
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:EditorPageViewModel"
-  AutomationProperties.AutomationId="editor.inspector.unfold">
+  AutomationProperties.AutomationId="editor.inspector.unfold"
+  IsVisible="{Binding ShowUnfoldPanel}">
   <StackPanel IsVisible="{Binding ShowUnfoldPanel}" Spacing="8">
     <TextBlock
       FontSize="13"

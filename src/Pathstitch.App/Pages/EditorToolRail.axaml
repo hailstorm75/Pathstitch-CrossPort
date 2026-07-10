@@ -12,7 +12,7 @@
     BorderBrush="{StaticResource BorderBrush}"
     BorderThickness="0,0,1,0"
     Padding="0">
-    <Grid RowDefinitions="*,Auto">
+    <Grid RowDefinitions="*,Auto,Auto">
       <ScrollViewer
         Grid.Row="0"
         Padding="10,16"
@@ -64,6 +64,33 @@
                   Text="{Binding FallbackGlyph}" />
                 </Grid>
               </Button>
+              <Grid
+                Width="36"
+                ColumnDefinitions="*,*"
+                IsVisible="{Binding IsCustomizationMode}">
+                <Button
+                  Grid.Column="0"
+                  AutomationProperties.AutomationId="{Binding Identifier, StringFormat={}{0}.move-up}"
+                  Width="17"
+                  Height="20"
+                  Padding="0"
+                  Tag="{Binding Identifier}"
+                  ToolTip.Tip="Move tool earlier"
+                  Click="OnMoveToolEarlierClicked">
+                  <TextBlock FontSize="10" Text="▲" />
+                </Button>
+                <Button
+                  Grid.Column="1"
+                  AutomationProperties.AutomationId="{Binding Identifier, StringFormat={}{0}.move-down}"
+                  Width="17"
+                  Height="20"
+                  Padding="0"
+                  Tag="{Binding Identifier}"
+                  ToolTip.Tip="Move tool later"
+                  Click="OnMoveToolLaterClicked">
+                  <TextBlock FontSize="10" Text="▼" />
+                </Button>
+              </Grid>
             </StackPanel>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
@@ -87,6 +114,26 @@
           Foreground="{StaticResource SecondaryTextBrush}"
           Text="BATCH" />
       </Border>
+      <StackPanel
+        Grid.Row="2"
+        Margin="6,0,6,10"
+        Spacing="4">
+        <ToggleButton
+          AutomationProperties.AutomationId="editor.tool-rail.customize"
+          HorizontalAlignment="Stretch"
+          Padding="4,6"
+          FontSize="9"
+          IsChecked="{Binding IsToolbarCustomizationMode, Mode=TwoWay}"
+          Content="CUSTOMIZE" />
+        <Button
+          AutomationProperties.AutomationId="editor.tool-rail.reset"
+          HorizontalAlignment="Stretch"
+          Padding="4"
+          FontSize="9"
+          IsVisible="{Binding IsToolbarCustomizationMode}"
+          Click="OnResetToolbarClicked"
+          Content="RESET" />
+      </StackPanel>
     </Grid>
   </Border>
 </UserControl>

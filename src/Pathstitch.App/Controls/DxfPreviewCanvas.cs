@@ -134,44 +134,46 @@ public sealed class DxfPreviewCanvas : Control
     private readonly ContextMenu _contextMenu;
     private readonly DxfCanvasRenderer _renderer = new();
     private readonly DxfCanvasInteractionSession _interaction = new();
+    private readonly DxfCanvasInteractionController _interactionController;
+    private readonly DxfCanvasToolCommitter _toolCommitter = new();
     private readonly Dictionary<string, Bitmap> _referenceImageBitmaps = new(StringComparer.Ordinal);
     private readonly MenuItem _expandRectanglesMenuItem;
     private readonly MenuItem _deleteSelectionMenuItem;
-    private bool _isMovingSelection;
-    private bool _isScalingSelection;
-    private bool _isAwaitingSecondaryContextClick;
-    private bool _isEditingVertex;
-    private Editor2DPreviewDocument? _moveDocumentSnapshot;
-    private Editor2DPreviewDocument? _scaleDocumentSnapshot;
-    private IReadOnlyList<string> _moveSelectionIds = Array.Empty<string>();
-    private IReadOnlyList<string> _scaleSelectionIds = Array.Empty<string>();
-    private Editor2DPoint? _moveStartPoint;
-    private Editor2DPoint? _scaleCenterPoint;
-    private double _scaleStartDistance;
-    private double _scalePreviewFactor = 1.0;
-    private string? _editingVertexPathId;
-    private int _editingVertexIndex;
-    private bool _editingVertexIsConstrainedRectangle;
-    private Editor2DPoint? _pendingLineStart;
-    private Editor2DPoint? _pendingLineEnd;
-    private Editor2DPoint? _pendingRectangleStart;
-    private Editor2DPoint? _pendingRectangleEnd;
-    private Editor2DPoint? _pendingCircleCenter;
-    private Editor2DPoint? _pendingCircleEdge;
-    private Editor2DPoint? _pendingPolygonCenter;
-    private Editor2DPoint? _pendingPolygonEdge;
-    private Editor2DPoint? _pendingTextStart;
-    private Editor2DPoint? _pendingTextEnd;
-    private IReadOnlyList<Editor2DPoint> _pendingPenPoints = Array.Empty<Editor2DPoint>();
-    private Editor2DPoint? _pendingPenHoverPoint;
-    private Editor2DPoint? _pendingMirrorAxisStart;
-    private Editor2DPoint? _pendingMirrorAxisEnd;
-    private Editor2DPoint? _pendingMeasurementStart;
-    private Editor2DPoint? _pendingMeasurementEnd;
-    private Editor2DPoint? _pendingDimensionStart;
-    private Editor2DPoint? _pendingDimensionEnd;
-    private bool _pendingFrameToDocument;
-    private double? _cornerToolSessionValue;
+    private ref bool _isMovingSelection => ref _interaction.IsMovingSelection;
+    private ref bool _isScalingSelection => ref _interaction.IsScalingSelection;
+    private ref bool _isAwaitingSecondaryContextClick => ref _interaction.IsAwaitingSecondaryContextClick;
+    private ref bool _isEditingVertex => ref _interaction.IsEditingVertex;
+    private ref Editor2DPreviewDocument? _moveDocumentSnapshot => ref _interaction.MoveDocumentSnapshot;
+    private ref Editor2DPreviewDocument? _scaleDocumentSnapshot => ref _interaction.ScaleDocumentSnapshot;
+    private ref IReadOnlyList<string> _moveSelectionIds => ref _interaction.MoveSelectionIds;
+    private ref IReadOnlyList<string> _scaleSelectionIds => ref _interaction.ScaleSelectionIds;
+    private ref Editor2DPoint? _moveStartPoint => ref _interaction.MoveStartPoint;
+    private ref Editor2DPoint? _scaleCenterPoint => ref _interaction.ScaleCenterPoint;
+    private ref double _scaleStartDistance => ref _interaction.ScaleStartDistance;
+    private ref double _scalePreviewFactor => ref _interaction.ScalePreviewFactor;
+    private ref string? _editingVertexPathId => ref _interaction.EditingVertexPathId;
+    private ref int _editingVertexIndex => ref _interaction.EditingVertexIndex;
+    private ref bool _editingVertexIsConstrainedRectangle => ref _interaction.EditingVertexIsConstrainedRectangle;
+    private ref Editor2DPoint? _pendingLineStart => ref _interaction.PendingLineStart;
+    private ref Editor2DPoint? _pendingLineEnd => ref _interaction.PendingLineEnd;
+    private ref Editor2DPoint? _pendingRectangleStart => ref _interaction.PendingRectangleStart;
+    private ref Editor2DPoint? _pendingRectangleEnd => ref _interaction.PendingRectangleEnd;
+    private ref Editor2DPoint? _pendingCircleCenter => ref _interaction.PendingCircleCenter;
+    private ref Editor2DPoint? _pendingCircleEdge => ref _interaction.PendingCircleEdge;
+    private ref Editor2DPoint? _pendingPolygonCenter => ref _interaction.PendingPolygonCenter;
+    private ref Editor2DPoint? _pendingPolygonEdge => ref _interaction.PendingPolygonEdge;
+    private ref Editor2DPoint? _pendingTextStart => ref _interaction.PendingTextStart;
+    private ref Editor2DPoint? _pendingTextEnd => ref _interaction.PendingTextEnd;
+    private ref IReadOnlyList<Editor2DPoint> _pendingPenPoints => ref _interaction.PendingPenPoints;
+    private ref Editor2DPoint? _pendingPenHoverPoint => ref _interaction.PendingPenHoverPoint;
+    private ref Editor2DPoint? _pendingMirrorAxisStart => ref _interaction.PendingMirrorAxisStart;
+    private ref Editor2DPoint? _pendingMirrorAxisEnd => ref _interaction.PendingMirrorAxisEnd;
+    private ref Editor2DPoint? _pendingMeasurementStart => ref _interaction.PendingMeasurementStart;
+    private ref Editor2DPoint? _pendingMeasurementEnd => ref _interaction.PendingMeasurementEnd;
+    private ref Editor2DPoint? _pendingDimensionStart => ref _interaction.PendingDimensionStart;
+    private ref Editor2DPoint? _pendingDimensionEnd => ref _interaction.PendingDimensionEnd;
+    private ref bool _pendingFrameToDocument => ref _interaction.PendingFrameToDocument;
+    private ref double? _cornerToolSessionValue => ref _interaction.CornerToolSessionValue;
 
     static DxfPreviewCanvas()
     {
@@ -195,6 +197,7 @@ public sealed class DxfPreviewCanvas : Control
 
     public DxfPreviewCanvas()
     {
+        _interactionController = new DxfCanvasInteractionController(_interaction);
         _expandRectanglesMenuItem = new MenuItem
         {
             Header = "Expand",
@@ -535,8 +538,7 @@ public sealed class DxfPreviewCanvas : Control
             || (point.Properties.IsLeftButtonPressed && ActiveTool == Editor2DTool.Pan))
         {
             _contextMenu.Close();
-            _cancelInteractionOnPointerRelease = false;
-            _isPanning = true;
+            _interactionController.BeginPan(point.Position);
             e.Pointer.Capture(this);
             e.Handled = true;
             return;
@@ -595,102 +597,25 @@ public sealed class DxfPreviewCanvas : Control
             }
         }
 
-        if (ActiveTool == Editor2DTool.Measure)
+        var pressRoute = _interactionController.RoutePrimaryPress(ActiveTool);
+        if (pressRoute is not DxfCanvasPressRoute.Selection)
         {
             _cancelInteractionOnPointerRelease = false;
-            HandleMeasurementClick(point.Position);
-            e.Handled = true;
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.Dimension)
-        {
-            _cancelInteractionOnPointerRelease = false;
-            HandleDimensionClick(point.Position);
-            e.Handled = true;
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.Trim)
-        {
-            _cancelInteractionOnPointerRelease = false;
-            HandleTrimClick(point.Position);
-            e.Handled = true;
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.Fillet || ActiveTool == Editor2DTool.Chamfer)
-        {
-            _cancelInteractionOnPointerRelease = false;
-            HandleCornerToolClick(point.Position, ActiveTool == Editor2DTool.Chamfer ? "chamfer" : "fillet");
-            e.Handled = true;
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.SketchLine)
-        {
-            _cancelInteractionOnPointerRelease = false;
-            HandleSketchLineClick(point.Position);
-            e.Handled = true;
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.SketchRectangle)
-        {
-            _cancelInteractionOnPointerRelease = false;
-            HandleSketchRectangleClick(point.Position);
-            e.Handled = true;
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.SketchCircle)
-        {
-            _cancelInteractionOnPointerRelease = false;
-            HandleSketchCircleClick(point.Position);
-            e.Handled = true;
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.SketchPolygon)
-        {
-            _cancelInteractionOnPointerRelease = false;
-            HandleSketchPolygonClick(point.Position);
-            e.Handled = true;
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.SketchText)
-        {
-            _cancelInteractionOnPointerRelease = false;
-            HandleSketchTextClick(point.Position);
-            e.Handled = true;
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.Pen)
-        {
-            _cancelInteractionOnPointerRelease = false;
-            HandlePenClick(point.Position);
-            e.Handled = true;
-            return;
-        }
-
-        if (ActiveTool != Editor2DTool.Select
-            && ActiveTool != Editor2DTool.Scale
-            && ActiveTool != Editor2DTool.Mirror
-            && ActiveTool != Editor2DTool.ConvertLines
-            && ActiveTool != Editor2DTool.Offset
-            && ActiveTool != Editor2DTool.AddThickness
-            && ActiveTool != Editor2DTool.Cleanup
-            && ActiveTool != Editor2DTool.Patterning
-            && ActiveTool != Editor2DTool.PaperFolding)
-        {
-            if (ActiveTool == Editor2DTool.Move)
+            switch (pressRoute)
             {
-                StartMoveSelection(point.Position, e.KeyModifiers, e.Pointer);
-                e.Handled = true;
+                case DxfCanvasPressRoute.Move: StartMoveSelection(point.Position, e.KeyModifiers, e.Pointer); break;
+                case DxfCanvasPressRoute.Measure: HandleMeasurementClick(point.Position); break;
+                case DxfCanvasPressRoute.Dimension: HandleDimensionClick(point.Position); break;
+                case DxfCanvasPressRoute.Trim: HandleTrimClick(point.Position); break;
+                case DxfCanvasPressRoute.Corner: HandleCornerToolClick(point.Position, ActiveTool == Editor2DTool.Chamfer ? "chamfer" : "fillet"); break;
+                case DxfCanvasPressRoute.SketchLine: HandleSketchLineClick(point.Position); break;
+                case DxfCanvasPressRoute.SketchRectangle: HandleSketchRectangleClick(point.Position); break;
+                case DxfCanvasPressRoute.SketchCircle: HandleSketchCircleClick(point.Position); break;
+                case DxfCanvasPressRoute.SketchPolygon: HandleSketchPolygonClick(point.Position); break;
+                case DxfCanvasPressRoute.SketchText: HandleSketchTextClick(point.Position); break;
+                case DxfCanvasPressRoute.Pen: HandlePenClick(point.Position); break;
             }
-
+            e.Handled = pressRoute is not DxfCanvasPressRoute.None;
             return;
         }
 
@@ -720,137 +645,40 @@ public sealed class DxfPreviewCanvas : Control
             }
         }
 
-        if (_isPanning)
+        var moveRoute = _interactionController.RouteMove(ActiveTool, e.Pointer.Captured == this);
+        switch (moveRoute)
         {
-            var delta = position - _lastPointerPosition;
-            SetCurrentValue(OffsetXProperty, OffsetX + delta.X);
-            SetCurrentValue(OffsetYProperty, OffsetY + delta.Y);
-            _lastPointerPosition = position;
-            e.Handled = true;
-            return;
-        }
-
-        if (_isMovingSelection && _moveDocumentSnapshot is not null && _moveStartPoint is not null)
-        {
-            ApplyMoveSelection(position);
-            e.Handled = true;
-            return;
-        }
-
-        if (_isScalingSelection && _scaleDocumentSnapshot is not null && _scaleCenterPoint is not null)
-        {
-            ApplyScaleSelection(position);
-            e.Handled = true;
-            return;
-        }
-
-        if (_isEditingVertex && !string.IsNullOrWhiteSpace(_editingVertexPathId))
-        {
-            if (!_editingVertexIsConstrainedRectangle)
-                ApplyVertexEdit(position);
-
-            e.Handled = true;
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.SketchLine && _pendingLineStart is not null)
-        {
-            _pendingLineEnd = ScreenToWorld(position, Zoom);
-            InvalidateVisual();
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.SketchRectangle && _pendingRectangleStart is not null)
-        {
-            _pendingRectangleEnd = ScreenToWorld(position, Zoom);
-            InvalidateVisual();
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.SketchCircle && _pendingCircleCenter is not null)
-        {
-            _pendingCircleEdge = ScreenToWorld(position, Zoom);
-            InvalidateVisual();
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.SketchPolygon && _pendingPolygonCenter is not null)
-        {
-            _pendingPolygonEdge = ScreenToWorld(position, Zoom);
-            InvalidateVisual();
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.SketchText && _pendingTextStart is not null)
-        {
-            _pendingTextEnd = ScreenToWorld(position, Zoom);
-            InvalidateVisual();
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.Pen && _pendingPenPoints.Count > 0)
-        {
-            _pendingPenHoverPoint = ScreenToWorld(position, Zoom);
-            InvalidateVisual();
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.Mirror && _pendingMirrorAxisStart is not null)
-        {
-            _pendingMirrorAxisEnd = ScreenToWorld(position, Zoom);
-            InvalidateVisual();
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.Measure && _pendingMeasurementStart is not null)
-        {
-            _pendingMeasurementEnd = ScreenToWorld(position, Zoom);
-            InvalidateVisual();
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.Dimension && _pendingDimensionStart is not null)
-        {
-            _pendingDimensionEnd = ScreenToWorld(position, Zoom);
-            InvalidateVisual();
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.Trim)
-        {
-            InvalidateVisual();
-            return;
-        }
-
-        if (ActiveTool == Editor2DTool.Fillet || ActiveTool == Editor2DTool.Chamfer)
-        {
-            InvalidateVisual();
-            return;
-        }
-
-        if ((ActiveTool == Editor2DTool.Select
-             || ActiveTool == Editor2DTool.ConvertLines
-             || ActiveTool == Editor2DTool.Offset
-             || ActiveTool == Editor2DTool.AddThickness
-             || ActiveTool == Editor2DTool.Cleanup
-             || ActiveTool == Editor2DTool.Patterning
-             || ActiveTool == Editor2DTool.PaperFolding)
-            && e.Pointer.Captured == this
-            && _marqueeStartPoint is not null)
-        {
-            var delta = position - _pointerPressPosition;
-            if (!_isMarqueeSelecting && (Math.Abs(delta.X) > PointerDragThreshold || Math.Abs(delta.Y) > PointerDragThreshold))
-                _isMarqueeSelecting = true;
-
-            if (_isMarqueeSelecting)
-            {
+            case DxfCanvasMoveRoute.Pan:
+                var pan = _interactionController.ContinuePan(position);
+                SetCurrentValue(OffsetXProperty, OffsetX + pan.X); SetCurrentValue(OffsetYProperty, OffsetY + pan.Y); e.Handled = true; return;
+            case DxfCanvasMoveRoute.MoveSelection: ApplyMoveSelection(position); e.Handled = true; return;
+            case DxfCanvasMoveRoute.ScaleSelection: ApplyScaleSelection(position); e.Handled = true; return;
+            case DxfCanvasMoveRoute.EditVertex:
+                if (!_editingVertexIsConstrainedRectangle) ApplyVertexEdit(position); e.Handled = true; return;
+            case DxfCanvasMoveRoute.LineDraft: _pendingLineEnd = ScreenToWorld(position, Zoom); break;
+            case DxfCanvasMoveRoute.RectangleDraft: _pendingRectangleEnd = ScreenToWorld(position, Zoom); break;
+            case DxfCanvasMoveRoute.CircleDraft: _pendingCircleEdge = ScreenToWorld(position, Zoom); break;
+            case DxfCanvasMoveRoute.PolygonDraft: _pendingPolygonEdge = ScreenToWorld(position, Zoom); break;
+            case DxfCanvasMoveRoute.TextDraft: _pendingTextEnd = ScreenToWorld(position, Zoom); break;
+            case DxfCanvasMoveRoute.PenDraft: _pendingPenHoverPoint = ScreenToWorld(position, Zoom); break;
+            case DxfCanvasMoveRoute.MirrorDraft: _pendingMirrorAxisEnd = ScreenToWorld(position, Zoom); break;
+            case DxfCanvasMoveRoute.MeasurementDraft: _pendingMeasurementEnd = ScreenToWorld(position, Zoom); break;
+            case DxfCanvasMoveRoute.DimensionDraft: _pendingDimensionEnd = ScreenToWorld(position, Zoom); break;
+            case DxfCanvasMoveRoute.ToolPreview: InvalidateVisual(); return;
+            case DxfCanvasMoveRoute.Marquee:
+                var drag = position - _pointerPressPosition;
+                if (!_isMarqueeSelecting && (Math.Abs(drag.X) > PointerDragThreshold || Math.Abs(drag.Y) > PointerDragThreshold)) _isMarqueeSelecting = true;
+                if (!_isMarqueeSelecting) break;
                 _marqueeCurrentPoint = position;
                 InvalidateVisual();
                 e.Handled = true;
                 return;
-            }
+            case DxfCanvasMoveRoute.Hover: goto Hover;
         }
+        InvalidateVisual();
+        return;
 
+Hover:
         var hoveredPathId = HitTestPathId(position);
         if (!string.Equals(_hoveredPathId, hoveredPathId, StringComparison.Ordinal))
         {
@@ -863,84 +691,26 @@ public sealed class DxfPreviewCanvas : Control
     {
         base.OnPointerReleased(e);
 
-        if (e.Pointer.Captured == this && _cancelInteractionOnPointerRelease)
+        switch (_interactionController.RouteRelease(ActiveTool, e.Pointer.Captured == this))
         {
-            _cancelInteractionOnPointerRelease = false;
-            e.Pointer.Capture(null);
-            _pressedPathId = null;
-            CancelMarqueeSelection();
-            InvalidateVisual();
-            e.Handled = true;
-            return;
+            case DxfCanvasReleaseRoute.Cancel:
+                _cancelInteractionOnPointerRelease = false; _pressedPathId = null; CancelMarqueeSelection(); break;
+            case DxfCanvasReleaseRoute.Pan:
+                _interactionController.EndPan(); e.Pointer.Capture(null); e.Handled = true; return;
+            case DxfCanvasReleaseRoute.Context:
+                _isAwaitingSecondaryContextClick = false; e.Pointer.Capture(null); HandleContextClick(e.GetPosition(this)); e.Handled = true; return;
+            case DxfCanvasReleaseRoute.MoveSelection:
+                _isMovingSelection = false; _moveDocumentSnapshot = null; _moveSelectionIds = Array.Empty<string>(); _moveStartPoint = null; break;
+            case DxfCanvasReleaseRoute.ScaleSelection:
+                _isScalingSelection = false; _scaleDocumentSnapshot = null; _scaleSelectionIds = Array.Empty<string>(); _scaleCenterPoint = null; _scaleStartDistance = 0; _scalePreviewFactor = 1; break;
+            case DxfCanvasReleaseRoute.EditVertex:
+                _isEditingVertex = false; _editingVertexPathId = null; _editingVertexIndex = 0; _editingVertexIsConstrainedRectangle = false; break;
+            case DxfCanvasReleaseRoute.None: return;
+            case DxfCanvasReleaseRoute.Selection: goto Selection;
         }
+        e.Pointer.Capture(null); InvalidateVisual(); e.Handled = true; return;
 
-        if (_isPanning)
-        {
-            _isPanning = false;
-            e.Pointer.Capture(null);
-            e.Handled = true;
-            return;
-        }
-
-        if (_isAwaitingSecondaryContextClick)
-        {
-            _isAwaitingSecondaryContextClick = false;
-            e.Pointer.Capture(null);
-            HandleContextClick(e.GetPosition(this));
-            e.Handled = true;
-            return;
-        }
-
-        if (_isMovingSelection)
-        {
-            _isMovingSelection = false;
-            _moveDocumentSnapshot = null;
-            _moveSelectionIds = Array.Empty<string>();
-            _moveStartPoint = null;
-            e.Pointer.Capture(null);
-            InvalidateVisual();
-            e.Handled = true;
-            return;
-        }
-
-        if (_isScalingSelection)
-        {
-            _isScalingSelection = false;
-            _scaleDocumentSnapshot = null;
-            _scaleSelectionIds = Array.Empty<string>();
-            _scaleCenterPoint = null;
-            _scaleStartDistance = 0.0;
-            _scalePreviewFactor = 1.0;
-            e.Pointer.Capture(null);
-            InvalidateVisual();
-            e.Handled = true;
-            return;
-        }
-
-        if (_isEditingVertex)
-        {
-            _isEditingVertex = false;
-            _editingVertexPathId = null;
-            _editingVertexIndex = 0;
-            _editingVertexIsConstrainedRectangle = false;
-            e.Pointer.Capture(null);
-            InvalidateVisual();
-            e.Handled = true;
-            return;
-        }
-
-        if ((ActiveTool != Editor2DTool.Select
-             && ActiveTool != Editor2DTool.Scale
-             && ActiveTool != Editor2DTool.Mirror
-             && ActiveTool != Editor2DTool.ConvertLines
-             && ActiveTool != Editor2DTool.Offset
-             && ActiveTool != Editor2DTool.AddThickness
-             && ActiveTool != Editor2DTool.Cleanup
-             && ActiveTool != Editor2DTool.Patterning
-             && ActiveTool != Editor2DTool.PaperFolding)
-            || e.Pointer.Captured != this)
-            return;
-
+Selection:
         var isShiftSelection = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         if (_isMarqueeSelecting && _marqueeStartPoint is not null && _marqueeCurrentPoint is not null)
         {
@@ -986,15 +756,12 @@ public sealed class DxfPreviewCanvas : Control
         if (Document is null)
             return;
 
-        var nextZoom = Zoom <= 0.0 ? 1.0 : Zoom;
-        nextZoom *= e.Delta.Y >= 0 ? 1.1 : 1.0 / 1.1;
-        nextZoom = Math.Clamp(nextZoom, 0.02, 2000.0);
-
         var screenPoint = e.GetPosition(this);
-        var worldPoint = ScreenToWorld(screenPoint, Zoom <= 0.0 ? nextZoom : Zoom);
-        SetCurrentValue(ZoomProperty, nextZoom);
-        SetCurrentValue(OffsetXProperty, screenPoint.X - (Bounds.Width / 2.0) - (worldPoint.X * nextZoom));
-        SetCurrentValue(OffsetYProperty, screenPoint.Y - (Bounds.Height / 2.0) + (worldPoint.Y * nextZoom));
+        var update = _interactionController.ApplyWheel(
+            screenPoint, Bounds.Size, Zoom, OffsetX, OffsetY, e.Delta.Y);
+        SetCurrentValue(ZoomProperty, update.Zoom);
+        SetCurrentValue(OffsetXProperty, update.OffsetX);
+        SetCurrentValue(OffsetYProperty, update.OffsetY);
         InvalidateVisual();
         e.Handled = true;
     }
@@ -2699,135 +2466,22 @@ public sealed class DxfPreviewCanvas : Control
     }
 
     private Editor2DPreviewDocument? AddLineToDocument(Editor2DPoint startPoint, Editor2DPoint endPoint)
-    {
-        if (Document is null)
-            return null;
-
-        var distance = Math.Sqrt(Math.Pow(endPoint.X - startPoint.X, 2) + Math.Pow(endPoint.Y - startPoint.Y, 2));
-        if (distance <= 1e-6)
-            return null;
-
-        var nextPaths = Document.Paths.ToList();
-        nextPaths.Add(new Editor2DPreviewPath(
-            Id: $"line-{Guid.NewGuid():N}",
-            EntityType: "LINE",
-            Points: [startPoint, endPoint],
-            IsClosed: false,
-            IsAxisAlignedRectangle: false));
-        return CreateUpdatedDocument(Document, nextPaths);
-    }
+        => _toolCommitter.Line(Document, startPoint, endPoint);
 
     private Editor2DPreviewDocument? AddRectangleToDocument(Editor2DPoint startPoint, Editor2DPoint endPoint)
-    {
-        if (Document is null)
-            return null;
-
-        var width = Math.Abs(endPoint.X - startPoint.X);
-        var height = Math.Abs(endPoint.Y - startPoint.Y);
-        if (width <= 1e-6 || height <= 1e-6)
-            return null;
-
-        var nextPaths = Document.Paths.ToList();
-        nextPaths.Add(new Editor2DPreviewPath(
-            Id: $"rectangle-{Guid.NewGuid():N}",
-            EntityType: "LWPOLYLINE",
-            Points: BuildRectanglePoints(startPoint, endPoint),
-            IsClosed: true,
-            IsAxisAlignedRectangle: true));
-        return CreateUpdatedDocument(Document, nextPaths);
-    }
+        => _toolCommitter.Rectangle(Document, startPoint, endPoint);
 
     private Editor2DPreviewDocument? AddCircleToDocument(Editor2DPoint centerPoint, Editor2DPoint edgePoint)
-    {
-        if (Document is null)
-            return null;
-
-        var radius = Math.Sqrt(Math.Pow(edgePoint.X - centerPoint.X, 2) + Math.Pow(edgePoint.Y - centerPoint.Y, 2));
-        if (radius <= 1e-6)
-            return null;
-
-        var nextPaths = Document.Paths.ToList();
-        nextPaths.Add(new Editor2DPreviewPath(
-            Id: $"circle-{Guid.NewGuid():N}",
-            EntityType: "CIRCLE",
-            Points: BuildCirclePoints(centerPoint, radius),
-            IsClosed: true,
-            IsAxisAlignedRectangle: false,
-            Center: centerPoint,
-            Radius: radius,
-            StartAngleDegrees: 0.0,
-            EndAngleDegrees: 360.0));
-        return CreateUpdatedDocument(Document, nextPaths);
-    }
+        => _toolCommitter.Circle(Document, centerPoint, edgePoint);
 
     private Editor2DPreviewDocument? AddPolygonToDocument(Editor2DPoint centerPoint, Editor2DPoint edgePoint)
-    {
-        if (Document is null)
-            return null;
-
-        var nextPoints = BuildPolygonPoints(centerPoint, edgePoint, PolygonSides);
-        if (nextPoints.Length < 3)
-            return null;
-
-        var nextPaths = Document.Paths.ToList();
-        nextPaths.Add(new Editor2DPreviewPath(
-            Id: $"polygon-{Guid.NewGuid():N}",
-            EntityType: "LWPOLYLINE",
-            Points: nextPoints,
-            IsClosed: true,
-            IsAxisAlignedRectangle: false));
-        return CreateUpdatedDocument(Document, nextPaths);
-    }
+        => _toolCommitter.Polygon(Document, centerPoint, edgePoint, PolygonSides);
 
     private Editor2DPreviewDocument? AddTextToDocument(Editor2DPoint startPoint, Editor2DPoint endPoint)
-    {
-        if (Document is null)
-            return null;
-
-        var textHeight = Math.Abs(endPoint.Y - startPoint.Y);
-        var textWidth = Math.Abs(endPoint.X - startPoint.X);
-        if (textHeight <= 1e-6 || textWidth <= 1e-6)
-            return null;
-
-        var insertPoint = new Editor2DPoint(
-            Math.Min(startPoint.X, endPoint.X),
-            Math.Min(startPoint.Y, endPoint.Y));
-        var naturalWidth = Math.Max(DefaultTextValue.Length * textHeight * 0.6, textHeight * 0.6);
-        var widthFactor = naturalWidth <= 1e-6
-            ? 1.0
-            : Math.Max(textWidth / naturalWidth, 0.1);
-        var nextPaths = Document.Paths.ToList();
-        nextPaths.Add(new Editor2DPreviewPath(
-            Id: $"text-{Guid.NewGuid():N}",
-            EntityType: "TEXT",
-            Points: Editor2DGeometry.BuildTextBoundsPoints(insertPoint, DefaultTextValue, textHeight, widthFactor: widthFactor),
-            IsClosed: false,
-            IsAxisAlignedRectangle: false,
-            Start: insertPoint,
-            Text: DefaultTextValue,
-            TextHeight: textHeight,
-            RotationDegrees: 0.0,
-            WidthFactor: widthFactor));
-        return CreateUpdatedDocument(Document, nextPaths);
-    }
+        => _toolCommitter.Text(Document, startPoint, endPoint, DefaultTextValue);
 
     private Editor2DPreviewDocument? AddPenPathToDocument(IReadOnlyList<Editor2DPoint> points, bool isClosed)
-    {
-        if (Document is null || points.Count < 2)
-            return null;
-
-        var normalizedPoints = isClosed && points.Count >= 3
-            ? points.ToArray()
-            : points.ToArray();
-        var nextPaths = Document.Paths.ToList();
-        nextPaths.Add(new Editor2DPreviewPath(
-            Id: $"pen-{Guid.NewGuid():N}",
-            EntityType: "LWPOLYLINE",
-            Points: normalizedPoints,
-            IsClosed: isClosed,
-            IsAxisAlignedRectangle: Editor2DGeometry.IsAxisAlignedRectangle(normalizedPoints, isClosed)));
-        return CreateUpdatedDocument(Document, nextPaths);
-    }
+        => _toolCommitter.Pen(Document, points, isClosed);
 
     private void CommitPendingPenPath(bool isClosed)
     {

@@ -5,7 +5,8 @@
   xmlns:models="using:Domain.App.Models"
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:EditorPageViewModel"
-  AutomationProperties.AutomationId="editor.inspector.selection">
+  AutomationProperties.AutomationId="editor.inspector.selection"
+  IsVisible="{Binding ShowSelectionPanel}">
   <StackPanel IsVisible="{Binding ShowSelectionPanel}" Spacing="8">
     <TextBlock
       FontSize="13"

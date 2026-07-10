@@ -63,6 +63,9 @@ public sealed class DxfCanvasCollaboratorTests
             MarqueeStartPoint = new Point(1, 1),
             MarqueeCurrentPoint = new Point(5, 5),
             CancelInteractionOnPointerRelease = true,
+            IsMovingSelection = true,
+            PendingLineStart = new Editor2DPoint(1, 1),
+            EditingVertexPathId = "path",
         };
 
         Assert.True(session.HasActivePointerGesture);
@@ -72,6 +75,76 @@ public sealed class DxfCanvasCollaboratorTests
         Assert.Null(session.PressedPathId);
         Assert.Null(session.MarqueeStartPoint);
         Assert.False(session.CancelInteractionOnPointerRelease);
+        session.ResetToolDrafts();
+        Assert.False(session.IsMovingSelection);
+        Assert.Null(session.PendingLineStart);
+        Assert.Null(session.EditingVertexPathId);
+    }
+
+    [Fact]
+    public void InteractionController_ZoomsAroundPointerAndOwnsPanLifecycle()
+    {
+        var session = new DxfCanvasInteractionSession();
+        var controller = new DxfCanvasInteractionController(session);
+        var viewport = new Size(800, 600);
+        var pointer = new Point(250, 175);
+        var worldBefore = DxfCanvasViewportTransform.ScreenToWorld(pointer, viewport, 2, 12, -8);
+
+        var update = controller.ApplyWheel(pointer, viewport, 2, 12, -8, 1);
+        var worldAfter = DxfCanvasViewportTransform.ScreenToWorld(
+            pointer, viewport, update.Zoom, update.OffsetX, update.OffsetY);
+
+        Assert.Equal(2.2, update.Zoom, 8);
+        Assert.InRange(Math.Abs(worldBefore.X - worldAfter.X), 0, 1e-9);
+        Assert.InRange(Math.Abs(worldBefore.Y - worldAfter.Y), 0, 1e-9);
+
+        controller.BeginPan(new Point(10, 20));
+        Assert.True(session.IsPanning);
+        Assert.Equal(new Vector(5, -3), controller.ContinuePan(new Point(15, 17)));
+        controller.EndPan();
+        Assert.False(session.IsPanning);
+    }
+
+    [Fact]
+    public void InteractionController_RoutesPrimaryToolPressesWithoutControlInputEvents()
+    {
+        var session = new DxfCanvasInteractionSession();
+        var controller = new DxfCanvasInteractionController(session);
+
+        Assert.Equal(DxfCanvasPressRoute.Selection, controller.RoutePrimaryPress(Editor2DTool.Select));
+        Assert.Equal(DxfCanvasPressRoute.Move, controller.RoutePrimaryPress(Editor2DTool.Move));
+        Assert.Equal(DxfCanvasPressRoute.SketchRectangle, controller.RoutePrimaryPress(Editor2DTool.SketchRectangle));
+        Assert.Equal(DxfCanvasPressRoute.Corner, controller.RoutePrimaryPress(Editor2DTool.Fillet));
+        Assert.Equal(DxfCanvasPressRoute.None, controller.RoutePrimaryPress(Editor2DTool.AddSewingHoles));
+
+        session.PendingLineStart = new Editor2DPoint(0, 0);
+        Assert.Equal(DxfCanvasMoveRoute.LineDraft, controller.RouteMove(Editor2DTool.SketchLine, false));
+        session.PendingLineStart = null;
+        session.IsMovingSelection = true;
+        session.MoveDocumentSnapshot = Document();
+        session.MoveStartPoint = new Editor2DPoint(0, 0);
+        Assert.Equal(DxfCanvasMoveRoute.MoveSelection, controller.RouteMove(Editor2DTool.Move, true));
+        Assert.Equal(DxfCanvasReleaseRoute.MoveSelection, controller.RouteRelease(Editor2DTool.Move, true));
+    }
+
+    [Fact]
+    public void ToolCommitter_BuildsCanonicalGeometryAndRejectsDegenerateDrafts()
+    {
+        var committer = new DxfCanvasToolCommitter(() => "stable");
+        var document = Document();
+
+        Assert.Null(committer.Line(document, new(1, 1), new(1, 1)));
+        var rectangle = committer.Rectangle(document, new(1, 2), new(5, 8));
+        var path = Assert.Single(rectangle!.Paths);
+        Assert.Equal("rectangle-stable", path.Id);
+        Assert.True(path.IsClosed);
+        Assert.True(path.IsAxisAlignedRectangle);
+        Assert.Equal(4, path.Points.Count);
+
+        var circle = committer.Circle(document, new(0, 0), new(0, 2));
+        Assert.Equal(2, Assert.Single(circle!.Paths).Radius);
+        var text = committer.Text(document, new(0, 0), new(10, 2), "Label");
+        Assert.Equal("Label", Assert.Single(text!.Paths).Text);
     }
 
     [Fact]
@@ -100,6 +173,8 @@ public sealed class DxfCanvasCollaboratorTests
             .ToArray();
         Assert.Contains(typeof(DxfCanvasRenderer), fields);
         Assert.Contains(typeof(DxfCanvasInteractionSession), fields);
+        Assert.Contains(typeof(DxfCanvasInteractionController), fields);
+        Assert.Contains(typeof(DxfCanvasToolCommitter), fields);
 
         var source = File.ReadAllText(RepositoryFile(
             "src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs"));
@@ -108,7 +183,24 @@ public sealed class DxfCanvasCollaboratorTests
         Assert.Contains("DxfCanvasGeometryEditor", source, StringComparison.Ordinal);
         Assert.Contains("Command = new RelayCommand", source, StringComparison.Ordinal);
         Assert.DoesNotContain(".Click +=", source, StringComparison.Ordinal);
-        Assert.True(source.Split('\n').Length < 3650);
+        Assert.DoesNotContain("new Editor2DPreviewPath", source, StringComparison.Ordinal);
+        Assert.Contains("RoutePrimaryPress(ActiveTool)", source, StringComparison.Ordinal);
+
+        var canvasFieldNames = typeof(DxfPreviewCanvas)
+            .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
+            .Select(field => field.Name)
+            .ToArray();
+        Assert.DoesNotContain("_moveDocumentSnapshot", canvasFieldNames);
+        Assert.DoesNotContain("_pendingLineStart", canvasFieldNames);
+        Assert.DoesNotContain("_editingVertexPathId", canvasFieldNames);
+
+        var sessionFieldNames = typeof(DxfCanvasInteractionSession)
+            .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
+            .Select(field => field.Name)
+            .ToArray();
+        Assert.Contains("MoveDocumentSnapshot", sessionFieldNames);
+        Assert.Contains("PendingLineStart", sessionFieldNames);
+        Assert.Contains("EditingVertexPathId", sessionFieldNames);
     }
 
     private static Editor2DPreviewPath Path(string id, bool closed, params Editor2DPoint[] points)

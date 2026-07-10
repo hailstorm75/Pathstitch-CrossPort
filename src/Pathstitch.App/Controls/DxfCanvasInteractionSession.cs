@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using Avalonia;
+using Domain.App.Models;
 
 namespace Pathstitch.App.Controls;
 
@@ -15,6 +18,41 @@ internal sealed class DxfCanvasInteractionSession
     internal Point HoverPointerPosition;
     internal bool HasHoverPointerPosition;
     internal bool CancelInteractionOnPointerRelease;
+    internal bool IsMovingSelection;
+    internal bool IsScalingSelection;
+    internal bool IsAwaitingSecondaryContextClick;
+    internal bool IsEditingVertex;
+    internal Editor2DPreviewDocument? MoveDocumentSnapshot;
+    internal Editor2DPreviewDocument? ScaleDocumentSnapshot;
+    internal IReadOnlyList<string> MoveSelectionIds = Array.Empty<string>();
+    internal IReadOnlyList<string> ScaleSelectionIds = Array.Empty<string>();
+    internal Editor2DPoint? MoveStartPoint;
+    internal Editor2DPoint? ScaleCenterPoint;
+    internal double ScaleStartDistance;
+    internal double ScalePreviewFactor = 1.0;
+    internal string? EditingVertexPathId;
+    internal int EditingVertexIndex;
+    internal bool EditingVertexIsConstrainedRectangle;
+    internal Editor2DPoint? PendingLineStart;
+    internal Editor2DPoint? PendingLineEnd;
+    internal Editor2DPoint? PendingRectangleStart;
+    internal Editor2DPoint? PendingRectangleEnd;
+    internal Editor2DPoint? PendingCircleCenter;
+    internal Editor2DPoint? PendingCircleEdge;
+    internal Editor2DPoint? PendingPolygonCenter;
+    internal Editor2DPoint? PendingPolygonEdge;
+    internal Editor2DPoint? PendingTextStart;
+    internal Editor2DPoint? PendingTextEnd;
+    internal IReadOnlyList<Editor2DPoint> PendingPenPoints = Array.Empty<Editor2DPoint>();
+    internal Editor2DPoint? PendingPenHoverPoint;
+    internal Editor2DPoint? PendingMirrorAxisStart;
+    internal Editor2DPoint? PendingMirrorAxisEnd;
+    internal Editor2DPoint? PendingMeasurementStart;
+    internal Editor2DPoint? PendingMeasurementEnd;
+    internal Editor2DPoint? PendingDimensionStart;
+    internal Editor2DPoint? PendingDimensionEnd;
+    internal bool PendingFrameToDocument;
+    internal double? CornerToolSessionValue;
 
     public bool HasActivePointerGesture => IsPanning || IsMarqueeSelecting;
 
@@ -26,5 +64,40 @@ internal sealed class DxfCanvasInteractionSession
         MarqueeStartPoint = null;
         MarqueeCurrentPoint = null;
         CancelInteractionOnPointerRelease = false;
+    }
+
+    public void ResetToolDrafts()
+    {
+        IsMovingSelection = false;
+        IsScalingSelection = false;
+        IsEditingVertex = false;
+        MoveDocumentSnapshot = null;
+        ScaleDocumentSnapshot = null;
+        MoveSelectionIds = Array.Empty<string>();
+        ScaleSelectionIds = Array.Empty<string>();
+        MoveStartPoint = null;
+        ScaleCenterPoint = null;
+        ScaleStartDistance = 0;
+        ScalePreviewFactor = 1.0;
+        EditingVertexPathId = null;
+        PendingLineStart = null;
+        PendingLineEnd = null;
+        PendingRectangleStart = null;
+        PendingRectangleEnd = null;
+        PendingCircleCenter = null;
+        PendingCircleEdge = null;
+        PendingPolygonCenter = null;
+        PendingPolygonEdge = null;
+        PendingTextStart = null;
+        PendingTextEnd = null;
+        PendingPenPoints = Array.Empty<Editor2DPoint>();
+        PendingPenHoverPoint = null;
+        PendingMirrorAxisStart = null;
+        PendingMirrorAxisEnd = null;
+        PendingMeasurementStart = null;
+        PendingMeasurementEnd = null;
+        PendingDimensionStart = null;
+        PendingDimensionEnd = null;
+        CornerToolSessionValue = null;
     }
 }
