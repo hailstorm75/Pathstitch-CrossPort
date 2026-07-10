@@ -1,0 +1,117 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.Editor2DLayersPanel"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.context.2d-layers">
+  <Border
+    Background="{StaticResource PanelBackgroundBrush}"
+    BorderBrush="{StaticResource BorderBrush}"
+    BorderThickness="0,0,1,0"
+    Padding="14">
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+      <DockPanel>
+        <TextBlock
+          FontSize="13"
+          FontWeight="SemiBold"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="LAYERS" />
+        <Button
+          DockPanel.Dock="Right"
+          AutomationProperties.AutomationId="editor.layers.add"
+          Padding="8,2"
+          Content="+"
+          Click="OnCreateLayerClicked" />
+        <Button
+          DockPanel.Dock="Right"
+          AutomationProperties.AutomationId="editor.layers.import-reference"
+          Margin="0,0,6,0"
+          Padding="8,2"
+          Content="+ Image"
+          Click="OnImportReferenceImageClicked" />
+      </DockPanel>
+      <ScrollViewer Grid.Row="1" Margin="0,12,0,0">
+        <ItemsControl ItemsSource="{Binding TwoDLayers}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="models:Editor2DLayer">
+              <Border
+                AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.layer.{0}}"
+                Margin="0,0,0,8"
+                Padding="8"
+                Background="{StaticResource InputBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <StackPanel Spacing="6">
+                  <Button
+                    HorizontalContentAlignment="Left"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Tag="{Binding Id}"
+                    Click="OnSelectLayerClicked">
+                    <TextBlock Foreground="{StaticResource PrimaryTextBrush}" Text="{Binding Name}" />
+                  </Button>
+                  <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding ContentSummary}" />
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <Button Padding="5,2" Content="Visible" Tag="{Binding Id}" Click="OnToggleVisibilityClicked" />
+                    <Button Padding="5,2" Content="Lock" Tag="{Binding Id}" Click="OnToggleLockClicked" />
+                    <Button Padding="5,2" Content="↑" Tag="{Binding Id}" Click="OnMoveLayerUpClicked" />
+                    <Button Padding="5,2" Content="↓" Tag="{Binding Id}" Click="OnMoveLayerDownClicked" />
+                  </StackPanel>
+                  <Button
+                    Padding="5,2"
+                    Content="Move selection here"
+                    Tag="{Binding Id}"
+                    Click="OnAssignSelectionClicked" />
+                  <StackPanel IsVisible="{Binding IsReferenceImage}" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <Button Padding="5,2" Content="←" Tag="{Binding Id}" Click="OnReferenceMoveLeftClicked" />
+                      <Button Padding="5,2" Content="→" Tag="{Binding Id}" Click="OnReferenceMoveRightClicked" />
+                      <Button Padding="5,2" Content="↑" Tag="{Binding Id}" Click="OnReferenceMoveUpClicked" />
+                      <Button Padding="5,2" Content="↓" Tag="{Binding Id}" Click="OnReferenceMoveDownClicked" />
+                      <Button Padding="5,2" Content="−" Tag="{Binding Id}" Click="OnReferenceScaleDownClicked" />
+                      <Button Padding="5,2" Content="+" Tag="{Binding Id}" Click="OnReferenceScaleUpClicked" />
+                      <Button Padding="5,2" Content="↻" Tag="{Binding Id}" Click="OnReferenceRotateClicked" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <Button Padding="5,2" Content="Fade" Tag="{Binding Id}" Click="OnReferenceFadeClicked" />
+                      <Button Padding="5,2" Content="Brighten" Tag="{Binding Id}" Click="OnReferenceBrightenClicked" />
+                      <Button Padding="5,2" Content="Trace −" Tag="{Binding Id}" Click="OnReferenceThresholdDownClicked" />
+                      <Button Padding="5,2" Content="Trace +" Tag="{Binding Id}" Click="OnReferenceThresholdUpClicked" />
+                    </StackPanel>
+                    <Button
+                      AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.reference.trace.{0}}"
+                      Padding="5,2"
+                      Content="Trace image bounds"
+                      Tag="{Binding Id}"
+                      Click="OnTraceReferenceImageClicked" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+      <StackPanel
+        Grid.Row="2"
+        Margin="0,8,0,0"
+        Spacing="4"
+        IsVisible="{Binding HasTwoDActiveReferenceImage}">
+        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="CALIBRATION WIDTH" />
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <TextBox Width="90" Text="{Binding TwoDReferenceCalibrationWidthText, Mode=TwoWay}" />
+          <Button Content="Calibrate" Click="OnCalibrateReferenceImageClicked" />
+        </StackPanel>
+      </StackPanel>
+      <TextBlock
+        Grid.Row="3"
+        Margin="0,8,0,0"
+        FontSize="10"
+        TextWrapping="Wrap"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="Selecting a layer selects all geometry assigned to it." />
+    </Grid>
+  </Border>
+</UserControl>

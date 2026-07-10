@@ -1,0 +1,27 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.Editor2DView"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:controls="using:Pathstitch.App.Controls"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.workspace.2d">
+  <controls:DxfPreviewCanvas
+    x:Name="TwoDPreviewCanvas"
+    AutomationProperties.AutomationId="editor.canvas.2d"
+    IsVisible="{Binding IsShowingTwoDWorkspace}"
+    Document="{Binding TwoDDocument, Mode=TwoWay}"
+    ActiveTool="{Binding TwoDActiveTool, Mode=TwoWay}"
+    SelectedPathIds="{Binding TwoDSelectedPathIds, Mode=TwoWay}"
+    HiddenPathIds="{Binding TwoDHiddenPathIds}"
+    PreviewPaths="{Binding TwoDWorkspace.SewingHolePreviewPaths}"
+    ReferenceImages="{Binding TwoDReferenceImages}"
+    CornerParameters="{Binding TwoDCornerParameters, Mode=TwoWay}"
+    Measurements="{Binding TwoDMeasurements, Mode=TwoWay}"
+    SelectedMeasurementId="{Binding TwoDSelectedMeasurementId, Mode=TwoWay}"
+    Zoom="{Binding TwoDViewportZoom, Mode=TwoWay}"
+    OffsetX="{Binding TwoDViewportOffsetX, Mode=TwoWay}"
+    OffsetY="{Binding TwoDViewportOffsetY, Mode=TwoWay}"
+    PolygonSides="{Binding TwoDPolygonSides, Mode=TwoWay}"
+    FrameRequestToken="{Binding TwoDFrameRequestToken}" />
+</UserControl>
