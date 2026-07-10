@@ -12,8 +12,6 @@ public sealed class ProjectSessionService(
     private const string ProjectExtension = ".stch";
     private static readonly HashSet<string> Supported3DModelExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".step",
-        ".stp",
         ".obj",
         ".stl",
     };
@@ -113,7 +111,7 @@ public sealed class ProjectSessionService(
             .ToArray();
 
         if (unsupportedFiles.Length > 0)
-            throw new InvalidOperationException("The home screen currently supports existing .stch projects or 3D source models (.step, .stp, .obj, .stl).");
+            throw new InvalidOperationException("The home screen currently supports existing .stch projects or OpenGeometry mesh source models (.obj, .stl).");
 
         if (projectFiles.Length > 1)
         {

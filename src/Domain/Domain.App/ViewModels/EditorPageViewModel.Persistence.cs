@@ -7,7 +7,7 @@ public sealed partial class EditorPageViewModel
 {
     private void Request3DStatePersistence(TimeSpan? delay = null)
     {
-        if (ProjectSession is null || (!HasLoadedModel && !HasGeneratedOutputWorkspaceDocument))
+        if (ProjectSession is null)
             return;
 
         var nextCancellationTokenSource = new CancellationTokenSource();
@@ -26,13 +26,13 @@ public sealed partial class EditorPageViewModel
             if (delay > TimeSpan.Zero)
                 await Task.Delay(delay, cancellationTokenSource.Token).ConfigureAwait(true);
 
-            if (ProjectSession is null || (!HasLoadedModel && !HasGeneratedOutputWorkspaceDocument))
+            if (ProjectSession is null)
                 return;
 
             await _project3DStateService.SaveAsync(
                 ProjectSession.ProjectFilePath,
                 new Project3DState(
-                    StepJson: StepJsonContent,
+                    ViewportJson: ViewportJsonContent,
                     Bodies: Bodies,
                     BodyOffsets: BodyOffsets,
                     SourceModelPath: _sourceModelPath,
@@ -41,7 +41,12 @@ public sealed partial class EditorPageViewModel
                     GeneratedOutputContext: GeneratedOutputContext,
                     UnfoldWorkspaceState: BuildPersistedUnfoldWorkspaceState(),
                     ProjectionWorkspaceState: BuildPersistedProjectionWorkspaceState(),
-                    WorkspaceState: BuildPersistedEditorWorkspaceState()),
+                    WorkspaceState: BuildPersistedEditorWorkspaceState(),
+                    TwoDWorkspaceState: BuildPersistedTwoDWorkspaceState(),
+                    ThreeDWorkspaceState: _threeDWorkspace.CaptureState(
+                        BuildPersistedProjectionWorkspaceState(),
+                        BuildPersistedUnfoldWorkspaceState()),
+                    StepTopology: _stepTopology),
                 cancellationTokenSource.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)

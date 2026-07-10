@@ -217,7 +217,7 @@ public sealed partial class EditorPageViewModel
         ? string.Empty
         : SelectedFaceDetails.Count switch
         {
-            0 => "Select one planar face from the body list or viewport, then use it as the projection plane.",
+            0 => "Select one mesh face from the body list or viewport, then use it as the projection plane.",
             1 => "Use the current single-face selection as the projection plane.",
             _ => "Projection from a face requires exactly one selected face.",
         };
@@ -226,7 +226,9 @@ public sealed partial class EditorPageViewModel
         ? face.FaceType
         : null;
 
-    public bool IsSelectedProjectionFacePlanar => string.Equals(SelectedProjectionFaceType, "Plane", StringComparison.OrdinalIgnoreCase);
+    public bool IsSelectedProjectionFacePlanar
+        => string.Equals(SelectedProjectionFaceType, "Plane", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(SelectedProjectionFaceType, "Mesh", StringComparison.OrdinalIgnoreCase);
 
     public bool CanEditProjectionOffset
         => HasUsableSourceModelAsset
@@ -249,10 +251,10 @@ public sealed partial class EditorPageViewModel
             ? "Make at least one body visible before creating a projection sketch."
         : PlaneSelectionModeType == PlaneSelectionMode.Face
             ? SelectedProjectionFaceIndex is null || SelectedProjectionBodyIndex is null
-                ? "Pick one planar face from the viewport or face list, adjust the offset if needed, then confirm the projection."
+                ? "Pick one mesh face from the viewport or face list, adjust the offset if needed, then confirm the projection."
                 : IsSelectedProjectionFacePlanar
-                    ? "The selected planar face defines the projection plane. Adjust the offset if needed, then confirm the projection."
-                    : $"Projection from a face currently requires a planar face. The selected face is {SelectedProjectionFaceType ?? "unknown"}."
+                    ? "The selected face defines the projection plane. Adjust the offset if needed, then confirm the projection."
+                    : $"Projection from a face currently requires a mesh or planar face. The selected face is {SelectedProjectionFaceType ?? "unknown"}."
             : "Pick an origin plane, adjust the offset if needed, then confirm the projection.";
 
     public string ProjectionBodyScopeSummary => VisibleBodyCount switch
@@ -270,21 +272,21 @@ public sealed partial class EditorPageViewModel
         get
         {
             if (!IsProjectionFaceMode)
-                return "Face-based projection uses a selected planar face.";
+                return "Face-based projection uses a selected OpenGeometry mesh face.";
 
             if (SelectedProjectionFaceIndex is null || SelectedProjectionBodyIndex is null)
-                return "No face selected yet. Choose one planar face to enable projection.";
+                return "No face selected yet. Choose one mesh face to enable projection.";
 
             return IsSelectedProjectionFacePlanar
-                ? $"Planar face ready: {SelectedProjectionFaceType}."
+                ? $"Projection face ready: {SelectedProjectionFaceType}."
                 : $"The current face is {SelectedProjectionFaceType ?? "unknown"} and cannot define a projection plane.";
         }
     }
 
     public string ProjectionOffsetHint => !CanEditProjectionOffset
         ? HasUsableSourceModelAsset
-            ? "Select a usable origin plane or planar face before adjusting the offset."
-            : "Projection requires a native 3D source asset. Re-import the model or reopen a .stch with embedded 3D data."
+            ? "Select a usable origin plane or mesh face before adjusting the offset."
+            : "Projection requires an OpenGeometry mesh source asset. Re-import the model or reopen a .stch with embedded 3D data."
         : !IsPlaneOffsetTextValid
             ? "Enter a valid numeric offset in millimeters."
             : "Positive values move along the projection normal; negative values move opposite.";
@@ -332,7 +334,7 @@ public sealed partial class EditorPageViewModel
 
         StatusText = IsSelectedProjectionFacePlanar
             ? $"Projection face selected: {SelectionSummary}"
-            : $"Projection face must be planar. Current face is {SelectedProjectionFaceType ?? "unknown"}.";
+            : $"Projection face must be a mesh or planar face. Current face is {SelectedProjectionFaceType ?? "unknown"}.";
     }
 
     public void CancelPlaneSelection()

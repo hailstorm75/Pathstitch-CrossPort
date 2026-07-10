@@ -10,14 +10,14 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class EditorPageViewModel
 {
-    private sealed record GeneratedOutputConvertLineParameterDefinition(
+    private sealed record TwoDConvertLineParameterDefinition(
         string Key,
         string Label,
         double DefaultValue,
         double MinimumValue,
         bool IsInteger = false);
 
-    private static readonly IReadOnlyList<string> GeneratedOutputConvertLineStyleOrder =
+    private static readonly IReadOnlyList<string> TwoDConvertLineStyleOrder =
     [
         "dashed",
         "dotted",
@@ -28,8 +28,8 @@ public sealed partial class EditorPageViewModel
         "triangle",
     ];
 
-    private static readonly IReadOnlyDictionary<string, GeneratedOutputConvertLineParameterDefinition[]> GeneratedOutputConvertLineParameterDefinitions =
-        new Dictionary<string, GeneratedOutputConvertLineParameterDefinition[]>(StringComparer.OrdinalIgnoreCase)
+    private static readonly IReadOnlyDictionary<string, TwoDConvertLineParameterDefinition[]> TwoDConvertLineParameterDefinitions =
+        new Dictionary<string, TwoDConvertLineParameterDefinition[]>(StringComparer.OrdinalIgnoreCase)
         {
             ["dashed"] =
             [
@@ -70,58 +70,58 @@ public sealed partial class EditorPageViewModel
             ],
         };
 
-    private static readonly IReadOnlyList<string> GeneratedOutputOffsetModeOptions =
+    private static readonly IReadOnlyList<string> TwoDOffsetModeOptions =
     [
         "Curve",
         "BBox",
     ];
 
-    private static readonly IReadOnlyList<string> GeneratedOutputOffsetSideOptions =
+    private static readonly IReadOnlyList<string> TwoDOffsetSideOptions =
     [
         "Outward",
         "Inward",
     ];
 
-    private static readonly IReadOnlyList<string> GeneratedOutputPatternModeOptions =
+    private static readonly IReadOnlyList<string> TwoDPatternModeOptions =
     [
         "Rectangular",
         "Circular",
     ];
 
-    private static readonly IReadOnlyList<string> GeneratedOutputGlueTabTypeOptions =
+    private static readonly IReadOnlyList<string> TwoDGlueTabTypeOptions =
     [
         "Trapezoid",
         "Triangle",
     ];
 
-    private static readonly IReadOnlyList<string> GeneratedOutputGlueTabSideOptions =
+    private static readonly IReadOnlyList<string> TwoDGlueTabSideOptions =
     [
         "Left",
         "Right",
     ];
 
     private EditorGeneratedOutputContext? _generatedOutputContext;
-    private string _generatedOutputConvertLineStyle = "dashed";
-    private readonly Dictionary<string, string> _generatedOutputConvertLineParameterText = CreateGeneratedOutputConvertLineParameterText();
-    private string _generatedOutputOffsetMode = "Curve";
-    private string _generatedOutputOffsetSide = "Outward";
-    private string _generatedOutputOffsetDistanceText = "12";
-    private string _generatedOutputOffsetBBoxDistanceText = "12";
-    private string _generatedOutputOffsetBBoxFilletText = "0";
-    private string _generatedOutputAddThicknessWidthText = "3";
-    private string _generatedOutputCleanupToleranceText = "0.1";
-    private string _generatedOutputPatternMode = "Rectangular";
-    private string _generatedOutputPatternCopiesXText = "3";
-    private string _generatedOutputPatternCopiesYText = "1";
-    private string _generatedOutputPatternSpacingXText = "10";
-    private string _generatedOutputPatternSpacingYText = "10";
-    private string _generatedOutputPatternCircularCountText = "6";
-    private string _generatedOutputPatternCircularAngleText = "360";
-    private string _generatedOutputGlueTabHeightText = "5";
-    private string _generatedOutputGlueTabType = "Trapezoid";
-    private string _generatedOutputGlueTabSide = "Left";
-    private string _generatedOutputGlueTabStartOffsetText = "0";
-    private string _generatedOutputGlueTabEndOffsetText = "0";
+    private string _twoDConvertLineStyle = "dashed";
+    private readonly Dictionary<string, string> _twoDConvertLineParameterText = CreateTwoDConvertLineParameterText();
+    private string _twoDOffsetMode = "Curve";
+    private string _twoDOffsetSide = "Outward";
+    private string _twoDOffsetDistanceText = "12";
+    private string _twoDOffsetBBoxDistanceText = "12";
+    private string _twoDOffsetBBoxFilletText = "0";
+    private string _twoDAddThicknessWidthText = "3";
+    private string _twoDCleanupToleranceText = "0.1";
+    private string _twoDPatternMode = "Rectangular";
+    private string _twoDPatternCopiesXText = "3";
+    private string _twoDPatternCopiesYText = "1";
+    private string _twoDPatternSpacingXText = "10";
+    private string _twoDPatternSpacingYText = "10";
+    private string _twoDPatternCircularCountText = "6";
+    private string _twoDPatternCircularAngleText = "360";
+    private string _twoDGlueTabHeightText = "5";
+    private string _twoDGlueTabType = "Trapezoid";
+    private string _twoDGlueTabSide = "Left";
+    private string _twoDGlueTabStartOffsetText = "0";
+    private string _twoDGlueTabEndOffsetText = "0";
 
     public string? LastGeneratedOutputPath
     {
@@ -177,221 +177,260 @@ public sealed partial class EditorPageViewModel
         }
     }
 
-    public Editor2DPreviewDocument? GeneratedOutputPreviewDocument
+    public Editor2DPreviewDocument? TwoDDocument
     {
-        get => _generatedOutputPreviewDocument;
+        get => _twoDWorkspace.IsInitialized ? _twoDWorkspace.Document : null;
         set
         {
             var normalizedDocument = ApplyExpandedRectangleOverrides(value);
-            var documentChanged = SetProperty(ref _generatedOutputPreviewDocument, normalizedDocument);
-            SyncGeneratedOutputExpandedRectanglePathIds(normalizedDocument);
+            var currentDocument = TwoDDocument;
+            var documentChanged = !Equals(currentDocument, normalizedDocument);
+            if (documentChanged)
+            {
+                if (normalizedDocument is null)
+                    _twoDWorkspace.ClearDocument();
+                else
+                    _twoDWorkspace.SetDocument(normalizedDocument);
+            }
+            SyncTwoDExpandedRectanglePathIds(normalizedDocument);
             if (!documentChanged)
                 return;
 
-            OnPropertyChanged(nameof(HasGeneratedOutputWorkspaceDocument));
-            OnPropertyChanged(nameof(HasGeneratedOutputPreview));
-            OnPropertyChanged(nameof(HasNoGeneratedOutputPreview));
-            OnPropertyChanged(nameof(GeneratedOutputViewportSummary));
-            OnPropertyChanged(nameof(GeneratedOutputSelectionSummary));
+            OnPropertyChanged(nameof(HasTwoDWorkspaceDocument));
+            OnPropertyChanged(nameof(HasTwoDPreview));
+            OnPropertyChanged(nameof(HasNoTwoDPreview));
+            OnPropertyChanged(nameof(TwoDViewportSummary));
+            OnPropertyChanged(nameof(TwoDSelectionSummary));
             OnPropertyChanged(nameof(OutputStatusSummary));
             OnPropertyChanged(nameof(OutputPreviewButtonLabel));
             OnPropertyChanged(nameof(CanFrameHome));
             OnPropertyChanged(nameof(WorkspaceModeHint));
-            OnPropertyChanged(nameof(HasGeneratedOutputConvertibleLineSelection));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputConvertLines));
-            OnPropertyChanged(nameof(GeneratedOutputConvertLineSummary));
-            OnPropertyChanged(nameof(HasGeneratedOutputCurveOffsetSelection));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputOffset));
-            OnPropertyChanged(nameof(GeneratedOutputOffsetSummary));
-            OnPropertyChanged(nameof(HasGeneratedOutputThicknessSourceSelection));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputAddThickness));
-            OnPropertyChanged(nameof(GeneratedOutputAddThicknessSummary));
-            OnPropertyChanged(nameof(HasGeneratedOutputCleanupCandidates));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputCleanup));
-            OnPropertyChanged(nameof(GeneratedOutputCleanupSummary));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputPattern));
-            OnPropertyChanged(nameof(GeneratedOutputPatternSummary));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputPaperFoldingCreases));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputGlueTabs));
-            OnPropertyChanged(nameof(GeneratedOutputPaperFoldingSummary));
-            RefreshDerivedGeneratedOutputMeasurements(normalizedDocument);
-            SyncGeneratedOutputSelectedTextEditorState();
+            OnPropertyChanged(nameof(HasTwoDConvertibleLineSelection));
+            OnPropertyChanged(nameof(CanApplyTwoDConvertLines));
+            OnPropertyChanged(nameof(TwoDConvertLineSummary));
+            OnPropertyChanged(nameof(HasTwoDCurveOffsetSelection));
+            OnPropertyChanged(nameof(CanApplyTwoDOffset));
+            OnPropertyChanged(nameof(TwoDOffsetSummary));
+            OnPropertyChanged(nameof(HasTwoDThicknessSourceSelection));
+            OnPropertyChanged(nameof(CanApplyTwoDAddThickness));
+            OnPropertyChanged(nameof(TwoDAddThicknessSummary));
+            OnPropertyChanged(nameof(HasTwoDCleanupCandidates));
+            OnPropertyChanged(nameof(CanApplyTwoDCleanup));
+            OnPropertyChanged(nameof(TwoDCleanupSummary));
+            OnPropertyChanged(nameof(CanApplyTwoDPattern));
+            OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(CanApplyTwoDPaperFoldingCreases));
+            OnPropertyChanged(nameof(CanApplyTwoDGlueTabs));
+            OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
+            RefreshDerivedTwoDMeasurements(normalizedDocument);
+            SyncTwoDSelectedTextEditorState();
 
-            if (!_suppressGeneratedOutputDocumentPersistence)
-                RequestGeneratedOutputDocumentPersistence(TimeSpan.FromMilliseconds(80));
+            if (!_suppressTwoDDocumentPersistence)
+            {
+                if (string.IsNullOrWhiteSpace(LastGeneratedOutputPath))
+                    Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+                else
+                    RequestTwoDDocumentPersistence(TimeSpan.FromMilliseconds(80));
+            }
         }
     }
 
-    public Editor2DTool GeneratedOutputActiveTool
+    public Editor2DTool TwoDActiveTool
     {
-        get => _generatedOutputActiveTool;
+        get => _twoDWorkspace.ActiveTool;
         set
         {
-            if (!SetProperty(ref _generatedOutputActiveTool, value))
+            if (_twoDWorkspace.ActiveTool == value)
                 return;
 
-            OnPropertyChanged(nameof(IsGeneratedOutputSelectToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputMoveToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputPanToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputMeasureToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputDimensionToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputLineToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputRectangleToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputCircleToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputPolygonToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputTextToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputPenToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputScaleToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputMirrorToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputTrimToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputFilletToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputChamferToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputConvertLinesToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputOffsetToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputAddThicknessToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputCleanupToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputPatternToolActive));
-            OnPropertyChanged(nameof(IsGeneratedOutputPaperFoldingToolActive));
-            OnPropertyChanged(nameof(GeneratedOutputToolHint));
+            _twoDWorkspace.SetActiveTool(value);
+            OnPropertyChanged();
+
+            SyncSidebarToolStates();
+            OnPropertyChanged(nameof(ActiveToolLabel));
+            OnPropertyChanged(nameof(IsTwoDSelectToolActive));
+            OnPropertyChanged(nameof(IsTwoDMoveToolActive));
+            OnPropertyChanged(nameof(IsTwoDPanToolActive));
+            OnPropertyChanged(nameof(IsTwoDMeasureToolActive));
+            OnPropertyChanged(nameof(IsTwoDDimensionToolActive));
+            OnPropertyChanged(nameof(IsTwoDLineToolActive));
+            OnPropertyChanged(nameof(IsTwoDRectangleToolActive));
+            OnPropertyChanged(nameof(IsTwoDCircleToolActive));
+            OnPropertyChanged(nameof(IsTwoDPolygonToolActive));
+            OnPropertyChanged(nameof(IsTwoDTextToolActive));
+            OnPropertyChanged(nameof(IsTwoDPenToolActive));
+            OnPropertyChanged(nameof(IsTwoDScaleToolActive));
+            OnPropertyChanged(nameof(IsTwoDMirrorToolActive));
+            OnPropertyChanged(nameof(IsTwoDTrimToolActive));
+            OnPropertyChanged(nameof(IsTwoDFilletToolActive));
+            OnPropertyChanged(nameof(IsTwoDChamferToolActive));
+            OnPropertyChanged(nameof(IsTwoDConvertLinesToolActive));
+            OnPropertyChanged(nameof(IsTwoDOffsetToolActive));
+            OnPropertyChanged(nameof(IsTwoDAddThicknessToolActive));
+            OnPropertyChanged(nameof(IsTwoDCleanupToolActive));
+            OnPropertyChanged(nameof(IsTwoDPatternToolActive));
+            OnPropertyChanged(nameof(IsTwoDPaperFoldingToolActive));
+            OnPropertyChanged(nameof(IsTwoDSewingHoleToolActive));
+            OnPropertyChanged(nameof(TwoDToolHint));
+            Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
         }
     }
 
-    public int GeneratedOutputPolygonSides
+    public int TwoDPolygonSides
     {
-        get => _generatedOutputPolygonSides;
+        get => _twoDPolygonSides;
         set
         {
             var normalized = Math.Clamp(value, 3, 64);
-            if (!SetProperty(ref _generatedOutputPolygonSides, normalized))
+            if (!SetProperty(ref _twoDPolygonSides, normalized))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPolygonSidesSummary));
-            if (!_suppressGeneratedOutputViewportPersistence)
+            OnPropertyChanged(nameof(TwoDPolygonSidesSummary));
+            SyncTwoDWorkspaceState(recordHistory: false);
+            if (!_suppressTwoDViewportPersistence)
                 Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
         }
     }
 
-    public IReadOnlyList<string> GeneratedOutputSelectedPathIds
+    public IReadOnlyList<string> TwoDSelectedPathIds
     {
-        get => _generatedOutputSelectedPathIds;
+        get => _twoDWorkspace.SelectedPathIds;
         set
         {
             var normalized = value
                 .Where(static id => !string.IsNullOrWhiteSpace(id))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
-            if (!SetProperty(ref _generatedOutputSelectedPathIds, normalized))
+            if (_twoDWorkspace.SelectedPathIds.SequenceEqual(normalized, StringComparer.Ordinal))
                 return;
 
-            OnPropertyChanged(nameof(HasGeneratedOutputSelection));
-            OnPropertyChanged(nameof(GeneratedOutputSelectionCount));
-            OnPropertyChanged(nameof(GeneratedOutputSelectedRectangleCount));
-            OnPropertyChanged(nameof(CanExpandGeneratedOutputRectangles));
-            OnPropertyChanged(nameof(GeneratedOutputSelectionSummary));
-            OnPropertyChanged(nameof(GeneratedOutputToolHint));
-            OnPropertyChanged(nameof(HasGeneratedOutputConvertibleLineSelection));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputConvertLines));
-            OnPropertyChanged(nameof(GeneratedOutputConvertLineSummary));
-            OnPropertyChanged(nameof(HasGeneratedOutputCurveOffsetSelection));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputOffset));
-            OnPropertyChanged(nameof(GeneratedOutputOffsetSummary));
-            OnPropertyChanged(nameof(HasGeneratedOutputThicknessSourceSelection));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputAddThickness));
-            OnPropertyChanged(nameof(GeneratedOutputAddThicknessSummary));
-            OnPropertyChanged(nameof(HasGeneratedOutputCleanupCandidates));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputCleanup));
-            OnPropertyChanged(nameof(GeneratedOutputCleanupSummary));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputPattern));
-            OnPropertyChanged(nameof(GeneratedOutputPatternSummary));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputPaperFoldingCreases));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputGlueTabs));
-            OnPropertyChanged(nameof(GeneratedOutputPaperFoldingSummary));
-            SyncGeneratedOutputSelectedTextEditorState();
+            _twoDWorkspace.SetSelection(normalized);
+            OnPropertyChanged();
+
+            OnPropertyChanged(nameof(HasTwoDSelection));
+            OnPropertyChanged(nameof(TwoDSelectionCount));
+            OnPropertyChanged(nameof(TwoDSelectedRectangleCount));
+            OnPropertyChanged(nameof(CanExpandTwoDRectangles));
+            OnPropertyChanged(nameof(TwoDSelectionSummary));
+            OnPropertyChanged(nameof(TwoDToolHint));
+            OnPropertyChanged(nameof(HasTwoDConvertibleLineSelection));
+            OnPropertyChanged(nameof(CanApplyTwoDConvertLines));
+            OnPropertyChanged(nameof(TwoDConvertLineSummary));
+            OnPropertyChanged(nameof(HasTwoDCurveOffsetSelection));
+            OnPropertyChanged(nameof(CanApplyTwoDOffset));
+            OnPropertyChanged(nameof(TwoDOffsetSummary));
+            OnPropertyChanged(nameof(HasTwoDThicknessSourceSelection));
+            OnPropertyChanged(nameof(CanApplyTwoDAddThickness));
+            OnPropertyChanged(nameof(TwoDAddThicknessSummary));
+            OnPropertyChanged(nameof(HasTwoDCleanupCandidates));
+            OnPropertyChanged(nameof(CanApplyTwoDCleanup));
+            OnPropertyChanged(nameof(TwoDCleanupSummary));
+            OnPropertyChanged(nameof(CanApplyTwoDPattern));
+            OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(CanApplyTwoDPaperFoldingCreases));
+            OnPropertyChanged(nameof(CanApplyTwoDGlueTabs));
+            OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
+            SyncTwoDSelectedTextEditorState();
         }
     }
 
-    public IReadOnlyList<Editor2DMeasurement> GeneratedOutputMeasurements
+    public IReadOnlyList<Editor2DMeasurement> TwoDMeasurements
     {
-        get => _generatedOutputMeasurements;
+        get => _twoDWorkspace.Measurements;
         set
         {
             var normalized = value
                 .DistinctBy(static measurement => measurement.Id)
                 .ToArray();
-            if (!SetProperty(ref _generatedOutputMeasurements, normalized))
+            if (_twoDWorkspace.Measurements.SequenceEqual(normalized))
                 return;
 
-            if (!string.IsNullOrWhiteSpace(GeneratedOutputSelectedMeasurementId)
-                && normalized.All(measurement => !string.Equals(measurement.Id, GeneratedOutputSelectedMeasurementId, StringComparison.Ordinal)))
+            var previousSelectedMeasurementId = TwoDSelectedMeasurementId;
+            _twoDWorkspace.SetMeasurements(
+                normalized,
+                previousSelectedMeasurementId,
+                recordHistory: !_isRefreshingDerivedTwoDMeasurements && !_isApplyingTwoDWorkspaceState);
+            OnPropertyChanged();
+            if (!string.Equals(
+                    previousSelectedMeasurementId,
+                    TwoDSelectedMeasurementId,
+                    StringComparison.Ordinal))
             {
-                GeneratedOutputSelectedMeasurementId = null;
+                OnPropertyChanged(nameof(TwoDSelectedMeasurementId));
+                OnPropertyChanged(nameof(HasTwoDSelectedMeasurement));
             }
 
-            OnPropertyChanged(nameof(HasGeneratedOutputMeasurements));
-            OnPropertyChanged(nameof(GeneratedOutputAutoDimensionCount));
-            OnPropertyChanged(nameof(GeneratedOutputMeasurementSummary));
-            OnPropertyChanged(nameof(GeneratedOutputToolHint));
+            OnPropertyChanged(nameof(HasTwoDMeasurements));
+            OnPropertyChanged(nameof(TwoDAutoDimensionCount));
+            OnPropertyChanged(nameof(TwoDMeasurementSummary));
+            OnPropertyChanged(nameof(TwoDToolHint));
         }
     }
 
-    public string? GeneratedOutputSelectedMeasurementId
+    public string? TwoDSelectedMeasurementId
     {
-        get => _generatedOutputSelectedMeasurementId;
+        get => _twoDWorkspace.SelectedMeasurementId;
         set
         {
             var normalized = string.IsNullOrWhiteSpace(value) ? null : value;
-            if (!SetProperty(ref _generatedOutputSelectedMeasurementId, normalized))
+            if (string.Equals(_twoDWorkspace.SelectedMeasurementId, normalized, StringComparison.Ordinal))
                 return;
 
-            OnPropertyChanged(nameof(HasGeneratedOutputSelectedMeasurement));
-            OnPropertyChanged(nameof(GeneratedOutputMeasurementSummary));
+            _twoDWorkspace.SetSelectedMeasurement(normalized);
+            OnPropertyChanged();
+
+            OnPropertyChanged(nameof(HasTwoDSelectedMeasurement));
+            OnPropertyChanged(nameof(TwoDMeasurementSummary));
         }
     }
 
-    public double GeneratedOutputViewportZoom
+    public double TwoDViewportZoom
     {
-        get => _generatedOutputViewportZoom;
+        get => _twoDViewportZoom;
         set
         {
-            if (!SetProperty(ref _generatedOutputViewportZoom, value))
+            if (!SetProperty(ref _twoDViewportZoom, value))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputViewportSummary));
-            if (!_suppressGeneratedOutputViewportPersistence)
+            OnPropertyChanged(nameof(TwoDViewportSummary));
+            SyncTwoDWorkspaceState(recordHistory: false);
+            if (!_suppressTwoDViewportPersistence)
                 Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
         }
     }
 
-    public double GeneratedOutputViewportOffsetX
+    public double TwoDViewportOffsetX
     {
-        get => _generatedOutputViewportOffsetX;
+        get => _twoDViewportOffsetX;
         set
         {
-            if (!SetProperty(ref _generatedOutputViewportOffsetX, value))
+            if (!SetProperty(ref _twoDViewportOffsetX, value))
                 return;
 
-            if (!_suppressGeneratedOutputViewportPersistence)
+            SyncTwoDWorkspaceState(recordHistory: false);
+            if (!_suppressTwoDViewportPersistence)
                 Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
         }
     }
 
-    public double GeneratedOutputViewportOffsetY
+    public double TwoDViewportOffsetY
     {
-        get => _generatedOutputViewportOffsetY;
+        get => _twoDViewportOffsetY;
         set
         {
-            if (!SetProperty(ref _generatedOutputViewportOffsetY, value))
+            if (!SetProperty(ref _twoDViewportOffsetY, value))
                 return;
 
-            if (!_suppressGeneratedOutputViewportPersistence)
+            SyncTwoDWorkspaceState(recordHistory: false);
+            if (!_suppressTwoDViewportPersistence)
                 Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
         }
     }
 
-    public int GeneratedOutputFrameRequestToken
+    public int TwoDFrameRequestToken
     {
-        get => _generatedOutputFrameRequestToken;
-        private set => SetProperty(ref _generatedOutputFrameRequestToken, value);
+        get => _twoDFrameRequestToken;
+        private set => SetProperty(ref _twoDFrameRequestToken, value);
     }
 
     public bool HasGeneratedOutput => !string.IsNullOrWhiteSpace(LastGeneratedOutputPath);
@@ -426,461 +465,463 @@ public sealed partial class EditorPageViewModel
         ? string.Empty
         : $"Generated: {GeneratedOutputContext.CreatedUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
 
-    public bool HasGeneratedOutputPreview => GeneratedOutputPreviewDocument is { Paths.Count: > 0 };
+    public bool HasTwoDPreview => TwoDDocument is { Paths.Count: > 0 };
 
-    public bool HasGeneratedOutputWorkspaceDocument => GeneratedOutputPreviewDocument is not null;
+    public bool HasTwoDWorkspaceDocument => TwoDDocument is not null;
 
-    public bool HasNoGeneratedOutputPreview => !HasGeneratedOutputPreview;
+    public bool HasNoTwoDPreview => !HasTwoDPreview;
 
-    public bool IsGeneratedOutputSelectToolActive => GeneratedOutputActiveTool == Editor2DTool.Select;
+    public bool IsTwoDSelectToolActive => TwoDActiveTool == Editor2DTool.Select;
 
-    public bool IsGeneratedOutputMoveToolActive => GeneratedOutputActiveTool == Editor2DTool.Move;
+    public bool IsTwoDMoveToolActive => TwoDActiveTool == Editor2DTool.Move;
 
-    public bool IsGeneratedOutputPanToolActive => GeneratedOutputActiveTool == Editor2DTool.Pan;
+    public bool IsTwoDPanToolActive => TwoDActiveTool == Editor2DTool.Pan;
 
-    public bool IsGeneratedOutputMeasureToolActive => GeneratedOutputActiveTool == Editor2DTool.Measure;
+    public bool IsTwoDMeasureToolActive => TwoDActiveTool == Editor2DTool.Measure;
 
-    public bool IsGeneratedOutputDimensionToolActive => GeneratedOutputActiveTool == Editor2DTool.Dimension;
+    public bool IsTwoDDimensionToolActive => TwoDActiveTool == Editor2DTool.Dimension;
 
-    public bool IsGeneratedOutputLineToolActive => GeneratedOutputActiveTool == Editor2DTool.SketchLine;
+    public bool IsTwoDLineToolActive => TwoDActiveTool == Editor2DTool.SketchLine;
 
-    public bool IsGeneratedOutputRectangleToolActive => GeneratedOutputActiveTool == Editor2DTool.SketchRectangle;
+    public bool IsTwoDRectangleToolActive => TwoDActiveTool == Editor2DTool.SketchRectangle;
 
-    public bool IsGeneratedOutputCircleToolActive => GeneratedOutputActiveTool == Editor2DTool.SketchCircle;
+    public bool IsTwoDCircleToolActive => TwoDActiveTool == Editor2DTool.SketchCircle;
 
-    public bool IsGeneratedOutputPolygonToolActive => GeneratedOutputActiveTool == Editor2DTool.SketchPolygon;
+    public bool IsTwoDPolygonToolActive => TwoDActiveTool == Editor2DTool.SketchPolygon;
 
-    public bool IsGeneratedOutputTextToolActive => GeneratedOutputActiveTool == Editor2DTool.SketchText;
+    public bool IsTwoDTextToolActive => TwoDActiveTool == Editor2DTool.SketchText;
 
-    public bool IsGeneratedOutputPenToolActive => GeneratedOutputActiveTool == Editor2DTool.Pen;
+    public bool IsTwoDPenToolActive => TwoDActiveTool == Editor2DTool.Pen;
 
-    public bool IsGeneratedOutputScaleToolActive => GeneratedOutputActiveTool == Editor2DTool.Scale;
+    public bool IsTwoDScaleToolActive => TwoDActiveTool == Editor2DTool.Scale;
 
-    public bool IsGeneratedOutputMirrorToolActive => GeneratedOutputActiveTool == Editor2DTool.Mirror;
+    public bool IsTwoDMirrorToolActive => TwoDActiveTool == Editor2DTool.Mirror;
 
-    public bool IsGeneratedOutputTrimToolActive => GeneratedOutputActiveTool == Editor2DTool.Trim;
+    public bool IsTwoDTrimToolActive => TwoDActiveTool == Editor2DTool.Trim;
 
-    public bool IsGeneratedOutputFilletToolActive => GeneratedOutputActiveTool == Editor2DTool.Fillet;
+    public bool IsTwoDFilletToolActive => TwoDActiveTool == Editor2DTool.Fillet;
 
-    public bool IsGeneratedOutputChamferToolActive => GeneratedOutputActiveTool == Editor2DTool.Chamfer;
+    public bool IsTwoDChamferToolActive => TwoDActiveTool == Editor2DTool.Chamfer;
 
-    public bool IsGeneratedOutputConvertLinesToolActive => GeneratedOutputActiveTool == Editor2DTool.ConvertLines;
+    public bool IsTwoDConvertLinesToolActive => TwoDActiveTool == Editor2DTool.ConvertLines;
 
-    public bool IsGeneratedOutputOffsetToolActive => GeneratedOutputActiveTool == Editor2DTool.Offset;
+    public bool IsTwoDOffsetToolActive => TwoDActiveTool == Editor2DTool.Offset;
 
-    public bool IsGeneratedOutputAddThicknessToolActive => GeneratedOutputActiveTool == Editor2DTool.AddThickness;
+    public bool IsTwoDAddThicknessToolActive => TwoDActiveTool == Editor2DTool.AddThickness;
 
-    public bool IsGeneratedOutputCleanupToolActive => GeneratedOutputActiveTool == Editor2DTool.Cleanup;
+    public bool IsTwoDCleanupToolActive => TwoDActiveTool == Editor2DTool.Cleanup;
 
-    public bool IsGeneratedOutputPatternToolActive => GeneratedOutputActiveTool == Editor2DTool.Patterning;
+    public bool IsTwoDPatternToolActive => TwoDActiveTool == Editor2DTool.Patterning;
 
-    public bool IsGeneratedOutputPaperFoldingToolActive => GeneratedOutputActiveTool == Editor2DTool.PaperFolding;
+    public bool IsTwoDPaperFoldingToolActive => TwoDActiveTool == Editor2DTool.PaperFolding;
 
-    public bool HasGeneratedOutputSelection => GeneratedOutputSelectedPathIds.Count > 0;
+    public bool IsTwoDSewingHoleToolActive => TwoDActiveTool == Editor2DTool.AddSewingHoles;
 
-    public int GeneratedOutputSelectionCount => GeneratedOutputSelectedPathIds.Count;
+    public bool HasTwoDSelection => TwoDSelectedPathIds.Count > 0;
 
-    public int GeneratedOutputSelectedRectangleCount
-        => GeneratedOutputPreviewDocument is null
+    public int TwoDSelectionCount => TwoDSelectedPathIds.Count;
+
+    public int TwoDSelectedRectangleCount
+        => TwoDDocument is null
             ? 0
-            : GeneratedOutputPreviewDocument.Paths.Count(path =>
+            : TwoDDocument.Paths.Count(path =>
                 path.IsAxisAlignedRectangle
-                && GeneratedOutputSelectedPathIds.Contains(path.Id, StringComparer.Ordinal));
+                && TwoDSelectedPathIds.Contains(path.Id, StringComparer.Ordinal));
 
-    public bool CanExpandGeneratedOutputRectangles => GeneratedOutputSelectedRectangleCount > 0;
+    public bool CanExpandTwoDRectangles => TwoDSelectedRectangleCount > 0;
 
-    public bool HasGeneratedOutputMeasurements => GeneratedOutputMeasurements.Any(static measurement => !measurement.IsAutoDimension);
+    public bool HasTwoDMeasurements => TwoDMeasurements.Any(static measurement => !measurement.IsAutoDimension);
 
-    public bool HasGeneratedOutputSelectedMeasurement => !string.IsNullOrWhiteSpace(GeneratedOutputSelectedMeasurementId);
+    public bool HasTwoDSelectedMeasurement => !string.IsNullOrWhiteSpace(TwoDSelectedMeasurementId);
 
-    public int GeneratedOutputAutoDimensionCount => GeneratedOutputMeasurements.Count(static measurement => measurement.IsAutoDimension);
+    public int TwoDAutoDimensionCount => TwoDMeasurements.Count(static measurement => measurement.IsAutoDimension);
 
-    public bool HasSingleGeneratedOutputTextSelection => TryGetSingleSelectedGeneratedOutputTextPath(out _);
+    public bool HasSingleTwoDTextSelection => TryGetSingleSelectedTwoDTextPath(out _);
 
-    public IReadOnlyList<string> GeneratedOutputConvertLineStyleOptions => GeneratedOutputConvertLineStyleOrder;
+    public IReadOnlyList<string> TwoDConvertLineStyleOptions => TwoDConvertLineStyleOrder;
 
-    public string GeneratedOutputConvertLineStyle
+    public string TwoDConvertLineStyle
     {
-        get => _generatedOutputConvertLineStyle;
+        get => _twoDConvertLineStyle;
         set
         {
-            var normalized = NormalizeGeneratedOutputConvertLineStyle(value);
-            if (!SetProperty(ref _generatedOutputConvertLineStyle, normalized))
+            var normalized = NormalizeTwoDConvertLineStyle(value);
+            if (!SetProperty(ref _twoDConvertLineStyle, normalized))
                 return;
 
-            NotifyGeneratedOutputConvertLineParameterStateChanged();
+            NotifyTwoDConvertLineParameterStateChanged();
         }
     }
 
-    public bool HasGeneratedOutputConvertibleLineSelection => GetGeneratedOutputConvertibleSelectionCount() > 0;
+    public bool HasTwoDConvertibleLineSelection => GetTwoDConvertibleSelectionCount() > 0;
 
-    public bool CanApplyGeneratedOutputConvertLines => HasGeneratedOutputConvertibleLineSelection;
+    public bool CanApplyTwoDConvertLines => HasTwoDConvertibleLineSelection;
 
-    public string GeneratedOutputConvertLineSummary
+    public string TwoDConvertLineSummary
     {
         get
         {
-            var convertibleSelectionCount = GetGeneratedOutputConvertibleSelectionCount();
+            var convertibleSelectionCount = GetTwoDConvertibleSelectionCount();
             return convertibleSelectionCount == 0
                 ? "Select LINE, LWPOLYLINE, or POLYLINE geometry to apply a native pattern conversion."
-                : $"{convertibleSelectionCount} convertible entit{(convertibleSelectionCount == 1 ? "y" : "ies")} selected. Apply {GeneratedOutputConvertLineStyle} geometry to replace the current linework.";
+                : $"{convertibleSelectionCount} convertible entit{(convertibleSelectionCount == 1 ? "y" : "ies")} selected. Apply {TwoDConvertLineStyle} geometry to replace the current linework.";
         }
     }
 
-    public bool HasGeneratedOutputConvertLineFirstParameter => GetGeneratedOutputConvertLineParameterDefinitions(GeneratedOutputConvertLineStyle).Length >= 1;
+    public bool HasTwoDConvertLineFirstParameter => GetTwoDConvertLineParameterDefinitions(TwoDConvertLineStyle).Length >= 1;
 
-    public bool HasGeneratedOutputConvertLineSecondParameter => GetGeneratedOutputConvertLineParameterDefinitions(GeneratedOutputConvertLineStyle).Length >= 2;
+    public bool HasTwoDConvertLineSecondParameter => GetTwoDConvertLineParameterDefinitions(TwoDConvertLineStyle).Length >= 2;
 
-    public bool HasGeneratedOutputConvertLineThirdParameter => GetGeneratedOutputConvertLineParameterDefinitions(GeneratedOutputConvertLineStyle).Length >= 3;
+    public bool HasTwoDConvertLineThirdParameter => GetTwoDConvertLineParameterDefinitions(TwoDConvertLineStyle).Length >= 3;
 
-    public string GeneratedOutputConvertLineFirstParameterLabel => GetGeneratedOutputConvertLineParameterLabel(0);
+    public string TwoDConvertLineFirstParameterLabel => GetTwoDConvertLineParameterLabel(0);
 
-    public string GeneratedOutputConvertLineSecondParameterLabel => GetGeneratedOutputConvertLineParameterLabel(1);
+    public string TwoDConvertLineSecondParameterLabel => GetTwoDConvertLineParameterLabel(1);
 
-    public string GeneratedOutputConvertLineThirdParameterLabel => GetGeneratedOutputConvertLineParameterLabel(2);
+    public string TwoDConvertLineThirdParameterLabel => GetTwoDConvertLineParameterLabel(2);
 
-    public string GeneratedOutputConvertLineFirstParameterText
+    public string TwoDConvertLineFirstParameterText
     {
-        get => GetGeneratedOutputConvertLineParameterText(0);
-        set => SetGeneratedOutputConvertLineParameterText(0, value);
+        get => GetTwoDConvertLineParameterText(0);
+        set => SetTwoDConvertLineParameterText(0, value);
     }
 
-    public string GeneratedOutputConvertLineSecondParameterText
+    public string TwoDConvertLineSecondParameterText
     {
-        get => GetGeneratedOutputConvertLineParameterText(1);
-        set => SetGeneratedOutputConvertLineParameterText(1, value);
+        get => GetTwoDConvertLineParameterText(1);
+        set => SetTwoDConvertLineParameterText(1, value);
     }
 
-    public string GeneratedOutputConvertLineThirdParameterText
+    public string TwoDConvertLineThirdParameterText
     {
-        get => GetGeneratedOutputConvertLineParameterText(2);
-        set => SetGeneratedOutputConvertLineParameterText(2, value);
+        get => GetTwoDConvertLineParameterText(2);
+        set => SetTwoDConvertLineParameterText(2, value);
     }
 
-    public IReadOnlyList<string> GeneratedOutputOffsetModeOptionItems => GeneratedOutputOffsetModeOptions;
+    public IReadOnlyList<string> TwoDOffsetModeOptionItems => TwoDOffsetModeOptions;
 
-    public IReadOnlyList<string> GeneratedOutputOffsetSideOptionItems => GeneratedOutputOffsetSideOptions;
+    public IReadOnlyList<string> TwoDOffsetSideOptionItems => TwoDOffsetSideOptions;
 
-    public string GeneratedOutputOffsetMode
+    public string TwoDOffsetMode
     {
-        get => _generatedOutputOffsetMode;
+        get => _twoDOffsetMode;
         set
         {
-            var normalized = NormalizeGeneratedOutputOffsetMode(value);
-            if (!SetProperty(ref _generatedOutputOffsetMode, normalized))
+            var normalized = NormalizeTwoDOffsetMode(value);
+            if (!SetProperty(ref _twoDOffsetMode, normalized))
                 return;
 
-            OnPropertyChanged(nameof(IsGeneratedOutputCurveOffsetMode));
-            OnPropertyChanged(nameof(IsGeneratedOutputBBoxOffsetMode));
-            OnPropertyChanged(nameof(HasGeneratedOutputCurveOffsetSelection));
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputOffset));
-            OnPropertyChanged(nameof(GeneratedOutputOffsetSummary));
+            OnPropertyChanged(nameof(IsTwoDCurveOffsetMode));
+            OnPropertyChanged(nameof(IsTwoDBBoxOffsetMode));
+            OnPropertyChanged(nameof(HasTwoDCurveOffsetSelection));
+            OnPropertyChanged(nameof(CanApplyTwoDOffset));
+            OnPropertyChanged(nameof(TwoDOffsetSummary));
         }
     }
 
-    public string GeneratedOutputOffsetSide
+    public string TwoDOffsetSide
     {
-        get => _generatedOutputOffsetSide;
+        get => _twoDOffsetSide;
         set
         {
-            var normalized = NormalizeGeneratedOutputOffsetSide(value);
-            if (!SetProperty(ref _generatedOutputOffsetSide, normalized))
+            var normalized = NormalizeTwoDOffsetSide(value);
+            if (!SetProperty(ref _twoDOffsetSide, normalized))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputOffsetSummary));
+            OnPropertyChanged(nameof(TwoDOffsetSummary));
         }
     }
 
-    public string GeneratedOutputOffsetDistanceText
+    public string TwoDOffsetDistanceText
     {
-        get => _generatedOutputOffsetDistanceText;
-        set => SetProperty(ref _generatedOutputOffsetDistanceText, value ?? string.Empty);
+        get => _twoDOffsetDistanceText;
+        set => SetProperty(ref _twoDOffsetDistanceText, value ?? string.Empty);
     }
 
-    public string GeneratedOutputOffsetBBoxDistanceText
+    public string TwoDOffsetBBoxDistanceText
     {
-        get => _generatedOutputOffsetBBoxDistanceText;
-        set => SetProperty(ref _generatedOutputOffsetBBoxDistanceText, value ?? string.Empty);
+        get => _twoDOffsetBBoxDistanceText;
+        set => SetProperty(ref _twoDOffsetBBoxDistanceText, value ?? string.Empty);
     }
 
-    public string GeneratedOutputOffsetBBoxFilletText
+    public string TwoDOffsetBBoxFilletText
     {
-        get => _generatedOutputOffsetBBoxFilletText;
-        set => SetProperty(ref _generatedOutputOffsetBBoxFilletText, value ?? string.Empty);
+        get => _twoDOffsetBBoxFilletText;
+        set => SetProperty(ref _twoDOffsetBBoxFilletText, value ?? string.Empty);
     }
 
-    public bool IsGeneratedOutputCurveOffsetMode => string.Equals(GeneratedOutputOffsetMode, "Curve", StringComparison.Ordinal);
+    public bool IsTwoDCurveOffsetMode => string.Equals(TwoDOffsetMode, "Curve", StringComparison.Ordinal);
 
-    public bool IsGeneratedOutputBBoxOffsetMode => string.Equals(GeneratedOutputOffsetMode, "BBox", StringComparison.Ordinal);
+    public bool IsTwoDBBoxOffsetMode => string.Equals(TwoDOffsetMode, "BBox", StringComparison.Ordinal);
 
-    public bool HasGeneratedOutputCurveOffsetSelection => GetGeneratedOutputCurveOffsetSelectionCount() > 0;
+    public bool HasTwoDCurveOffsetSelection => GetTwoDCurveOffsetSelectionCount() > 0;
 
-    public bool CanApplyGeneratedOutputOffset
-        => IsGeneratedOutputBBoxOffsetMode
-            ? HasGeneratedOutputSelection
-            : HasGeneratedOutputCurveOffsetSelection;
+    public bool CanApplyTwoDOffset
+        => IsTwoDBBoxOffsetMode
+            ? HasTwoDSelection
+            : HasTwoDCurveOffsetSelection;
 
-    public string GeneratedOutputOffsetSummary
+    public string TwoDOffsetSummary
     {
         get
         {
-            if (IsGeneratedOutputBBoxOffsetMode)
+            if (IsTwoDBBoxOffsetMode)
             {
-                return HasGeneratedOutputSelection
+                return HasTwoDSelection
                     ? $"BBox offset will wrap the current selection in a new rectangular profile. Rounded corners use the current fillet value."
                     : "Select one or more 2D entities to create a bounding-box offset profile.";
             }
 
-            var curveOffsetSelectionCount = GetGeneratedOutputCurveOffsetSelectionCount();
+            var curveOffsetSelectionCount = GetTwoDCurveOffsetSelectionCount();
             return curveOffsetSelectionCount == 0
-                ? "Select LINE, LWPOLYLINE, POLYLINE, CIRCLE, or ARC geometry to add a native offset copy."
+                ? "Select LINE, LWPOLYLINE, POLYLINE, CIRCLE, or ARC geometry to add an OpenGeometry offset copy."
                 : $"{curveOffsetSelectionCount} offsettable entit{(curveOffsetSelectionCount == 1 ? "y" : "ies")} selected. Open-path offsets follow path direction; closed paths expand or shrink.";
         }
     }
 
-    public string GeneratedOutputAddThicknessWidthText
+    public string TwoDAddThicknessWidthText
     {
-        get => _generatedOutputAddThicknessWidthText;
-        set => SetProperty(ref _generatedOutputAddThicknessWidthText, value ?? string.Empty);
+        get => _twoDAddThicknessWidthText;
+        set => SetProperty(ref _twoDAddThicknessWidthText, value ?? string.Empty);
     }
 
-    public bool HasGeneratedOutputThicknessSourceSelection => GetGeneratedOutputThicknessSourcePathCount() > 0;
+    public bool HasTwoDThicknessSourceSelection => GetTwoDThicknessSourcePathCount() > 0;
 
-    public bool CanApplyGeneratedOutputAddThickness => GetGeneratedOutputThicknessCandidatePaths().Count > 0;
+    public bool CanApplyTwoDAddThickness => GetTwoDThicknessCandidatePaths().Count > 0;
 
-    public string GeneratedOutputAddThicknessSummary
+    public string TwoDAddThicknessSummary
     {
         get
         {
-            var selectedSourceCount = GetGeneratedOutputThicknessSourcePathCount();
-            if (GeneratedOutputSelectedPathIds.Count > 0)
+            var selectedSourceCount = GetTwoDThicknessSourcePathCount();
+            if (TwoDSelectedPathIds.Count > 0)
             {
                 return selectedSourceCount == 0
                     ? "The current selection does not contain open line or polyline centerlines that can be thickened."
                     : $"{selectedSourceCount} open line/polyline centerline{(selectedSourceCount == 1 ? string.Empty : "s")} selected. Apply Thickness to create closed outline geometry.";
             }
 
-            var fallbackCount = GetGeneratedOutputThicknessCandidatePaths().Count;
+            var fallbackCount = GetTwoDThicknessCandidatePaths().Count;
             return fallbackCount == 0
                 ? "No eligible open line/polyline centerlines are loaded in the 2D workspace."
                 : $"No selection is active. Applying Thickness will process all {fallbackCount} eligible open line/polyline centerlines in the current 2D workspace.";
         }
     }
 
-    public string GeneratedOutputCleanupToleranceText
+    public string TwoDCleanupToleranceText
     {
-        get => _generatedOutputCleanupToleranceText;
-        set => SetProperty(ref _generatedOutputCleanupToleranceText, value ?? string.Empty);
+        get => _twoDCleanupToleranceText;
+        set => SetProperty(ref _twoDCleanupToleranceText, value ?? string.Empty);
     }
 
-    public bool HasGeneratedOutputCleanupCandidates => GetGeneratedOutputCleanupCandidatePaths().Count > 0;
+    public bool HasTwoDCleanupCandidates => GetTwoDCleanupCandidatePaths().Count > 0;
 
-    public bool CanApplyGeneratedOutputCleanup => HasGeneratedOutputCleanupCandidates;
+    public bool CanApplyTwoDCleanup => HasTwoDCleanupCandidates;
 
-    public string GeneratedOutputCleanupSummary
+    public string TwoDCleanupSummary
     {
         get
         {
-            var candidateCount = GetGeneratedOutputCleanupCandidatePaths().Count;
+            var candidateCount = GetTwoDCleanupCandidatePaths().Count;
             return candidateCount == 0
                 ? "No open line or polyline chains are available for Join/Cleanup."
-                : $"Join/Cleanup will process {candidateCount} open line/polyline entit{(candidateCount == 1 ? "y" : "ies")} in the current 2D workspace. This first native pass joins nearby endpoints and removes degenerate open segments.";
+                : $"Join/Cleanup will process {candidateCount} open line/polyline entit{(candidateCount == 1 ? "y" : "ies")} in the current 2D workspace. This local 2D pass joins nearby endpoints and removes degenerate open segments.";
         }
     }
 
-    public IReadOnlyList<string> GeneratedOutputPatternModeOptionItems => GeneratedOutputPatternModeOptions;
+    public IReadOnlyList<string> TwoDPatternModeOptionItems => TwoDPatternModeOptions;
 
-    public string GeneratedOutputPatternMode
+    public string TwoDPatternMode
     {
-        get => _generatedOutputPatternMode;
+        get => _twoDPatternMode;
         set
         {
-            var normalized = NormalizeGeneratedOutputPatternMode(value);
-            if (!SetProperty(ref _generatedOutputPatternMode, normalized))
+            var normalized = NormalizeTwoDPatternMode(value);
+            if (!SetProperty(ref _twoDPatternMode, normalized))
                 return;
 
-            OnPropertyChanged(nameof(IsGeneratedOutputRectangularPatternMode));
-            OnPropertyChanged(nameof(IsGeneratedOutputCircularPatternMode));
-            OnPropertyChanged(nameof(GeneratedOutputPatternSummary));
+            OnPropertyChanged(nameof(IsTwoDRectangularPatternMode));
+            OnPropertyChanged(nameof(IsTwoDCircularPatternMode));
+            OnPropertyChanged(nameof(TwoDPatternSummary));
         }
     }
 
-    public bool IsGeneratedOutputRectangularPatternMode => string.Equals(GeneratedOutputPatternMode, "Rectangular", StringComparison.Ordinal);
+    public bool IsTwoDRectangularPatternMode => string.Equals(TwoDPatternMode, "Rectangular", StringComparison.Ordinal);
 
-    public bool IsGeneratedOutputCircularPatternMode => string.Equals(GeneratedOutputPatternMode, "Circular", StringComparison.Ordinal);
+    public bool IsTwoDCircularPatternMode => string.Equals(TwoDPatternMode, "Circular", StringComparison.Ordinal);
 
-    public string GeneratedOutputPatternCopiesXText
+    public string TwoDPatternCopiesXText
     {
-        get => _generatedOutputPatternCopiesXText;
+        get => _twoDPatternCopiesXText;
         set
         {
-            if (!SetProperty(ref _generatedOutputPatternCopiesXText, value ?? string.Empty))
+            if (!SetProperty(ref _twoDPatternCopiesXText, value ?? string.Empty))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternSummary));
         }
     }
 
-    public string GeneratedOutputPatternCopiesYText
+    public string TwoDPatternCopiesYText
     {
-        get => _generatedOutputPatternCopiesYText;
+        get => _twoDPatternCopiesYText;
         set
         {
-            if (!SetProperty(ref _generatedOutputPatternCopiesYText, value ?? string.Empty))
+            if (!SetProperty(ref _twoDPatternCopiesYText, value ?? string.Empty))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternSummary));
         }
     }
 
-    public string GeneratedOutputPatternSpacingXText
+    public string TwoDPatternSpacingXText
     {
-        get => _generatedOutputPatternSpacingXText;
+        get => _twoDPatternSpacingXText;
         set
         {
-            if (!SetProperty(ref _generatedOutputPatternSpacingXText, value ?? string.Empty))
+            if (!SetProperty(ref _twoDPatternSpacingXText, value ?? string.Empty))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternSummary));
         }
     }
 
-    public string GeneratedOutputPatternSpacingYText
+    public string TwoDPatternSpacingYText
     {
-        get => _generatedOutputPatternSpacingYText;
+        get => _twoDPatternSpacingYText;
         set
         {
-            if (!SetProperty(ref _generatedOutputPatternSpacingYText, value ?? string.Empty))
+            if (!SetProperty(ref _twoDPatternSpacingYText, value ?? string.Empty))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternSummary));
         }
     }
 
-    public string GeneratedOutputPatternCircularCountText
+    public string TwoDPatternCircularCountText
     {
-        get => _generatedOutputPatternCircularCountText;
+        get => _twoDPatternCircularCountText;
         set
         {
-            if (!SetProperty(ref _generatedOutputPatternCircularCountText, value ?? string.Empty))
+            if (!SetProperty(ref _twoDPatternCircularCountText, value ?? string.Empty))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternSummary));
         }
     }
 
-    public string GeneratedOutputPatternCircularAngleText
+    public string TwoDPatternCircularAngleText
     {
-        get => _generatedOutputPatternCircularAngleText;
+        get => _twoDPatternCircularAngleText;
         set
         {
-            if (!SetProperty(ref _generatedOutputPatternCircularAngleText, value ?? string.Empty))
+            if (!SetProperty(ref _twoDPatternCircularAngleText, value ?? string.Empty))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternSummary));
         }
     }
 
-    public bool CanApplyGeneratedOutputPattern => GeneratedOutputPreviewDocument is not null && HasGeneratedOutputSelection;
+    public bool CanApplyTwoDPattern => TwoDDocument is not null && HasTwoDSelection;
 
-    public string GeneratedOutputPatternSummary
+    public string TwoDPatternSummary
     {
         get
         {
-            if (!HasGeneratedOutputSelection)
-                return "Select one or more 2D entities before applying Pattern. This first native pass supports rectangular and circular duplication only.";
+            if (!HasTwoDSelection)
+                return "Select one or more 2D entities before applying Pattern. This local 2D pass supports rectangular and circular duplication only.";
 
-            if (IsGeneratedOutputCircularPatternMode)
+            if (IsTwoDCircularPatternMode)
             {
-                return $"Circular pattern will create {GeneratedOutputPatternCircularCountText} total instance(s) across {GeneratedOutputPatternCircularAngleText} deg around the current selection center. Count includes the source selection.";
+                return $"Circular pattern will create {TwoDPatternCircularCountText} total instance(s) across {TwoDPatternCircularAngleText} deg around the current selection center. Count includes the source selection.";
             }
 
-            return $"Rectangular pattern will create a {GeneratedOutputPatternCopiesXText} x {GeneratedOutputPatternCopiesYText} layout using {GeneratedOutputPatternSpacingXText} mm / {GeneratedOutputPatternSpacingYText} mm spacing. Counts include the source selection.";
+            return $"Rectangular pattern will create a {TwoDPatternCopiesXText} x {TwoDPatternCopiesYText} layout using {TwoDPatternSpacingXText} mm / {TwoDPatternSpacingYText} mm spacing. Counts include the source selection.";
         }
     }
 
-    public IReadOnlyList<string> GeneratedOutputGlueTabTypeOptionItems => GeneratedOutputGlueTabTypeOptions;
+    public IReadOnlyList<string> TwoDGlueTabTypeOptionItems => TwoDGlueTabTypeOptions;
 
-    public IReadOnlyList<string> GeneratedOutputGlueTabSideOptionItems => GeneratedOutputGlueTabSideOptions;
+    public IReadOnlyList<string> TwoDGlueTabSideOptionItems => TwoDGlueTabSideOptions;
 
-    public string GeneratedOutputGlueTabType
+    public string TwoDGlueTabType
     {
-        get => _generatedOutputGlueTabType;
+        get => _twoDGlueTabType;
         set
         {
-            var normalized = NormalizeGeneratedOutputGlueTabType(value);
-            if (!SetProperty(ref _generatedOutputGlueTabType, normalized))
+            var normalized = NormalizeTwoDGlueTabType(value);
+            if (!SetProperty(ref _twoDGlueTabType, normalized))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPaperFoldingSummary));
+            OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
         }
     }
 
-    public string GeneratedOutputGlueTabSide
+    public string TwoDGlueTabSide
     {
-        get => _generatedOutputGlueTabSide;
+        get => _twoDGlueTabSide;
         set
         {
-            var normalized = NormalizeGeneratedOutputGlueTabSide(value);
-            if (!SetProperty(ref _generatedOutputGlueTabSide, normalized))
+            var normalized = NormalizeTwoDGlueTabSide(value);
+            if (!SetProperty(ref _twoDGlueTabSide, normalized))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPaperFoldingSummary));
+            OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
         }
     }
 
-    public string GeneratedOutputGlueTabHeightText
+    public string TwoDGlueTabHeightText
     {
-        get => _generatedOutputGlueTabHeightText;
+        get => _twoDGlueTabHeightText;
         set
         {
-            if (!SetProperty(ref _generatedOutputGlueTabHeightText, value ?? string.Empty))
+            if (!SetProperty(ref _twoDGlueTabHeightText, value ?? string.Empty))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPaperFoldingSummary));
+            OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
         }
     }
 
-    public string GeneratedOutputGlueTabStartOffsetText
+    public string TwoDGlueTabStartOffsetText
     {
-        get => _generatedOutputGlueTabStartOffsetText;
+        get => _twoDGlueTabStartOffsetText;
         set
         {
-            if (!SetProperty(ref _generatedOutputGlueTabStartOffsetText, value ?? string.Empty))
+            if (!SetProperty(ref _twoDGlueTabStartOffsetText, value ?? string.Empty))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPaperFoldingSummary));
+            OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
         }
     }
 
-    public string GeneratedOutputGlueTabEndOffsetText
+    public string TwoDGlueTabEndOffsetText
     {
-        get => _generatedOutputGlueTabEndOffsetText;
+        get => _twoDGlueTabEndOffsetText;
         set
         {
-            if (!SetProperty(ref _generatedOutputGlueTabEndOffsetText, value ?? string.Empty))
+            if (!SetProperty(ref _twoDGlueTabEndOffsetText, value ?? string.Empty))
                 return;
 
-            OnPropertyChanged(nameof(GeneratedOutputPaperFoldingSummary));
+            OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
         }
     }
 
-    public bool CanApplyGeneratedOutputPaperFoldingCreases => HasGeneratedOutputConvertibleLineSelection;
+    public bool CanApplyTwoDPaperFoldingCreases => HasTwoDConvertibleLineSelection;
 
-    public bool CanApplyGeneratedOutputGlueTabs => GetSelectedGeneratedOutputGlueTabPaths().Count > 0;
+    public bool CanApplyTwoDGlueTabs => GetSelectedTwoDGlueTabPaths().Count > 0;
 
-    public string GeneratedOutputPaperFoldingSummary
+    public string TwoDPaperFoldingSummary
     {
         get
         {
-            var creaseCount = GetGeneratedOutputConvertibleSelectionCount();
-            var glueTabCount = GetSelectedGeneratedOutputGlueTabPaths().Count;
-            if (!HasGeneratedOutputSelection)
+            var creaseCount = GetTwoDConvertibleSelectionCount();
+            var glueTabCount = GetSelectedTwoDGlueTabPaths().Count;
+            if (!HasTwoDSelection)
                 return "Select line or polyline geometry to convert it into dashed crease geometry, or select LINE entities to add glue tabs.";
 
             if (glueTabCount > 0)
             {
-                return $"{glueTabCount} LINE entit{(glueTabCount == 1 ? "y is" : "ies are")} ready for {GeneratedOutputGlueTabType.ToLowerInvariant()} glue tabs on the {GeneratedOutputGlueTabSide.ToLowerInvariant()} side. Dashed creases can use {creaseCount} selected line/polyline entit{(creaseCount == 1 ? "y" : "ies")}.";
+                return $"{glueTabCount} LINE entit{(glueTabCount == 1 ? "y is" : "ies are")} ready for {TwoDGlueTabType.ToLowerInvariant()} glue tabs on the {TwoDGlueTabSide.ToLowerInvariant()} side. Dashed creases can use {creaseCount} selected line/polyline entit{(creaseCount == 1 ? "y" : "ies")}.";
             }
 
             return creaseCount == 0
@@ -889,63 +930,114 @@ public sealed partial class EditorPageViewModel
         }
     }
 
-    public string GeneratedOutputSelectedTextDraft
+    public string TwoDSelectedTextDraft
     {
-        get => _generatedOutputSelectedTextDraft;
-        set => SetProperty(ref _generatedOutputSelectedTextDraft, value ?? string.Empty);
+        get => _twoDSelectedTextDraft;
+        set => SetProperty(ref _twoDSelectedTextDraft, value ?? string.Empty);
     }
 
-    public string GeneratedOutputSelectedTextHeightText
+    public string TwoDSelectedTextHeightText
     {
-        get => _generatedOutputSelectedTextHeightText;
+        get => _twoDSelectedTextHeightText;
         set
         {
-            if (!SetProperty(ref _generatedOutputSelectedTextHeightText, value ?? string.Empty))
+            if (!SetProperty(ref _twoDSelectedTextHeightText, value ?? string.Empty))
                 return;
 
-            SetGeneratedOutputSelectedTextHeightValidity(true);
-            OnPropertyChanged(nameof(CanApplyGeneratedOutputSelectedText));
+            SetTwoDSelectedTextHeightValidity(true);
+            OnPropertyChanged(nameof(CanApplyTwoDSelectedText));
         }
     }
 
-    public bool IsGeneratedOutputSelectedTextHeightValid => _isGeneratedOutputSelectedTextHeightValid;
-
-    public bool IsGeneratedOutputSelectedTextHeightInvalid => !_isGeneratedOutputSelectedTextHeightValid;
-
-    public bool CanApplyGeneratedOutputSelectedText
-        => HasSingleGeneratedOutputTextSelection && !string.IsNullOrWhiteSpace(GeneratedOutputSelectedTextHeightText);
-
-    public bool IsShowingGeneratedOutputWorkspace
+    public string TwoDSelectedTextFontFamily
     {
-        get => _isShowingGeneratedOutputWorkspace;
+        get => _twoDSelectedTextFontFamily;
+        set => SetProperty(ref _twoDSelectedTextFontFamily, string.IsNullOrWhiteSpace(value) ? "Inter" : value.Trim());
+    }
+
+    public string TwoDSelectedTextCharacterSpacingText
+    {
+        get => _twoDSelectedTextCharacterSpacingText;
+        set => SetProperty(ref _twoDSelectedTextCharacterSpacingText, value ?? "0");
+    }
+
+    public bool TwoDSelectedTextBold
+    {
+        get => _twoDSelectedTextBold;
+        set => SetProperty(ref _twoDSelectedTextBold, value);
+    }
+
+    public bool TwoDSelectedTextItalic
+    {
+        get => _twoDSelectedTextItalic;
+        set => SetProperty(ref _twoDSelectedTextItalic, value);
+    }
+
+    public bool TwoDSelectedTextUnderline
+    {
+        get => _twoDSelectedTextUnderline;
+        set => SetProperty(ref _twoDSelectedTextUnderline, value);
+    }
+
+    public bool IsTwoDSelectedTextHeightValid => _isTwoDSelectedTextHeightValid;
+
+    public bool IsTwoDSelectedTextHeightInvalid => !_isTwoDSelectedTextHeightValid;
+
+    public bool CanApplyTwoDSelectedText
+        => HasSingleTwoDTextSelection && !string.IsNullOrWhiteSpace(TwoDSelectedTextHeightText);
+
+    public EditorMode ActiveEditorMode
+    {
+        get => _activeEditorMode;
         private set
         {
-            if (!SetProperty(ref _isShowingGeneratedOutputWorkspace, value))
+            if (!SetProperty(ref _activeEditorMode, value))
                 return;
 
             SyncSidebarToolStates();
+            OnPropertyChanged(nameof(SidebarTools));
+            OnPropertyChanged(nameof(CommandSearchResults));
+            OnPropertyChanged(nameof(ActiveToolLabel));
+            OnPropertyChanged(nameof(IsShowingTwoDWorkspace));
             OnPropertyChanged(nameof(IsShowing3DWorkspace));
+            OnPropertyChanged(nameof(IsShowingBatchWorkspace));
             OnPropertyChanged(nameof(WorkspaceSurfaceTitle));
             OnPropertyChanged(nameof(WorkspaceModeHint));
             OnPropertyChanged(nameof(OutputPreviewButtonLabel));
             OnPropertyChanged(nameof(OutputStatusSummary));
             OnPropertyChanged(nameof(ShowViewportEmptyState));
             OnPropertyChanged(nameof(CanFrameHome));
+            OnPropertyChanged(nameof(ShowSelectionPanel));
+            OnPropertyChanged(nameof(ShowMoveBodiesPanel));
+            OnPropertyChanged(nameof(ShowProjectionPanel));
+            OnPropertyChanged(nameof(ShowMeasurePanel));
+            OnPropertyChanged(nameof(ShowUnfoldPanel));
+            OnPropertyChanged(nameof(ShowOutputPanel));
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
         }
     }
 
-    public bool IsShowing3DWorkspace => !IsShowingGeneratedOutputWorkspace;
+    public bool IsShowingTwoDWorkspace => ActiveEditorMode == EditorMode.TwoD;
 
-    public string WorkspaceSurfaceTitle => IsShowingGeneratedOutputWorkspace ? "2D Workspace" : "3D Workspace";
+    public bool IsShowing3DWorkspace => ActiveEditorMode == EditorMode.ThreeD;
+
+    public bool IsShowingBatchWorkspace => ActiveEditorMode == EditorMode.Batch;
+
+    public string WorkspaceSurfaceTitle => ActiveEditorMode switch
+    {
+        EditorMode.TwoD => "2D Workspace",
+        EditorMode.ThreeD => "3D Workspace",
+        EditorMode.Batch => "Batch Workspace",
+        _ => "Editor Workspace",
+    };
 
     public string OutputStatusSummary
     {
         get
         {
-            if (HasGeneratedOutputWorkspaceDocument)
+            if (HasTwoDWorkspaceDocument)
             {
-                return IsShowingGeneratedOutputWorkspace
+                return IsShowingTwoDWorkspace
                     ? "Native 2D workspace active."
                     : "2D workspace ready.";
             }
@@ -961,54 +1053,54 @@ public sealed partial class EditorPageViewModel
 
             return GeneratedOutputSummary.PreviewPathCount == 0
                 ? GeneratedOutputSummary.UnsupportedEntityCount > 0
-                    ? "DXF found, but it only contains entities the native preview does not render yet."
+                    ? "DXF found, but it only contains entities the local preview does not render yet."
                     : "DXF found, but no previewable linework was detected."
                 : "DXF inspected. Open or reveal the file for a closer check.";
         }
     }
 
     public string OutputPreviewButtonLabel
-        => IsShowingGeneratedOutputWorkspace
+        => IsShowingTwoDWorkspace
             ? "2D Workspace Visible"
-            : HasGeneratedOutputWorkspaceDocument
+            : HasTwoDWorkspaceDocument
                 ? "Show 2D Workspace"
                 : HasGeneratedOutputFileOnDisk
                     ? "Preview Unavailable"
                     : "Start 2D Workspace";
 
-    public string GeneratedOutputViewportSummary => GeneratedOutputPreviewDocument is { } document
+    public string TwoDViewportSummary => TwoDDocument is { } document
         ? document.Paths.Count == 0
-            ? GeneratedOutputViewportZoom > 0.0
-                ? $"Native viewport · empty sketch · {GeneratedOutputViewportZoom * 100.0:0}%"
+            ? TwoDViewportZoom > 0.0
+                ? $"Native viewport · empty sketch · {TwoDViewportZoom * 100.0:0}%"
                 : "Native viewport · empty sketch"
-            : GeneratedOutputViewportZoom > 0.0
-                ? $"Native viewport · {document.Paths.Count} path(s) · {GeneratedOutputViewportZoom * 100.0:0}%"
+            : TwoDViewportZoom > 0.0
+                ? $"Native viewport · {document.Paths.Count} path(s) · {TwoDViewportZoom * 100.0:0}%"
                 : $"Native viewport · {document.Paths.Count} path(s)"
-        : "No native 2D viewport loaded.";
+        : "No local 2D viewport loaded.";
 
-    public string GeneratedOutputSelectionSummary => GeneratedOutputPreviewDocument is null
+    public string TwoDSelectionSummary => TwoDDocument is null
         ? "No 2D geometry loaded."
-        : GeneratedOutputPreviewDocument.Paths.Count == 0
+        : TwoDDocument.Paths.Count == 0
             ? "Empty 2D sketch. Start drawing with the native tools."
-        : GeneratedOutputSelectionCount switch
+        : TwoDSelectionCount switch
         {
             0 => "No 2D entities selected.",
-            1 when GeneratedOutputSelectedRectangleCount == 1 => "1 constrained rectangle selected.",
+            1 when TwoDSelectedRectangleCount == 1 => "1 constrained rectangle selected.",
             1 => "1 2D entity selected.",
-            _ when GeneratedOutputSelectedRectangleCount == 0 => $"{GeneratedOutputSelectionCount} 2D entities selected.",
-            _ => $"{GeneratedOutputSelectionCount} 2D entities selected ({GeneratedOutputSelectedRectangleCount} constrained rectangle{(GeneratedOutputSelectedRectangleCount == 1 ? string.Empty : "s")}).",
+            _ when TwoDSelectedRectangleCount == 0 => $"{TwoDSelectionCount} 2D entities selected.",
+            _ => $"{TwoDSelectionCount} 2D entities selected ({TwoDSelectedRectangleCount} constrained rectangle{(TwoDSelectedRectangleCount == 1 ? string.Empty : "s")}).",
         };
 
-    public string GeneratedOutputMeasurementSummary
+    public string TwoDMeasurementSummary
     {
         get
         {
-            var manualMeasurements = GeneratedOutputMeasurements
+            var manualMeasurements = TwoDMeasurements
                 .Where(static measurement => !measurement.IsAutoDimension)
                 .ToArray();
-            var autoDimensionCount = GeneratedOutputAutoDimensionCount;
-            var selectedMeasurement = !string.IsNullOrWhiteSpace(GeneratedOutputSelectedMeasurementId)
-                ? manualMeasurements.FirstOrDefault(measurement => string.Equals(measurement.Id, GeneratedOutputSelectedMeasurementId, StringComparison.Ordinal))
+            var autoDimensionCount = TwoDAutoDimensionCount;
+            var selectedMeasurement = !string.IsNullOrWhiteSpace(TwoDSelectedMeasurementId)
+                ? manualMeasurements.FirstOrDefault(measurement => string.Equals(measurement.Id, TwoDSelectedMeasurementId, StringComparison.Ordinal))
                 : null;
 
             var manualSummary = manualMeasurements.Length switch
@@ -1065,19 +1157,22 @@ public sealed partial class EditorPageViewModel
         ? $"Bounds: {FormatDimension(summary.Width)} x {FormatDimension(summary.Height)}"
         : string.Empty;
 
-    public string WorkspaceModeHint => IsShowingGeneratedOutputWorkspace
-        ? "Viewing the native 2D workspace. Use the 2D tool chips for selection, moving, scaling, mirroring, offsetting, thickening, cleanup, patterning, paper folding, dimensioning, trimming, filleting, chamfering, line conversion, drawing, pen paths, text, panning, and manual measurements. Rectangles and circles now generate attached auto dimensions."
-        : !HasLoadedModel
-            ? HasGeneratedOutputWorkspaceDocument
+    public string WorkspaceModeHint => ActiveEditorMode switch
+    {
+        EditorMode.TwoD => "Viewing the local 2D workspace. Use the 2D tool chips for selection, moving, scaling, mirroring, offsetting, thickening, cleanup, patterning, paper folding, dimensioning, trimming, filleting, chamfering, line conversion, drawing, pen paths, text, panning, and manual measurements. Rectangles and circles now generate attached auto dimensions.",
+        EditorMode.Batch => "Validate queued projects in an isolated batch workspace without opening or mutating either editor workspace.",
+        _ => !HasLoadedModel
+            ? HasTwoDWorkspaceDocument
                 ? "A dedicated 2D workspace is ready. Load a model any time if you also want to project or unfold 3D geometry."
                 : "Load a model to begin the 3D workspace, or switch to the 2D workspace to sketch directly."
             : !HasUsableSourceModelAsset
-                ? "Viewing a restored 3D workspace. Native operations stay disabled until the source asset is restored."
-                : "Viewing the interactive 3D workspace.";
+                ? "Viewing a restored 3D workspace. OpenGeometry mesh operations stay disabled until the source asset is restored."
+                : "Viewing the interactive 3D workspace.",
+    };
 
-    public string GeneratedOutputPolygonSidesSummary => $"Polygon sides: {GeneratedOutputPolygonSides}";
+    public string TwoDPolygonSidesSummary => $"Polygon sides: {TwoDPolygonSides}";
 
-    public string GeneratedOutputToolHint => GeneratedOutputActiveTool switch
+    public string TwoDToolHint => TwoDActiveTool switch
     {
         Editor2DTool.Select => "Select tool: click linework to select it, or drag a marquee to select multiple paths. Shift-click adds or removes from the selection.",
         Editor2DTool.Move => "Move tool: drag a selected entity set to reposition it directly in the 2D workspace.",
@@ -1086,15 +1181,16 @@ public sealed partial class EditorPageViewModel
         Editor2DTool.Dimension => "Dimension tool: click a line to place an attached length dimension, click a circle or arc to place an attached radius dimension, or click empty space twice for a reference distance. Press Escape to cancel an in-progress reference dimension.",
         Editor2DTool.Scale => "Scale tool: select entities, then drag the corner scale handle to scale them uniformly around the selection center.",
         Editor2DTool.Mirror => "Mirror tool: select entities, click once to place the mirror axis start, then click again to place the axis end and mirror the selection.",
-        Editor2DTool.Offset => "Offset tool: keep geometry selected, choose Curve or BBox mode in the lower 2D panel, and apply a native offset copy. Open paths offset relative to their point order.",
-        Editor2DTool.AddThickness => "Add Thickness tool: thicken selected open line or polyline centerlines into closed outlines, or process every eligible open centerline when nothing is selected. This first native pass does not handle already-closed regions.",
-        Editor2DTool.Cleanup => "Join/Cleanup tool: apply endpoint cleanup across open line and polyline geometry using the current tolerance. This first native pass joins nearby chain endpoints and removes degenerate open segments.",
-        Editor2DTool.Patterning => "Pattern tool: keep geometry selected, choose Rectangular or Circular mode in the lower 2D panel, and apply native duplicates. This first native pass uses the current selection center as the circular pivot.",
-        Editor2DTool.PaperFolding => "Paper Folding tool: convert selected linework to dashed crease geometry or add glue-tab outlines to selected LINE entities. This first native pass writes explicit geometry instead of DXF linetype metadata.",
-        Editor2DTool.Trim => "Trim tool: click a hovered straight segment to remove the piece under the cursor between the nearest intersections. This first native pass trims lines and polylines.",
-        Editor2DTool.Fillet => "Fillet tool: click a polyline-style corner handle to round that corner with a default radius. This first native pass applies local geometry directly and does not yet support parametric re-editing.",
-        Editor2DTool.Chamfer => "Chamfer tool: click a polyline-style corner handle to bevel that corner with a default setback. This first native pass applies local geometry directly and does not yet support parametric re-editing.",
-        Editor2DTool.ConvertLines => "Convert Lines tool: keep line or polyline geometry selected, pick a style in the lower 2D panel, and apply it to replace the selected source paths with native patterned geometry.",
+        Editor2DTool.Offset => "Offset tool: keep geometry selected, choose Curve or BBox mode in the lower 2D panel, and apply an OpenGeometry offset copy. Open paths offset relative to their point order.",
+        Editor2DTool.AddThickness => "Add Thickness tool: thicken selected open line or polyline centerlines into closed OpenGeometry outlines, or process every eligible open centerline when nothing is selected.",
+        Editor2DTool.Cleanup => "Join/Cleanup tool: apply endpoint cleanup across open line and polyline geometry using the current tolerance. This local 2D pass joins nearby chain endpoints and removes degenerate open segments.",
+        Editor2DTool.Patterning => "Pattern tool: keep geometry selected, choose Rectangular or Circular mode in the lower 2D panel, and apply local duplicates. This pass uses the current selection center as the circular pivot.",
+        Editor2DTool.PaperFolding => "Paper Folding tool: convert selected linework to dashed crease geometry or add glue-tab outlines to selected LINE entities. This local 2D pass writes explicit geometry instead of DXF linetype metadata.",
+        Editor2DTool.AddSewingHoles => "Add Holes / Sewing tool: select boundary paths and configure pitch, margin, corner, and avoidance behavior in the sewing inspector.",
+        Editor2DTool.Trim => "Trim tool: click a hovered straight segment to remove the piece under the cursor between the nearest intersections. This local 2D pass trims lines and polylines.",
+        Editor2DTool.Fillet => "Fillet tool: click a polyline-style corner handle to round that corner with a default radius. This local 2D pass applies geometry directly and does not yet support parametric re-editing.",
+        Editor2DTool.Chamfer => "Chamfer tool: click a polyline-style corner handle to bevel that corner with a default setback. This local 2D pass applies geometry directly and does not yet support parametric re-editing.",
+        Editor2DTool.ConvertLines => "Convert Lines tool: keep line or polyline geometry selected, pick a style in the lower 2D panel, and apply it to replace the selected source paths with local patterned geometry.",
         Editor2DTool.SketchLine => "Line tool: click once to place the start point, then click again to create a new line segment in the 2D workspace.",
         Editor2DTool.SketchRectangle => "Rectangle tool: click once to place the first corner, then click again to create a sharp constrained rectangle with attached width and height dimensions.",
         Editor2DTool.SketchCircle => "Circle tool: click once to place the center, then click again to set the radius and add a circular path to the 2D workspace.",
@@ -1140,204 +1236,214 @@ public sealed partial class EditorPageViewModel
         ViewportStateText = OutputStatusSummary;
     }
 
-    public void Show3DWorkspace()
+    public void Show3DWorkspace() => _ = SetActiveEditorModeAsync(EditorMode.ThreeD);
+
+    public Task Show3DWorkspaceAsync(CancellationToken cancellationToken = default)
+        => SetActiveEditorModeAsync(EditorMode.ThreeD, cancellationToken);
+
+    public void ShowTwoDWorkspace() => _ = ShowTwoDWorkspaceAsync();
+
+    public async Task ShowTwoDWorkspaceAsync(CancellationToken cancellationToken = default)
+        => await SetActiveEditorModeAsync(EditorMode.TwoD, cancellationToken).ConfigureAwait(true);
+
+    public async Task SetActiveEditorModeAsync(EditorMode mode, CancellationToken cancellationToken = default)
     {
-        IsShowingGeneratedOutputWorkspace = false;
-        StatusText = "3D workspace active";
-    }
+        if (!Enum.IsDefined(mode))
+            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown editor mode.");
 
-    public void ShowGeneratedOutputWorkspace() => _ = ShowGeneratedOutputWorkspaceAsync();
+        cancellationToken.ThrowIfCancellationRequested();
 
-    public async Task ShowGeneratedOutputWorkspaceAsync(CancellationToken cancellationToken = default)
-    {
-        if (GeneratedOutputPreviewDocument is null)
-            await EnsureGeneratedOutputWorkspaceDocumentAsync(cancellationToken).ConfigureAwait(true);
+        if (mode == EditorMode.TwoD && TwoDDocument is null)
+            await EnsureTwoDWorkspaceDocumentAsync(cancellationToken).ConfigureAwait(true);
 
-        if (GeneratedOutputPreviewDocument is null)
+        if (mode == EditorMode.TwoD && TwoDDocument is null)
             return;
 
-        ActivateOutputTool();
-        IsShowingGeneratedOutputWorkspace = true;
-        StatusText = HasGeneratedOutputPreview
-            ? "2D workspace active"
-            : "Blank 2D sketch workspace active";
+        ActiveEditorMode = mode;
+        StatusText = mode switch
+        {
+            EditorMode.TwoD when HasTwoDPreview => "2D workspace active",
+            EditorMode.TwoD => "Blank 2D sketch workspace active",
+            EditorMode.ThreeD => "3D workspace active",
+            EditorMode.Batch => "Batch workspace active",
+            _ => "Editor workspace active",
+        };
         ViewportStateText = OutputStatusSummary;
     }
 
-    public void ActivateGeneratedOutputSelectTool() => GeneratedOutputActiveTool = Editor2DTool.Select;
+    public void ActivateTwoDSelectTool() => TwoDActiveTool = Editor2DTool.Select;
 
-    public void ActivateGeneratedOutputMoveTool() => GeneratedOutputActiveTool = Editor2DTool.Move;
+    public void ActivateTwoDMoveTool() => TwoDActiveTool = Editor2DTool.Move;
 
-    public void ActivateGeneratedOutputPanTool() => GeneratedOutputActiveTool = Editor2DTool.Pan;
+    public void ActivateTwoDPanTool() => TwoDActiveTool = Editor2DTool.Pan;
 
-    public void ActivateGeneratedOutputMeasureTool() => GeneratedOutputActiveTool = Editor2DTool.Measure;
+    public void ActivateTwoDMeasureTool() => TwoDActiveTool = Editor2DTool.Measure;
 
-    public void ActivateGeneratedOutputDimensionTool() => GeneratedOutputActiveTool = Editor2DTool.Dimension;
+    public void ActivateTwoDDimensionTool() => TwoDActiveTool = Editor2DTool.Dimension;
 
-    public void ActivateGeneratedOutputScaleTool() => GeneratedOutputActiveTool = Editor2DTool.Scale;
+    public void ActivateTwoDScaleTool() => TwoDActiveTool = Editor2DTool.Scale;
 
-    public void ActivateGeneratedOutputMirrorTool() => GeneratedOutputActiveTool = Editor2DTool.Mirror;
+    public void ActivateTwoDMirrorTool() => TwoDActiveTool = Editor2DTool.Mirror;
 
-    public void ActivateGeneratedOutputOffsetTool() => GeneratedOutputActiveTool = Editor2DTool.Offset;
+    public void ActivateTwoDOffsetTool() => TwoDActiveTool = Editor2DTool.Offset;
 
-    public void ActivateGeneratedOutputAddThicknessTool() => GeneratedOutputActiveTool = Editor2DTool.AddThickness;
+    public void ActivateTwoDAddThicknessTool() => TwoDActiveTool = Editor2DTool.AddThickness;
 
-    public void ActivateGeneratedOutputCleanupTool() => GeneratedOutputActiveTool = Editor2DTool.Cleanup;
+    public void ActivateTwoDCleanupTool() => TwoDActiveTool = Editor2DTool.Cleanup;
 
-    public void ActivateGeneratedOutputPatternTool() => GeneratedOutputActiveTool = Editor2DTool.Patterning;
+    public void ActivateTwoDPatternTool() => TwoDActiveTool = Editor2DTool.Patterning;
 
-    public void ActivateGeneratedOutputPaperFoldingTool() => GeneratedOutputActiveTool = Editor2DTool.PaperFolding;
+    public void ActivateTwoDPaperFoldingTool() => TwoDActiveTool = Editor2DTool.PaperFolding;
 
-    public void ActivateGeneratedOutputTrimTool() => GeneratedOutputActiveTool = Editor2DTool.Trim;
+    public void ActivateTwoDTrimTool() => TwoDActiveTool = Editor2DTool.Trim;
 
-    public void ActivateGeneratedOutputFilletTool() => GeneratedOutputActiveTool = Editor2DTool.Fillet;
+    public void ActivateTwoDFilletTool() => TwoDActiveTool = Editor2DTool.Fillet;
 
-    public void ActivateGeneratedOutputChamferTool() => GeneratedOutputActiveTool = Editor2DTool.Chamfer;
+    public void ActivateTwoDChamferTool() => TwoDActiveTool = Editor2DTool.Chamfer;
 
-    public void ActivateGeneratedOutputConvertLinesTool() => GeneratedOutputActiveTool = Editor2DTool.ConvertLines;
+    public void ActivateTwoDConvertLinesTool() => TwoDActiveTool = Editor2DTool.ConvertLines;
 
-    public void ActivateGeneratedOutputLineTool() => GeneratedOutputActiveTool = Editor2DTool.SketchLine;
+    public void ActivateTwoDLineTool() => TwoDActiveTool = Editor2DTool.SketchLine;
 
-    public void ActivateGeneratedOutputRectangleTool() => GeneratedOutputActiveTool = Editor2DTool.SketchRectangle;
+    public void ActivateTwoDRectangleTool() => TwoDActiveTool = Editor2DTool.SketchRectangle;
 
-    public void ActivateGeneratedOutputCircleTool() => GeneratedOutputActiveTool = Editor2DTool.SketchCircle;
+    public void ActivateTwoDCircleTool() => TwoDActiveTool = Editor2DTool.SketchCircle;
 
-    public void ActivateGeneratedOutputPolygonTool() => GeneratedOutputActiveTool = Editor2DTool.SketchPolygon;
+    public void ActivateTwoDPolygonTool() => TwoDActiveTool = Editor2DTool.SketchPolygon;
 
-    public void ActivateGeneratedOutputTextTool() => GeneratedOutputActiveTool = Editor2DTool.SketchText;
+    public void ActivateTwoDTextTool() => TwoDActiveTool = Editor2DTool.SketchText;
 
-    public void ActivateGeneratedOutputPenTool() => GeneratedOutputActiveTool = Editor2DTool.Pen;
+    public void ActivateTwoDPenTool() => TwoDActiveTool = Editor2DTool.Pen;
 
-    public void IncrementGeneratedOutputPolygonSides() => GeneratedOutputPolygonSides++;
+    public void IncrementTwoDPolygonSides() => TwoDPolygonSides++;
 
-    public void DecrementGeneratedOutputPolygonSides() => GeneratedOutputPolygonSides--;
+    public void DecrementTwoDPolygonSides() => TwoDPolygonSides--;
 
-    public void ClearGeneratedOutputSelection() => GeneratedOutputSelectedPathIds = [];
+    public void ClearTwoDSelection() => TwoDSelectedPathIds = [];
 
-    public void ClearGeneratedOutputSelectedMeasurement() => GeneratedOutputSelectedMeasurementId = null;
+    public void ClearTwoDSelectedMeasurement() => TwoDSelectedMeasurementId = null;
 
-    public void ClearGeneratedOutputMeasurements()
-        => GeneratedOutputMeasurements = GeneratedOutputMeasurements
+    public void ClearTwoDMeasurements()
+        => TwoDMeasurements = TwoDMeasurements
             .Where(static measurement => measurement.IsAutoDimension)
             .ToArray();
 
-    public bool ApplyGeneratedOutputOffset()
+    public async Task<bool> ApplyTwoDOffsetAsync(CancellationToken cancellationToken = default)
     {
-        if (GeneratedOutputPreviewDocument is null)
+        if (TwoDDocument is null)
             return false;
 
-        if (IsGeneratedOutputBBoxOffsetMode)
-            return ApplyGeneratedOutputBoundingBoxOffset();
+        if (IsTwoDBBoxOffsetMode)
+            return ApplyTwoDBoundingBoxOffset();
 
-        var curveOffsetPathIds = GetSelectedGeneratedOutputCurveOffsetPathIds();
+        var curveOffsetPathIds = GetSelectedTwoDCurveOffsetPathIds();
         if (curveOffsetPathIds.Count == 0)
         {
             StatusText = "Select line, polyline, circle, or arc geometry before applying Offset";
             return false;
         }
 
-        if (!TryParseGeneratedOutputOffsetDistance(GeneratedOutputOffsetDistanceText, "offset distance", 0.1, out var offsetDistance, out var errorMessage))
+        if (!TryParseTwoDOffsetDistance(TwoDOffsetDistanceText, "offset distance", 0.1, out var offsetDistance, out var errorMessage))
         {
             StatusText = errorMessage;
             return false;
         }
 
-        var selectedIds = new HashSet<string>(GeneratedOutputSelectedPathIds, StringComparer.Ordinal);
+        var selectedIds = new HashSet<string>(TwoDSelectedPathIds, StringComparer.Ordinal);
         var offsettableIds = new HashSet<string>(curveOffsetPathIds, StringComparer.Ordinal);
-        var nextPaths = GeneratedOutputPreviewDocument.Paths.ToList();
-        var nextSelectedIds = new List<string>();
-        var createdCount = 0;
-        var offsetOutward = string.Equals(GeneratedOutputOffsetSide, "Outward", StringComparison.Ordinal);
+        var sourcePaths = TwoDDocument.Paths
+            .Where(path => selectedIds.Contains(path.Id) && offsettableIds.Contains(path.Id))
+            .ToArray();
+        var nextPaths = TwoDDocument.Paths.ToList();
+        var offsetOutward = string.Equals(TwoDOffsetSide, "Outward", StringComparison.Ordinal);
 
-        foreach (var path in GeneratedOutputPreviewDocument.Paths)
+        StatusText = "Offset running through OpenGeometry";
+        var kernelResult = await _editor2DGeometryKernelService
+            .BuildCurveOffsetPathsAsync(sourcePaths, offsetDistance, offsetOutward, cancellationToken)
+            .ConfigureAwait(true);
+
+        if (!kernelResult.IsSuccess)
         {
-            if (!selectedIds.Contains(path.Id) || !offsettableIds.Contains(path.Id))
-                continue;
-
-            if (!Editor2DGeometry.TryBuildCurveOffsetPath(path, offsetDistance, offsetOutward, out var offsetPath))
-                continue;
-
-            nextPaths.Add(offsetPath);
-            nextSelectedIds.Add(offsetPath.Id);
-            createdCount++;
-        }
-
-        if (createdCount == 0)
-        {
-            StatusText = "The selected geometry could not be offset";
+            StatusText = $"OpenGeometry Offset failed: {kernelResult.Error ?? "unknown OpenGeometry worker failure"}";
             return false;
         }
 
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
-        GeneratedOutputSelectedPathIds = nextSelectedIds;
-        GeneratedOutputSelectedMeasurementId = null;
-        StatusText = createdCount == 1
-            ? $"Created 1 {GeneratedOutputOffsetSide.ToLowerInvariant()} offset path"
-            : $"Created {createdCount} {GeneratedOutputOffsetSide.ToLowerInvariant()} offset paths";
+        if (kernelResult.Paths.Count == 0)
+        {
+            StatusText = "OpenGeometry did not produce an offset path for the selected geometry";
+            return false;
+        }
+
+        nextPaths.AddRange(kernelResult.Paths);
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
+        TwoDSelectedPathIds = kernelResult.Paths.Select(static path => path.Id).ToArray();
+        TwoDSelectedMeasurementId = null;
+        StatusText = kernelResult.Paths.Count == 1
+            ? $"OpenGeometry created 1 {TwoDOffsetSide.ToLowerInvariant()} offset path"
+            : $"OpenGeometry created {kernelResult.Paths.Count} {TwoDOffsetSide.ToLowerInvariant()} offset paths";
         ViewportStateText = OutputStatusSummary;
         return true;
     }
 
-    public bool ApplyGeneratedOutputAddThickness()
+    public async Task<bool> ApplyTwoDAddThicknessAsync(CancellationToken cancellationToken = default)
     {
-        if (GeneratedOutputPreviewDocument is null)
+        if (TwoDDocument is null)
             return false;
 
-        if (!TryParseGeneratedOutputOffsetDistance(GeneratedOutputAddThicknessWidthText, "thickness width", 0.1, out var thickness, out var errorMessage))
+        if (!TryParseTwoDOffsetDistance(TwoDAddThicknessWidthText, "thickness width", 0.1, out var thickness, out var errorMessage))
         {
             StatusText = errorMessage;
             return false;
         }
 
-        var sourcePaths = GetGeneratedOutputThicknessCandidatePaths();
+        var sourcePaths = GetTwoDThicknessCandidatePaths();
         if (sourcePaths.Count == 0)
         {
             StatusText = "No eligible open line or polyline centerlines are available for Add Thickness";
             return false;
         }
 
-        var nextPaths = GeneratedOutputPreviewDocument.Paths.ToList();
-        var nextSelectedIds = new List<string>();
-        var createdCount = 0;
+        var nextPaths = TwoDDocument.Paths.ToList();
+        StatusText = "Add Thickness running through OpenGeometry";
+        var kernelResult = await _editor2DGeometryKernelService
+            .BuildThicknessOutlinesAsync(sourcePaths, thickness, cancellationToken)
+            .ConfigureAwait(true);
 
-        foreach (var path in sourcePaths)
+        if (!kernelResult.IsSuccess)
         {
-            if (!Editor2DGeometry.TryBuildThicknessPath(path, thickness, out var thickenedPath))
-                continue;
-
-            nextPaths.Add(thickenedPath);
-            nextSelectedIds.Add(thickenedPath.Id);
-            createdCount++;
-        }
-
-        if (createdCount == 0)
-        {
-            StatusText = "The selected geometry could not be thickened";
+            StatusText = $"OpenGeometry Add Thickness failed: {kernelResult.Error ?? "unknown OpenGeometry worker failure"}";
             return false;
         }
 
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
-        GeneratedOutputSelectedPathIds = nextSelectedIds;
-        GeneratedOutputSelectedMeasurementId = null;
-        StatusText = createdCount == 1
-            ? "Created 1 thickened outline"
-            : $"Created {createdCount} thickened outlines";
+        if (kernelResult.Paths.Count == 0)
+        {
+            StatusText = "OpenGeometry did not produce a thickened outline for the selected geometry";
+            return false;
+        }
+
+        nextPaths.AddRange(kernelResult.Paths);
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
+        TwoDSelectedPathIds = kernelResult.Paths.Select(static path => path.Id).ToArray();
+        TwoDSelectedMeasurementId = null;
+        StatusText = kernelResult.Paths.Count == 1
+            ? "OpenGeometry created 1 thickened outline"
+            : $"OpenGeometry created {kernelResult.Paths.Count} thickened outlines";
         ViewportStateText = OutputStatusSummary;
         return true;
     }
 
-    public bool ApplyGeneratedOutputCleanup()
+    public bool ApplyTwoDCleanup()
     {
-        if (GeneratedOutputPreviewDocument is null)
+        if (TwoDDocument is null)
             return false;
 
-        if (!TryParseGeneratedOutputOffsetDistance(GeneratedOutputCleanupToleranceText, "cleanup tolerance", 0.0001, out var tolerance, out var errorMessage))
+        if (!TryParseTwoDOffsetDistance(TwoDCleanupToleranceText, "cleanup tolerance", 0.0001, out var tolerance, out var errorMessage))
         {
             StatusText = errorMessage;
             return false;
         }
 
-        var sourcePaths = GetGeneratedOutputCleanupCandidatePaths();
+        var sourcePaths = GetTwoDCleanupCandidatePaths();
         if (sourcePaths.Count == 0)
         {
             StatusText = "No open line or polyline geometry is available for Join/Cleanup";
@@ -1354,13 +1460,13 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        var nextPaths = GeneratedOutputPreviewDocument.Paths
+        var nextPaths = TwoDDocument.Paths
             .Where(path => !sourceIdSet.Contains(path.Id))
             .Concat(cleanedPaths)
             .ToArray();
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
-        GeneratedOutputSelectedPathIds = cleanedPaths.Select(static path => path.Id).ToArray();
-        GeneratedOutputSelectedMeasurementId = null;
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
+        TwoDSelectedPathIds = cleanedPaths.Select(static path => path.Id).ToArray();
+        TwoDSelectedMeasurementId = null;
         StatusText = cleanedPaths.Count == 1
             ? "Join/Cleanup produced 1 cleaned path"
             : $"Join/Cleanup produced {cleanedPaths.Count} cleaned paths";
@@ -1368,37 +1474,37 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    public bool ApplyGeneratedOutputPattern()
+    public bool ApplyTwoDPattern()
     {
-        if (GeneratedOutputPreviewDocument is null)
+        if (TwoDDocument is null)
             return false;
 
-        if (!CanApplyGeneratedOutputPattern)
+        if (!CanApplyTwoDPattern)
         {
             StatusText = "Select one or more 2D entities before applying Pattern";
             return false;
         }
 
-        return IsGeneratedOutputCircularPatternMode
-            ? ApplyGeneratedOutputCircularPattern()
-            : ApplyGeneratedOutputRectangularPattern();
+        return IsTwoDCircularPatternMode
+            ? ApplyTwoDCircularPattern()
+            : ApplyTwoDRectangularPattern();
     }
 
-    public bool ApplyGeneratedOutputPaperFoldingCreases()
+    public bool ApplyTwoDPaperFoldingCreases()
     {
-        if (GeneratedOutputPreviewDocument is null)
+        if (TwoDDocument is null)
             return false;
 
-        var convertiblePathIds = GetSelectedGeneratedOutputConvertiblePathIds();
+        var convertiblePathIds = GetSelectedTwoDConvertiblePathIds();
         if (convertiblePathIds.Count == 0)
         {
             StatusText = "Select line or polyline geometry before applying dashed creases";
             return false;
         }
 
-        var selectedIds = new HashSet<string>(GeneratedOutputSelectedPathIds, StringComparer.Ordinal);
+        var selectedIds = new HashSet<string>(TwoDSelectedPathIds, StringComparer.Ordinal);
         var convertibleIdSet = new HashSet<string>(convertiblePathIds, StringComparer.Ordinal);
-        var nextPaths = new List<Editor2DPreviewPath>(GeneratedOutputPreviewDocument.Paths.Count);
+        var nextPaths = new List<Editor2DPreviewPath>(TwoDDocument.Paths.Count);
         var nextSelectedIds = new List<string>();
         var settings = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
         {
@@ -1407,7 +1513,7 @@ public sealed partial class EditorPageViewModel
         };
         var convertedEntityCount = 0;
 
-        foreach (var path in GeneratedOutputPreviewDocument.Paths)
+        foreach (var path in TwoDDocument.Paths)
         {
             if (!selectedIds.Contains(path.Id) || !convertibleIdSet.Contains(path.Id))
             {
@@ -1433,9 +1539,9 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
-        GeneratedOutputSelectedPathIds = nextSelectedIds;
-        GeneratedOutputSelectedMeasurementId = null;
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
+        TwoDSelectedPathIds = nextSelectedIds;
+        TwoDSelectedMeasurementId = null;
         StatusText = convertedEntityCount == 1
             ? "Converted 1 selected entity to dashed crease geometry"
             : $"Converted {convertedEntityCount} selected entities to dashed crease geometry";
@@ -1443,37 +1549,37 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    public bool ApplyGeneratedOutputGlueTabs()
+    public bool ApplyTwoDGlueTabs()
     {
-        if (GeneratedOutputPreviewDocument is null)
+        if (TwoDDocument is null)
             return false;
 
-        var sourcePaths = GetSelectedGeneratedOutputGlueTabPaths();
+        var sourcePaths = GetSelectedTwoDGlueTabPaths();
         if (sourcePaths.Count == 0)
         {
             StatusText = "Select LINE entities before applying glue tabs";
             return false;
         }
 
-        if (!TryParseGeneratedOutputOffsetDistance(GeneratedOutputGlueTabHeightText, "glue tab height", 0.1, out var height, out var heightErrorMessage))
+        if (!TryParseTwoDOffsetDistance(TwoDGlueTabHeightText, "glue tab height", 0.1, out var height, out var heightErrorMessage))
         {
             StatusText = heightErrorMessage;
             return false;
         }
 
-        if (!TryParseGeneratedOutputOffsetDistance(GeneratedOutputGlueTabStartOffsetText, "glue tab start offset", 0.0, out var startOffset, out var startErrorMessage))
+        if (!TryParseTwoDOffsetDistance(TwoDGlueTabStartOffsetText, "glue tab start offset", 0.0, out var startOffset, out var startErrorMessage))
         {
             StatusText = startErrorMessage;
             return false;
         }
 
-        if (!TryParseGeneratedOutputOffsetDistance(GeneratedOutputGlueTabEndOffsetText, "glue tab end offset", 0.0, out var endOffset, out var endErrorMessage))
+        if (!TryParseTwoDOffsetDistance(TwoDGlueTabEndOffsetText, "glue tab end offset", 0.0, out var endOffset, out var endErrorMessage))
         {
             StatusText = endErrorMessage;
             return false;
         }
 
-        var nextPaths = GeneratedOutputPreviewDocument.Paths.ToList();
+        var nextPaths = TwoDDocument.Paths.ToList();
         var nextSelectedIds = new List<string>();
 
         foreach (var path in sourcePaths)
@@ -1481,8 +1587,8 @@ public sealed partial class EditorPageViewModel
             if (!Editor2DGeometry.TryBuildGlueTabPath(
                     path,
                     height,
-                    GeneratedOutputGlueTabType,
-                    GeneratedOutputGlueTabSide,
+                    TwoDGlueTabType,
+                    TwoDGlueTabSide,
                     startOffset,
                     endOffset,
                     out var glueTabPath))
@@ -1500,9 +1606,9 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
-        GeneratedOutputSelectedPathIds = nextSelectedIds;
-        GeneratedOutputSelectedMeasurementId = null;
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
+        TwoDSelectedPathIds = nextSelectedIds;
+        TwoDSelectedMeasurementId = null;
         StatusText = nextSelectedIds.Count == 1
             ? "Created 1 glue tab outline"
             : $"Created {nextSelectedIds.Count} glue tab outlines";
@@ -1510,31 +1616,31 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    public bool ApplyGeneratedOutputConvertLines()
+    public bool ApplyTwoDConvertLines()
     {
-        if (GeneratedOutputPreviewDocument is null)
+        if (TwoDDocument is null)
             return false;
 
-        var convertiblePathIds = GetSelectedGeneratedOutputConvertiblePathIds();
+        var convertiblePathIds = GetSelectedTwoDConvertiblePathIds();
         if (convertiblePathIds.Count == 0)
         {
             StatusText = "Select line or polyline geometry before applying Convert Lines";
             return false;
         }
 
-        if (!TryResolveGeneratedOutputConvertLineSettings(out var settings, out var errorMessage))
+        if (!TryResolveTwoDConvertLineSettings(out var settings, out var errorMessage))
         {
             StatusText = errorMessage;
             return false;
         }
 
-        var selectedIds = new HashSet<string>(GeneratedOutputSelectedPathIds, StringComparer.Ordinal);
+        var selectedIds = new HashSet<string>(TwoDSelectedPathIds, StringComparer.Ordinal);
         var convertibleIdSet = new HashSet<string>(convertiblePathIds, StringComparer.Ordinal);
-        var nextPaths = new List<Editor2DPreviewPath>(GeneratedOutputPreviewDocument.Paths.Count);
+        var nextPaths = new List<Editor2DPreviewPath>(TwoDDocument.Paths.Count);
         var nextSelectedIds = new List<string>();
         var convertedEntityCount = 0;
 
-        foreach (var path in GeneratedOutputPreviewDocument.Paths)
+        foreach (var path in TwoDDocument.Paths)
         {
             if (!selectedIds.Contains(path.Id) || !convertibleIdSet.Contains(path.Id))
             {
@@ -1542,7 +1648,7 @@ public sealed partial class EditorPageViewModel
                 continue;
             }
 
-            var convertedPaths = Editor2DGeometry.BuildConvertedLinePaths(path, GeneratedOutputConvertLineStyle, settings);
+            var convertedPaths = Editor2DGeometry.BuildConvertedLinePaths(path, TwoDConvertLineStyle, settings);
             if (convertedPaths.Count == 0)
             {
                 nextPaths.Add(path);
@@ -1560,38 +1666,38 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
-        GeneratedOutputSelectedPathIds = nextSelectedIds;
-        GeneratedOutputSelectedMeasurementId = null;
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
+        TwoDSelectedPathIds = nextSelectedIds;
+        TwoDSelectedMeasurementId = null;
         StatusText = convertedEntityCount == 1
-            ? $"Converted 1 selected entity to {GeneratedOutputConvertLineStyle} geometry"
-            : $"Converted {convertedEntityCount} selected entities to {GeneratedOutputConvertLineStyle} geometry";
+            ? $"Converted 1 selected entity to {TwoDConvertLineStyle} geometry"
+            : $"Converted {convertedEntityCount} selected entities to {TwoDConvertLineStyle} geometry";
         ViewportStateText = OutputStatusSummary;
         return true;
     }
 
-    private bool ApplyGeneratedOutputBoundingBoxOffset()
+    private bool ApplyTwoDBoundingBoxOffset()
     {
-        if (GeneratedOutputPreviewDocument is null || GeneratedOutputSelectedPathIds.Count == 0)
+        if (TwoDDocument is null || TwoDSelectedPathIds.Count == 0)
         {
             StatusText = "Select one or more 2D entities before applying BBox Offset";
             return false;
         }
 
-        if (!TryParseGeneratedOutputOffsetDistance(GeneratedOutputOffsetBBoxDistanceText, "BBox offset distance", 0.1, out var offsetDistance, out var distanceErrorMessage))
+        if (!TryParseTwoDOffsetDistance(TwoDOffsetBBoxDistanceText, "BBox offset distance", 0.1, out var offsetDistance, out var distanceErrorMessage))
         {
             StatusText = distanceErrorMessage;
             return false;
         }
 
-        if (!TryParseGeneratedOutputOffsetDistance(GeneratedOutputOffsetBBoxFilletText, "BBox fillet radius", 0.0, out var cornerRadius, out var filletErrorMessage))
+        if (!TryParseTwoDOffsetDistance(TwoDOffsetBBoxFilletText, "BBox fillet radius", 0.0, out var cornerRadius, out var filletErrorMessage))
         {
             StatusText = filletErrorMessage;
             return false;
         }
 
-        var selectedIds = new HashSet<string>(GeneratedOutputSelectedPathIds, StringComparer.Ordinal);
-        var selectedPaths = GeneratedOutputPreviewDocument.Paths
+        var selectedIds = new HashSet<string>(TwoDSelectedPathIds, StringComparer.Ordinal);
+        var selectedPaths = TwoDDocument.Paths
             .Where(path => selectedIds.Contains(path.Id))
             .ToArray();
         var bboxPath = Editor2DGeometry.BuildBoundingBoxOffsetPath(selectedPaths, offsetDistance, cornerRadius);
@@ -1601,28 +1707,28 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        var nextPaths = GeneratedOutputPreviewDocument.Paths
+        var nextPaths = TwoDDocument.Paths
             .Concat([bboxPath])
             .ToArray();
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
-        GeneratedOutputSelectedPathIds = [bboxPath.Id];
-        GeneratedOutputSelectedMeasurementId = null;
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
+        TwoDSelectedPathIds = [bboxPath.Id];
+        TwoDSelectedMeasurementId = null;
         StatusText = "Created a new BBox offset profile";
         ViewportStateText = OutputStatusSummary;
         return true;
     }
 
-    public bool ApplyGeneratedOutputSelectedText()
+    public bool ApplyTwoDSelectedText()
     {
-        if (GeneratedOutputPreviewDocument is null
-            || !TryGetSingleSelectedGeneratedOutputTextPath(out var selectedTextPath))
+        if (TwoDDocument is null
+            || !TryGetSingleSelectedTwoDTextPath(out var selectedTextPath))
         {
             return false;
         }
 
-        if (!TryParseGeneratedOutputSelectedTextHeight(GeneratedOutputSelectedTextHeightText, out var textHeight))
+        if (!TryParseTwoDSelectedTextHeight(TwoDSelectedTextHeightText, out var textHeight))
         {
-            SetGeneratedOutputSelectedTextHeightValidity(false);
+            SetTwoDSelectedTextHeightValidity(false);
             StatusText = "Enter a valid text height in millimeters";
             return false;
         }
@@ -1630,52 +1736,65 @@ public sealed partial class EditorPageViewModel
         var start = selectedTextPath.Start
             ?? selectedTextPath.Points.FirstOrDefault()
             ?? new Editor2DPoint(0.0, 0.0);
-        var normalizedText = string.IsNullOrWhiteSpace(GeneratedOutputSelectedTextDraft)
+        var normalizedText = string.IsNullOrWhiteSpace(TwoDSelectedTextDraft)
             ? "Label"
-            : GeneratedOutputSelectedTextDraft.Replace("\r\n", "\n");
+            : TwoDSelectedTextDraft.Replace("\r\n", "\n");
         var normalizedHeight = Math.Max(textHeight, 0.1);
+        if (!double.TryParse(TwoDSelectedTextCharacterSpacingText, NumberStyles.Float, CultureInfo.InvariantCulture, out var characterSpacing)
+            || !double.IsFinite(characterSpacing))
+        {
+            StatusText = "Enter valid character spacing in millimeters";
+            return false;
+        }
+
         var nextTextPath = selectedTextPath with
         {
             Start = start,
             Text = normalizedText,
             TextHeight = normalizedHeight,
+            FontFamily = TwoDSelectedTextFontFamily,
+            CharacterSpacing = characterSpacing,
+            IsBold = TwoDSelectedTextBold,
+            IsItalic = TwoDSelectedTextItalic,
+            IsUnderline = TwoDSelectedTextUnderline,
             Points = Editor2DGeometry.BuildTextBoundsPoints(
                 start,
                 normalizedText,
                 normalizedHeight,
                 selectedTextPath.RotationDegrees ?? 0.0,
-                selectedTextPath.WidthFactor ?? 1.0),
+                selectedTextPath.WidthFactor ?? 1.0,
+                characterSpacing),
         };
-        var nextPaths = GeneratedOutputPreviewDocument.Paths
+        var nextPaths = TwoDDocument.Paths
             .Select(path => string.Equals(path.Id, selectedTextPath.Id, StringComparison.Ordinal)
                 ? nextTextPath
                 : path)
             .ToArray();
 
-        SetGeneratedOutputSelectedTextHeightValidity(true);
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
-        GeneratedOutputSelectedTextHeightText = normalizedHeight.ToString("0.###", CultureInfo.InvariantCulture);
-        GeneratedOutputSelectedTextDraft = normalizedText;
+        SetTwoDSelectedTextHeightValidity(true);
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
+        TwoDSelectedTextHeightText = normalizedHeight.ToString("0.###", CultureInfo.InvariantCulture);
+        TwoDSelectedTextDraft = normalizedText;
         StatusText = "Updated the selected text entity";
         ViewportStateText = OutputStatusSummary;
         return true;
     }
 
-    public bool DeleteGeneratedOutputSelection()
+    public bool DeleteTwoDSelection()
     {
-        if (DeleteGeneratedOutputSelectedMeasurement())
+        if (DeleteTwoDSelectedMeasurement())
             return true;
 
-        if (GeneratedOutputPreviewDocument is null || GeneratedOutputSelectedPathIds.Count == 0)
+        if (TwoDDocument is null || TwoDSelectedPathIds.Count == 0)
             return false;
 
-        var selectedIds = new HashSet<string>(GeneratedOutputSelectedPathIds, StringComparer.Ordinal);
-        var nextPaths = GeneratedOutputPreviewDocument.Paths
+        var selectedIds = new HashSet<string>(TwoDSelectedPathIds, StringComparer.Ordinal);
+        var nextPaths = TwoDDocument.Paths
             .Where(path => !selectedIds.Contains(path.Id))
             .ToArray();
 
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
-        GeneratedOutputSelectedPathIds = [];
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
+        TwoDSelectedPathIds = [];
         StatusText = nextPaths.Length == 0
             ? "Deleted the selected 2D entities"
             : $"Deleted {selectedIds.Count} selected 2D entit{(selectedIds.Count == 1 ? "y" : "ies")}";
@@ -1683,29 +1802,29 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    public bool DeleteGeneratedOutputSelectedMeasurement()
+    public bool DeleteTwoDSelectedMeasurement()
     {
-        if (string.IsNullOrWhiteSpace(GeneratedOutputSelectedMeasurementId))
+        if (string.IsNullOrWhiteSpace(TwoDSelectedMeasurementId))
             return false;
 
-        var nextMeasurements = GeneratedOutputMeasurements
-            .Where(measurement => !string.Equals(measurement.Id, GeneratedOutputSelectedMeasurementId, StringComparison.Ordinal))
+        var nextMeasurements = TwoDMeasurements
+            .Where(measurement => !string.Equals(measurement.Id, TwoDSelectedMeasurementId, StringComparison.Ordinal))
             .ToArray();
-        GeneratedOutputMeasurements = nextMeasurements;
-        GeneratedOutputSelectedMeasurementId = null;
+        TwoDMeasurements = nextMeasurements;
+        TwoDSelectedMeasurementId = null;
         StatusText = "Deleted the selected 2D measurement";
         ViewportStateText = OutputStatusSummary;
         return true;
     }
 
-    public bool ExpandGeneratedOutputRectangles()
+    public bool ExpandTwoDRectangles()
     {
-        if (GeneratedOutputPreviewDocument is null || GeneratedOutputSelectedPathIds.Count == 0)
+        if (TwoDDocument is null || TwoDSelectedPathIds.Count == 0)
             return false;
 
-        var selectedIds = new HashSet<string>(GeneratedOutputSelectedPathIds, StringComparer.Ordinal);
+        var selectedIds = new HashSet<string>(TwoDSelectedPathIds, StringComparer.Ordinal);
         var expandedRectangleCount = 0;
-        var nextPaths = GeneratedOutputPreviewDocument.Paths
+        var nextPaths = TwoDDocument.Paths
             .Select(path =>
             {
                 if (!path.IsAxisAlignedRectangle || !selectedIds.Contains(path.Id))
@@ -1719,7 +1838,7 @@ public sealed partial class EditorPageViewModel
         if (expandedRectangleCount == 0)
             return false;
 
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
         StatusText = expandedRectangleCount == 1
             ? "Expanded the selected constrained rectangle"
             : $"Expanded {expandedRectangleCount} selected constrained rectangles";
@@ -1727,12 +1846,12 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    public void FrameGeneratedOutputToContent()
+    public void FrameTwoDToContent()
     {
-        if (!HasGeneratedOutputWorkspaceDocument)
+        if (!HasTwoDWorkspaceDocument)
             return;
 
-        GeneratedOutputFrameRequestToken++;
+        TwoDFrameRequestToken++;
     }
 
     private void ApplyGeneratedOutput(string? outputPath)
@@ -1766,7 +1885,7 @@ public sealed partial class EditorPageViewModel
         ActivateOutputTool();
         StatusText = string.IsNullOrWhiteSpace(outputPath)
             ? StatusText
-            : $"{StatusText} and prepared native 2D workspace";
+            : $"{StatusText} and prepared local 2D workspace";
     }
 
     private async Task UpdateGeneratedOutputPreviewAsync(
@@ -1780,7 +1899,7 @@ public sealed partial class EditorPageViewModel
         if (string.IsNullOrWhiteSpace(outputPath))
         {
             GeneratedOutputSummary = null;
-            SetGeneratedOutputPreviewDocument(null, activatePreviewWorkspace);
+            SetTwoDDocument(null, activatePreviewWorkspace);
             return;
         }
 
@@ -1803,118 +1922,101 @@ public sealed partial class EditorPageViewModel
                 .ConfigureAwait(true);
         }
 
-        SetGeneratedOutputPreviewDocument(previewDocument, activatePreviewWorkspace);
+        SetTwoDDocument(previewDocument, activatePreviewWorkspace);
 
         if (persistState)
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
     }
 
-    private void ClearGeneratedOutputState()
+    private void ClearTwoDState()
     {
         LastGeneratedOutputPath = null;
         GeneratedOutputSummary = null;
         GeneratedOutputContext = null;
-        SetGeneratedOutputPreviewDocument(null, activatePreviewWorkspace: false);
+        SetTwoDDocument(null, activatePreviewWorkspace: false);
     }
 
-    private async Task EnsureGeneratedOutputWorkspaceDocumentAsync(CancellationToken cancellationToken)
+    private Task EnsureTwoDWorkspaceDocumentAsync(CancellationToken cancellationToken)
     {
-        var document = GeneratedOutputPreviewDocument ?? CreateEmptyGeneratedOutputPreviewDocument();
-
-        if (ProjectSession is not null)
-        {
-            var outputPath = string.IsNullOrWhiteSpace(LastGeneratedOutputPath)
-                ? _project3DStateService.GetEditableGeneratedOutputPath(ProjectSession.ProjectFilePath)
-                : LastGeneratedOutputPath;
-
-            ApplyGeneratedOutput(outputPath);
-            await _editorOutputPreviewService
-                .SavePreviewDocumentAsync(document, outputPath, cancellationToken)
-                .ConfigureAwait(true);
-
-            _generatedOutputDataBase64 = await TryReadGeneratedOutputDataBase64Async(outputPath, cancellationToken)
-                .ConfigureAwait(true);
-            GeneratedOutputSummary = await _editorOutputPreviewService
-                .InspectOutputAsync(outputPath, cancellationToken)
-                .ConfigureAwait(true);
-        }
-
-        SetGeneratedOutputPreviewDocument(document, activatePreviewWorkspace: false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var document = TwoDDocument ?? CreateEmptyTwoDDocument();
+        SetTwoDDocument(document, activatePreviewWorkspace: false);
         Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        return Task.CompletedTask;
     }
 
-    private static Editor2DPreviewDocument CreateEmptyGeneratedOutputPreviewDocument()
+    private static Editor2DPreviewDocument CreateEmptyTwoDDocument()
         => new(
             [],
             new Editor2DBounds(0.0, 0.0, 0.0, 0.0),
             new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
             []);
 
-    private void SetGeneratedOutputPreviewDocument(
+    private void SetTwoDDocument(
         Editor2DPreviewDocument? document,
         bool activatePreviewWorkspace = true)
     {
-        ApplyGeneratedOutputPreviewDocument(document, requestPersistence: false);
-        ResetGeneratedOutputEditorState();
-        ResetGeneratedOutputViewportState(document is not null);
+        ApplyTwoDDocument(document, requestPersistence: false);
+        ResetTwoDEditorState();
+        ResetTwoDViewportState(document is not null);
 
         if (document is null)
-            IsShowingGeneratedOutputWorkspace = false;
+            ActiveEditorMode = EditorMode.ThreeD;
         else if (activatePreviewWorkspace)
-            IsShowingGeneratedOutputWorkspace = true;
+            ActiveEditorMode = EditorMode.TwoD;
     }
 
-    private void ResetGeneratedOutputViewportState(bool requestFrame)
+    private void ResetTwoDViewportState(bool requestFrame)
     {
-        ApplyGeneratedOutputViewportState(0.0, 0.0, 0.0, requestPersistence: false);
+        ApplyTwoDViewportState(0.0, 0.0, 0.0, requestPersistence: false);
 
         if (requestFrame)
-            GeneratedOutputFrameRequestToken++;
+            TwoDFrameRequestToken++;
     }
 
-    private void ResetGeneratedOutputEditorState()
+    private void ResetTwoDEditorState()
     {
-        GeneratedOutputActiveTool = Editor2DTool.Select;
-        GeneratedOutputSelectedPathIds = [];
-        GeneratedOutputSelectedMeasurementId = null;
-        RefreshDerivedGeneratedOutputMeasurements(GeneratedOutputPreviewDocument);
+        TwoDActiveTool = Editor2DTool.Select;
+        TwoDSelectedPathIds = [];
+        TwoDSelectedMeasurementId = null;
+        RefreshDerivedTwoDMeasurements(TwoDDocument);
     }
 
-    private void ApplyGeneratedOutputPreviewDocument(
+    private void ApplyTwoDDocument(
         Editor2DPreviewDocument? document,
         bool requestPersistence)
     {
-        var previousSuppression = _suppressGeneratedOutputDocumentPersistence;
-        _suppressGeneratedOutputDocumentPersistence = !requestPersistence;
+        var previousSuppression = _suppressTwoDDocumentPersistence;
+        _suppressTwoDDocumentPersistence = !requestPersistence;
 
         try
         {
-            GeneratedOutputPreviewDocument = document;
+            TwoDDocument = document;
         }
         finally
         {
-            _suppressGeneratedOutputDocumentPersistence = previousSuppression;
+            _suppressTwoDDocumentPersistence = previousSuppression;
         }
     }
 
-    private void ApplyGeneratedOutputViewportState(
+    private void ApplyTwoDViewportState(
         double zoom,
         double offsetX,
         double offsetY,
         bool requestPersistence)
     {
-        var previousSuppression = _suppressGeneratedOutputViewportPersistence;
-        _suppressGeneratedOutputViewportPersistence = true;
+        var previousSuppression = _suppressTwoDViewportPersistence;
+        _suppressTwoDViewportPersistence = true;
 
         try
         {
-            GeneratedOutputViewportZoom = zoom;
-            GeneratedOutputViewportOffsetX = offsetX;
-            GeneratedOutputViewportOffsetY = offsetY;
+            TwoDViewportZoom = zoom;
+            TwoDViewportOffsetX = offsetX;
+            TwoDViewportOffsetY = offsetY;
         }
         finally
         {
-            _suppressGeneratedOutputViewportPersistence = previousSuppression;
+            _suppressTwoDViewportPersistence = previousSuppression;
         }
 
         if (requestPersistence)
@@ -1933,24 +2035,32 @@ public sealed partial class EditorPageViewModel
     private static string FormatDimension(double value)
         => value.ToString("0.###", CultureInfo.InvariantCulture);
 
-    private void RefreshDerivedGeneratedOutputMeasurements(Editor2DPreviewDocument? document)
+    private void RefreshDerivedTwoDMeasurements(Editor2DPreviewDocument? document)
     {
         var manualMeasurements = document is null
-            ? _generatedOutputMeasurements
+            ? TwoDMeasurements
                 .Where(static measurement => !measurement.IsAutoDimension)
                 .ToArray()
-            : RebuildAttachedGeneratedOutputMeasurements(
+            : RebuildAttachedTwoDMeasurements(
                 document,
-                _generatedOutputMeasurements.Where(static measurement => !measurement.IsAutoDimension));
+                TwoDMeasurements.Where(static measurement => !measurement.IsAutoDimension));
         var autoMeasurements = document is null
             ? []
-            : BuildAutoGeneratedOutputMeasurements(document);
-        GeneratedOutputMeasurements = autoMeasurements
-            .Concat(manualMeasurements)
-            .ToArray();
+            : BuildAutoTwoDMeasurements(document);
+        _isRefreshingDerivedTwoDMeasurements = true;
+        try
+        {
+            TwoDMeasurements = autoMeasurements
+                .Concat(manualMeasurements)
+                .ToArray();
+        }
+        finally
+        {
+            _isRefreshingDerivedTwoDMeasurements = false;
+        }
     }
 
-    private static IReadOnlyList<Editor2DMeasurement> RebuildAttachedGeneratedOutputMeasurements(
+    private static IReadOnlyList<Editor2DMeasurement> RebuildAttachedTwoDMeasurements(
         Editor2DPreviewDocument document,
         IEnumerable<Editor2DMeasurement> manualMeasurements)
     {
@@ -1992,10 +2102,10 @@ public sealed partial class EditorPageViewModel
 
     private Editor2DPreviewDocument? ApplyExpandedRectangleOverrides(Editor2DPreviewDocument? document)
     {
-        if (document is null || _generatedOutputExpandedRectanglePathIds.Count == 0)
+        if (document is null || _twoDExpandedRectanglePathIds.Count == 0)
             return document;
 
-        var expandedRectangleIds = new HashSet<string>(_generatedOutputExpandedRectanglePathIds, StringComparer.Ordinal);
+        var expandedRectangleIds = new HashSet<string>(_twoDExpandedRectanglePathIds, StringComparer.Ordinal);
         var changed = false;
         var nextPaths = document.Paths
             .Select(path =>
@@ -2017,9 +2127,9 @@ public sealed partial class EditorPageViewModel
             : document;
     }
 
-    private void SyncGeneratedOutputExpandedRectanglePathIds(Editor2DPreviewDocument? document)
+    private void SyncTwoDExpandedRectanglePathIds(Editor2DPreviewDocument? document)
     {
-        _generatedOutputExpandedRectanglePathIds = document is null
+        _twoDExpandedRectanglePathIds = document is null
             ? []
             : document.Paths
                 .Where(path => !path.IsAxisAlignedRectangle && Editor2DGeometry.IsAxisAlignedRectangle(path.Points, path.IsClosed))
@@ -2029,7 +2139,7 @@ public sealed partial class EditorPageViewModel
                 .ToArray();
     }
 
-    private static IReadOnlyList<string> NormalizeGeneratedOutputExpandedRectanglePathIds(IReadOnlyList<string>? pathIds)
+    private static IReadOnlyList<string> NormalizeTwoDExpandedRectanglePathIds(IReadOnlyList<string>? pathIds)
         => pathIds is null
             ? []
             : pathIds
@@ -2037,35 +2147,35 @@ public sealed partial class EditorPageViewModel
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
 
-    private void RequestGeneratedOutputDocumentPersistence(TimeSpan? delay = null)
+    private void RequestTwoDDocumentPersistence(TimeSpan? delay = null)
     {
         if (string.IsNullOrWhiteSpace(LastGeneratedOutputPath)
-            || GeneratedOutputPreviewDocument is null)
+            || TwoDDocument is null)
         {
             return;
         }
 
         var nextCancellationTokenSource = new CancellationTokenSource();
-        var previousCancellationTokenSource = _persistGeneratedOutputDocumentCancellationTokenSource;
-        _persistGeneratedOutputDocumentCancellationTokenSource = nextCancellationTokenSource;
+        var previousCancellationTokenSource = _persistTwoDDocumentCancellationTokenSource;
+        _persistTwoDDocumentCancellationTokenSource = nextCancellationTokenSource;
         previousCancellationTokenSource?.Cancel();
         previousCancellationTokenSource?.Dispose();
 
-        _ = PersistGeneratedOutputDocumentAsync(nextCancellationTokenSource, delay ?? TimeSpan.Zero);
+        _ = PersistTwoDDocumentAsync(nextCancellationTokenSource, delay ?? TimeSpan.Zero);
     }
 
-    private async Task PersistGeneratedOutputDocumentAsync(CancellationTokenSource cancellationTokenSource, TimeSpan delay)
+    private async Task PersistTwoDDocumentAsync(CancellationTokenSource cancellationTokenSource, TimeSpan delay)
     {
         try
         {
             if (delay > TimeSpan.Zero)
                 await Task.Delay(delay, cancellationTokenSource.Token).ConfigureAwait(true);
 
-            if (GeneratedOutputPreviewDocument is null || string.IsNullOrWhiteSpace(LastGeneratedOutputPath))
+            if (TwoDDocument is null || string.IsNullOrWhiteSpace(LastGeneratedOutputPath))
                 return;
 
             await _editorOutputPreviewService
-                .SavePreviewDocumentAsync(GeneratedOutputPreviewDocument, LastGeneratedOutputPath, cancellationTokenSource.Token)
+                .SavePreviewDocumentAsync(TwoDDocument, LastGeneratedOutputPath, cancellationTokenSource.Token)
                 .ConfigureAwait(true);
 
             _generatedOutputDataBase64 = await TryReadGeneratedOutputDataBase64Async(LastGeneratedOutputPath, cancellationTokenSource.Token)
@@ -2087,206 +2197,206 @@ public sealed partial class EditorPageViewModel
         }
         finally
         {
-            if (ReferenceEquals(_persistGeneratedOutputDocumentCancellationTokenSource, cancellationTokenSource))
-                _persistGeneratedOutputDocumentCancellationTokenSource = null;
+            if (ReferenceEquals(_persistTwoDDocumentCancellationTokenSource, cancellationTokenSource))
+                _persistTwoDDocumentCancellationTokenSource = null;
 
             cancellationTokenSource.Dispose();
         }
     }
 
-    private static Dictionary<string, string> CreateGeneratedOutputConvertLineParameterText()
+    private static Dictionary<string, string> CreateTwoDConvertLineParameterText()
     {
         var parameterText = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (style, definitions) in GeneratedOutputConvertLineParameterDefinitions)
+        foreach (var (style, definitions) in TwoDConvertLineParameterDefinitions)
         {
             foreach (var definition in definitions)
-                parameterText[BuildGeneratedOutputConvertLineParameterMapKey(style, definition.Key)] = FormatGeneratedOutputConvertLineValue(definition.DefaultValue, definition.IsInteger);
+                parameterText[BuildTwoDConvertLineParameterMapKey(style, definition.Key)] = FormatTwoDConvertLineValue(definition.DefaultValue, definition.IsInteger);
         }
 
         return parameterText;
     }
 
-    private static string NormalizeGeneratedOutputConvertLineStyle(string? style)
+    private static string NormalizeTwoDConvertLineStyle(string? style)
         => !string.IsNullOrWhiteSpace(style)
-           && GeneratedOutputConvertLineParameterDefinitions.ContainsKey(style)
+           && TwoDConvertLineParameterDefinitions.ContainsKey(style)
             ? style
             : "dashed";
 
-    private static string NormalizeGeneratedOutputOffsetMode(string? mode)
+    private static string NormalizeTwoDOffsetMode(string? mode)
         => string.Equals(mode, "BBox", StringComparison.OrdinalIgnoreCase)
             ? "BBox"
             : "Curve";
 
-    private static string NormalizeGeneratedOutputPatternMode(string? mode)
+    private static string NormalizeTwoDPatternMode(string? mode)
         => string.Equals(mode, "Circular", StringComparison.OrdinalIgnoreCase)
             ? "Circular"
             : "Rectangular";
 
-    private static string NormalizeGeneratedOutputGlueTabType(string? tabType)
+    private static string NormalizeTwoDGlueTabType(string? tabType)
         => string.Equals(tabType, "Triangle", StringComparison.OrdinalIgnoreCase)
             ? "Triangle"
             : "Trapezoid";
 
-    private static string NormalizeGeneratedOutputGlueTabSide(string? side)
+    private static string NormalizeTwoDGlueTabSide(string? side)
         => string.Equals(side, "Right", StringComparison.OrdinalIgnoreCase)
             ? "Right"
             : "Left";
 
-    private static string NormalizeGeneratedOutputOffsetSide(string? side)
+    private static string NormalizeTwoDOffsetSide(string? side)
         => string.Equals(side, "Inward", StringComparison.OrdinalIgnoreCase)
             ? "Inward"
             : "Outward";
 
-    private static GeneratedOutputConvertLineParameterDefinition[] GetGeneratedOutputConvertLineParameterDefinitions(string style)
-        => GeneratedOutputConvertLineParameterDefinitions.TryGetValue(style, out var definitions)
+    private static TwoDConvertLineParameterDefinition[] GetTwoDConvertLineParameterDefinitions(string style)
+        => TwoDConvertLineParameterDefinitions.TryGetValue(style, out var definitions)
             ? definitions
-            : GeneratedOutputConvertLineParameterDefinitions["dashed"];
+            : TwoDConvertLineParameterDefinitions["dashed"];
 
-    private static string BuildGeneratedOutputConvertLineParameterMapKey(string style, string parameterKey)
+    private static string BuildTwoDConvertLineParameterMapKey(string style, string parameterKey)
         => $"{style}:{parameterKey}";
 
-    private IReadOnlyList<string> GetSelectedGeneratedOutputConvertiblePathIds()
+    private IReadOnlyList<string> GetSelectedTwoDConvertiblePathIds()
     {
-        if (GeneratedOutputPreviewDocument is null || GeneratedOutputSelectedPathIds.Count == 0)
+        if (TwoDDocument is null || TwoDSelectedPathIds.Count == 0)
             return [];
 
-        var selectedIds = new HashSet<string>(GeneratedOutputSelectedPathIds, StringComparer.Ordinal);
-        return GeneratedOutputPreviewDocument.Paths
+        var selectedIds = new HashSet<string>(TwoDSelectedPathIds, StringComparer.Ordinal);
+        return TwoDDocument.Paths
             .Where(path => selectedIds.Contains(path.Id) && Editor2DGeometry.IsConvertibleLinePath(path))
             .Select(static path => path.Id)
             .ToArray();
     }
 
-    private int GetGeneratedOutputConvertibleSelectionCount() => GetSelectedGeneratedOutputConvertiblePathIds().Count;
+    private int GetTwoDConvertibleSelectionCount() => GetSelectedTwoDConvertiblePathIds().Count;
 
-    private IReadOnlyList<string> GetSelectedGeneratedOutputCurveOffsetPathIds()
+    private IReadOnlyList<string> GetSelectedTwoDCurveOffsetPathIds()
     {
-        if (GeneratedOutputPreviewDocument is null || GeneratedOutputSelectedPathIds.Count == 0)
+        if (TwoDDocument is null || TwoDSelectedPathIds.Count == 0)
             return [];
 
-        var selectedIds = new HashSet<string>(GeneratedOutputSelectedPathIds, StringComparer.Ordinal);
-        return GeneratedOutputPreviewDocument.Paths
+        var selectedIds = new HashSet<string>(TwoDSelectedPathIds, StringComparer.Ordinal);
+        return TwoDDocument.Paths
             .Where(path => selectedIds.Contains(path.Id) && Editor2DGeometry.IsCurveOffsettablePath(path))
             .Select(static path => path.Id)
             .ToArray();
     }
 
-    private int GetGeneratedOutputCurveOffsetSelectionCount()
-        => IsGeneratedOutputBBoxOffsetMode ? GeneratedOutputSelectionCount : GetSelectedGeneratedOutputCurveOffsetPathIds().Count;
+    private int GetTwoDCurveOffsetSelectionCount()
+        => IsTwoDBBoxOffsetMode ? TwoDSelectionCount : GetSelectedTwoDCurveOffsetPathIds().Count;
 
-    private IReadOnlyList<Editor2DPreviewPath> GetGeneratedOutputThicknessCandidatePaths()
+    private IReadOnlyList<Editor2DPreviewPath> GetTwoDThicknessCandidatePaths()
     {
-        if (GeneratedOutputPreviewDocument is null)
+        if (TwoDDocument is null)
             return [];
 
-        if (GeneratedOutputSelectedPathIds.Count == 0)
+        if (TwoDSelectedPathIds.Count == 0)
         {
-            return GeneratedOutputPreviewDocument.Paths
+            return TwoDDocument.Paths
                 .Where(Editor2DGeometry.IsThicknessSourcePath)
                 .ToArray();
         }
 
-        var selectedIds = new HashSet<string>(GeneratedOutputSelectedPathIds, StringComparer.Ordinal);
-        return GeneratedOutputPreviewDocument.Paths
+        var selectedIds = new HashSet<string>(TwoDSelectedPathIds, StringComparer.Ordinal);
+        return TwoDDocument.Paths
             .Where(path => selectedIds.Contains(path.Id) && Editor2DGeometry.IsThicknessSourcePath(path))
             .ToArray();
     }
 
-    private int GetGeneratedOutputThicknessSourcePathCount() => GetGeneratedOutputThicknessCandidatePaths().Count;
+    private int GetTwoDThicknessSourcePathCount() => GetTwoDThicknessCandidatePaths().Count;
 
-    private IReadOnlyList<Editor2DPreviewPath> GetGeneratedOutputCleanupCandidatePaths()
-        => GeneratedOutputPreviewDocument is null
+    private IReadOnlyList<Editor2DPreviewPath> GetTwoDCleanupCandidatePaths()
+        => TwoDDocument is null
             ? []
-            : GeneratedOutputPreviewDocument.Paths
+            : TwoDDocument.Paths
                 .Where(Editor2DGeometry.IsCleanupSourcePath)
                 .ToArray();
 
-    private IReadOnlyList<Editor2DPreviewPath> GetSelectedGeneratedOutputPaths()
+    private IReadOnlyList<Editor2DPreviewPath> GetSelectedTwoDPaths()
     {
-        if (GeneratedOutputPreviewDocument is null || GeneratedOutputSelectedPathIds.Count == 0)
+        if (TwoDDocument is null || TwoDSelectedPathIds.Count == 0)
             return [];
 
-        var selectedIds = new HashSet<string>(GeneratedOutputSelectedPathIds, StringComparer.Ordinal);
-        return GeneratedOutputPreviewDocument.Paths
+        var selectedIds = new HashSet<string>(TwoDSelectedPathIds, StringComparer.Ordinal);
+        return TwoDDocument.Paths
             .Where(path => selectedIds.Contains(path.Id))
             .ToArray();
     }
 
-    private IReadOnlyList<Editor2DPreviewPath> GetSelectedGeneratedOutputGlueTabPaths()
+    private IReadOnlyList<Editor2DPreviewPath> GetSelectedTwoDGlueTabPaths()
     {
-        if (GeneratedOutputPreviewDocument is null || GeneratedOutputSelectedPathIds.Count == 0)
+        if (TwoDDocument is null || TwoDSelectedPathIds.Count == 0)
             return [];
 
-        var selectedIds = new HashSet<string>(GeneratedOutputSelectedPathIds, StringComparer.Ordinal);
-        return GeneratedOutputPreviewDocument.Paths
+        var selectedIds = new HashSet<string>(TwoDSelectedPathIds, StringComparer.Ordinal);
+        return TwoDDocument.Paths
             .Where(path => selectedIds.Contains(path.Id) && Editor2DGeometry.IsGlueTabSourcePath(path))
             .ToArray();
     }
 
-    private string GetGeneratedOutputConvertLineParameterLabel(int index)
+    private string GetTwoDConvertLineParameterLabel(int index)
     {
-        var definitions = GetGeneratedOutputConvertLineParameterDefinitions(GeneratedOutputConvertLineStyle);
+        var definitions = GetTwoDConvertLineParameterDefinitions(TwoDConvertLineStyle);
         return index >= 0 && index < definitions.Length
             ? definitions[index].Label
             : string.Empty;
     }
 
-    private string GetGeneratedOutputConvertLineParameterText(int index)
+    private string GetTwoDConvertLineParameterText(int index)
     {
-        var definitions = GetGeneratedOutputConvertLineParameterDefinitions(GeneratedOutputConvertLineStyle);
+        var definitions = GetTwoDConvertLineParameterDefinitions(TwoDConvertLineStyle);
         if (index < 0 || index >= definitions.Length)
             return string.Empty;
 
-        var key = BuildGeneratedOutputConvertLineParameterMapKey(GeneratedOutputConvertLineStyle, definitions[index].Key);
-        return _generatedOutputConvertLineParameterText.TryGetValue(key, out var value)
+        var key = BuildTwoDConvertLineParameterMapKey(TwoDConvertLineStyle, definitions[index].Key);
+        return _twoDConvertLineParameterText.TryGetValue(key, out var value)
             ? value
-            : FormatGeneratedOutputConvertLineValue(definitions[index].DefaultValue, definitions[index].IsInteger);
+            : FormatTwoDConvertLineValue(definitions[index].DefaultValue, definitions[index].IsInteger);
     }
 
-    private void SetGeneratedOutputConvertLineParameterText(int index, string? value)
+    private void SetTwoDConvertLineParameterText(int index, string? value)
     {
-        var definitions = GetGeneratedOutputConvertLineParameterDefinitions(GeneratedOutputConvertLineStyle);
+        var definitions = GetTwoDConvertLineParameterDefinitions(TwoDConvertLineStyle);
         if (index < 0 || index >= definitions.Length)
             return;
 
-        var key = BuildGeneratedOutputConvertLineParameterMapKey(GeneratedOutputConvertLineStyle, definitions[index].Key);
+        var key = BuildTwoDConvertLineParameterMapKey(TwoDConvertLineStyle, definitions[index].Key);
         var normalized = value ?? string.Empty;
-        if (_generatedOutputConvertLineParameterText.TryGetValue(key, out var existing)
+        if (_twoDConvertLineParameterText.TryGetValue(key, out var existing)
             && string.Equals(existing, normalized, StringComparison.Ordinal))
         {
             return;
         }
 
-        _generatedOutputConvertLineParameterText[key] = normalized;
-        NotifyGeneratedOutputConvertLineParameterStateChanged();
+        _twoDConvertLineParameterText[key] = normalized;
+        NotifyTwoDConvertLineParameterStateChanged();
     }
 
-    private void NotifyGeneratedOutputConvertLineParameterStateChanged()
+    private void NotifyTwoDConvertLineParameterStateChanged()
     {
-        OnPropertyChanged(nameof(GeneratedOutputConvertLineStyle));
-        OnPropertyChanged(nameof(GeneratedOutputConvertLineSummary));
-        OnPropertyChanged(nameof(HasGeneratedOutputConvertLineFirstParameter));
-        OnPropertyChanged(nameof(HasGeneratedOutputConvertLineSecondParameter));
-        OnPropertyChanged(nameof(HasGeneratedOutputConvertLineThirdParameter));
-        OnPropertyChanged(nameof(GeneratedOutputConvertLineFirstParameterLabel));
-        OnPropertyChanged(nameof(GeneratedOutputConvertLineSecondParameterLabel));
-        OnPropertyChanged(nameof(GeneratedOutputConvertLineThirdParameterLabel));
-        OnPropertyChanged(nameof(GeneratedOutputConvertLineFirstParameterText));
-        OnPropertyChanged(nameof(GeneratedOutputConvertLineSecondParameterText));
-        OnPropertyChanged(nameof(GeneratedOutputConvertLineThirdParameterText));
+        OnPropertyChanged(nameof(TwoDConvertLineStyle));
+        OnPropertyChanged(nameof(TwoDConvertLineSummary));
+        OnPropertyChanged(nameof(HasTwoDConvertLineFirstParameter));
+        OnPropertyChanged(nameof(HasTwoDConvertLineSecondParameter));
+        OnPropertyChanged(nameof(HasTwoDConvertLineThirdParameter));
+        OnPropertyChanged(nameof(TwoDConvertLineFirstParameterLabel));
+        OnPropertyChanged(nameof(TwoDConvertLineSecondParameterLabel));
+        OnPropertyChanged(nameof(TwoDConvertLineThirdParameterLabel));
+        OnPropertyChanged(nameof(TwoDConvertLineFirstParameterText));
+        OnPropertyChanged(nameof(TwoDConvertLineSecondParameterText));
+        OnPropertyChanged(nameof(TwoDConvertLineThirdParameterText));
     }
 
-    private bool TryResolveGeneratedOutputConvertLineSettings(
+    private bool TryResolveTwoDConvertLineSettings(
         out IReadOnlyDictionary<string, double> settings,
         out string errorMessage)
     {
-        var definitions = GetGeneratedOutputConvertLineParameterDefinitions(GeneratedOutputConvertLineStyle);
+        var definitions = GetTwoDConvertLineParameterDefinitions(TwoDConvertLineStyle);
         var resolved = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < definitions.Length; index++)
         {
             var definition = definitions[index];
-            var rawText = GetGeneratedOutputConvertLineParameterText(index);
-            if (!TryParseGeneratedOutputSelectedTextHeight(rawText, out var value))
+            var rawText = GetTwoDConvertLineParameterText(index);
+            if (!TryParseTwoDSelectedTextHeight(rawText, out var value))
             {
                 settings = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
                 errorMessage = $"Enter a valid value for {definition.Label}";
@@ -2298,29 +2408,29 @@ public sealed partial class EditorPageViewModel
                 value = Math.Round(value);
 
             resolved[definition.Key] = value;
-            _generatedOutputConvertLineParameterText[BuildGeneratedOutputConvertLineParameterMapKey(GeneratedOutputConvertLineStyle, definition.Key)] =
-                FormatGeneratedOutputConvertLineValue(value, definition.IsInteger);
+            _twoDConvertLineParameterText[BuildTwoDConvertLineParameterMapKey(TwoDConvertLineStyle, definition.Key)] =
+                FormatTwoDConvertLineValue(value, definition.IsInteger);
         }
 
         settings = resolved;
         errorMessage = string.Empty;
-        NotifyGeneratedOutputConvertLineParameterStateChanged();
+        NotifyTwoDConvertLineParameterStateChanged();
         return true;
     }
 
-    private static string FormatGeneratedOutputConvertLineValue(double value, bool isInteger)
+    private static string FormatTwoDConvertLineValue(double value, bool isInteger)
         => isInteger
             ? Math.Round(value).ToString("0", CultureInfo.InvariantCulture)
             : value.ToString("0.###", CultureInfo.InvariantCulture);
 
-    private static bool TryParseGeneratedOutputOffsetDistance(
+    private static bool TryParseTwoDOffsetDistance(
         string rawText,
         string label,
         double minimumValue,
         out double value,
         out string errorMessage)
     {
-        if (!TryParseGeneratedOutputSelectedTextHeight(rawText, out value))
+        if (!TryParseTwoDSelectedTextHeight(rawText, out value))
         {
             errorMessage = $"Enter a valid {label}";
             return false;
@@ -2331,14 +2441,14 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    private static bool TryParseGeneratedOutputPatternCount(
+    private static bool TryParseTwoDPatternCount(
         string rawText,
         string label,
         int minimumValue,
         out int value,
         out string errorMessage)
     {
-        if (!TryParseGeneratedOutputSelectedTextHeight(rawText, out var parsedValue))
+        if (!TryParseTwoDSelectedTextHeight(rawText, out var parsedValue))
         {
             value = 0;
             errorMessage = $"Enter a valid {label}";
@@ -2350,37 +2460,37 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    private bool ApplyGeneratedOutputRectangularPattern()
+    private bool ApplyTwoDRectangularPattern()
     {
-        if (GeneratedOutputPreviewDocument is null)
+        if (TwoDDocument is null)
             return false;
 
-        var selectedPaths = GetSelectedGeneratedOutputPaths();
+        var selectedPaths = GetSelectedTwoDPaths();
         if (selectedPaths.Count == 0)
         {
             StatusText = "Select one or more 2D entities before applying a rectangular pattern";
             return false;
         }
 
-        if (!TryParseGeneratedOutputPatternCount(GeneratedOutputPatternCopiesXText, "pattern X count", 1, out var copiesX, out var copiesXErrorMessage))
+        if (!TryParseTwoDPatternCount(TwoDPatternCopiesXText, "pattern X count", 1, out var copiesX, out var copiesXErrorMessage))
         {
             StatusText = copiesXErrorMessage;
             return false;
         }
 
-        if (!TryParseGeneratedOutputPatternCount(GeneratedOutputPatternCopiesYText, "pattern Y count", 1, out var copiesY, out var copiesYErrorMessage))
+        if (!TryParseTwoDPatternCount(TwoDPatternCopiesYText, "pattern Y count", 1, out var copiesY, out var copiesYErrorMessage))
         {
             StatusText = copiesYErrorMessage;
             return false;
         }
 
-        if (!TryParseGeneratedOutputOffsetDistance(GeneratedOutputPatternSpacingXText, "pattern X spacing", 0.0, out var spacingX, out var spacingXErrorMessage))
+        if (!TryParseTwoDOffsetDistance(TwoDPatternSpacingXText, "pattern X spacing", 0.0, out var spacingX, out var spacingXErrorMessage))
         {
             StatusText = spacingXErrorMessage;
             return false;
         }
 
-        if (!TryParseGeneratedOutputOffsetDistance(GeneratedOutputPatternSpacingYText, "pattern Y spacing", 0.0, out var spacingY, out var spacingYErrorMessage))
+        if (!TryParseTwoDOffsetDistance(TwoDPatternSpacingYText, "pattern Y spacing", 0.0, out var spacingY, out var spacingYErrorMessage))
         {
             StatusText = spacingYErrorMessage;
             return false;
@@ -2392,7 +2502,7 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        var nextPaths = GeneratedOutputPreviewDocument.Paths.ToList();
+        var nextPaths = TwoDDocument.Paths.ToList();
         var nextSelectedIds = new List<string>();
 
         for (var row = 0; row < copiesY; row++)
@@ -2423,9 +2533,9 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
-        GeneratedOutputSelectedPathIds = nextSelectedIds;
-        GeneratedOutputSelectedMeasurementId = null;
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
+        TwoDSelectedPathIds = nextSelectedIds;
+        TwoDSelectedMeasurementId = null;
         StatusText = nextSelectedIds.Count == 1
             ? "Created 1 rectangular pattern duplicate"
             : $"Created {nextSelectedIds.Count} rectangular pattern duplicates";
@@ -2433,25 +2543,25 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    private bool ApplyGeneratedOutputCircularPattern()
+    private bool ApplyTwoDCircularPattern()
     {
-        if (GeneratedOutputPreviewDocument is null)
+        if (TwoDDocument is null)
             return false;
 
-        var selectedPaths = GetSelectedGeneratedOutputPaths();
+        var selectedPaths = GetSelectedTwoDPaths();
         if (selectedPaths.Count == 0)
         {
             StatusText = "Select one or more 2D entities before applying a circular pattern";
             return false;
         }
 
-        if (!TryParseGeneratedOutputPatternCount(GeneratedOutputPatternCircularCountText, "pattern count", 1, out var totalCount, out var countErrorMessage))
+        if (!TryParseTwoDPatternCount(TwoDPatternCircularCountText, "pattern count", 1, out var totalCount, out var countErrorMessage))
         {
             StatusText = countErrorMessage;
             return false;
         }
 
-        if (!TryParseGeneratedOutputSelectedTextHeight(GeneratedOutputPatternCircularAngleText, out var totalAngle))
+        if (!TryParseTwoDSelectedTextHeight(TwoDPatternCircularAngleText, out var totalAngle))
         {
             StatusText = "Enter a valid pattern angle";
             return false;
@@ -2463,7 +2573,7 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        if (!TryGetGeneratedOutputPatternPivot(selectedPaths, out var pivot))
+        if (!TryGetTwoDPatternPivot(selectedPaths, out var pivot))
         {
             StatusText = "The current selection does not have enough geometry to compute a circular pattern pivot";
             return false;
@@ -2473,7 +2583,7 @@ public sealed partial class EditorPageViewModel
         var angleStep = fullCircle
             ? totalAngle / totalCount
             : totalAngle / Math.Max(totalCount - 1, 1);
-        var nextPaths = GeneratedOutputPreviewDocument.Paths.ToList();
+        var nextPaths = TwoDDocument.Paths.ToList();
         var nextSelectedIds = new List<string>();
 
         for (var index = 1; index < totalCount; index++)
@@ -2497,9 +2607,9 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        GeneratedOutputPreviewDocument = CreateUpdatedGeneratedOutputDocument(GeneratedOutputPreviewDocument, nextPaths);
-        GeneratedOutputSelectedPathIds = nextSelectedIds;
-        GeneratedOutputSelectedMeasurementId = null;
+        TwoDDocument = CreateUpdatedTwoDDocument(TwoDDocument, nextPaths);
+        TwoDSelectedPathIds = nextSelectedIds;
+        TwoDSelectedMeasurementId = null;
         StatusText = nextSelectedIds.Count == 1
             ? "Created 1 circular pattern duplicate"
             : $"Created {nextSelectedIds.Count} circular pattern duplicates";
@@ -2507,7 +2617,7 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    private static bool TryGetGeneratedOutputPatternPivot(
+    private static bool TryGetTwoDPatternPivot(
         IReadOnlyList<Editor2DPreviewPath> selectedPaths,
         out Editor2DPoint pivot)
     {
@@ -2528,50 +2638,65 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    private void SyncGeneratedOutputSelectedTextEditorState()
+    private void SyncTwoDSelectedTextEditorState()
     {
-        if (!TryGetSingleSelectedGeneratedOutputTextPath(out var selectedTextPath))
+        if (!TryGetSingleSelectedTwoDTextPath(out var selectedTextPath))
         {
-            _generatedOutputSelectedTextDraft = string.Empty;
-            _generatedOutputSelectedTextHeightText = "5";
-            SetGeneratedOutputSelectedTextHeightValidity(true);
-            NotifyGeneratedOutputSelectedTextEditorStateChanged();
+            _twoDSelectedTextDraft = string.Empty;
+            _twoDSelectedTextHeightText = "5";
+            _twoDSelectedTextFontFamily = "Inter";
+            _twoDSelectedTextCharacterSpacingText = "0";
+            _twoDSelectedTextBold = false;
+            _twoDSelectedTextItalic = false;
+            _twoDSelectedTextUnderline = false;
+            SetTwoDSelectedTextHeightValidity(true);
+            NotifyTwoDSelectedTextEditorStateChanged();
             return;
         }
 
-        _generatedOutputSelectedTextDraft = selectedTextPath.Text ?? string.Empty;
-        _generatedOutputSelectedTextHeightText = Math.Max(selectedTextPath.TextHeight ?? 5.0, 0.1)
+        _twoDSelectedTextDraft = selectedTextPath.Text ?? string.Empty;
+        _twoDSelectedTextHeightText = Math.Max(selectedTextPath.TextHeight ?? 5.0, 0.1)
             .ToString("0.###", CultureInfo.InvariantCulture);
-        SetGeneratedOutputSelectedTextHeightValidity(true);
-        NotifyGeneratedOutputSelectedTextEditorStateChanged();
+        _twoDSelectedTextFontFamily = string.IsNullOrWhiteSpace(selectedTextPath.FontFamily) ? "Inter" : selectedTextPath.FontFamily;
+        _twoDSelectedTextCharacterSpacingText = selectedTextPath.CharacterSpacing.ToString("0.###", CultureInfo.InvariantCulture);
+        _twoDSelectedTextBold = selectedTextPath.IsBold;
+        _twoDSelectedTextItalic = selectedTextPath.IsItalic;
+        _twoDSelectedTextUnderline = selectedTextPath.IsUnderline;
+        SetTwoDSelectedTextHeightValidity(true);
+        NotifyTwoDSelectedTextEditorStateChanged();
     }
 
-    private void NotifyGeneratedOutputSelectedTextEditorStateChanged()
+    private void NotifyTwoDSelectedTextEditorStateChanged()
     {
-        OnPropertyChanged(nameof(HasSingleGeneratedOutputTextSelection));
-        OnPropertyChanged(nameof(GeneratedOutputSelectedTextDraft));
-        OnPropertyChanged(nameof(GeneratedOutputSelectedTextHeightText));
-        OnPropertyChanged(nameof(CanApplyGeneratedOutputSelectedText));
+        OnPropertyChanged(nameof(HasSingleTwoDTextSelection));
+        OnPropertyChanged(nameof(TwoDSelectedTextDraft));
+        OnPropertyChanged(nameof(TwoDSelectedTextHeightText));
+        OnPropertyChanged(nameof(TwoDSelectedTextFontFamily));
+        OnPropertyChanged(nameof(TwoDSelectedTextCharacterSpacingText));
+        OnPropertyChanged(nameof(TwoDSelectedTextBold));
+        OnPropertyChanged(nameof(TwoDSelectedTextItalic));
+        OnPropertyChanged(nameof(TwoDSelectedTextUnderline));
+        OnPropertyChanged(nameof(CanApplyTwoDSelectedText));
     }
 
-    private void SetGeneratedOutputSelectedTextHeightValidity(bool isValid)
+    private void SetTwoDSelectedTextHeightValidity(bool isValid)
     {
-        if (_isGeneratedOutputSelectedTextHeightValid == isValid)
+        if (_isTwoDSelectedTextHeightValid == isValid)
             return;
 
-        _isGeneratedOutputSelectedTextHeightValid = isValid;
-        OnPropertyChanged(nameof(IsGeneratedOutputSelectedTextHeightValid));
-        OnPropertyChanged(nameof(IsGeneratedOutputSelectedTextHeightInvalid));
+        _isTwoDSelectedTextHeightValid = isValid;
+        OnPropertyChanged(nameof(IsTwoDSelectedTextHeightValid));
+        OnPropertyChanged(nameof(IsTwoDSelectedTextHeightInvalid));
     }
 
-    private bool TryGetSingleSelectedGeneratedOutputTextPath(out Editor2DPreviewPath selectedTextPath)
+    private bool TryGetSingleSelectedTwoDTextPath(out Editor2DPreviewPath selectedTextPath)
     {
         selectedTextPath = null!;
-        if (GeneratedOutputPreviewDocument is null || GeneratedOutputSelectedPathIds.Count != 1)
+        if (TwoDDocument is null || TwoDSelectedPathIds.Count != 1)
             return false;
 
-        var candidate = GeneratedOutputPreviewDocument.Paths.FirstOrDefault(path =>
-            string.Equals(path.Id, GeneratedOutputSelectedPathIds[0], StringComparison.Ordinal)
+        var candidate = TwoDDocument.Paths.FirstOrDefault(path =>
+            string.Equals(path.Id, TwoDSelectedPathIds[0], StringComparison.Ordinal)
             && path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase));
         if (candidate is null)
             return false;
@@ -2580,7 +2705,7 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    private static bool TryParseGeneratedOutputSelectedTextHeight(string raw, out double value)
+    private static bool TryParseTwoDSelectedTextHeight(string raw, out double value)
     {
         if (double.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value))
             return true;
@@ -2625,7 +2750,7 @@ public sealed partial class EditorPageViewModel
         return $"{displaySize:0.##} {units[unitIndex]}";
     }
 
-    private static IReadOnlyList<Editor2DMeasurement> BuildAutoGeneratedOutputMeasurements(Editor2DPreviewDocument document)
+    private static IReadOnlyList<Editor2DMeasurement> BuildAutoTwoDMeasurements(Editor2DPreviewDocument document)
     {
         const double minimumSize = 1e-6;
         var measurements = new List<Editor2DMeasurement>();
@@ -2687,7 +2812,7 @@ public sealed partial class EditorPageViewModel
         return measurements;
     }
 
-    private static Editor2DPreviewDocument CreateUpdatedGeneratedOutputDocument(
+    private static Editor2DPreviewDocument CreateUpdatedTwoDDocument(
         Editor2DPreviewDocument document,
         IReadOnlyList<Editor2DPreviewPath> nextPaths)
     {
@@ -2698,12 +2823,12 @@ public sealed partial class EditorPageViewModel
         return document with
         {
             Paths = nextPaths,
-            Bounds = MeasureGeneratedOutputBounds(nextPaths),
+            Bounds = MeasureTwoDBounds(nextPaths),
             EntityCounts = entityCounts,
         };
     }
 
-    private static Editor2DBounds MeasureGeneratedOutputBounds(IReadOnlyList<Editor2DPreviewPath> paths)
+    private static Editor2DBounds MeasureTwoDBounds(IReadOnlyList<Editor2DPreviewPath> paths)
     {
         var points = paths.SelectMany(static path => path.Points).ToArray();
         if (points.Length == 0)

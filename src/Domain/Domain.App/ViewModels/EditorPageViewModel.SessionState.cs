@@ -33,11 +33,11 @@ public sealed partial class EditorPageViewModel
             ErrorMessage = null;
             ViewportReady = false;
             SelectedFaceCount = 0;
-            StepJsonContent = null;
+            ViewportJsonContent = null;
             SetSourceModelPath(null);
             SetDistortionData(string.Empty);
-            ClearGeneratedOutputState();
-            IsShowingGeneratedOutputWorkspace = false;
+            ClearTwoDState();
+            ActiveEditorMode = EditorMode.ThreeD;
             ActiveTool = Editor3DTool.Select;
             ThreeDOrthographic = false;
             IsPlaneSelectionActive = false;
@@ -126,8 +126,9 @@ public sealed partial class EditorPageViewModel
             return;
 
         var state = await _project3DStateService.LoadAsync(ProjectSession.ProjectFilePath, token).ConfigureAwait(true);
-        StepJsonContent = state.StepJson;
+        ViewportJsonContent = state.ViewportJson;
         SetSourceModelPath(state.SourceModelPath);
+        _stepTopology = state.StepTopology;
         SetDistortionData(string.Empty);
         Bodies = state.Bodies;
         BodyOffsets = state.BodyOffsets;
@@ -143,7 +144,7 @@ public sealed partial class EditorPageViewModel
         }
         else
         {
-            ClearGeneratedOutputState();
+            ClearTwoDState();
         }
         ApplyPersistedUnfoldWorkspaceState(state.UnfoldWorkspaceState);
         RefreshSelectionState();
@@ -165,12 +166,20 @@ public sealed partial class EditorPageViewModel
 
         if (state.HasModel)
         {
-            RequestViewportScript(BuildLoadModelScript(state.StepJson!));
+            RequestViewportScript(BuildLoadModelScript(state.ViewportJson!));
             RequestBodyVisibilityStateSync();
             ApplyPersistedProjectionWorkspaceState(state.ProjectionWorkspaceState);
         }
 
         ApplyPersistedEditorWorkspaceState(state.WorkspaceState);
+        ApplyPersistedTwoDWorkspaceState(state.TwoDWorkspaceState);
+        if (state.ThreeDWorkspaceState is { } threeDState)
+        {
+            _threeDWorkspace.RestoreState(threeDState);
+            ApplyPersistedProjectionWorkspaceState(threeDState.Projection);
+            ApplyPersistedUnfoldWorkspaceState(threeDState.Unfold);
+            NotifyThreeDWorkspaceFacadeProperties();
+        }
 
         if (_pendingSourceModelPaths.Count > 0)
         {

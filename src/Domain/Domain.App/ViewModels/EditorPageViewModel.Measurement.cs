@@ -71,7 +71,7 @@ public sealed partial class EditorPageViewModel
     public string FaceDistortionInspectorHint => SelectedFaces.Count switch
     {
         0 => "Select one face in the viewport or face list. Measure keeps a single active face.",
-        _ when !HasUsableSourceModelAsset => "This restored 3D workspace has no native source asset available for distortion analysis. Re-import the model or reopen a .stch with embedded 3D data.",
+        _ when !HasUsableSourceModelAsset => "This restored 3D workspace has no OpenGeometry mesh source asset available for distortion analysis. Re-import the model or reopen a .stch with embedded 3D data.",
         _ when HasFaceDistortionSummary => $"{DistortionModeLabel} heatmap applied to the current face. Blue is lower distortion, red is higher.",
         _ => $"Computing {DistortionModeLabel.ToLowerInvariant()} distortion for the current face.",
     };
@@ -81,7 +81,7 @@ public sealed partial class EditorPageViewModel
         : "Analyze Face";
 
     public string FaceDistortionStatusText => !HasUsableSourceModelAsset && HasLoadedModel
-        ? "Distortion analysis is unavailable until the native 3D source asset is restored."
+        ? "Distortion analysis is unavailable until the OpenGeometry mesh source asset is restored."
         : FaceDistortionSummary is null
         ? "Distortion values appear after a face is triangulated and analyzed."
         : $"{DistortionModeLabel} mode across {FaceDistortionSummary.SampleCount} mesh samples.";
@@ -119,7 +119,7 @@ public sealed partial class EditorPageViewModel
     public string FaceDistortionModeSummary
         => CreateFaceDistortionAssessment()?.ModeSummary
            ?? (!HasUsableSourceModelAsset && HasLoadedModel
-               ? "Native source asset is required before distortion analysis can run."
+               ? "OpenGeometry mesh source asset is required before distortion analysis can run."
                : "Distortion mode comparison appears after analysis completes.");
 
     public async Task RefreshFaceDistortionAsync(CancellationToken cancellationToken = default)
@@ -132,7 +132,7 @@ public sealed partial class EditorPageViewModel
 
         if (!HasUsableSourceModelAsset)
         {
-            StatusText = "Native source asset required";
+            StatusText = "OpenGeometry mesh source asset required";
             return;
         }
 
@@ -278,7 +278,7 @@ public sealed partial class EditorPageViewModel
             };
 
         var surfaceBehaviorSummary = isDevelopableLike
-            ? $"{faceType} face behaves as a developable surface in the native flattening pass."
+            ? $"{faceType} face behaves as a developable surface in the OpenGeometry mesh flattening pass."
             : summary.Maximum <= NegligibleDistortionThreshold
                 ? "Sampled distortion stays near zero across the selected face."
                 : $"Sampled distortion ranges from {summary.Minimum:0.###} to {summary.Maximum:0.###} across the selected face.";

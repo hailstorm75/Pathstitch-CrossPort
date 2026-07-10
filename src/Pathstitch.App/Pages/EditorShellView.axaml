@@ -1,0 +1,280 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorShellView"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:pages="using:Pathstitch.App.Pages"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.shell"
+  Focusable="True">
+  <UserControl.Resources>
+    <SolidColorBrush x:Key="BaseBackgroundBrush" Color="#0D0D10" />
+    <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#141418" />
+    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#1C1C22" />
+    <SolidColorBrush x:Key="PrimaryTextBrush" Color="#E4E4EA" />
+    <SolidColorBrush x:Key="SecondaryTextBrush" Color="#6A6A74" />
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#3E3E48" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#4D7FFF" />
+    <SolidColorBrush x:Key="AccentDimBrush" Color="#1F2D52" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#1FFFFFFF" />
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <Style Selector="Button.tool-button">
+      <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <Style Selector="Button.tool-button:pointerover">
+      <Setter Property="Background" Value="#23232A" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+    </Style>
+
+    <Style Selector="Button.tool-button.active">
+      <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.panel-button">
+      <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="Padding" Value="10,8" />
+    </Style>
+
+    <Style Selector="Button.panel-button:pointerover">
+      <Setter Property="Background" Value="#23232A" />
+    </Style>
+
+    <Style Selector="Button.face-row">
+      <Setter Property="Background" Value="#11000000" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="Padding" Value="8,6" />
+    </Style>
+
+    <Style Selector="Button.face-row:pointerover">
+      <Setter Property="Background" Value="#23232A" />
+    </Style>
+
+    <Style Selector="Button.face-row.active">
+      <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.body-select">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+
+    <Style Selector="Button.body-select.active">
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+
+    <Style Selector="Border.body-card.active">
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+    </Style>
+
+    <Style Selector="Button.chip-button">
+      <Setter Property="Background" Value="#11000000" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+      <Setter Property="Padding" Value="10,6" />
+    </Style>
+
+    <Style Selector="Button.chip-button.active">
+      <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+  </UserControl.Styles>
+  <Grid Background="{StaticResource BaseBackgroundBrush}" RowDefinitions="Auto,*">
+    <Border
+      AutomationProperties.AutomationId="editor.header"
+      Background="{StaticResource PanelBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      BorderThickness="0,0,0,1"
+      Padding="18,14">
+      <DockPanel LastChildFill="True">
+        <StackPanel Spacing="3">
+          <TextBlock
+            FontSize="18"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource PrimaryTextBrush}"
+            Text="{Binding ProjectTitle}" />
+          <TextBlock
+            FontSize="11"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding ProjectSubtitle}" />
+        </StackPanel>
+
+        <StackPanel
+          DockPanel.Dock="Right"
+          Orientation="Horizontal"
+          Spacing="10"
+          VerticalAlignment="Center">
+          <pages:EditorCommandPalette />
+          <Border
+            Padding="10,6"
+            Background="{StaticResource AccentDimBrush}"
+            BorderBrush="{StaticResource AccentBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <StackPanel Spacing="2">
+              <TextBlock
+                FontSize="9"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource AccentBrush}"
+                Text="3D KERNEL" />
+              <TextBlock
+                FontSize="11"
+                Foreground="{StaticResource PrimaryTextBrush}"
+                Text="{Binding GeometryKernelDisplayName}" />
+            </StackPanel>
+          </Border>
+
+          <Border
+            Padding="10,6"
+            Background="{StaticResource InputBackgroundBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <TextBlock
+              FontSize="11"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding StatusText}" />
+          </Border>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+    <Grid Grid.Row="1" AutomationProperties.AutomationId="editor.regions">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="56" MinWidth="56" MaxWidth="180" />
+        <ColumnDefinition Width="4" />
+        <ColumnDefinition Width="220" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="280" />
+      </Grid.ColumnDefinitions>
+      <pages:EditorToolRail Grid.Column="0" AutomationProperties.AutomationId="editor.tool-rail" />
+      <GridSplitter
+        Grid.Column="1"
+        AutomationProperties.AutomationId="editor.tool-rail.resize"
+        Background="{StaticResource BorderBrush}"
+        ResizeDirection="Columns" />
+      <Grid Grid.Column="2" AutomationProperties.AutomationId="editor.context-panel">
+        <pages:Editor3DBodiesPanel AutomationProperties.AutomationId="editor.context.3d-bodies" IsVisible="{Binding IsShowing3DWorkspace}" />
+        <pages:Editor2DLayersPanel AutomationProperties.AutomationId="editor.context.2d-layers" IsVisible="{Binding IsShowingTwoDWorkspace}" />
+        <Grid IsVisible="{Binding IsShowingBatchWorkspace}">
+          <pages:EditorBatchContextPanel AutomationProperties.AutomationId="editor.context.batch" DataContext="{Binding BatchWorkspace}" />
+        </Grid>
+      </Grid>
+      <Grid Grid.Column="3" Background="{StaticResource BaseBackgroundBrush}" AutomationProperties.AutomationId="editor.workspace-host">
+        <pages:Editor3DView x:Name="ThreeDWorkspace" AutomationProperties.AutomationId="editor.workspace.3d" IsVisible="{Binding IsShowing3DWorkspace}" />
+        <pages:Editor2DView x:Name="TwoDWorkspace" AutomationProperties.AutomationId="editor.workspace.2d" IsVisible="{Binding IsShowingTwoDWorkspace}" />
+        <Grid IsVisible="{Binding IsShowingBatchWorkspace}">
+          <pages:EditorBatchView AutomationProperties.AutomationId="editor.workspace.batch" DataContext="{Binding BatchWorkspace}" />
+        </Grid>
+        <Button
+          Name="HomeFrameButton"
+          AutomationProperties.AutomationId="editor.workspace.frame-home"
+          HorizontalAlignment="Right"
+          VerticalAlignment="Top"
+          Margin="12"
+          Padding="0"
+          Width="34"
+          Height="34"
+          Background="#E6141418"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          IsVisible="{Binding CanFrameHome}"
+          Click="OnHomeFrameClicked">
+          <TextBlock
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            FontSize="13"
+            Foreground="{StaticResource PrimaryTextBrush}"
+            Text="⌂" />
+        </Button>
+
+        <Border
+          AutomationProperties.AutomationId="editor.mode-switcher"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Top"
+          Margin="12"
+          Padding="8"
+          Background="#E6141418"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="8">
+          <StackPanel Spacing="8">
+            <TextBlock
+              FontSize="11"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="{Binding WorkspaceSurfaceTitle}" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button
+                AutomationProperties.AutomationId="editor.mode.3d"
+                Classes="chip-button"
+                Classes.active="{Binding IsShowing3DWorkspace}"
+                Content="3D"
+                Click="OnShow3DWorkspaceClicked" />
+              <Button
+                AutomationProperties.AutomationId="editor.mode.2d"
+                Classes="chip-button"
+                Classes.active="{Binding IsShowingTwoDWorkspace}"
+                Content="2D Workspace"
+                Click="OnShowTwoDWorkspaceClicked" />
+              <Button
+                AutomationProperties.AutomationId="editor.mode.batch"
+                Classes="chip-button"
+                Classes.active="{Binding IsShowingBatchWorkspace}"
+                Content="Batch"
+                Click="OnShowBatchWorkspaceClicked" />
+            </StackPanel>
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding WorkspaceModeHint}" />
+            </StackPanel>
+          </Border>
+        <Border
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+          IsVisible="{Binding IsLoading}"
+          Padding="14,10"
+          Background="#DD141418"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="10">
+          <StackPanel Spacing="8">
+            <ProgressBar IsIndeterminate="True" Width="180" />
+            <TextBlock
+              HorizontalAlignment="Center"
+              FontSize="11"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding ViewportStateText}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+      <pages:EditorInspectorHost Grid.Column="4" AutomationProperties.AutomationId="editor.inspector-host" />
+    </Grid>
+  </Grid>
+</UserControl>

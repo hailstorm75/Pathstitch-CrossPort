@@ -15,7 +15,7 @@ public sealed record EditorUnfoldWorkspaceState(
     [property: JsonPropertyName("holeSpacingText")] string HoleSpacingText,
     [property: JsonPropertyName("holeMarginText")] string HoleMarginText)
 {
-    public EditorUnfoldWorkspaceState NormalizeForNativeEditor()
+    public EditorUnfoldWorkspaceState NormalizeForOpenGeometryEditor()
         => this with
         {
             NetLayoutIndex = 1,

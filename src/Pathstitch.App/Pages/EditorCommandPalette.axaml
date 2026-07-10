@@ -1,0 +1,70 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorCommandPalette"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.command-search">
+  <Grid Width="240">
+    <TextBox
+      x:Name="CommandSearchInput"
+      AutomationProperties.AutomationId="editor.command-search.input"
+      Background="{StaticResource InputBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      Foreground="{StaticResource PrimaryTextBrush}"
+      PlaceholderText="Search tools"
+      Text="{Binding CommandSearchQuery, Mode=TwoWay}"
+      KeyDown="OnSearchKeyDown" />
+    <Popup
+      IsOpen="{Binding IsCommandSearchOpen}"
+      Placement="Bottom"
+      PlacementTarget="{Binding #CommandSearchInput}">
+      <Border
+        Width="240"
+        MaxHeight="360"
+        Margin="0,4,0,0"
+        Padding="6"
+        Background="{StaticResource PanelBackgroundBrush}"
+        BorderBrush="{StaticResource BorderBrush}"
+        BorderThickness="1"
+        CornerRadius="8">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding CommandSearchResults}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="viewModels:EditorSidebarToolItemViewModel">
+            <Button
+              AutomationProperties.AutomationId="{Binding Identifier, StringFormat=command.{0}}"
+              Margin="0,2"
+              Padding="8,6"
+              HorizontalContentAlignment="Stretch"
+              Background="Transparent"
+              BorderThickness="0"
+              Tag="{Binding Identifier}"
+              Click="OnCommandClicked">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2">
+                  <TextBlock
+                    Foreground="{StaticResource PrimaryTextBrush}"
+                    Text="{Binding Label}" />
+                  <TextBlock
+                    FontSize="10"
+                    Foreground="{StaticResource SecondaryTextBrush}"
+                    Text="{Binding Hint}"
+                    TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <TextBlock
+                  Grid.Column="1"
+                  Margin="8,0,0,0"
+                  VerticalAlignment="Center"
+                  Foreground="{StaticResource SecondaryTextBrush}"
+                  Text="{Binding ShortcutText}" />
+              </Grid>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+    </Popup>
+  </Grid>
+</UserControl>

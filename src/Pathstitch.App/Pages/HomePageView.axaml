@@ -6,6 +6,7 @@
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:HomePageViewModel"
+  AutomationProperties.AutomationId="home.page"
   d:DesignHeight="720"
   d:DesignWidth="1180"
   mc:Ignorable="d">
@@ -109,11 +110,13 @@
 
         <StackPanel Spacing="8">
           <Button
+            AutomationProperties.AutomationId="home.action.new-project"
             Classes="sidebar-button"
             Command="{Binding CreateTemplateProjectCommand}">
             <TextBlock Text="New Project" />
           </Button>
           <Button
+            AutomationProperties.AutomationId="home.dialog.open-file"
             Classes="sidebar-button"
             Command="{Binding OpenWorkspaceFilesCommand}">
             <TextBlock Text="Open File..." />
@@ -292,6 +295,7 @@
         ColumnSpacing="16">
         <Border
           x:Name="FileDropSurface"
+          AutomationProperties.AutomationId="home.file-drop"
           Padding="20"
           Background="{StaticResource PanelBackgroundBrush}"
           BorderBrush="{StaticResource BorderBrush}"
@@ -319,8 +323,9 @@
               TextAlignment="Center"
               TextWrapping="Wrap"
               Foreground="{StaticResource SecondaryTextBrush}"
-              Text="Supports .stch, .step, .stp, .obj, .stl. Drag files here or browse from disk." />
+              Text="Supports .stch, .obj, .stl. Drag files here or browse from disk." />
             <Button
+              AutomationProperties.AutomationId="home.dialog.open-files"
               Classes="primary-action"
               Command="{Binding OpenWorkspaceFilesCommand}">
               Open Files...
@@ -370,6 +375,7 @@
           </Border>
 
           <Border
+            AutomationProperties.AutomationId="home.dialog.new-project"
             Padding="16"
             Background="{StaticResource PanelBackgroundBrush}"
             BorderBrush="{StaticResource BorderBrush}"
@@ -388,6 +394,7 @@
                   Foreground="{StaticResource SecondaryTextBrush}"
                   Text="Template" />
                 <ComboBox
+                  AutomationProperties.AutomationId="home.new-project.template"
                   ItemsSource="{Binding AvailableTemplates}"
                   SelectedItem="{Binding SelectedTemplate}"
                   DisplayMemberBinding="{Binding DisplayName}" />
@@ -398,7 +405,9 @@
                   FontSize="10"
                   Foreground="{StaticResource SecondaryTextBrush}"
                   Text="Project name" />
-                <TextBox Text="{Binding ProjectName}" />
+                <TextBox
+                  AutomationProperties.AutomationId="home.new-project.name"
+                  Text="{Binding ProjectName}" />
               </StackPanel>
 
               <TextBlock
@@ -408,6 +417,7 @@
                 Text="{Binding SelectedTemplate.Description}" />
 
               <Button
+                AutomationProperties.AutomationId="home.new-project.create"
                 Classes="primary-action"
                 HorizontalAlignment="Left"
                 Command="{Binding CreateTemplateProjectCommand}">
@@ -417,6 +427,7 @@
           </Border>
 
           <Border
+            AutomationProperties.AutomationId="home.dialog.open-project"
             Padding="16"
             Background="{StaticResource PanelBackgroundBrush}"
             BorderBrush="{StaticResource BorderBrush}"
@@ -434,6 +445,7 @@
                 Foreground="{StaticResource SecondaryTextBrush}"
                 Text="Open an existing `.stch` project and continue in the Avalonia editor." />
               <Button
+                AutomationProperties.AutomationId="home.open-project.choose"
                 Classes="secondary-action"
                 HorizontalAlignment="Left"
                 Command="{Binding OpenTemplateProjectCommand}">

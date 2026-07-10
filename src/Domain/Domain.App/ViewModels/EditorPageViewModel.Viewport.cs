@@ -11,32 +11,32 @@ public sealed partial class EditorPageViewModel
     private void FlushPendingScripts()
     {
         while (_pendingViewportScripts.Count > 0)
-            ViewportScriptRequested?.Invoke(_pendingViewportScripts.Dequeue());
+            _threeDWorkspace.RequestViewportScript(_pendingViewportScripts.Dequeue());
 
         if (SelectedFaces.Count > 0)
-            ViewportScriptRequested?.Invoke(BuildSetSelectedFacesScript(SelectedFaces));
+            _threeDWorkspace.RequestViewportScript(BuildSetSelectedFacesScript(SelectedFaces));
 
-        ViewportScriptRequested?.Invoke(BuildSetOrthographicModeScript(ThreeDOrthographic));
-        ViewportScriptRequested?.Invoke(BuildSetPlaneSelectionStateScript());
+        _threeDWorkspace.RequestViewportScript(BuildSetOrthographicModeScript(ThreeDOrthographic));
+        _threeDWorkspace.RequestViewportScript(BuildSetPlaneSelectionStateScript());
         RequestBodyVisibilityStateSync();
-        ViewportScriptRequested?.Invoke(BuildSetBodyMoveStateScript());
-        ViewportScriptRequested?.Invoke(BuildSetFaceDistortionScript(_distortionDataJson));
+        _threeDWorkspace.RequestViewportScript(BuildSetBodyMoveStateScript());
+        _threeDWorkspace.RequestViewportScript(BuildSetFaceDistortionScript(_distortionDataJson));
     }
 
     private void RequestViewportScript(string script)
     {
         if (ViewportReady)
         {
-            ViewportScriptRequested?.Invoke(script);
+            _threeDWorkspace.RequestViewportScript(script);
             return;
         }
 
         _pendingViewportScripts.Enqueue(script);
     }
 
-    private static string BuildLoadModelScript(string stepJson)
+    private static string BuildLoadModelScript(string viewportJson)
     {
-        var escaped = EscapeForJavaScriptString(stepJson);
+        var escaped = EscapeForJavaScriptString(viewportJson);
         return $"loadModel(\"{escaped}\\n\");";
     }
 

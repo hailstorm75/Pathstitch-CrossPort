@@ -11,4 +11,7 @@ public interface IProjectFileDialogService
     Task<IReadOnlyList<string>> PickSourceModelFilesAsync(CancellationToken cancellationToken = default);
 
     Task<string?> PickSourceModelFileAsync(CancellationToken cancellationToken = default);
+
+    Task<string?> PickReferenceImageFileAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
 }

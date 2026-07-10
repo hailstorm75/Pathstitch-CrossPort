@@ -6,18 +6,20 @@ public sealed partial class EditorPageViewModel
 {
     public IReadOnlyList<SelectedFace3D> SelectedFaces
     {
-        get => _selectedFaces;
+        get => _threeDWorkspace.SelectedFaces;
         private set
         {
-            if (!SetProperty(ref _selectedFaces, value))
+            if (!_threeDWorkspace.UpdateSelectedFaces(value))
                 return;
+
+            OnPropertyChanged();
 
             OnPropertyChanged(nameof(CanUnfoldSelected));
             OnPropertyChanged(nameof(UnfoldHintText));
             OnPropertyChanged(nameof(CanInspectFaceDistortion));
             OnPropertyChanged(nameof(FaceDistortionInspectorHint));
             OnPropertyChanged(nameof(FaceDistortionStatusText));
-            OnPropertyChanged(nameof(CanUseNativeSeparateFlattenSelected));
+            OnPropertyChanged(nameof(CanUseOpenGeometrySeparateFlattenSelected));
             OnPropertyChanged(nameof(SeparateFlattenSelectionSummary));
             OnPropertyChanged(nameof(UnfoldSelectedExecutionSummary));
             OnPropertyChanged(nameof(HasFaceSelection));
@@ -35,15 +37,17 @@ public sealed partial class EditorPageViewModel
 
     public IReadOnlyList<SelectedFaceDetails> SelectedFaceDetails
     {
-        get => _selectedFaceDetails;
+        get => _threeDWorkspace.SelectedFaceDetails;
         private set
         {
-            if (!SetProperty(ref _selectedFaceDetails, value))
+            if (!_threeDWorkspace.UpdateSelectedFaceDetails(value))
                 return;
+
+            OnPropertyChanged();
 
             OnPropertyChanged(nameof(MeasuredFaceTitle));
             OnPropertyChanged(nameof(MeasuredFaceSubtitle));
-            OnPropertyChanged(nameof(CanUseNativeSeparateFlattenSelected));
+            OnPropertyChanged(nameof(CanUseOpenGeometrySeparateFlattenSelected));
             OnPropertyChanged(nameof(SeparateFlattenSelectionSummary));
             OnPropertyChanged(nameof(UnfoldSelectedExecutionSummary));
             OnPropertyChanged(nameof(SelectedFacesQueueSummary));

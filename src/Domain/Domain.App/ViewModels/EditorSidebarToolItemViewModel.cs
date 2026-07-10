@@ -7,25 +7,43 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
 {
     private bool _isActive;
 
-    public EditorSidebarToolItemViewModel(EditorSidebarToolDefinition definition)
+    public EditorSidebarToolItemViewModel(EditorToolDescriptor descriptor)
     {
-        Key = definition.Key;
-        Tool = definition.Tool;
-        Action = definition.Action;
-        Label = definition.Label;
-        Hint = definition.Hint;
-        ShortcutText = definition.ShortcutText;
-        TooltipText = string.IsNullOrWhiteSpace(definition.ShortcutText)
-            ? $"{definition.Label} - {definition.Hint}"
-            : $"{definition.Label} ({definition.ShortcutText}) - {definition.Hint}";
-        IconPathData = definition.IconPathData;
-        StartsSection = definition.StartsSection;
-        IsEnabled = true;
+        Identifier = descriptor.Identifier;
+        Mode = descriptor.Mode;
+        Key = descriptor.CommandKey;
+        Tool = descriptor.ThreeDTool;
+        TwoDTool = descriptor.TwoDTool;
+        Action = descriptor.Action;
+        Label = descriptor.Label;
+        Hint = descriptor.Hint;
+        ShortcutText = descriptor.ShortcutText;
+        TooltipText = string.IsNullOrWhiteSpace(descriptor.ShortcutText)
+            ? $"{descriptor.Label} - {descriptor.Hint}"
+            : $"{descriptor.Label} ({descriptor.ShortcutText}) - {descriptor.Hint}";
+        IconKey = descriptor.IconKey;
+        IconPathData = descriptor.IconPathData;
+        HasIconPathData = !string.IsNullOrWhiteSpace(descriptor.IconPathData);
+        FallbackGlyph = string.IsNullOrWhiteSpace(descriptor.Label)
+            ? "?"
+            : descriptor.Label[..1].ToUpperInvariant();
+        InspectorPanelKey = descriptor.InspectorPanelKey;
+        GroupKey = descriptor.GroupKey;
+        Order = descriptor.Order;
+        StartsSection = descriptor.StartsSection;
+        IsEnabled = descriptor.IsEnabled;
+        IsActive = descriptor.IsSelected;
     }
+
+    public string Identifier { get; }
+
+    public EditorMode Mode { get; }
 
     public string Key { get; }
 
     public Editor3DTool? Tool { get; }
+
+    public Editor2DTool? TwoDTool { get; }
 
     public EditorSidebarAction? Action { get; }
 
@@ -37,7 +55,19 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
 
     public string TooltipText { get; }
 
+    public string IconKey { get; }
+
     public string IconPathData { get; }
+
+    public bool HasIconPathData { get; }
+
+    public string FallbackGlyph { get; }
+
+    public string? InspectorPanelKey { get; }
+
+    public string GroupKey { get; }
+
+    public int Order { get; }
 
     public bool StartsSection { get; }
 

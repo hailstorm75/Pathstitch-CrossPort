@@ -17,7 +17,6 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
-        OcctConfiguration.Configure();
 
         var serviceCollection = new ServiceCollection();
         serviceCollection
@@ -27,11 +26,19 @@ public partial class App : Application
             .AddSingleton<ProjectSessionService>()
             .AddSingleton<Project3DStateService>()
             .AddSingleton<IProjectFileDialogService, ProjectFileDialogService>()
+            .AddSingleton<IProcessLauncher, SystemProcessLauncher>()
+            .AddSingleton<IFileIntegrationService>(services =>
+                DesktopFileIntegrationServiceFactory.CreateForCurrentPlatform(
+                    services.GetRequiredService<IProcessLauncher>()))
             .AddSingleton<IEditorOutputLauncherService, EditorOutputLauncherService>()
             .AddSingleton<IEditorOutputPreviewService, DxfOutputPreviewService>()
-            .AddSingleton<IGeometryKernelDescriptorProvider, OcctGeometryKernelDescriptorProvider>()
+            .AddSingleton<IGeometryKernelDescriptorProvider, OpenGeometryKernelDescriptorProvider>()
             .AddSingleton<IEditorViewportAssetLocator, EditorViewportAssetLocator>()
-            .AddSingleton<IEditor3DOperationService, OcctEditor3DOperationService>()
+            .AddSingleton<OpenGeometryKernelBridge>()
+            .AddSingleton<IGeometryWorkerRuntimeResolver, AppOwnedGeometryWorkerRuntimeResolver>()
+            .AddSingleton<IStepGeometryKernelService, PackagedStepGeometryKernelService>()
+            .AddSingleton<IEditor2DGeometryKernelService, OpenGeometryEditor2DGeometryKernelService>()
+            .AddSingleton<IEditor3DOperationService, OpenGeometryEditor3DOperationService>()
             .AddSingleton<INavigationManager, NavigationManager>();
 
         Ioc.Default.ConfigureServices(serviceCollection.BuildServiceProvider());

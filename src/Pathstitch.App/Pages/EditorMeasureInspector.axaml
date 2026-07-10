@@ -1,0 +1,158 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorMeasureInspector"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.inspector.measure">
+  <StackPanel IsVisible="{Binding ShowMeasurePanel}" Spacing="8">
+    <TextBlock
+      FontSize="13"
+      FontWeight="SemiBold"
+      Foreground="{StaticResource SecondaryTextBrush}"
+      Text="FACE DISTORTION" />
+    <Border
+      Padding="10"
+      Background="{StaticResource InputBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      BorderThickness="1"
+      CornerRadius="6">
+      <StackPanel Spacing="8">
+        <TextBlock
+          FontSize="11"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding FaceDistortionInspectorHint}" />
+
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource MutedTextBrush}"
+          Text="{Binding FaceDistortionStatusText}" />
+
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto" ColumnSpacing="8">
+          <TextBlock
+            Grid.Row="0"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Mode" />
+          <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding DistortionModeIndex}">
+            <ComboBoxItem Content="Conformal" />
+            <ComboBoxItem Content="Equal-Area" />
+            <ComboBoxItem Content="Equidistant" />
+            <ComboBoxItem Content="Balanced" />
+          </ComboBox>
+        </Grid>
+
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="{Binding DistortionModeLabel}" />
+
+        <Button
+          Classes="panel-button"
+          IsEnabled="{Binding CanRefreshFaceDistortion}"
+          Content="{Binding FaceDistortionRefreshButtonText}"
+          Click="OnRefreshFaceDistortionClicked" />
+
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource MutedTextBrush}"
+          Text="{Binding FaceDistortionModeSummary}" />
+
+        <Border
+          IsVisible="{Binding HasFaceDistortionSummary}"
+          Padding="8"
+          Background="#11000000"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="4">
+          <StackPanel Spacing="8">
+            <StackPanel Spacing="2">
+              <TextBlock
+                FontSize="11"
+                Foreground="{StaticResource PrimaryTextBrush}"
+                Text="{Binding MeasuredFaceTitle}" />
+              <TextBlock
+                FontSize="10"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="{Binding MeasuredFaceSubtitle}" />
+            </StackPanel>
+
+            <Border
+              Padding="8"
+              Background="#16000000"
+              BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="4">
+              <StackPanel Spacing="4">
+                <TextBlock
+                  FontSize="10"
+                  Foreground="{StaticResource SecondaryTextBrush}"
+                  Text="ASSESSMENT" />
+                <TextBlock
+                  FontSize="12"
+                  FontWeight="SemiBold"
+                  Foreground="{StaticResource AccentBrush}"
+                  Text="{Binding FaceDistortionSeverityLabel}" />
+                <TextBlock
+                  FontSize="10"
+                  TextWrapping="Wrap"
+                  Foreground="{StaticResource PrimaryTextBrush}"
+                  Text="{Binding FaceDistortionSurfaceBehaviorSummary}" />
+              </StackPanel>
+            </Border>
+
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+              <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                <TextBlock
+                  FontSize="10"
+                  Foreground="{StaticResource SecondaryTextBrush}"
+                  Text="Average" />
+                <TextBlock
+                  FontSize="12"
+                  Foreground="{StaticResource PrimaryTextBrush}"
+                  Text="{Binding FaceDistortionAverageText}" />
+              </StackPanel>
+              <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                <TextBlock
+                  FontSize="10"
+                  Foreground="{StaticResource SecondaryTextBrush}"
+                  Text="Maximum" />
+                <TextBlock
+                  FontSize="12"
+                  Foreground="{StaticResource PrimaryTextBrush}"
+                  Text="{Binding FaceDistortionMaximumText}" />
+              </StackPanel>
+              <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
+                <TextBlock
+                  FontSize="10"
+                  Foreground="{StaticResource SecondaryTextBrush}"
+                  Text="Range" />
+                <TextBlock
+                  FontSize="11"
+                  Foreground="{StaticResource PrimaryTextBrush}"
+                  Text="{Binding FaceDistortionRangeText}" />
+              </StackPanel>
+              <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                <TextBlock
+                  FontSize="10"
+                  Foreground="{StaticResource SecondaryTextBrush}"
+                  Text="Samples" />
+                <TextBlock
+                  FontSize="11"
+                  Foreground="{StaticResource PrimaryTextBrush}"
+                  Text="{Binding FaceDistortionSampleCountText}" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+
+</UserControl>

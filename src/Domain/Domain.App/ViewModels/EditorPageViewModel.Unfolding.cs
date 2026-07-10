@@ -41,7 +41,7 @@ public sealed partial class EditorPageViewModel
     public string UnfoldHintText => !HasLoadedModel
         ? "Load a model to begin flattening faces."
         : !HasUsableSourceModelAsset
-            ? "This restored 3D workspace is view-only until a native source asset is available. Re-import the model or reopen a .stch with embedded 3D data."
+            ? "This restored 3D workspace is view-only until an OpenGeometry mesh source asset is available. Re-import the model or reopen a .stch with embedded 3D data."
         : SelectedFaces.Count == 0
             ? "Select faces in the list or viewport (Shift-click for multiple)."
             : $"{SelectedFaces.Count} face(s) selected for separate flattening.";

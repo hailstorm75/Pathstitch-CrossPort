@@ -6,17 +6,67 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class EditorPageViewModel
 {
-    private readonly IReadOnlyList<EditorSidebarToolItemViewModel> _sidebarTools = CreateSidebarTools();
+    private IReadOnlyList<EditorToolDescriptor> _toolDescriptors = EditorToolCatalog.All;
+    private IReadOnlyList<EditorSidebarToolItemViewModel> _sidebarTools = CreateSidebarTools(EditorToolCatalog.All);
+    private string _commandSearchQuery = string.Empty;
 
-    public IReadOnlyList<EditorSidebarToolItemViewModel> SidebarTools => _sidebarTools;
+    public IReadOnlyList<EditorSidebarToolItemViewModel> SidebarTools
+        => _sidebarTools
+            .Where(tool => tool.Mode == ActiveEditorMode)
+            .OrderBy(tool => tool.Order)
+            .ThenBy(tool => tool.Identifier, StringComparer.Ordinal)
+            .ToArray();
+
+    public string CommandSearchQuery
+    {
+        get => _commandSearchQuery;
+        set
+        {
+            if (!SetProperty(ref _commandSearchQuery, value ?? string.Empty))
+                return;
+
+            OnPropertyChanged(nameof(CommandSearchResults));
+            OnPropertyChanged(nameof(IsCommandSearchOpen));
+        }
+    }
+
+    public bool IsCommandSearchOpen => !string.IsNullOrWhiteSpace(CommandSearchQuery);
+
+    public IReadOnlyList<EditorSidebarToolItemViewModel> CommandSearchResults
+    {
+        get
+        {
+            var query = CommandSearchQuery.Trim();
+            if (query.Length == 0)
+                return SidebarTools;
+
+            return SidebarTools
+                .Where(item => item.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || item.Hint.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || item.Key.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || item.Identifier.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || item.ShortcutText?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+                .ToArray();
+        }
+    }
+
+    public IReadOnlyList<EditorToolCustomization> ToolCustomizations
+        => _toolDescriptors
+            .Select(descriptor => new EditorToolCustomization(
+                descriptor.Identifier,
+                descriptor.Order,
+                descriptor.ShortcutText))
+            .ToArray();
 
     public Editor3DTool ActiveTool
     {
-        get => _activeTool;
+        get => _threeDWorkspace.ActiveTool;
         private set
         {
-            if (!SetProperty(ref _activeTool, value))
+            if (!_threeDWorkspace.ActivateTool(value))
                 return;
+
+            OnPropertyChanged();
 
             SyncSidebarToolStates();
             OnPropertyChanged(nameof(IsSelectToolActive));
@@ -50,19 +100,28 @@ public sealed partial class EditorPageViewModel
 
     public bool IsOutputToolActive => ActiveTool == Editor3DTool.Output;
 
-    public string ActiveToolLabel => SidebarTools.FirstOrDefault(tool => tool.IsActive)?.Label ?? ActiveTool.ToString();
+    public string ActiveToolLabel => SidebarTools.FirstOrDefault(tool => tool.IsActive)?.Label
+        ?? (ActiveEditorMode switch
+        {
+            EditorMode.TwoD => TwoDActiveTool.ToString(),
+            EditorMode.ThreeD => ActiveTool.ToString(),
+            EditorMode.Batch => "Batch",
+            _ => "Editor",
+        });
 
-    public bool ShowSelectionPanel => ActiveTool is Editor3DTool.Select or Editor3DTool.Measure or Editor3DTool.Unfold;
+    public bool ShowSelectionPanel
+        => IsShowing3DWorkspace
+            && ActiveTool is Editor3DTool.Select or Editor3DTool.Measure or Editor3DTool.Unfold;
 
-    public bool ShowMoveBodiesPanel => IsMoveToolActive;
+    public bool ShowMoveBodiesPanel => IsShowing3DWorkspace && IsMoveToolActive;
 
-    public bool ShowProjectionPanel => IsPlaneToolActive;
+    public bool ShowProjectionPanel => IsShowing3DWorkspace && IsPlaneToolActive;
 
-    public bool ShowMeasurePanel => IsMeasureToolActive;
+    public bool ShowMeasurePanel => IsShowing3DWorkspace && IsMeasureToolActive;
 
-    public bool ShowUnfoldPanel => IsUnfoldToolActive;
+    public bool ShowUnfoldPanel => IsShowing3DWorkspace && IsUnfoldToolActive;
 
-    public bool ShowOutputPanel => IsOutputToolActive;
+    public bool ShowOutputPanel => IsShowing3DWorkspace && IsOutputToolActive;
 
     public void ActivateSidebarItem(string itemKey)
     {
@@ -76,55 +135,61 @@ public sealed partial class EditorPageViewModel
             return;
         }
 
+        if (item.TwoDTool is Editor2DTool twoDTool)
+        {
+            TwoDActiveTool = twoDTool;
+            return;
+        }
+
         if (item.Action is EditorSidebarAction action)
             ExecuteSidebarAction(action);
     }
 
-    public bool TryActivateEditorShortcut(string shortcutToken)
+    public void ActivateCommandSearchItem(string identifier)
     {
-        if (IsShowingGeneratedOutputWorkspace)
+        var item = CommandSearchResults.FirstOrDefault(candidate =>
+            string.Equals(candidate.Identifier, identifier, StringComparison.Ordinal));
+        if (item is null)
+            return;
+
+        ActivateSidebarItem(item.Key);
+        CommandSearchQuery = string.Empty;
+    }
+
+    public void CustomizeTool(string identifier, int order, string? shortcutText)
+    {
+        if (!_toolDescriptors.Any(descriptor => string.Equals(
+                descriptor.Identifier,
+                identifier,
+                StringComparison.Ordinal)))
         {
-            return shortcutToken switch
-            {
-                "select" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputSelectTool),
-                "move" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputMoveTool),
-                "project" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputPanTool),
-                "measure" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputMeasureTool),
-                "dimension" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputDimensionTool),
-                "scale" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputScaleTool),
-                "mirror" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputMirrorTool),
-                "offset" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputOffsetTool),
-                "add-thickness" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputAddThicknessTool),
-                "cleanup" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputCleanupTool),
-                "trim" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputTrimTool),
-                "fillet" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputFilletTool),
-                "chamfer" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputChamferTool),
-                "convert-lines" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputConvertLinesTool),
-                "unfold" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputLineTool),
-                "line" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputLineTool),
-                "rectangle" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputRectangleTool),
-                "circle" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputCircleTool),
-                "polygon" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputPolygonTool),
-                "text" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputTextTool),
-                "pen" => ActivateGeneratedOutputShortcut(ActivateGeneratedOutputPenTool),
-                "output" => ActivateGeneratedOutputShortcut(ShowGeneratedOutputWorkspace),
-                "frame-home" => ActivateGeneratedOutputShortcut(FrameGeneratedOutputToContent),
-                "delete-selection" => DeleteGeneratedOutputSelection(),
-                "escape" => HandleGeneratedOutputEscapeShortcut(),
-                _ => false,
-            };
+            throw new ArgumentException($"Unknown editor tool identifier '{identifier}'.", nameof(identifier));
         }
 
-        return shortcutToken switch
+        var customizations = ToolCustomizations
+            .Select(customization => string.Equals(customization.Identifier, identifier, StringComparison.Ordinal)
+                ? customization with { Order = order, ShortcutText = shortcutText }
+                : customization)
+            .ToArray();
+        ApplyToolCustomizations(customizations, requestPersistence: true);
+    }
+
+    public bool TryActivateEditorShortcut(string shortcutText)
+    {
+        if (ActiveEditorMode == EditorMode.Batch || string.IsNullOrWhiteSpace(shortcutText))
+            return false;
+
+        var descriptor = EditorToolCatalog.FindByShortcut(_toolDescriptors, ActiveEditorMode, shortcutText);
+        if (descriptor is not null)
         {
-            "select" => TryActivateSidebarShortcut("select"),
-            "move" => TryActivateSidebarShortcut("move"),
-            "project" => TryActivateSidebarShortcut("project"),
-            "measure" => TryActivateSidebarShortcut("measure"),
-            "unfold" => TryActivateSidebarShortcut("unfold"),
-            "output" => TryActivateSidebarShortcut("output"),
-            "frame-home" => TryActivateSidebarShortcut("frame-home"),
-            "camera-mode" => TryActivateSidebarShortcut("camera-mode"),
+            ActivateSidebarItem(descriptor.CommandKey);
+            return true;
+        }
+
+        return shortcutText.Trim().ToLowerInvariant() switch
+        {
+            "delete-selection" when IsShowingTwoDWorkspace => DeleteTwoDSelection(),
+            "escape" when IsShowingTwoDWorkspace => HandleTwoDEscapeShortcut(),
             "escape" => HandleEscapeShortcut(),
             _ => false,
         };
@@ -243,18 +308,22 @@ public sealed partial class EditorPageViewModel
 
     private void SyncSidebarToolStates()
     {
-        foreach (var tool in SidebarTools)
+        foreach (var tool in _sidebarTools)
         {
-            tool.IsActive = tool.Tool == ActiveTool
-                || tool.Action is EditorSidebarAction.ToggleOrthographic && ThreeDOrthographic;
-            tool.IsEnabled = tool.Action is not EditorSidebarAction.FrameHome || CanFrameHome;
+            tool.IsActive = tool.Mode == ActiveEditorMode
+                && (tool.Tool == ActiveTool
+                    || tool.TwoDTool == TwoDActiveTool
+                    || tool.Action is EditorSidebarAction.ToggleOrthographic && ThreeDOrthographic);
+            tool.IsEnabled = tool.Mode == ActiveEditorMode
+                && (tool.Action is not EditorSidebarAction.FrameHome || CanFrameHome);
         }
     }
 
-    private static IReadOnlyList<EditorSidebarToolItemViewModel> CreateSidebarTools()
+    private static IReadOnlyList<EditorSidebarToolItemViewModel> CreateSidebarTools(
+        IReadOnlyList<EditorToolDescriptor> descriptors)
     {
-        var tools = EditorSidebarToolCatalog.Default
-            .Select(static definition => new EditorSidebarToolItemViewModel(definition))
+        var tools = descriptors
+            .Select(static descriptor => new EditorSidebarToolItemViewModel(descriptor))
             .ToArray();
 
         var activeTool = tools.FirstOrDefault(static tool => tool.Tool == Editor3DTool.Select);
@@ -267,6 +336,22 @@ public sealed partial class EditorPageViewModel
         return tools;
     }
 
+    private void ApplyToolCustomizations(
+        IReadOnlyList<EditorToolCustomization>? customizations,
+        bool requestPersistence)
+    {
+        _toolDescriptors = EditorToolCatalog.ApplyCustomizations(customizations);
+        _sidebarTools = CreateSidebarTools(_toolDescriptors);
+        SyncSidebarToolStates();
+        OnPropertyChanged(nameof(SidebarTools));
+        OnPropertyChanged(nameof(CommandSearchResults));
+        OnPropertyChanged(nameof(ToolCustomizations));
+        OnPropertyChanged(nameof(ActiveToolLabel));
+
+        if (requestPersistence)
+            Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+    }
+
     private void ExecuteSidebarAction(EditorSidebarAction action)
     {
         switch (action)
@@ -275,21 +360,35 @@ public sealed partial class EditorPageViewModel
                 if (!CanFrameHome)
                     return;
 
-                RequestViewportScript(GetHomeFrameScript());
-                StatusText = "Framing visible 3D workspace";
+                if (IsShowingTwoDWorkspace)
+                {
+                    FrameTwoDToContent();
+                    StatusText = "Framing visible 2D workspace";
+                }
+                else
+                {
+                    RequestViewportScript(GetHomeFrameScript());
+                    StatusText = "Framing visible 3D workspace";
+                }
                 break;
 
             case EditorSidebarAction.ToggleOrthographic:
                 ToggleOrthographic();
                 StatusText = ThreeDOrthographic ? "Orthographic camera active" : "Perspective camera active";
                 break;
-        }
-    }
 
-    private bool TryActivateSidebarShortcut(string itemKey)
-    {
-        ActivateSidebarItem(itemKey);
-        return true;
+            case EditorSidebarAction.DuplicateSelection:
+                DuplicateTwoDSelection();
+                break;
+
+            case EditorSidebarAction.FlipSelectionHorizontal:
+                FlipTwoDSelection(horizontal: true);
+                break;
+
+            case EditorSidebarAction.FlipSelectionVertical:
+                FlipTwoDSelection(horizontal: false);
+                break;
+        }
     }
 
     private bool HandleEscapeShortcut()
@@ -316,32 +415,27 @@ public sealed partial class EditorPageViewModel
         return false;
     }
 
-    private bool HandleGeneratedOutputEscapeShortcut()
+    private bool HandleTwoDEscapeShortcut()
     {
-        if (HasGeneratedOutputSelectedMeasurement)
+        if (HasTwoDSelectedMeasurement)
         {
-            ClearGeneratedOutputSelectedMeasurement();
+            ClearTwoDSelectedMeasurement();
             return true;
         }
 
-        if (HasGeneratedOutputSelection)
+        if (HasTwoDSelection)
         {
-            ClearGeneratedOutputSelection();
+            ClearTwoDSelection();
             return true;
         }
 
-        if (HasGeneratedOutputMeasurements)
+        if (HasTwoDMeasurements)
         {
-            ClearGeneratedOutputMeasurements();
+            ClearTwoDMeasurements();
             return true;
         }
 
         return false;
     }
 
-    private static bool ActivateGeneratedOutputShortcut(Action action)
-    {
-        action();
-        return true;
-    }
 }

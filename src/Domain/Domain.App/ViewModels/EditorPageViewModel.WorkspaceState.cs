@@ -50,13 +50,15 @@ public sealed partial class EditorPageViewModel
         private set => SetProperty(ref _selectedFaceCount, value);
     }
 
-    public string? StepJsonContent
+    public string? ViewportJsonContent
     {
-        get => _stepJsonContent;
+        get => _threeDWorkspace.ViewportJsonContent;
         private set
         {
-            if (!SetProperty(ref _stepJsonContent, value))
+            if (!_threeDWorkspace.UpdateViewportJson(value))
                 return;
+
+            OnPropertyChanged();
 
             SyncSidebarToolStates();
             OnPropertyChanged(nameof(HasLoadedModel));
@@ -81,68 +83,235 @@ public sealed partial class EditorPageViewModel
         }
     }
 
-    public bool HasLoadedModel => Bodies.Count > 0 && !string.IsNullOrWhiteSpace(StepJsonContent);
+    public bool HasLoadedModel => Bodies.Count > 0 && !string.IsNullOrWhiteSpace(ViewportJsonContent);
 
     public bool HasNoLoadedModel => !HasLoadedModel;
 
     public bool ShowViewportEmptyState => IsShowing3DWorkspace && HasNoLoadedModel;
 
     public bool CanFrameHome
-        => IsShowing3DWorkspace
-            ? HasLoadedModel
-            : HasGeneratedOutputWorkspaceDocument;
+        => ActiveEditorMode switch
+        {
+            EditorMode.ThreeD => HasLoadedModel,
+            EditorMode.TwoD => HasTwoDWorkspaceDocument,
+            _ => false,
+        };
 
     public string ViewportEmptyStateTitle => "DRAG & DROP 3D MODELS";
 
     public string ViewportEmptyStateDescription
-        => "Open one or more .step, .stp, .obj, or .stl files to start the 3D workspace, or switch to the 2D workspace to sketch directly.";
+        => "Open one or more .obj or .stl mesh files to start the 3D workspace, or switch to the 2D workspace to sketch directly.";
 
     private EditorWorkspaceState BuildPersistedEditorWorkspaceState()
         => new(
             ActiveTool,
             ThreeDOrthographic,
-            IsShowingGeneratedOutputWorkspace,
-            GeneratedOutputActiveTool,
-            GeneratedOutputPolygonSides,
-            GeneratedOutputViewportZoom,
-            GeneratedOutputViewportOffsetX,
-            GeneratedOutputViewportOffsetY,
-            _generatedOutputExpandedRectanglePathIds);
+            IsShowingTwoDWorkspace,
+            TwoDActiveTool,
+            TwoDPolygonSides,
+            TwoDViewportZoom,
+            TwoDViewportOffsetX,
+            TwoDViewportOffsetY,
+            _twoDExpandedRectanglePathIds,
+            ActiveEditorMode,
+            ToolCustomizations);
+
+    private Editor2DWorkspaceState BuildPersistedTwoDWorkspaceState()
+    {
+        SyncTwoDWorkspaceState(recordHistory: false);
+        return _twoDWorkspace.State;
+    }
+
+    public bool UndoTwoDWorkspace()
+    {
+        if (!_twoDWorkspace.Undo())
+            return false;
+
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        return true;
+    }
+
+    public bool RedoTwoDWorkspace()
+    {
+        if (!_twoDWorkspace.Redo())
+            return false;
+
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        return true;
+    }
+
+    private void SyncTwoDWorkspaceState(bool recordHistory)
+    {
+        if (_isApplyingTwoDWorkspaceState)
+            return;
+
+        _twoDWorkspace.Apply(
+            new Editor2DWorkspaceState(
+                TwoDDocument ?? Editor2DWorkspaceState.Empty.Document,
+                TwoDActiveTool,
+                TwoDSelectedPathIds,
+                TwoDMeasurements,
+                TwoDSelectedMeasurementId,
+                TwoDPolygonSides,
+                TwoDViewportZoom,
+                TwoDViewportOffsetX,
+                TwoDViewportOffsetY,
+                _twoDExpandedRectanglePathIds,
+                _twoDWorkspace.IsInitialized,
+                _twoDWorkspace.Layers,
+                _twoDWorkspace.ActiveLayerId,
+                _twoDWorkspace.CornerParameters,
+                _twoDWorkspace.SewingHoleParameters,
+                _twoDWorkspace.SewingHoleOperations),
+            recordHistory);
+    }
+
+    private void ApplyPersistedTwoDWorkspaceState(Editor2DWorkspaceState? state)
+    {
+        if (state is null)
+            return;
+
+        _twoDWorkspace.Apply(state, recordHistory: false);
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        _twoDWorkspace.ClearHistory();
+    }
+
+    private void ApplyTwoDWorkspaceSnapshot(Editor2DWorkspaceState state)
+    {
+        _isApplyingTwoDWorkspaceState = true;
+        try
+        {
+            _twoDExpandedRectanglePathIds = NormalizeTwoDExpandedRectanglePathIds(
+                state.ExpandedRectanglePathIds);
+            ApplyTwoDDocument(
+                state.IsInitialized ? state.Document : null,
+                requestPersistence: false);
+            TwoDActiveTool = state.ActiveTool;
+            TwoDPolygonSides = state.PolygonSides;
+            TwoDSelectedPathIds = state.SelectedPathIds ?? [];
+            TwoDMeasurements = state.Measurements ?? [];
+            TwoDSelectedMeasurementId = state.SelectedMeasurementId;
+            ApplyTwoDViewportState(
+                state.ViewportZoom,
+                state.ViewportOffsetX,
+                state.ViewportOffsetY,
+                requestPersistence: false);
+            NotifyTwoDWorkspaceFacadeProperties();
+        }
+        finally
+        {
+            _isApplyingTwoDWorkspaceState = false;
+        }
+    }
+
+    private void NotifyTwoDWorkspaceFacadeProperties()
+    {
+        SyncSidebarToolStates();
+        OnPropertyChanged(nameof(TwoDDocument));
+        OnPropertyChanged(nameof(TwoDActiveTool));
+        OnPropertyChanged(nameof(TwoDSelectedPathIds));
+        OnPropertyChanged(nameof(TwoDMeasurements));
+        OnPropertyChanged(nameof(TwoDSelectedMeasurementId));
+        OnPropertyChanged(nameof(TwoDLayers));
+        OnPropertyChanged(nameof(TwoDActiveLayerId));
+        OnPropertyChanged(nameof(TwoDHiddenPathIds));
+        OnPropertyChanged(nameof(TwoDCornerParameters));
+        OnPropertyChanged(nameof(HasTwoDWorkspaceDocument));
+        OnPropertyChanged(nameof(HasTwoDPreview));
+        OnPropertyChanged(nameof(HasNoTwoDPreview));
+        OnPropertyChanged(nameof(HasTwoDSelection));
+        OnPropertyChanged(nameof(TwoDSelectionCount));
+        OnPropertyChanged(nameof(TwoDSelectionSummary));
+        OnPropertyChanged(nameof(HasTwoDMeasurements));
+        OnPropertyChanged(nameof(HasTwoDSelectedMeasurement));
+        OnPropertyChanged(nameof(TwoDMeasurementSummary));
+        OnPropertyChanged(nameof(TwoDAutoDimensionCount));
+        OnPropertyChanged(nameof(TwoDViewportSummary));
+        OnPropertyChanged(nameof(TwoDToolHint));
+        OnPropertyChanged(nameof(ActiveToolLabel));
+        OnPropertyChanged(nameof(SidebarTools));
+        OnPropertyChanged(nameof(CanFrameHome));
+        OnPropertyChanged(nameof(WorkspaceModeHint));
+        OnPropertyChanged(nameof(IsTwoDSelectToolActive));
+        OnPropertyChanged(nameof(IsTwoDMoveToolActive));
+        OnPropertyChanged(nameof(IsTwoDPanToolActive));
+        OnPropertyChanged(nameof(IsTwoDMeasureToolActive));
+        OnPropertyChanged(nameof(IsTwoDDimensionToolActive));
+        OnPropertyChanged(nameof(IsTwoDLineToolActive));
+        OnPropertyChanged(nameof(IsTwoDRectangleToolActive));
+        OnPropertyChanged(nameof(IsTwoDCircleToolActive));
+        OnPropertyChanged(nameof(IsTwoDPolygonToolActive));
+        OnPropertyChanged(nameof(IsTwoDTextToolActive));
+        OnPropertyChanged(nameof(IsTwoDPenToolActive));
+        OnPropertyChanged(nameof(IsTwoDScaleToolActive));
+        OnPropertyChanged(nameof(IsTwoDMirrorToolActive));
+        OnPropertyChanged(nameof(IsTwoDTrimToolActive));
+        OnPropertyChanged(nameof(IsTwoDFilletToolActive));
+        OnPropertyChanged(nameof(IsTwoDChamferToolActive));
+        OnPropertyChanged(nameof(IsTwoDConvertLinesToolActive));
+        OnPropertyChanged(nameof(IsTwoDOffsetToolActive));
+        OnPropertyChanged(nameof(IsTwoDAddThicknessToolActive));
+        OnPropertyChanged(nameof(IsTwoDCleanupToolActive));
+        OnPropertyChanged(nameof(IsTwoDPatternToolActive));
+        OnPropertyChanged(nameof(IsTwoDPaperFoldingToolActive));
+    }
+
+    private void NotifyThreeDWorkspaceFacadeProperties()
+    {
+        SyncSidebarToolStates();
+        OnPropertyChanged(nameof(ActiveTool));
+        OnPropertyChanged(nameof(Bodies));
+        OnPropertyChanged(nameof(SelectedFaces));
+        OnPropertyChanged(nameof(SelectedFaceDetails));
+        OnPropertyChanged(nameof(SelectedBodyIndex));
+        OnPropertyChanged(nameof(BodyOffsets));
+        OnPropertyChanged(nameof(ViewportJsonContent));
+        OnPropertyChanged(nameof(HasLoadedModel));
+        OnPropertyChanged(nameof(HasNoLoadedModel));
+        OnPropertyChanged(nameof(HasFaceSelection));
+        OnPropertyChanged(nameof(SelectedFacesQueueSummary));
+        OnPropertyChanged(nameof(SelectedBodySummary));
+        OnPropertyChanged(nameof(BodyInventorySummary));
+        OnPropertyChanged(nameof(VisibleBodyCount));
+        OnPropertyChanged(nameof(HiddenBodyCount));
+        OnPropertyChanged(nameof(CanFrameHome));
+        OnPropertyChanged(nameof(SidebarTools));
+    }
 
     private void ApplyPersistedEditorWorkspaceState(EditorWorkspaceState? state)
     {
         if (state is null)
             return;
 
+        ApplyToolCustomizations(state.ToolCustomizations, requestPersistence: false);
         ThreeDOrthographic = state.ThreeDOrthographic;
         ActivateTool(state.ActiveTool);
-        GeneratedOutputActiveTool = state.GeneratedOutputActiveTool;
-        var previousViewportSuppression = _suppressGeneratedOutputViewportPersistence;
-        _suppressGeneratedOutputViewportPersistence = true;
+        TwoDActiveTool = state.TwoDActiveTool;
+        var previousViewportSuppression = _suppressTwoDViewportPersistence;
+        _suppressTwoDViewportPersistence = true;
         try
         {
-            GeneratedOutputPolygonSides = state.GeneratedOutputPolygonSides;
+            TwoDPolygonSides = state.TwoDPolygonSides;
         }
         finally
         {
-            _suppressGeneratedOutputViewportPersistence = previousViewportSuppression;
+            _suppressTwoDViewportPersistence = previousViewportSuppression;
         }
 
-        _generatedOutputExpandedRectanglePathIds = NormalizeGeneratedOutputExpandedRectanglePathIds(state.GeneratedOutputExpandedRectanglePathIds);
-        ApplyGeneratedOutputPreviewDocument(GeneratedOutputPreviewDocument, requestPersistence: false);
-        ApplyGeneratedOutputViewportState(
-            state.GeneratedOutputViewportZoom,
-            state.GeneratedOutputViewportOffsetX,
-            state.GeneratedOutputViewportOffsetY,
+        _twoDExpandedRectanglePathIds = NormalizeTwoDExpandedRectanglePathIds(state.TwoDExpandedRectanglePathIds);
+        ApplyTwoDDocument(TwoDDocument, requestPersistence: false);
+        ApplyTwoDViewportState(
+            state.TwoDViewportZoom,
+            state.TwoDViewportOffsetX,
+            state.TwoDViewportOffsetY,
             requestPersistence: false);
 
-        if (!state.ShowGeneratedOutputWorkspace)
-        {
-            IsShowingGeneratedOutputWorkspace = false;
-            return;
-        }
-
-        if (HasGeneratedOutputWorkspaceDocument)
-            IsShowingGeneratedOutputWorkspace = true;
+        var persistedMode = state.ActiveEditorMode
+            ?? (state.ShowTwoDWorkspace ? EditorMode.TwoD : EditorMode.ThreeD);
+        ActiveEditorMode = persistedMode == EditorMode.TwoD && !HasTwoDWorkspaceDocument
+            ? EditorMode.ThreeD
+            : persistedMode;
     }
 }

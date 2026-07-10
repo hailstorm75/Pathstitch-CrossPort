@@ -4,11 +4,11 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class EditorPageViewModel
 {
-    public bool CanUseNativeSeparateFlattenSelected
+    public bool CanUseOpenGeometrySeparateFlattenSelected
         => HasUsableSourceModelAsset
            && SelectedFaceDetails.Count > 0;
 
-    public bool CanUseNativeSeparateFlattenWholeBody
+    public bool CanUseOpenGeometrySeparateFlattenWholeBody
         => HasUsableSourceModelAsset
            && VisibleBodyCount > 0
            && Bodies.Where(body => body.Visible).SelectMany(body => body.Faces).Any();
@@ -26,20 +26,20 @@ public sealed partial class EditorPageViewModel
         => "Separate Pieces flattens each selected face independently and lays the results out side by side in the 2D output.";
 
     public string UnfoldEngineSummary => HasUsableSourceModelAsset
-            ? "Separate Pieces runs natively through OpenCASCADE .NET."
-            : "Separate Pieces requires a native 3D source asset. Re-import the model or reopen a .stch with embedded 3D data.";
+            ? "Separate Pieces runs through the OpenGeometry mesh bridge."
+            : "Separate Pieces requires an OpenGeometry mesh source asset. Re-import the model or reopen a .stch with embedded 3D data.";
 
     public string SeparateFlattenSelectionSummary
     {
         get
         {
             if (!HasUsableSourceModelAsset)
-                return "Native flattening is unavailable until the 3D source asset is restored.";
+                return "OpenGeometry flattening is unavailable until the mesh source asset is restored.";
 
             if (SelectedFaceDetails.Count == 0)
-                return "Select one or more faces to see whether the current flatten action stays native.";
+                return "Select one or more faces to see whether the current flatten action can run through OpenGeometry.";
 
-            return $"{SelectedFaceDetails.Count} selected face(s) will flatten natively as separate pieces.";
+            return $"{SelectedFaceDetails.Count} selected face(s) will flatten through the OpenGeometry mesh bridge as separate pieces.";
         }
     }
 
@@ -50,7 +50,7 @@ public sealed partial class EditorPageViewModel
             if (!HasUsableSourceModelAsset)
                 return Bodies.Count == 0
                     ? "Load a model to enable whole-body flattening."
-                    : "Whole-body flattening is unavailable until the 3D source asset is restored.";
+                    : "Whole-body flattening is unavailable until the mesh source asset is restored.";
 
             var visibleBodies = Bodies.Where(body => body.Visible).ToArray();
             var totalFaceCount = visibleBodies.Sum(body => body.Faces.Count);
@@ -60,8 +60,8 @@ public sealed partial class EditorPageViewModel
                     : "Make at least one body visible to enable whole-body flattening.";
 
             return visibleBodies.Length == Bodies.Count
-                ? $"{totalFaceCount} face(s) across the visible bodies are available for native separate-piece flattening."
-                : $"{totalFaceCount} face(s) across {visibleBodies.Length} visible body/bodies are available for native separate-piece flattening.";
+                ? $"{totalFaceCount} face(s) across the visible bodies are available for OpenGeometry separate-piece flattening."
+                : $"{totalFaceCount} face(s) across {visibleBodies.Length} visible body/bodies are available for OpenGeometry separate-piece flattening.";
         }
     }
 
@@ -77,7 +77,7 @@ public sealed partial class EditorPageViewModel
             if (SelectedFaces.Count == 0)
                 return "Select one or more faces to enable this action.";
 
-            return "Flatten Selected will run through native OpenCASCADE .NET.";
+            return "Flatten Selected will run through the OpenGeometry mesh bridge.";
         }
     }
 
@@ -95,11 +95,11 @@ public sealed partial class EditorPageViewModel
                     ? "Load a model to enable this action."
                     : "Make at least one body visible to enable this action.";
 
-            return "Flatten Entire Body will run through native OpenCASCADE .NET.";
+            return "Flatten Entire Body will run through the OpenGeometry mesh bridge.";
         }
     }
 
-    public string UnfoldConfigurationSummary => $"Native separate pieces / {GetDistortionModeLabel()}";
+    public string UnfoldConfigurationSummary => $"OpenGeometry mesh pieces / {GetDistortionModeLabel()}";
 
     public string UnfoldPreviewModeSummary => LiveRecomputeEnabled
         ? _wholeBodyRecompute
@@ -118,7 +118,7 @@ public sealed partial class EditorPageViewModel
             if (_wholeBodyRecompute)
             {
                 if (!HasUsableSourceModelAsset)
-                    return "Whole-body preview requires a native 3D source asset.";
+                    return "Whole-body preview requires an OpenGeometry mesh source asset.";
 
                 return VisibleBodyCount == 0
                     ? "Make at least one body visible to preview whole-body flattening."
@@ -126,7 +126,7 @@ public sealed partial class EditorPageViewModel
             }
 
             if (!HasUsableSourceModelAsset)
-                return "Selected-face preview requires a native 3D source asset.";
+                return "Selected-face preview requires an OpenGeometry mesh source asset.";
 
             return SelectedFaces.Count == 0
                 ? "Select one or more faces to preview selected-face flattening."
@@ -168,13 +168,13 @@ public sealed partial class EditorPageViewModel
         if (state is null)
             return;
 
-        var nativeState = state.NormalizeForNativeEditor();
-        DistortionModeIndex = nativeState.DistortionModeIndex;
+        var openGeometryState = state.NormalizeForOpenGeometryEditor();
+        DistortionModeIndex = openGeometryState.DistortionModeIndex;
         SetUnfoldPreviewScope(
-            nativeState.WholeBodyRecompute && CanUnfoldEntireBody,
+            openGeometryState.WholeBodyRecompute && CanUnfoldEntireBody,
             requestPersistence: false,
             requestLiveRecompute: false);
-        LiveRecomputeEnabled = nativeState.LiveRecomputeEnabled && CanUseLiveRecompute;
+        LiveRecomputeEnabled = openGeometryState.LiveRecomputeEnabled && CanUseLiveRecompute;
     }
 
     private string GetDistortionModeLabel() => DistortionModeIndex switch

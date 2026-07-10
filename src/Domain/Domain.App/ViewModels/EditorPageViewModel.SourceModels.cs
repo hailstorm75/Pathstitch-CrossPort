@@ -8,10 +8,10 @@ public sealed partial class EditorPageViewModel
     public string SourceModelActionLabel => HasLoadedModel ? "Add 3D Models..." : "Open 3D Model...";
 
     public string SourceModelWorkflowHint => !HasLoadedModel
-        ? "Open one or more .step, .stp, .obj, or .stl files, or drag them into the viewport to start the 3D workspace."
+        ? "Open STEP/STP B-rep or OBJ/STL mesh files, or drag them into the viewport to start the 3D workspace."
         : !HasUsableSourceModelAsset
             ? "This restored workspace is view-only until you re-import the model or reopen a .stch with embedded 3D data."
-            : "Append more .step, .stp, .obj, or .stl files to the current workspace, or drag them into the viewport.";
+            : "Append more STEP/STP or OBJ/STL source files to the current workspace, or drag them into the viewport.";
 
     public string BodyInventorySummary => Bodies.Count switch
     {
@@ -37,11 +37,13 @@ public sealed partial class EditorPageViewModel
 
     public IReadOnlyList<Body3D> Bodies
     {
-        get => _bodies;
+        get => _threeDWorkspace.Bodies;
         private set
         {
-            if (!SetProperty(ref _bodies, value))
+            if (!_threeDWorkspace.UpdateBodies(value))
                 return;
+
+            OnPropertyChanged();
 
             SyncSidebarToolStates();
             OnPropertyChanged(nameof(CanUnfoldEntireBody));
@@ -70,7 +72,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(CanEditProjectionOffset));
             OnPropertyChanged(nameof(CanConfirmProjection));
             OnPropertyChanged(nameof(WorkspaceModeHint));
-            OnPropertyChanged(nameof(CanUseNativeSeparateFlattenWholeBody));
+            OnPropertyChanged(nameof(CanUseOpenGeometrySeparateFlattenWholeBody));
             OnPropertyChanged(nameof(CanUseLiveRecompute));
             OnPropertyChanged(nameof(CanUnfoldEntireBody));
             OnPropertyChanged(nameof(SeparateFlattenWholeBodySummary));
@@ -105,7 +107,7 @@ public sealed partial class EditorPageViewModel
         {
             StatusText = "Only 3D source model files can be imported here";
             ViewportStateText = "Unsupported source model drop";
-            ErrorMessage = "The editor accepts only .step, .stp, .obj, or .stl files when importing into the 3D workspace.";
+            ErrorMessage = "The editor accepts .step, .stp, .obj, and .stl 3D source files.";
             return;
         }
 
@@ -123,7 +125,7 @@ public sealed partial class EditorPageViewModel
                 .LoadModelsAsync(normalizedSourceModelPaths, _sourceModelPath, cancellationToken)
                 .ConfigureAwait(true);
 
-            if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.StepJson) || result.Bodies is null)
+            if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.ViewportJson) || result.Bodies is null)
             {
                 StatusText = isAppendingToWorkspace
                     ? "3D source model append failed"
@@ -164,7 +166,7 @@ public sealed partial class EditorPageViewModel
             .LoadModelsAsync(_pendingSourceModelPaths, existingState.SourceModelPath, cancellationToken)
             .ConfigureAwait(true);
 
-        if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.StepJson) || result.Bodies is null)
+        if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.ViewportJson) || result.Bodies is null)
         {
             StatusText = "3D model import failed";
             ViewportStateText = result.Message;
@@ -184,10 +186,11 @@ public sealed partial class EditorPageViewModel
         var bodies = PreserveExistingBodyVisibility(result.Bodies!, isAppendingToWorkspace);
 
         SetSourceModelPath(result.SourceModelPath);
-        StepJsonContent = result.StepJson;
+        _stepTopology = result.StepTopology;
+        ViewportJsonContent = result.ViewportJson;
         SetDistortionData(string.Empty);
-        ClearGeneratedOutputState();
-        IsShowingGeneratedOutputWorkspace = false;
+        ClearTwoDState();
+        ActiveEditorMode = EditorMode.ThreeD;
         ResetProjectionSelection();
         IsPlaneSelectionActive = IsPlaneToolActive;
         LiveRecomputeEnabled = false;
@@ -216,7 +219,7 @@ public sealed partial class EditorPageViewModel
 
         StatusText = successStatusText;
         ViewportStateText = result.Message;
-        RequestViewportScript(BuildLoadModelScript(result.StepJson!));
+        RequestViewportScript(BuildLoadModelScript(result.ViewportJson!));
         RequestBodyVisibilityStateSync();
         RequestBodyMoveStateSync();
         OnPropertyChanged(nameof(ProjectionToolHint));
@@ -226,7 +229,7 @@ public sealed partial class EditorPageViewModel
             await _project3DStateService.SaveAsync(
                 ProjectSession.ProjectFilePath,
                 new Project3DState(
-                    StepJson: result.StepJson,
+                    ViewportJson: result.ViewportJson,
                     Bodies: bodies,
                     BodyOffsets: BodyOffsets,
                     SourceModelPath: result.SourceModelPath,
@@ -234,7 +237,11 @@ public sealed partial class EditorPageViewModel
                     GeneratedOutputContext: null,
                     UnfoldWorkspaceState: BuildPersistedUnfoldWorkspaceState(),
                     ProjectionWorkspaceState: BuildPersistedProjectionWorkspaceState(),
-                    WorkspaceState: BuildPersistedEditorWorkspaceState()),
+                    WorkspaceState: BuildPersistedEditorWorkspaceState(),
+                    ThreeDWorkspaceState: _threeDWorkspace.CaptureState(
+                        BuildPersistedProjectionWorkspaceState(),
+                        BuildPersistedUnfoldWorkspaceState()),
+                    StepTopology: result.StepTopology),
                 cancellationToken).ConfigureAwait(true);
         }
     }

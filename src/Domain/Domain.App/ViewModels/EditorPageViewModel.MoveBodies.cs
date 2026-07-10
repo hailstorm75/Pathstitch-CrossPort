@@ -7,11 +7,13 @@ public sealed partial class EditorPageViewModel
 {
     public int? SelectedBodyIndex
     {
-        get => _selectedBodyIndex;
+        get => _threeDWorkspace.SelectedBodyIndex;
         private set
         {
-            if (!SetProperty(ref _selectedBodyIndex, value))
+            if (!_threeDWorkspace.UpdateSelectedBodyIndex(value))
                 return;
+
+            OnPropertyChanged();
 
             OnPropertyChanged(nameof(SelectedBodySummary));
             OnPropertyChanged(nameof(HasSelectedBody));
@@ -122,11 +124,13 @@ public sealed partial class EditorPageViewModel
 
     public IReadOnlyList<BodyOffset3D> BodyOffsets
     {
-        get => _bodyOffsets;
+        get => _threeDWorkspace.BodyOffsets;
         private set
         {
-            if (!SetProperty(ref _bodyOffsets, value))
+            if (!_threeDWorkspace.UpdateBodyOffsets(value))
                 return;
+
+            OnPropertyChanged();
 
             OnPropertyChanged(nameof(BodyOffsetsSummary));
             OnPropertyChanged(nameof(HasAnyBodyOffsets));

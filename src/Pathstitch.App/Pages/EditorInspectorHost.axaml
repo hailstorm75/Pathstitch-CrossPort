@@ -1,0 +1,27 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorInspectorHost"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:pages="using:Pathstitch.App.Pages"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.inspector-host">
+  <Border
+    Background="{StaticResource PanelBackgroundBrush}"
+    BorderBrush="{StaticResource BorderBrush}"
+    BorderThickness="1,0,0,0"
+    Padding="14">
+    <ScrollViewer>
+      <StackPanel Spacing="18">
+        <pages:Editor2DInspector AutomationProperties.AutomationId="editor.inspector.2d" IsVisible="{Binding IsShowingTwoDWorkspace}" />
+        <pages:EditorSelectionInspector AutomationProperties.AutomationId="editor.inspector.selection" />
+        <pages:EditorMeasureInspector AutomationProperties.AutomationId="editor.inspector.measure" />
+        <pages:EditorMoveInspector AutomationProperties.AutomationId="editor.inspector.move" />
+        <pages:EditorProjectionInspector AutomationProperties.AutomationId="editor.inspector.projection" />
+        <pages:EditorUnfoldInspector AutomationProperties.AutomationId="editor.inspector.unfold" />
+        <pages:EditorOutputInspector AutomationProperties.AutomationId="editor.inspector.output" />
+        <pages:EditorErrorInspector AutomationProperties.AutomationId="editor.inspector.errors" />
+      </StackPanel>
+    </ScrollViewer>
+  </Border>
+</UserControl>

@@ -12,8 +12,11 @@
   d:DesignHeight="900"
   d:DesignWidth="1440"
   Background="#0D0D10"
+  AutomationProperties.AutomationId="app.main-window"
   WindowStartupLocation="CenterScreen"
   WindowState="Maximized"
   mc:Ignorable="d">
-  <ContentControl x:Name="PART_PageContainer" />
+  <ContentControl
+    x:Name="PART_PageContainer"
+    AutomationProperties.AutomationId="app.page-host" />
 </Window>

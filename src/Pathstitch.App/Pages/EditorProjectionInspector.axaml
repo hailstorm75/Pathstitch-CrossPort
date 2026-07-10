@@ -1,0 +1,163 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorProjectionInspector"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.inspector.projection">
+  <StackPanel IsVisible="{Binding ShowProjectionPanel}" Spacing="8">
+    <TextBlock
+      FontSize="13"
+      FontWeight="SemiBold"
+      Foreground="{StaticResource SecondaryTextBrush}"
+      Text="PROJECTION SKETCH" />
+    <Border
+      Padding="10"
+      Background="{StaticResource InputBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      BorderThickness="1"
+      CornerRadius="6">
+      <StackPanel Spacing="8">
+        <Button
+          IsVisible="{Binding ShowProjectionStartAction}"
+          IsEnabled="{Binding CanStartPlaneSelection}"
+          Classes="panel-button"
+          Content="Add Plane"
+          Click="OnAddPlaneClicked" />
+        <TextBlock
+          IsVisible="{Binding ShowProjectionStartAction}"
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource MutedTextBrush}"
+          Text="{Binding ProjectionToolHint}" />
+
+        <StackPanel IsVisible="{Binding IsPlaneSelectionActive}" Spacing="8">
+          <TextBlock
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="DEFINE PLANE BY" />
+
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+            <Button
+              Grid.Column="0"
+              Classes="chip-button"
+              Classes.active="{Binding IsProjectionOriginMode}"
+              Content="Origin Planes"
+              Click="OnOriginPlaneModeClicked" />
+            <Button
+              Grid.Column="1"
+              Classes="chip-button"
+              Classes.active="{Binding IsProjectionFaceMode}"
+              Content="Shape Face"
+              Click="OnFacePlaneModeClicked" />
+          </Grid>
+
+          <TextBlock
+            FontSize="11"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            IsVisible="{Binding IsProjectionOriginMode}"
+            Text="Click an origin plane square in the viewport or choose XY, XZ, or YZ here." />
+          <TextBlock
+            FontSize="11"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            IsVisible="{Binding IsProjectionFaceMode}"
+            Text="Click a flat face of the 3D model in the viewport or use the current single-face selection." />
+
+          <StackPanel IsVisible="{Binding IsProjectionOriginMode}" Spacing="6">
+            <TextBlock
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="ORIGIN PLANES" />
+            <UniformGrid Columns="3" Rows="1">
+              <Button
+                Classes="chip-button"
+                Classes.active="{Binding IsProjectionXYSelected}"
+                IsEnabled="{Binding CanSelectProjectionOriginPlane}"
+                Content="XY"
+                Click="OnProjectionXYClicked" />
+              <Button
+                Classes="chip-button"
+                Classes.active="{Binding IsProjectionXZSelected}"
+                IsEnabled="{Binding CanSelectProjectionOriginPlane}"
+                Content="XZ"
+                Click="OnProjectionXZClicked" />
+              <Button
+                Classes="chip-button"
+                Classes.active="{Binding IsProjectionYZSelected}"
+                IsEnabled="{Binding CanSelectProjectionOriginPlane}"
+                Content="YZ"
+                Click="OnProjectionYZClicked" />
+            </UniformGrid>
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding ProjectionOriginPlaneSummary}" />
+          </StackPanel>
+
+          <StackPanel IsVisible="{Binding IsProjectionFaceMode}" Spacing="6">
+            <Button
+              Classes="panel-button"
+              IsEnabled="{Binding CanUseCurrentSelectionAsProjectionFace}"
+              Content="{Binding ProjectionFaceSelectionActionLabel}"
+              Click="OnUseSelectedFaceProjectionClicked" />
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding ProjectionFaceSelectionActionHint}" />
+          </StackPanel>
+
+          <TextBlock
+            FontSize="11"
+            Foreground="{StaticResource PrimaryTextBrush}"
+            Text="{Binding ProjectionSelectionSummary}" />
+          <TextBlock
+            FontSize="10"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource MutedTextBrush}"
+            Text="{Binding ProjectionBodyScopeSummary}" />
+          <TextBlock
+            FontSize="10"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            IsVisible="{Binding IsProjectionFaceMode}"
+            Text="{Binding ProjectionFaceRequirementSummary}" />
+          <TextBlock
+            FontSize="10"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource MutedTextBrush}"
+            Text="{Binding ProjectionToolHint}" />
+
+          <StackPanel IsVisible="{Binding CanEditProjectionOffset}" Spacing="6">
+            <TextBlock
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="OFFSET (MM)" />
+            <TextBox Text="{Binding PlaneOffsetText}" />
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource MutedTextBrush}"
+              Text="{Binding ProjectionOffsetHint}" />
+          </StackPanel>
+
+          <Button
+            IsVisible="{Binding CanEditProjectionOffset}"
+            IsEnabled="{Binding CanConfirmProjection}"
+            Classes="panel-button"
+            Content="Confirm Projection"
+            Click="OnConfirmProjectionClicked" />
+          <Button
+            Classes="panel-button"
+            Content="Cancel"
+            Click="OnCancelProjectionClicked" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+
+</UserControl>
