@@ -1,13 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using CommunityToolkit.Mvvm.Input;
 using Domain.App.Models;
 
 namespace Pathstitch.App.Controls;
@@ -20,6 +22,9 @@ public sealed class DxfPreviewCanvas : Control
     private const double EmptyWorkspaceSpan = 200.0;
     private const double DefaultTextHeight = 10.0;
     private const string DefaultTextValue = "Label";
+
+    internal static bool ShouldDrawSelectionHandles(Editor2DTool activeTool) =>
+        activeTool is Editor2DTool.Select or Editor2DTool.Scale;
 
     public static readonly StyledProperty<Editor2DPreviewDocument?> DocumentProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DPreviewDocument?>(nameof(Document));
@@ -34,6 +39,27 @@ public sealed class DxfPreviewCanvas : Control
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<string>>(
             nameof(SelectedPathIds),
             defaultValue: Array.Empty<string>(),
+            defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<IReadOnlyList<string>> HiddenPathIdsProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<string>>(
+            nameof(HiddenPathIds),
+            defaultValue: Array.Empty<string>());
+
+    public static readonly StyledProperty<IReadOnlyList<Editor2DPreviewPath>> PreviewPathsProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DPreviewPath>>(
+            nameof(PreviewPaths),
+            defaultValue: Array.Empty<Editor2DPreviewPath>());
+
+    public static readonly StyledProperty<IReadOnlyList<Editor2DReferenceImage>> ReferenceImagesProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DReferenceImage>>(
+            nameof(ReferenceImages),
+            defaultValue: Array.Empty<Editor2DReferenceImage>());
+
+    public static readonly StyledProperty<IReadOnlyList<Editor2DCornerParameter>> CornerParametersProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DCornerParameter>>(
+            nameof(CornerParameters),
+            defaultValue: Array.Empty<Editor2DCornerParameter>(),
             defaultBindingMode: BindingMode.TwoWay);
 
     public static readonly StyledProperty<IReadOnlyList<Editor2DMeasurement>> MeasurementsProperty =
@@ -82,6 +108,7 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly Pen OpenPathPen = new(new SolidColorBrush(Color.Parse("#F5B35C")), 1.4);
     private static readonly Pen HoverPathPen = new(new SolidColorBrush(Color.Parse("#8EB3FF")), 2.0);
     private static readonly Pen SelectedPathPen = new(new SolidColorBrush(Color.Parse("#4D7FFF")), 2.4);
+    private static readonly Pen PreviewPathPen = new(new SolidColorBrush(Color.Parse("#62E6A7")), 1.8, dashStyle: new DashStyle([4, 3], 0));
     private static readonly Pen AutoDimensionPen = new(new SolidColorBrush(Color.Parse("#63D2FF")), 1.2);
     private static readonly Pen ConstrainedRectangleHandlePen = new(new SolidColorBrush(Color.Parse("#8ED7FF")), 1.2);
     private static readonly Pen EditableVertexHandlePen = new(new SolidColorBrush(Color.Parse("#FFFFFF")), 1.0);
@@ -92,7 +119,6 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly Pen CornerToolHandlePen = new(new SolidColorBrush(Color.Parse("#FFFFFF")), 1.2);
     private static readonly Pen MarqueePen = new(new SolidColorBrush(Color.Parse("#6F96FF")), 1.2, dashStyle: new DashStyle([4, 4], 0));
     private static readonly Typeface MeasurementLabelTypeface = new("Inter, Segoe UI, Arial", FontStyle.Normal, FontWeight.Medium, FontStretch.Normal);
-    private static readonly Typeface TextEntityTypeface = new("Inter, Segoe UI, Arial", FontStyle.Normal, FontWeight.Normal, FontStretch.Normal);
     private static readonly IBrush PaperFillBrush = new SolidColorBrush(Color.Parse("#11161F"));
     private static readonly IBrush AutoDimensionTextBrush = new SolidColorBrush(Color.Parse("#D8F5FF"));
     private static readonly IBrush AutoDimensionLabelFillBrush = new SolidColorBrush(Color.Parse("#C0121F2B"));
@@ -106,20 +132,15 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly IBrush MarqueeFillBrush = new SolidColorBrush(Color.Parse("#224D7FFF"));
 
     private readonly ContextMenu _contextMenu;
+    private readonly DxfCanvasRenderer _renderer = new();
+    private readonly DxfCanvasInteractionSession _interaction = new();
+    private readonly Dictionary<string, Bitmap> _referenceImageBitmaps = new(StringComparer.Ordinal);
     private readonly MenuItem _expandRectanglesMenuItem;
     private readonly MenuItem _deleteSelectionMenuItem;
-    private bool _isPanning;
-    private bool _isMarqueeSelecting;
     private bool _isMovingSelection;
     private bool _isScalingSelection;
     private bool _isAwaitingSecondaryContextClick;
     private bool _isEditingVertex;
-    private Point _lastPointerPosition;
-    private Point _pointerPressPosition;
-    private string? _hoveredPathId;
-    private string? _pressedPathId;
-    private Point? _marqueeStartPoint;
-    private Point? _marqueeCurrentPoint;
     private Editor2DPreviewDocument? _moveDocumentSnapshot;
     private Editor2DPreviewDocument? _scaleDocumentSnapshot;
     private IReadOnlyList<string> _moveSelectionIds = Array.Empty<string>();
@@ -149,10 +170,8 @@ public sealed class DxfPreviewCanvas : Control
     private Editor2DPoint? _pendingMeasurementEnd;
     private Editor2DPoint? _pendingDimensionStart;
     private Editor2DPoint? _pendingDimensionEnd;
-    private Point _hoverPointerPosition;
-    private bool _hasHoverPointerPosition;
     private bool _pendingFrameToDocument;
-    private bool _cancelInteractionOnPointerRelease;
+    private double? _cornerToolSessionValue;
 
     static DxfPreviewCanvas()
     {
@@ -160,6 +179,10 @@ public sealed class DxfPreviewCanvas : Control
             DocumentProperty,
             ActiveToolProperty,
             SelectedPathIdsProperty,
+            HiddenPathIdsProperty,
+            PreviewPathsProperty,
+            ReferenceImagesProperty,
+            CornerParametersProperty,
             MeasurementsProperty,
             SelectedMeasurementIdProperty,
             ZoomProperty,
@@ -175,14 +198,14 @@ public sealed class DxfPreviewCanvas : Control
         _expandRectanglesMenuItem = new MenuItem
         {
             Header = "Expand",
+            Command = new RelayCommand(ExecuteExpandRectanglesCommand),
         };
-        _expandRectanglesMenuItem.Click += OnExpandRectanglesMenuItemClick;
 
         _deleteSelectionMenuItem = new MenuItem
         {
             Header = "Delete",
+            Command = new RelayCommand(ExecuteDeleteSelectionCommand),
         };
-        _deleteSelectionMenuItem.Click += OnDeleteSelectionMenuItemClick;
 
         _contextMenu = new ContextMenu
         {
@@ -194,6 +217,31 @@ public sealed class DxfPreviewCanvas : Control
             },
         };
     }
+
+    private void ExecuteExpandRectanglesCommand()
+    {
+        ExpandSelectedRectangles();
+        _contextMenu.Close();
+    }
+
+    private void ExecuteDeleteSelectionCommand()
+    {
+        if (!DeleteSelectedMeasurement())
+            DeleteSelectedPaths();
+        _contextMenu.Close();
+    }
+
+    private ref bool _isPanning => ref _interaction.IsPanning;
+    private ref bool _isMarqueeSelecting => ref _interaction.IsMarqueeSelecting;
+    private ref Point _lastPointerPosition => ref _interaction.LastPointerPosition;
+    private ref Point _pointerPressPosition => ref _interaction.PointerPressPosition;
+    private ref string? _hoveredPathId => ref _interaction.HoveredPathId;
+    private ref string? _pressedPathId => ref _interaction.PressedPathId;
+    private ref Point? _marqueeStartPoint => ref _interaction.MarqueeStartPoint;
+    private ref Point? _marqueeCurrentPoint => ref _interaction.MarqueeCurrentPoint;
+    private ref Point _hoverPointerPosition => ref _interaction.HoverPointerPosition;
+    private ref bool _hasHoverPointerPosition => ref _interaction.HasHoverPointerPosition;
+    private ref bool _cancelInteractionOnPointerRelease => ref _interaction.CancelInteractionOnPointerRelease;
 
     public Editor2DPreviewDocument? Document
     {
@@ -211,6 +259,30 @@ public sealed class DxfPreviewCanvas : Control
     {
         get => GetValue(SelectedPathIdsProperty);
         set => SetValue(SelectedPathIdsProperty, value);
+    }
+
+    public IReadOnlyList<string> HiddenPathIds
+    {
+        get => GetValue(HiddenPathIdsProperty);
+        set => SetValue(HiddenPathIdsProperty, value);
+    }
+
+    public IReadOnlyList<Editor2DPreviewPath> PreviewPaths
+    {
+        get => GetValue(PreviewPathsProperty);
+        set => SetValue(PreviewPathsProperty, value);
+    }
+
+    public IReadOnlyList<Editor2DReferenceImage> ReferenceImages
+    {
+        get => GetValue(ReferenceImagesProperty);
+        set => SetValue(ReferenceImagesProperty, value ?? Array.Empty<Editor2DReferenceImage>());
+    }
+
+    public IReadOnlyList<Editor2DCornerParameter> CornerParameters
+    {
+        get => GetValue(CornerParametersProperty);
+        set => SetValue(CornerParametersProperty, value);
     }
 
     public IReadOnlyList<Editor2DMeasurement> Measurements
@@ -267,6 +339,20 @@ public sealed class DxfPreviewCanvas : Control
         var availableHeight = Math.Max(Bounds.Height - 48.0, 32.0);
         if (Document.Paths.Count == 0)
         {
+            if (ReferenceImages.Count > 0)
+            {
+                var referenceBounds = MeasureReferenceImageBounds(ReferenceImages);
+                var referenceScale = Math.Min(
+                    availableWidth / Math.Max(referenceBounds.Width, 1.0),
+                    availableHeight / Math.Max(referenceBounds.Height, 1.0));
+                SetCurrentValue(ZoomProperty, referenceScale);
+                SetCurrentValue(OffsetXProperty, -referenceBounds.CenterX * referenceScale);
+                SetCurrentValue(OffsetYProperty, referenceBounds.CenterY * referenceScale);
+                _pendingFrameToDocument = false;
+                InvalidateVisual();
+                return;
+            }
+
             var emptyScale = Math.Min(availableWidth / EmptyWorkspaceSpan, availableHeight / EmptyWorkspaceSpan);
             if (!double.IsFinite(emptyScale) || emptyScale <= 0.0)
                 emptyScale = 1.0;
@@ -363,6 +449,9 @@ public sealed class DxfPreviewCanvas : Control
         if (change.Property == ActiveToolProperty && ActiveTool != Editor2DTool.Measure)
             CancelPendingMeasurement();
 
+        if (change.Property == ActiveToolProperty)
+            _cornerToolSessionValue = null;
+
         if (change.Property == ActiveToolProperty && ActiveTool != Editor2DTool.Dimension)
             CancelPendingDimension();
 
@@ -410,21 +499,24 @@ public sealed class DxfPreviewCanvas : Control
             return;
 
         DrawGrid(context, size);
-        if (Document.Paths.Count > 0)
+        DrawReferenceImages(context, size);
+        var visiblePaths = GetVisiblePaths();
+        if (visiblePaths.Count > 0)
             DrawPaperBounds(context, size, Document.Bounds);
-        DrawPaths(context, size, Document.Paths);
-        DrawEditableVertexHandles(context, size, Document.Paths);
-        DrawConstrainedRectangleHandles(context, size, Document.Paths);
-        DrawCornerToolHandles(context, size, Document.Paths);
+        DrawPaths(context, size, visiblePaths);
+        DrawPreviewPaths(context, size);
+        DrawEditableVertexHandles(context, size, visiblePaths);
+        DrawConstrainedRectangleHandles(context, size, visiblePaths);
+        DrawCornerToolHandles(context, size, visiblePaths);
         DrawLiveSketchLine(context, size);
         DrawLiveSketchRectangle(context, size);
         DrawLiveSketchCircle(context, size);
         DrawLiveSketchPolygon(context, size);
         DrawLiveSketchText(context, size);
         DrawLivePenPath(context, size);
-        DrawScaleGizmo(context, size, Document.Paths);
+        DrawScaleGizmo(context, size, visiblePaths);
         DrawLiveMirrorAxis(context, size);
-        DrawTrimPreview(context, size, Document);
+        DrawTrimPreview(context, size, Document with { Paths = visiblePaths });
         DrawMeasurements(context, size);
         DrawLiveMeasurement(context, size);
         DrawMarquee(context);
@@ -956,40 +1048,110 @@ public sealed class DxfPreviewCanvas : Control
         context.DrawRectangle(PaperFillBrush, PaperBorderPen, rect);
     }
 
-    private void DrawPaths(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
-    {
-        var selectedIds = SelectedPathIds.Count == 0
-            ? null
-            : new HashSet<string>(SelectedPathIds, StringComparer.Ordinal);
+    internal static Rect GetReferenceImageLocalRect(Editor2DReferenceImage image, double zoom)
+        => new(
+            -image.Width * zoom / 2.0,
+            -image.Height * zoom / 2.0,
+            image.Width * zoom,
+            image.Height * zoom);
 
-        foreach (var path in paths)
+    internal static Editor2DBounds MeasureReferenceImageBounds(IReadOnlyList<Editor2DReferenceImage> images)
+    {
+        var extents = images.Select(image =>
         {
+            var radians = image.RotationDegrees * Math.PI / 180.0;
+            var halfWidth = Math.Abs(Math.Cos(radians)) * image.Width / 2.0
+                + Math.Abs(Math.Sin(radians)) * image.Height / 2.0;
+            var halfHeight = Math.Abs(Math.Sin(radians)) * image.Width / 2.0
+                + Math.Abs(Math.Cos(radians)) * image.Height / 2.0;
+            return new Editor2DBounds(
+                image.X - halfWidth,
+                image.Y - halfHeight,
+                image.X + halfWidth,
+                image.Y + halfHeight);
+        }).ToArray();
+        return new Editor2DBounds(
+            extents.Min(bounds => bounds.MinX),
+            extents.Min(bounds => bounds.MinY),
+            extents.Max(bounds => bounds.MaxX),
+            extents.Max(bounds => bounds.MaxY));
+    }
+
+    private void DrawReferenceImages(DrawingContext context, Size size)
+    {
+        foreach (var image in ReferenceImages)
+        {
+            var bitmap = GetReferenceImageBitmap(image);
+            if (bitmap is null || image.Opacity <= 0.0 || image.Width <= 0.0 || image.Height <= 0.0)
+                continue;
+
+            var center = WorldToScreen(new Editor2DPoint(image.X, image.Y), size);
+            var destination = GetReferenceImageLocalRect(image, Zoom);
+            using var transform = context.PushTransform(
+                Matrix.CreateTranslation(center.X, center.Y)
+                * Matrix.CreateRotation(-image.RotationDegrees * Math.PI / 180.0));
+            using var opacity = context.PushOpacity(Math.Clamp(image.Opacity, 0.0, 1.0));
+            context.DrawImage(
+                bitmap,
+                new Rect(bitmap.Size),
+                destination);
+        }
+    }
+
+    private Bitmap? GetReferenceImageBitmap(Editor2DReferenceImage image)
+    {
+        if (_referenceImageBitmaps.TryGetValue(image.Id, out var bitmap))
+            return bitmap;
+
+        try
+        {
+            var bytes = Convert.FromBase64String(image.DataBase64);
+            using var stream = new MemoryStream(bytes, writable: false);
+            bitmap = new Bitmap(stream);
+            _referenceImageBitmaps[image.Id] = bitmap;
+            return bitmap;
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    private void DrawPaths(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
+        => _renderer.DrawPaths(
+            context,
+            paths,
+            SelectedPathIds,
+            _hoveredPathId,
+            point => WorldToScreen(point, size),
+            role => role switch
+            {
+                DxfCanvasPathVisualRole.Selected => SelectedPathPen,
+                DxfCanvasPathVisualRole.Hovered => HoverPathPen,
+                DxfCanvasPathVisualRole.Closed => ClosedPathPen,
+                _ => OpenPathPen,
+            },
+            (path, pen) => TryDrawSemanticPrimitive(context, size, path, pen));
+
+    private void DrawPreviewPaths(DrawingContext context, Size size)
+    {
+        foreach (var path in PreviewPaths)
+        {
+            if (path.Center is Editor2DPoint center && path.Radius is > 0)
+            {
+                context.DrawEllipse(null, PreviewPathPen, WorldToScreen(center, size), path.Radius.Value * Zoom, path.Radius.Value * Zoom);
+                continue;
+            }
             if (path.Points.Count < 2)
                 continue;
-
             var geometry = new StreamGeometry();
-            using (var geometryContext = geometry.Open())
-            {
-                geometryContext.BeginFigure(WorldToScreen(path.Points[0], size), false);
-                for (var pointIndex = 1; pointIndex < path.Points.Count; pointIndex++)
-                    geometryContext.LineTo(WorldToScreen(path.Points[pointIndex], size));
-
-                if (path.IsClosed)
-                    geometryContext.EndFigure(true);
-            }
-
-            var pen = selectedIds?.Contains(path.Id) == true
-                ? SelectedPathPen
-                : string.Equals(path.Id, _hoveredPathId, StringComparison.Ordinal)
-                    ? HoverPathPen
-                    : path.IsClosed
-                        ? ClosedPathPen
-                        : OpenPathPen;
-
-            if (TryDrawSemanticPrimitive(context, size, path, pen))
-                continue;
-
-            context.DrawGeometry(null, pen, geometry);
+            using var geometryContext = geometry.Open();
+            geometryContext.BeginFigure(WorldToScreen(path.Points[0], size), false);
+            for (var index = 1; index < path.Points.Count; index++)
+                geometryContext.LineTo(WorldToScreen(path.Points[index], size));
+            if (path.IsClosed)
+                geometryContext.EndFigure(true);
+            context.DrawGeometry(null, PreviewPathPen, geometry);
         }
     }
 
@@ -1048,7 +1210,7 @@ public sealed class DxfPreviewCanvas : Control
 
     private void DrawEditableVertexHandles(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
     {
-        if ((ActiveTool != Editor2DTool.Select && ActiveTool != Editor2DTool.Scale) || SelectedPathIds.Count == 0)
+        if (!ShouldDrawSelectionHandles(ActiveTool) || SelectedPathIds.Count == 0)
             return;
 
         var selectedIds = new HashSet<string>(SelectedPathIds, StringComparer.Ordinal);
@@ -1068,7 +1230,7 @@ public sealed class DxfPreviewCanvas : Control
 
     private void DrawConstrainedRectangleHandles(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
     {
-        if (SelectedPathIds.Count == 0)
+        if (!ShouldDrawSelectionHandles(ActiveTool) || SelectedPathIds.Count == 0)
             return;
 
         var selectedIds = new HashSet<string>(SelectedPathIds, StringComparer.Ordinal);
@@ -1454,13 +1616,46 @@ public sealed class DxfPreviewCanvas : Control
 
     private void HandleCornerToolClick(Point screenPoint, string kind)
     {
-        if (Document is null || !TryHitTestCornerHandle(Document.Paths, screenPoint, out var hit))
+        if (Document is null || !TryHitTestCornerHandle(GetVisiblePaths(), screenPoint, out var hit))
             return;
 
-        var nextDocument = ApplyCornerEdit(Document, hit.PathId, hit.CornerIndex, kind);
-        if (nextDocument is null)
+        var path = Document.Paths.FirstOrDefault(candidate => candidate.Id == hit.PathId);
+        if (path is null)
             return;
 
+        var existingForPath = CornerParameters.Where(parameter => parameter.PathId == hit.PathId).ToArray();
+        var sourcePoints = existingForPath.FirstOrDefault()?.SourcePoints ?? path.Points;
+        if (hit.CornerIndex < 0 || hit.CornerIndex >= sourcePoints.Count)
+            return;
+
+        var previousIndex = hit.CornerIndex == 0 ? sourcePoints.Count - 1 : hit.CornerIndex - 1;
+        var nextIndex = hit.CornerIndex == sourcePoints.Count - 1 ? 0 : hit.CornerIndex + 1;
+        var cornerKind = kind.Equals("chamfer", StringComparison.OrdinalIgnoreCase)
+            ? Editor2DCornerKind.Chamfer
+            : Editor2DCornerKind.Fillet;
+        _cornerToolSessionValue ??= Editor2DCornerGeometry.DefaultValue(
+            sourcePoints[previousIndex],
+            sourcePoints[hit.CornerIndex],
+            sourcePoints[nextIndex],
+            cornerKind);
+        var parameter = new Editor2DCornerParameter(
+            $"{hit.PathId}:{hit.CornerIndex}",
+            hit.PathId,
+            hit.CornerIndex,
+            cornerKind,
+            _cornerToolSessionValue.Value,
+            sourcePoints.ToArray());
+        var nextParameters = CornerParameters
+            .Where(item => item.Id != parameter.Id)
+            .Append(parameter)
+            .ToArray();
+        var sourcePath = path with { Points = sourcePoints };
+        var nextPath = Editor2DCornerGeometry.Apply(sourcePath, nextParameters);
+        var nextDocument = CreateUpdatedDocument(
+            Document,
+            Document.Paths.Select(item => item.Id == path.Id ? nextPath : item).ToArray());
+
+        SetCurrentValue(CornerParametersProperty, nextParameters);
         SetCurrentValue(DocumentProperty, nextDocument);
         SetCurrentValue(SelectedPathIdsProperty, new[] { hit.PathId });
         SetCurrentValue(SelectedMeasurementIdProperty, null);
@@ -2720,45 +2915,19 @@ public sealed class DxfPreviewCanvas : Control
     }
 
     private double CalculateWorldStep(double targetPixels)
-    {
-        var zoom = Math.Max(Zoom, 0.0001);
-        var raw = targetPixels / zoom;
-        var magnitude = Math.Pow(10.0, Math.Floor(Math.Log10(raw)));
-        var normalized = raw / magnitude;
-        var factor = normalized switch
-        {
-            <= 1.0 => 1.0,
-            <= 2.0 => 2.0,
-            <= 5.0 => 5.0,
-            _ => 10.0,
-        };
-
-        return factor * magnitude;
-    }
+        => DxfCanvasViewportTransform.CalculateWorldStep(targetPixels, Zoom);
 
     private WorldBounds GetVisibleWorldBounds(Size size)
     {
-        var topLeft = ScreenToWorld(new Point(0, 0), Zoom);
-        var bottomRight = ScreenToWorld(new Point(size.Width, size.Height), Zoom);
-        return new WorldBounds(
-            Left: Math.Min(topLeft.X, bottomRight.X),
-            Right: Math.Max(topLeft.X, bottomRight.X),
-            Bottom: Math.Min(topLeft.Y, bottomRight.Y),
-            Top: Math.Max(topLeft.Y, bottomRight.Y));
+        var bounds = DxfCanvasViewportTransform.VisibleWorldBounds(size, Zoom, OffsetX, OffsetY);
+        return new WorldBounds(bounds.Left, bounds.Right, bounds.Bottom, bounds.Top);
     }
 
     private Point WorldToScreen(Editor2DPoint point, Size size)
-        => new(
-            (size.Width / 2.0) + OffsetX + (point.X * Zoom),
-            (size.Height / 2.0) + OffsetY - (point.Y * Zoom));
+        => DxfCanvasViewportTransform.WorldToScreen(point, size, Zoom, OffsetX, OffsetY);
 
     private Editor2DPoint ScreenToWorld(Point point, double zoom)
-    {
-        var resolvedZoom = Math.Max(zoom, 0.0001);
-        return new Editor2DPoint(
-            (point.X - (Bounds.Width / 2.0) - OffsetX) / resolvedZoom,
-            ((Bounds.Height / 2.0) + OffsetY - point.Y) / resolvedZoom);
-    }
+        => DxfCanvasViewportTransform.ScreenToWorld(point, Bounds.Size, zoom, OffsetX, OffsetY);
 
     private string? HitTestPathId(Point pointerPosition)
     {
@@ -2772,6 +2941,9 @@ public sealed class DxfPreviewCanvas : Control
 
         foreach (var path in Document.Paths)
         {
+            if (HiddenPathIds.Contains(path.Id, StringComparer.Ordinal))
+                continue;
+
             if (TryHitTestSemanticPrimitive(path, worldPoint, hitTolerance, out var semanticDistance, out var containsPoint))
             {
                 if (containsPoint)
@@ -2790,7 +2962,7 @@ public sealed class DxfPreviewCanvas : Control
             }
 
             var screenPoints = path.Points.Select(point => WorldToScreen(point, Bounds.Size)).ToArray();
-            var pathDistance = DistanceToPath(pointerPosition, screenPoints, path.IsClosed);
+            var pathDistance = DxfCanvasHitTester.DistanceToPath(pointerPosition, screenPoints, path.IsClosed);
             if (pathDistance <= hitTolerance && pathDistance < bestDistance)
             {
                 bestDistance = pathDistance;
@@ -2798,7 +2970,7 @@ public sealed class DxfPreviewCanvas : Control
                 continue;
             }
 
-            if (path.IsClosed && screenPoints.Length >= 3 && PointInPolygon(pointerPosition, screenPoints))
+            if (path.IsClosed && screenPoints.Length >= 3 && DxfCanvasHitTester.PointInPolygon(pointerPosition, screenPoints))
             {
                 bestDistance = 0.0;
                 bestPathId = path.Id;
@@ -2806,6 +2978,11 @@ public sealed class DxfPreviewCanvas : Control
         }
 
         return bestPathId;
+    }
+
+    private IReadOnlyList<Editor2DPreviewPath> GetVisiblePaths()
+    {
+        return _renderer.VisiblePaths(Document, HiddenPathIds);
     }
 
     private Rect GetScreenBounds(Editor2DPreviewPath path, Size size)
@@ -2869,19 +3046,36 @@ public sealed class DxfPreviewCanvas : Control
         {
             var screenStart = WorldToScreen(textStart, size);
             var fontSize = Math.Max(textHeight * Zoom, 8.0);
+            var typeface = new Typeface(
+                string.IsNullOrWhiteSpace(path.FontFamily) ? "Inter, Segoe UI, Arial" : path.FontFamily,
+                path.IsItalic ? FontStyle.Italic : FontStyle.Normal,
+                path.IsBold ? FontWeight.Bold : FontWeight.Normal,
+                FontStretch.Normal);
             var formattedText = new FormattedText(
                 textValue,
                 CultureInfo.InvariantCulture,
                 FlowDirection.LeftToRight,
-                TextEntityTypeface,
+                typeface,
                 fontSize,
                 pen.Brush ?? OpenPathPen.Brush);
+            var characterCount = textValue.Count(character => character is not '\r' and not '\n');
+            var spacingPixels = Math.Max(characterCount - 1, 0) * path.CharacterSpacing * Zoom;
+            var spacingScale = formattedText.Width > 0
+                ? Math.Max((formattedText.Width + spacingPixels) / formattedText.Width, 0.1)
+                : 1.0;
 
             using var transform = context.PushTransform(
                 Matrix.CreateTranslation(screenStart.X, screenStart.Y)
                 * Matrix.CreateRotation(-rotationDegrees * Math.PI / 180.0)
-                * Matrix.CreateScale(widthFactor, 1.0));
+                * Matrix.CreateScale(widthFactor * spacingScale, 1.0));
             context.DrawText(formattedText, new Point(0.0, -formattedText.Height));
+            if (path.IsUnderline)
+            {
+                context.DrawLine(
+                    new Pen(pen.Brush ?? OpenPathPen.Brush, Math.Max(1, fontSize / 14)),
+                    new Point(0, 1),
+                    new Point(formattedText.Width, 1));
+            }
             return true;
         }
 
@@ -2930,9 +3124,9 @@ public sealed class DxfPreviewCanvas : Control
                 .Select(static point => new Point(point.X, point.Y))
                 .ToArray();
             var hitPoint = new Point(worldPoint.X, worldPoint.Y);
-            containsPoint = polygon.Length >= 3 && PointInPolygon(hitPoint, polygon);
+            containsPoint = polygon.Length >= 3 && DxfCanvasHitTester.PointInPolygon(hitPoint, polygon);
             distance = polygon.Length >= 2
-                ? DistanceToPath(hitPoint, polygon, isClosed: true) * Zoom
+                ? DxfCanvasHitTester.DistanceToPath(hitPoint, polygon, isClosed: true) * Zoom
                 : double.PositiveInfinity;
             return true;
         }
@@ -3129,20 +3323,6 @@ public sealed class DxfPreviewCanvas : Control
         _deleteSelectionMenuItem.IsVisible = hasMeasurementSelection || hasSelection;
     }
 
-    private void OnExpandRectanglesMenuItemClick(object? sender, RoutedEventArgs e)
-    {
-        ExpandSelectedRectangles();
-        _contextMenu.Close();
-    }
-
-    private void OnDeleteSelectionMenuItemClick(object? sender, RoutedEventArgs e)
-    {
-        if (!DeleteSelectedMeasurement())
-            DeleteSelectedPaths();
-
-        _contextMenu.Close();
-    }
-
     private string? HitTestManualMeasurementId(Point screenPoint)
     {
         const double hitTolerance = 10.0;
@@ -3156,7 +3336,7 @@ public sealed class DxfPreviewCanvas : Control
 
             var start = WorldToScreen(measurement.Start, Bounds.Size);
             var end = WorldToScreen(measurement.End, Bounds.Size);
-            var distance = DistanceToSegment(screenPoint, start, end);
+            var distance = DxfCanvasHitTester.DistanceToSegment(screenPoint, start, end);
             distance = Math.Min(distance, Math.Sqrt(Math.Pow(screenPoint.X - start.X, 2) + Math.Pow(screenPoint.Y - start.Y, 2)));
             distance = Math.Min(distance, Math.Sqrt(Math.Pow(screenPoint.X - end.X, 2) + Math.Pow(screenPoint.Y - end.Y, 2)));
             if (distance <= hitTolerance && distance < bestDistance)
@@ -3199,48 +3379,13 @@ public sealed class DxfPreviewCanvas : Control
             new Point(Math.Max(start.X, end.X), Math.Max(start.Y, end.Y)));
 
     private static Editor2DPoint[] BuildRectanglePoints(Editor2DPoint startPoint, Editor2DPoint endPoint)
-        =>
-        [
-            new Editor2DPoint(startPoint.X, startPoint.Y),
-            new Editor2DPoint(endPoint.X, startPoint.Y),
-            new Editor2DPoint(endPoint.X, endPoint.Y),
-            new Editor2DPoint(startPoint.X, endPoint.Y),
-        ];
+        => DxfCanvasGeometryEditor.BuildRectangle(startPoint, endPoint);
 
     private static Editor2DPoint[] BuildCirclePoints(Editor2DPoint centerPoint, double radius)
-    {
-        const int segmentCount = 48;
-        var points = new Editor2DPoint[segmentCount];
-        for (var segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
-        {
-            var angle = Math.PI * 2.0 * segmentIndex / segmentCount;
-            points[segmentIndex] = new Editor2DPoint(
-                centerPoint.X + (radius * Math.Cos(angle)),
-                centerPoint.Y + (radius * Math.Sin(angle)));
-        }
-
-        return points;
-    }
+        => DxfCanvasGeometryEditor.BuildCircle(centerPoint, radius);
 
     private static Editor2DPoint[] BuildPolygonPoints(Editor2DPoint centerPoint, Editor2DPoint edgePoint, int sides)
-    {
-        var radius = Math.Sqrt(Math.Pow(edgePoint.X - centerPoint.X, 2) + Math.Pow(edgePoint.Y - centerPoint.Y, 2));
-        var resolvedSides = Math.Clamp(sides, 3, 64);
-        if (radius <= 1e-6)
-            return [];
-
-        var rotation = Math.Atan2(edgePoint.Y - centerPoint.Y, edgePoint.X - centerPoint.X);
-        var points = new Editor2DPoint[resolvedSides];
-        for (var index = 0; index < resolvedSides; index++)
-        {
-            var angle = rotation + (index * (Math.PI * 2.0 / resolvedSides));
-            points[index] = new Editor2DPoint(
-                centerPoint.X + (radius * Math.Cos(angle)),
-                centerPoint.Y + (radius * Math.Sin(angle)));
-        }
-
-        return points;
-    }
+        => DxfCanvasGeometryEditor.BuildPolygon(centerPoint, edgePoint, sides);
 
     private static bool CanEditVertices(Editor2DPreviewPath path)
         => path.EntityType.Equals("LINE", StringComparison.OrdinalIgnoreCase)
@@ -3298,55 +3443,14 @@ public sealed class DxfPreviewCanvas : Control
         IReadOnlyList<string> selectedIds,
         double deltaX,
         double deltaY)
-    {
-        var selectedIdSet = new HashSet<string>(selectedIds, StringComparer.Ordinal);
-        var nextPaths = document.Paths
-            .Select(path => !selectedIdSet.Contains(path.Id)
-                ? path
-                : path with
-                {
-                    Start = path.Start is Editor2DPoint start
-                        ? new Editor2DPoint(start.X + deltaX, start.Y + deltaY)
-                        : null,
-                    Center = path.Center is Editor2DPoint center
-                        ? new Editor2DPoint(center.X + deltaX, center.Y + deltaY)
-                        : null,
-                    Points = path.Points
-                        .Select(point => new Editor2DPoint(point.X + deltaX, point.Y + deltaY))
-                        .ToArray(),
-                })
-            .ToArray();
-        return CreateUpdatedDocument(document, nextPaths);
-    }
+        => DxfCanvasGeometryEditor.Translate(document, selectedIds, deltaX, deltaY);
 
     private static Editor2DPreviewDocument ScalePaths(
         Editor2DPreviewDocument document,
         IReadOnlyList<string> selectedIds,
         Editor2DPoint center,
         double factor)
-    {
-        var selectedIdSet = new HashSet<string>(selectedIds, StringComparer.Ordinal);
-        var normalizedFactor = Math.Max(factor, 0.05);
-        var nextPaths = document.Paths
-            .Select(path => !selectedIdSet.Contains(path.Id)
-                ? path
-                : path with
-                {
-                    Start = path.Start is Editor2DPoint start
-                        ? ScalePoint(start, center, normalizedFactor)
-                        : null,
-                    Center = path.Center is Editor2DPoint pathCenter
-                        ? ScalePoint(pathCenter, center, normalizedFactor)
-                        : null,
-                    Radius = path.Radius is double radius ? radius * normalizedFactor : null,
-                    TextHeight = path.TextHeight is double textHeight ? textHeight * normalizedFactor : null,
-                    Points = path.Points
-                        .Select(point => ScalePoint(point, center, normalizedFactor))
-                        .ToArray(),
-                })
-            .ToArray();
-        return CreateUpdatedDocument(document, nextPaths);
-    }
+        => DxfCanvasGeometryEditor.Scale(document, selectedIds, center, factor);
 
     private static Editor2DPreviewDocument MirrorPaths(
         Editor2DPreviewDocument document,
@@ -3461,21 +3565,10 @@ public sealed class DxfPreviewCanvas : Control
     private static Editor2DPreviewDocument CreateUpdatedDocument(
         Editor2DPreviewDocument document,
         IReadOnlyList<Editor2DPreviewPath> nextPaths)
-    {
-        var bounds = MeasureBounds(nextPaths);
-        var entityCounts = nextPaths
-            .GroupBy(static path => path.EntityType, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.OrdinalIgnoreCase);
-        return document with
-        {
-            Paths = nextPaths,
-            Bounds = bounds,
-            EntityCounts = entityCounts,
-        };
-    }
+        => DxfCanvasGeometryEditor.Update(document, nextPaths);
 
     private static double DistanceBetween(Editor2DPoint left, Editor2DPoint right)
-        => Math.Sqrt(Math.Pow(left.X - right.X, 2) + Math.Pow(left.Y - right.Y, 2));
+        => DxfCanvasGeometryEditor.Distance(left, right);
 
     private bool TryGetSelectedPathBounds(
         IReadOnlyList<Editor2DPreviewPath> paths,
@@ -3503,62 +3596,7 @@ public sealed class DxfPreviewCanvas : Control
     }
 
     private static Editor2DBounds MeasureBounds(IReadOnlyList<Editor2DPreviewPath> paths)
-    {
-        var points = paths.SelectMany(static path => path.Points).ToArray();
-        if (points.Length == 0)
-            return new Editor2DBounds(0, 0, 0, 0);
-
-        var minX = points.Min(static point => point.X);
-        var minY = points.Min(static point => point.Y);
-        var maxX = points.Max(static point => point.X);
-        var maxY = points.Max(static point => point.Y);
-        return new Editor2DBounds(minX, minY, maxX, maxY);
-    }
-
-    private static double DistanceToPath(Point point, IReadOnlyList<Point> points, bool isClosed)
-    {
-        if (points.Count < 2)
-            return double.PositiveInfinity;
-
-        var bestDistance = double.PositiveInfinity;
-        for (var index = 0; index < points.Count - 1; index++)
-            bestDistance = Math.Min(bestDistance, DistanceToSegment(point, points[index], points[index + 1]));
-
-        if (isClosed)
-            bestDistance = Math.Min(bestDistance, DistanceToSegment(point, points[^1], points[0]));
-
-        return bestDistance;
-    }
-
-    private static bool PointInPolygon(Point point, IReadOnlyList<Point> polygon)
-    {
-        var inside = false;
-        for (var i = 0; i < polygon.Count; i++)
-        {
-            var j = i == 0 ? polygon.Count - 1 : i - 1;
-            var pi = polygon[i];
-            var pj = polygon[j];
-            var intersects = ((pi.Y > point.Y) != (pj.Y > point.Y))
-                             && (point.X < ((pj.X - pi.X) * (point.Y - pi.Y) / ((pj.Y - pi.Y) + double.Epsilon)) + pi.X);
-            if (intersects)
-                inside = !inside;
-        }
-
-        return inside;
-    }
-
-    private static double DistanceToSegment(Point point, Point start, Point end)
-    {
-        var delta = end - start;
-        var lengthSquared = (delta.X * delta.X) + (delta.Y * delta.Y);
-        if (lengthSquared <= 1e-9)
-            return Math.Sqrt(Math.Pow(point.X - start.X, 2) + Math.Pow(point.Y - start.Y, 2));
-
-        var t = ((point.X - start.X) * delta.X + (point.Y - start.Y) * delta.Y) / lengthSquared;
-        t = Math.Clamp(t, 0.0, 1.0);
-        var projection = new Point(start.X + (delta.X * t), start.Y + (delta.Y * t));
-        return Math.Sqrt(Math.Pow(point.X - projection.X, 2) + Math.Pow(point.Y - projection.Y, 2));
-    }
+        => DxfCanvasGeometryEditor.MeasureBounds(paths);
 
     private readonly record struct WorldBounds(double Left, double Right, double Bottom, double Top);
 }
