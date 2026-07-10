@@ -37,7 +37,12 @@ public sealed class MacOsDeliveryConfigurationTests
         Assert.Contains("verify-release-readiness.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("package-avalonia-macos.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("libAvaloniaNative.dylib", workflow, StringComparison.Ordinal);
-        Assert.Contains("Launch smoke test", workflow, StringComparison.Ordinal);
+        Assert.Contains("Packaged app WebView, file-dialog, and project round-trip acceptance", workflow, StringComparison.Ordinal);
+        Assert.Contains("webView.navigationCompleted", workflow, StringComparison.Ordinal);
+        Assert.Contains("fileDialogs.CanOpen", workflow, StringComparison.Ordinal);
+        Assert.Contains("fileDialogs.CanSave", workflow, StringComparison.Ordinal);
+        Assert.Contains("projectRoundTrip.viewportPreserved", workflow, StringComparison.Ordinal);
+        Assert.Contains("packaged-roundtrip.stch", workflow, StringComparison.Ordinal);
         Assert.Contains("actions/upload-artifact@v4", workflow, StringComparison.Ordinal);
     }
 

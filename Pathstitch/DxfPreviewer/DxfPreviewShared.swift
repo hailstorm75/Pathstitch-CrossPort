@@ -1,6 +1,8 @@
 import Foundation
 import CoreGraphics
+#if canImport(ZIPFoundation)
 import ZIPFoundation
+#endif
 
 // MARK: - Per-format Finder preview settings (MAS-155)
 
@@ -523,6 +525,7 @@ public struct DXFParser {
 /// was rendered by the app with layer-visibility honoured, so hidden geometry is
 /// already excluded — something we can't know from the raw DXF alone.
 public func stchEmbeddedPreview(url: URL) -> CGImage? {
+#if canImport(ZIPFoundation)
     guard let archive = Archive(url: url, accessMode: .read),
           let entry = archive["preview.png"] else { return nil }
     var data = Data()
@@ -533,11 +536,15 @@ public func stchEmbeddedPreview(url: URL) -> CGImage? {
     }
     guard let provider = CGDataProvider(data: data as CFData) else { return nil }
     return CGImage(pngDataProviderSource: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
+#else
+    return nil
+#endif
 }
 
 /// Extracts the working DXF text embedded in a `.stch` bundle (fallback path when
 /// the bundle predates embedded previews).
 public func stchEmbeddedDXF(url: URL) -> [PreviewEntity] {
+#if canImport(ZIPFoundation)
     guard let archive = Archive(url: url, accessMode: .read),
           let entry = archive["project.json"] else { return [] }
     var data = Data()
@@ -552,6 +559,9 @@ public func stchEmbeddedDXF(url: URL) -> [PreviewEntity] {
     let content = String(data: dxfData, encoding: .utf8) ?? String(data: dxfData, encoding: .ascii)
     guard let content else { return [] }
     return DXFParser.parse(content: content)
+#else
+    return []
+#endif
 }
 
 // MARK: - Rendering

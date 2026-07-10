@@ -19,12 +19,12 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
 
     private static readonly FilePickerFileType SourceModelFileType = new("3D Source Model")
     {
-        Patterns = ["*.obj", "*.stl"],
+        Patterns = ["*.step", "*.stp", "*.obj", "*.stl"],
     };
 
     private static readonly FilePickerFileType WorkspaceFileType = new("Pathstitch Workspace")
     {
-        Patterns = ["*.stch", "*.obj", "*.stl"],
+        Patterns = ["*.stch", "*.step", "*.stp", "*.obj", "*.stl"],
     };
 
     private static readonly FilePickerFileType ReferenceImageFileType = new("Reference Image")

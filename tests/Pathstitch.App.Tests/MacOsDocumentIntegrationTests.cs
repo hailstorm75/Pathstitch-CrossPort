@@ -33,7 +33,7 @@ public sealed class MacOsDocumentIntegrationTests
     [Theory]
     [InlineData("PreviewInfo.plist", "com.apple.quicklook.preview", "PathstitchQuickLook.PreviewProvider")]
     [InlineData("ThumbnailInfo.plist", "com.apple.quicklook.thumbnail", "PathstitchThumbnail.ThumbnailProvider")]
-    public void QuickLookExtensionPlistsSupportEveryRegisteredContentType(
+    public void QuickLookExtensionPlistsSupportTheVerifiedPreviewContentTypes(
         string fileName,
         string extensionPoint,
         string principalClass)
@@ -43,24 +43,41 @@ public sealed class MacOsDocumentIntegrationTests
 
         Assert.Contains(extensionPoint, values);
         Assert.Contains(principalClass, values);
-        Assert.All(ContentTypes, type => Assert.Contains(type, values));
+        Assert.Contains("com.pathstitch.dxf", values);
+        Assert.Contains("com.pathstitch.step", values);
+        Assert.DoesNotContain("com.pathstitch.project", values);
         Assert.Contains("13.0", values);
     }
 
     [Fact]
-    public void PreviewAndThumbnailProvidersGenerateContentInsteadOfReturningPlaceholders()
+    public void PreviewAndThumbnailProvidersRenderDxfProjectAndStepGeometry()
     {
         var preview = Read("scripts", "macos", "quicklook", "PreviewProvider.swift");
         Assert.Contains("QLPreviewingController", preview, StringComparison.Ordinal);
         Assert.Contains("preparePreviewOfFile", preview, StringComparison.Ordinal);
-        Assert.Contains("Data(contentsOf:", preview, StringComparison.Ordinal);
-        Assert.Contains("Pathstitch project archive", preview, StringComparison.Ordinal);
+        Assert.Contains("loadStepMesh(url:", preview, StringComparison.Ordinal);
+        Assert.Contains("renderStepMeshToImage", preview, StringComparison.Ordinal);
+        Assert.Contains("renderStepToImage", preview, StringComparison.Ordinal);
+        Assert.Contains("renderFileToImage", preview, StringComparison.Ordinal);
 
         var thumbnail = Read("scripts", "macos", "quicklook", "ThumbnailProvider.swift");
         Assert.Contains("QLThumbnailProvider", thumbnail, StringComparison.Ordinal);
         Assert.Contains("QLThumbnailReply(contextSize:", thumbnail, StringComparison.Ordinal);
-        Assert.Contains("NSBezierPath", thumbnail, StringComparison.Ordinal);
-        Assert.Contains("extensionBadge", thumbnail, StringComparison.Ordinal);
+        Assert.Contains("loadStepMesh(url:", thumbnail, StringComparison.Ordinal);
+        Assert.Contains("renderStepMeshToImage", thumbnail, StringComparison.Ordinal);
+        Assert.Contains("renderStepToImage", thumbnail, StringComparison.Ordinal);
+        Assert.Contains("renderFileToImage", thumbnail, StringComparison.Ordinal);
+
+        var dxfRenderer = Read("Pathstitch", "DxfPreviewer", "DxfPreviewShared.swift");
+        Assert.Contains("DXFParser.parse(url:", dxfRenderer, StringComparison.Ordinal);
+        Assert.Contains("stchEmbeddedPreview(url:", dxfRenderer, StringComparison.Ordinal);
+        Assert.Contains("stchEmbeddedDXF(url:", dxfRenderer, StringComparison.Ordinal);
+        Assert.Contains("renderEntitiesToImage", dxfRenderer, StringComparison.Ordinal);
+
+        var stepRenderer = Read("Pathstitch", "DxfPreviewer", "StepPreviewShared.swift");
+        Assert.Contains("step_mesh_load", stepRenderer, StringComparison.Ordinal);
+        Assert.Contains("mesh.indices.count / 3", stepRenderer, StringComparison.Ordinal);
+        Assert.Contains("ctx.fillPath()", stepRenderer, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -70,15 +87,37 @@ public sealed class MacOsDocumentIntegrationTests
         Assert.Contains("Build-QuickLookExtension", packaging, StringComparison.Ordinal);
         Assert.Contains("xcrun swiftc", packaging, StringComparison.Ordinal);
         Assert.Contains("PathstitchQuickLook.appex", packaging.Replace("$Name", "PathstitchQuickLook"), StringComparison.Ordinal);
+        Assert.Contains("DxfPreviewShared.swift", packaging, StringComparison.Ordinal);
+        Assert.Contains("StepPreviewShared.swift", packaging, StringComparison.Ordinal);
+        Assert.Contains("PreviewGeometrySmoke.swift", packaging, StringComparison.Ordinal);
+        Assert.Contains("preview-smoke.dxf", packaging, StringComparison.Ordinal);
+        Assert.Contains("analytic-multibody-hole.step", packaging, StringComparison.Ordinal);
         Assert.Contains("codesign --verify --deep", packaging, StringComparison.Ordinal);
+        Assert.Contains("Assert-Arm64MachO", packaging, StringComparison.Ordinal);
+        Assert.Contains("Assert-NoDeveloperRuntimeDependencies", packaging, StringComparison.Ordinal);
+        Assert.Contains("stapler validate", packaging, StringComparison.Ordinal);
+        Assert.Contains("stapled app archive recreation failed", packaging, StringComparison.Ordinal);
+
+        var smoke = Read("scripts", "macos", "quicklook", "PreviewGeometrySmoke.swift");
+        Assert.Contains("DXFParser.parse(url:", smoke, StringComparison.Ordinal);
+        Assert.Contains("loadStepMesh(url:", smoke, StringComparison.Ordinal);
+        Assert.Contains("renderStepMeshToImage", smoke, StringComparison.Ordinal);
+        Assert.Contains("dxfInk > 100, stepInk > 100", smoke, StringComparison.Ordinal);
+        Assert.Contains("writePNG(dxfImage", smoke, StringComparison.Ordinal);
+        Assert.Contains("writePNG(stepImage", smoke, StringComparison.Ordinal);
 
         var workflow = Read(".github", "workflows", "macos-release.yml");
         Assert.Contains("lsregister", workflow, StringComparison.Ordinal);
+        Assert.Contains("pluginkit -m -A -D", workflow, StringComparison.Ordinal);
+        Assert.Contains("com.pathstitch.crossport.quicklook", workflow, StringComparison.Ordinal);
+        Assert.Contains("com.pathstitch.crossport.thumbnail", workflow, StringComparison.Ordinal);
         Assert.Contains("qlmanage -t", workflow, StringComparison.Ordinal);
-        Assert.Contains("sample.stch", workflow, StringComparison.Ordinal);
         Assert.Contains("sample.dxf", workflow, StringComparison.Ordinal);
         Assert.Contains("sample.step", workflow, StringComparison.Ordinal);
-        Assert.Contains("Quick Look did not generate all fixture thumbnails", workflow, StringComparison.Ordinal);
+        Assert.Contains("preview-smoke/dxf-preview.png", workflow, StringComparison.Ordinal);
+        Assert.Contains("preview-smoke/step-preview.png", workflow, StringComparison.Ordinal);
+        Assert.Contains("Get-FileHash", workflow, StringComparison.Ordinal);
+        Assert.Contains("Quick Look did not generate DXF and STEP fixture thumbnails", workflow, StringComparison.Ordinal);
     }
 
     private static XDocument LoadPlist(params string[] pathParts)

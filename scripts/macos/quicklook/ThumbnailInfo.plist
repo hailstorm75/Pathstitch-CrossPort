@@ -14,7 +14,7 @@
     <key>NSExtensionPrincipalClass</key><string>PathstitchThumbnail.ThumbnailProvider</string>
     <key>NSExtensionAttributes</key><dict>
       <key>QLSupportedContentTypes</key><array>
-        <string>com.pathstitch.project</string><string>com.pathstitch.dxf</string><string>com.pathstitch.step</string>
+        <string>com.pathstitch.dxf</string><string>com.pathstitch.step</string>
       </array>
     </dict>
   </dict>

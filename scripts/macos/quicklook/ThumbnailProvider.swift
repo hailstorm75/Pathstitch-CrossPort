@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 import QuickLookThumbnailing
 
 public final class ThumbnailProvider: QLThumbnailProvider {
@@ -6,26 +7,38 @@ public final class ThumbnailProvider: QLThumbnailProvider {
         for request: QLFileThumbnailRequest,
         _ handler: @escaping (QLThumbnailReply?, Error?) -> Void
     ) {
-        let size = request.maximumSize
-        let ext = request.fileURL.pathExtension.uppercased()
-        let reply = QLThumbnailReply(contextSize: size) { context in
-            let graphics = NSGraphicsContext(cgContext: context, flipped: false)
-            NSGraphicsContext.saveGraphicsState()
-            NSGraphicsContext.current = graphics
-            NSColor(calibratedRed: 0.075, green: 0.09, blue: 0.14, alpha: 1).setFill()
-            NSBezierPath(roundedRect: NSRect(origin: .zero, size: size), xRadius: 18, yRadius: 18).fill()
-            let title = ext.isEmpty ? "STCH" : ext
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: min(size.width, size.height) * 0.20, weight: .bold),
-                .foregroundColor: NSColor(calibratedRed: 0.30, green: 0.50, blue: 1, alpha: 1)
-            ]
-            let text = NSAttributedString(string: title, attributes: attributes)
-            let textSize = text.size()
-            text.draw(at: NSPoint(x: (size.width - textSize.width) / 2, y: (size.height - textSize.height) / 2))
-            NSGraphicsContext.restoreGraphicsState()
+        let renderSize = CGSize(width: 1024, height: 1024)
+        let ext = request.fileURL.pathExtension.lowercased()
+        let image: CGImage?
+        if ext == "step" || ext == "stp" {
+            image = loadStepMesh(url: request.fileURL).flatMap { renderStepMeshToImage($0, size: renderSize) }
+                ?? renderStepToImage(url: request.fileURL, size: renderSize)
+        } else {
+            image = renderFileToImage(url: request.fileURL, size: renderSize)
+        }
+
+        guard let image else {
+            handler(nil, NSError(
+                domain: "PathstitchThumbnail",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No renderable geometry was found in \(request.fileURL.lastPathComponent)."]
+            ))
+            return
+        }
+        let reply = QLThumbnailReply(contextSize: request.maximumSize) { context in
+            let bounds = CGRect(origin: .zero, size: request.maximumSize)
+            context.setFillColor(NSColor.white.cgColor)
+            context.fill(bounds)
+            let scale = min(bounds.width / CGFloat(image.width), bounds.height / CGFloat(image.height))
+            let target = CGSize(width: CGFloat(image.width) * scale, height: CGFloat(image.height) * scale)
+            context.draw(image, in: CGRect(
+                x: (bounds.width - target.width) / 2,
+                y: (bounds.height - target.height) / 2,
+                width: target.width,
+                height: target.height
+            ))
             return true
         }
-        reply.extensionBadge = ext
         handler(reply, nil)
     }
 }
