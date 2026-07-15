@@ -35,6 +35,11 @@ internal sealed record DxfPreviewDocument(
     IReadOnlyDictionary<string, int> EntityCounts,
     IReadOnlyList<string> UnsupportedEntityTypes);
 
+internal readonly record struct DxfUnitMetadata(int? InsUnitsCode, double? MillimetersPerDrawingUnit)
+{
+    public bool HasUnitScale => MillimetersPerDrawingUnit is not null;
+}
+
 internal static class EditorDxfDocument
 {
     public static void SavePreviewDocument(
@@ -139,6 +144,21 @@ internal static class EditorDxfDocument
         => LoadPreviewDocument(dxfPath).Paths
             .Select(static path => new DxfPolyline(path.Points, path.IsClosed))
             .ToArray();
+
+    internal static DxfUnitMetadata ReadUnitMetadata(string dxfPath)
+    {
+        if (string.IsNullOrWhiteSpace(dxfPath) || !File.Exists(dxfPath))
+            return default;
+
+        if (Path.GetExtension(dxfPath).Equals(".svg", StringComparison.OrdinalIgnoreCase))
+            return default;
+
+        var lines = File.ReadAllLines(dxfPath);
+        return ReadUnitMetadata(lines);
+    }
+
+    internal static DxfUnitMetadata ReadUnitMetadata(IEnumerable<string> lines)
+        => ReadUnitMetadata(lines as string[] ?? lines.ToArray());
 
     public static DxfPreviewDocument LoadPreviewDocument(string dxfPath)
     {
@@ -253,6 +273,55 @@ internal static class EditorDxfDocument
             entityCounts.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.OrdinalIgnoreCase),
             unsupportedEntityTypes.OrderBy(static type => type, StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
+    private static DxfUnitMetadata ReadUnitMetadata(string[] lines)
+    {
+        if (lines.Length < 4)
+            return default;
+
+        var inHeaderSection = false;
+        var expectInsUnitsValue = false;
+
+        for (var i = 0; i + 1 < lines.Length; i += 2)
+        {
+            var code = lines[i].Trim();
+            var value = lines[i + 1].Trim();
+
+            if (code == "0"
+                && string.Equals(value, "SECTION", StringComparison.OrdinalIgnoreCase)
+                && i + 3 < lines.Length
+                && string.Equals(lines[i + 2].Trim(), "2", StringComparison.Ordinal))
+            {
+                inHeaderSection = string.Equals(lines[i + 3].Trim(), "HEADER", StringComparison.OrdinalIgnoreCase);
+                expectInsUnitsValue = false;
+                i += 2;
+                continue;
+            }
+
+            if (code == "0" && string.Equals(value, "ENDSEC", StringComparison.OrdinalIgnoreCase))
+            {
+                inHeaderSection = false;
+                expectInsUnitsValue = false;
+                continue;
+            }
+
+            if (!inHeaderSection)
+                continue;
+
+            if (expectInsUnitsValue)
+            {
+                if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var insUnitsCode))
+                    return new DxfUnitMetadata(insUnitsCode, MapInsUnitsToMillimetersPerDrawingUnit(insUnitsCode));
+
+                return default;
+            }
+
+            if (code == "9" && string.Equals(value, "$INSUNITS", StringComparison.OrdinalIgnoreCase))
+                expectInsUnitsValue = true;
+        }
+
+        return default;
     }
 
     private static DxfPreviewPath? ParseLwPolyline(string[] lines, ref int index, int entityIndex)
@@ -946,6 +1015,33 @@ internal static class EditorDxfDocument
         var magnitude = Math.Max(Math.Abs(widthFactor), 0.1);
         return widthFactor < 0.0 ? -magnitude : magnitude;
     }
+
+    private static double? MapInsUnitsToMillimetersPerDrawingUnit(int insUnitsCode)
+        => insUnitsCode switch
+        {
+            0 => null,
+            1 => 25.4,
+            2 => 304.8,
+            3 => 1609344.0,
+            4 => 1.0,
+            5 => 10.0,
+            6 => 1000.0,
+            7 => 1000000.0,
+            8 => 0.0000254,
+            9 => 0.0254,
+            10 => 914.4,
+            11 => 0.0000001,
+            12 => 0.000001,
+            13 => 0.001,
+            14 => 100.0,
+            15 => 10000.0,
+            16 => 100000.0,
+            17 => 1000000000.0,
+            18 => 149597870700.0,
+            19 => 9460730472580800000.0,
+            20 => 30856775814671900.0,
+            _ => null,
+        };
 
     private static bool TryParseDouble(string raw, out double value)
         => double.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
