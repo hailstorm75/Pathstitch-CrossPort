@@ -357,8 +357,8 @@ public sealed class DxfPreviewCanvas : Control
         _intersectMenuItem = CreateBooleanMenuItem("Intersect", "Intersect");
         _convertLinesMenuItem = new MenuItem
         {
-            Header = "Convert Lines",
-            Command = new RelayCommand(ExecuteConvertLinesCommand),
+            Header = "Convert to Dashed",
+            Command = new RelayCommand(ExecuteConvertToDashedCommand),
         };
 
         _explodeCompoundMenuItem = new MenuItem
@@ -433,10 +433,13 @@ public sealed class DxfPreviewCanvas : Control
         _contextMenu.Close();
     }
 
-    private void ExecuteConvertLinesCommand()
+    private void ExecuteConvertToDashedCommand()
     {
         if (DataContext is EditorPageViewModel viewModel)
+        {
+            viewModel.TwoDConvertLineStyle = "dashed";
             viewModel.ApplyTwoDConvertLines();
+        }
         _contextMenu.Close();
     }
 

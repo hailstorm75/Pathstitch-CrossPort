@@ -370,7 +370,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("CreateBooleanMenuItem(\"Subtract\", \"Subtract\")", canvas, StringComparison.Ordinal);
         Assert.Contains("CreateBooleanMenuItem(\"Intersect\", \"Intersect\")", canvas, StringComparison.Ordinal);
         Assert.Contains("ApplyTwoDBooleanAsync(operation)", canvas, StringComparison.Ordinal);
-        Assert.Contains("Header = \"Convert Lines\"", canvas, StringComparison.Ordinal);
+        Assert.Contains("Header = \"Convert to Dashed\"", canvas, StringComparison.Ordinal);
+        Assert.Contains("TwoDConvertLineStyle = \"dashed\"", canvas, StringComparison.Ordinal);
         Assert.Contains("ApplyTwoDConvertLines", canvas, StringComparison.Ordinal);
     }
 
