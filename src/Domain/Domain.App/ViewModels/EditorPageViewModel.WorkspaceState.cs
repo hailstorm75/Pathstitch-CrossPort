@@ -1,4 +1,5 @@
 using Domain.App.Models;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Domain.App.ViewModels;
 
@@ -129,6 +130,7 @@ public sealed partial class EditorPageViewModel
 
         ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
         Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        NotifyTwoDHistoryCommands();
         return true;
     }
 
@@ -139,8 +141,19 @@ public sealed partial class EditorPageViewModel
 
         ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
         Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        NotifyTwoDHistoryCommands();
         return true;
     }
+
+    public bool CanUndoTwoDWorkspace => _twoDWorkspace.CanUndo;
+
+    public bool CanRedoTwoDWorkspace => _twoDWorkspace.CanRedo;
+
+    [RelayCommand(CanExecute = nameof(CanUndoTwoDWorkspace))]
+    private void UndoTwoD() => UndoTwoDWorkspace();
+
+    [RelayCommand(CanExecute = nameof(CanRedoTwoDWorkspace))]
+    private void RedoTwoD() => RedoTwoDWorkspace();
 
     private void SyncTwoDWorkspaceState(bool recordHistory)
     {
@@ -167,6 +180,7 @@ public sealed partial class EditorPageViewModel
                 _twoDWorkspace.SewingHoleOperations,
                 _twoDWorkspace.SnapEnabled),
             recordHistory);
+        NotifyTwoDHistoryCommands();
     }
 
     private void ApplyPersistedTwoDWorkspaceState(Editor2DWorkspaceState? state)
@@ -200,11 +214,20 @@ public sealed partial class EditorPageViewModel
                 state.ViewportOffsetY,
                 requestPersistence: false);
             NotifyTwoDWorkspaceFacadeProperties();
+            NotifyTwoDHistoryCommands();
         }
         finally
         {
             _isApplyingTwoDWorkspaceState = false;
         }
+    }
+
+    private void NotifyTwoDHistoryCommands()
+    {
+        OnPropertyChanged(nameof(CanUndoTwoDWorkspace));
+        OnPropertyChanged(nameof(CanRedoTwoDWorkspace));
+        UndoTwoDCommand.NotifyCanExecuteChanged();
+        RedoTwoDCommand.NotifyCanExecuteChanged();
     }
 
     private void NotifyTwoDWorkspaceFacadeProperties()

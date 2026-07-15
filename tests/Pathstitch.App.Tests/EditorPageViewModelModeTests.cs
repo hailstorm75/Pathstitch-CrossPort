@@ -97,6 +97,26 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task TwoDUndoRedoCommands_TrackWorkspaceHistory()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        viewModel.TwoDWorkspace.ClearHistory();
+        var path = new Editor2DPreviewPath("undo-line", "LINE", [new(0, 0), new(5, 0)], false);
+
+        Assert.False(viewModel.CanUndoTwoDWorkspace);
+        viewModel.TwoDDocument = viewModel.TwoDDocument! with { Paths = [path] };
+
+        Assert.True(viewModel.CanUndoTwoDWorkspace);
+        Assert.True(viewModel.UndoTwoDCommand.CanExecute(null));
+        viewModel.UndoTwoDCommand.Execute(null);
+        Assert.Empty(viewModel.TwoDDocument!.Paths);
+        Assert.True(viewModel.CanRedoTwoDWorkspace);
+        viewModel.RedoTwoDCommand.Execute(null);
+        Assert.Equal(path.Id, Assert.Single(viewModel.TwoDDocument!.Paths).Id);
+    }
+
+    [Fact]
     public async Task EditingTwoDDocument_NotifiesLayersPanelWithUpdatedMembership()
     {
         var viewModel = CreateViewModel();

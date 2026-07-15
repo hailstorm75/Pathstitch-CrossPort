@@ -131,6 +131,20 @@
           HotKey="Ctrl+W" />
       </MenuItem>
       <MenuItem
+        AutomationProperties.AutomationId="editor.menu.edit"
+        Header="_Edit">
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.edit.undo"
+          Command="{Binding UndoTwoDCommand}"
+          Header="_Undo"
+          HotKey="Ctrl+Z" />
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.edit.redo"
+          Command="{Binding RedoTwoDCommand}"
+          Header="_Redo"
+          HotKey="Ctrl+Shift+Z" />
+      </MenuItem>
+      <MenuItem
         AutomationProperties.AutomationId="editor.menu.help"
         Header="_Help">
         <MenuItem
