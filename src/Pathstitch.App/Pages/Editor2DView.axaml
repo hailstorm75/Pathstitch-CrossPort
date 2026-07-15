@@ -22,6 +22,7 @@
     SelectedPathIds="{Binding TwoDSelectedPathIds, Mode=TwoWay}"
     HiddenPathIds="{Binding TwoDHiddenPathIds}"
     PreviewPaths="{Binding TwoDWorkspace.SewingHolePreviewPaths}"
+    PatternPreviewPaths="{Binding TwoDPatternPreviewPaths}"
     ReferenceImages="{Binding TwoDReferenceImages}"
     ActiveReferenceImage="{Binding TwoDActiveReferenceImage}"
     ActiveReferenceImageLocked="{Binding TwoDActiveReferenceImageLocked}"

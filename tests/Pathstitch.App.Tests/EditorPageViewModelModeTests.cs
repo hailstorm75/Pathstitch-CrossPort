@@ -35,6 +35,28 @@ public sealed class EditorPageViewModelModeTests
         Assert.Null(viewModel.TwoDPatternGuidePathId);
     }
 
+    [Fact]
+    public void PatternPreview_IsComputedWithoutMutatingDocument()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("source", "LINE", [new(0, 0), new(1, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Patterning;
+        viewModel.TwoDPatternMode = "Circular";
+        viewModel.TwoDPatternCircularCountText = "3";
+        viewModel.TwoDPatternCircularAngleText = "180";
+        viewModel.TwoDPatternPivot = new Editor2DPoint(0, 0);
+
+        var preview = viewModel.TwoDPatternPreviewPaths;
+
+        Assert.Equal(2, preview.Count);
+        Assert.Single(viewModel.TwoDDocument.Paths);
+        Assert.Equal(new Editor2DPoint(0, 0), preview[0].Points[0]);
+        Assert.Equal(-1, preview[1].Points[1].X, 6);
+        Assert.Equal(0, preview[1].Points[1].Y, 6);
+    }
+
     [Theory]
     [InlineData(EditorMode.TwoD, true, false, false)]
     [InlineData(EditorMode.ThreeD, false, true, false)]

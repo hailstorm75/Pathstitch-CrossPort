@@ -82,6 +82,11 @@ public sealed class DxfPreviewCanvas : Control
             nameof(PreviewPaths),
             defaultValue: Array.Empty<Editor2DPreviewPath>());
 
+    public static readonly StyledProperty<IReadOnlyList<Editor2DPreviewPath>> PatternPreviewPathsProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DPreviewPath>>(
+            nameof(PatternPreviewPaths),
+            defaultValue: Array.Empty<Editor2DPreviewPath>());
+
     public static readonly StyledProperty<IReadOnlyList<Editor2DReferenceImage>> ReferenceImagesProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DReferenceImage>>(
             nameof(ReferenceImages),
@@ -443,6 +448,12 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(PreviewPathsProperty, value);
     }
 
+    public IReadOnlyList<Editor2DPreviewPath> PatternPreviewPaths
+    {
+        get => GetValue(PatternPreviewPathsProperty);
+        set => SetValue(PatternPreviewPathsProperty, value);
+    }
+
     public IReadOnlyList<Editor2DReferenceImage> ReferenceImages
     {
         get => GetValue(ReferenceImagesProperty);
@@ -703,6 +714,7 @@ public sealed class DxfPreviewCanvas : Control
         DrawPaths(context, size, visiblePaths);
         DrawPatternPivot(context, size);
         DrawPreviewPaths(context, size);
+        DrawPreviewPaths(context, size, PatternPreviewPaths);
         DrawEditableVertexHandles(context, size, visiblePaths);
         DrawConstrainedRectangleHandles(context, size, visiblePaths);
         DrawCornerToolHandles(context, size, visiblePaths);
@@ -1339,8 +1351,11 @@ Selection:
             (path, pen) => TryDrawSemanticPrimitive(context, size, path, pen));
 
     private void DrawPreviewPaths(DrawingContext context, Size size)
+        => DrawPreviewPaths(context, size, PreviewPaths);
+
+    private void DrawPreviewPaths(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
     {
-        foreach (var path in PreviewPaths)
+        foreach (var path in paths)
         {
             if (path.Center is Editor2DPoint center && path.Radius is > 0)
             {

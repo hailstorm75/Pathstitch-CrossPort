@@ -1,5 +1,6 @@
 using Domain.App.Models;
 using Domain.App.Services;
+using System.Globalization;
 
 namespace Domain.App.ViewModels;
 
@@ -203,6 +204,86 @@ public sealed partial class Editor2DWorkspaceViewModel
             ? "Created 1 path pattern duplicate"
             : $"Created {additions.Count} path pattern duplicates");
     }
+
+    public IReadOnlyList<Editor2DPreviewPath> GetPatternPreviewPaths(Editor2DPoint? circularPivot = null, string? guidePathId = null)
+    {
+        var selected = SelectedPaths();
+        if (selected.Count == 0)
+            return [];
+
+        var preview = new List<Editor2DPreviewPath>();
+        if (string.Equals(PatternMode, "Rectangular", StringComparison.Ordinal)
+            && TryParsePositiveInt(PatternCopiesXText, out var copiesX)
+            && TryParsePositiveInt(PatternCopiesYText, out var copiesY)
+            && TryParseFinite(PatternSpacingXText, out var spacingX)
+            && TryParseFinite(PatternSpacingYText, out var spacingY))
+        {
+            for (var row = 0; row < copiesY; row++)
+            for (var column = 0; column < copiesX; column++)
+            {
+                if (row == 0 && column == 0) continue;
+                preview.AddRange(selected.Select(path => Editor2DGeometry.TranslatePath(
+                    path, column * spacingX, row * spacingY,
+                    $"preview:{path.Id}:{row}:{column}")));
+            }
+            return preview;
+        }
+
+        if (string.Equals(PatternMode, "Circular", StringComparison.Ordinal)
+            && TryParsePositiveInt(PatternCircularCountText, out var totalCount)
+            && TryParseFinite(PatternCircularAngleText, out var totalAngle)
+            && totalCount > 1)
+        {
+            var points = selected.SelectMany(path => path.Points).ToArray();
+            if (points.Length == 0) return [];
+            var pivot = circularPivot ?? new Editor2DPoint(
+                (points.Min(point => point.X) + points.Max(point => point.X)) / 2.0,
+                (points.Min(point => point.Y) + points.Max(point => point.Y)) / 2.0);
+            var fullCircle = Math.Abs(Math.Abs(totalAngle) - 360) <= 1e-6;
+            var step = fullCircle ? totalAngle / totalCount : totalAngle / Math.Max(totalCount - 1, 1);
+            for (var index = 1; index < totalCount; index++)
+                preview.AddRange(selected.Select(path => Editor2DGeometry.RotatePath(
+                    path, pivot, step * index, $"preview:{path.Id}:circular:{index}")));
+            return preview;
+        }
+
+        if (string.Equals(PatternMode, "Path", StringComparison.Ordinal)
+            && guidePathId is not null
+            && TryParsePositiveInt(PatternPathCopiesText, out var copyCount)
+            && TryParseFinite(PatternPathSpacingText, out var spacing)
+            && spacing > 0)
+        {
+            var guide = Document.Paths.FirstOrDefault(path => path.Id == guidePathId);
+            var sources = selected.Where(path => path.Id != guidePathId).ToArray();
+            if (guide is null || guide.Points.Count < 2 || sources.Length == 0) return [];
+            var segments = guide.Points.Zip(guide.Points.Skip(1), (start, end) => (start, end, length: Distance(start, end)))
+                .Where(segment => segment.length > 1e-8).ToArray();
+            var sourcePoints = sources.SelectMany(path => path.Points).ToArray();
+            if (segments.Length == 0 || sourcePoints.Length == 0) return [];
+            var pivot = new Editor2DPoint(
+                (sourcePoints.Min(point => point.X) + sourcePoints.Max(point => point.X)) / 2.0,
+                (sourcePoints.Min(point => point.Y) + sourcePoints.Max(point => point.Y)) / 2.0);
+            var availableCopies = Math.Min(copyCount - 1, (int)Math.Floor(segments.Sum(segment => segment.length) / spacing));
+            for (var index = 1; index <= availableCopies; index++)
+            {
+                if (!TrySamplePath(segments, index * spacing, out var target, out var tangentDegrees)) break;
+                foreach (var path in sources)
+                {
+                    var rotated = Editor2DGeometry.RotatePath(path, pivot, tangentDegrees, $"preview:{path.Id}:path:{index}");
+                    preview.Add(Editor2DGeometry.TranslatePath(rotated, target.X - pivot.X, target.Y - pivot.Y, rotated.Id));
+                }
+            }
+        }
+        return preview;
+    }
+
+    private static bool TryParsePositiveInt(string text, out int value)
+        => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value) && value > 0;
+
+    private static bool TryParseFinite(string text, out double value)
+        => (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+            || double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value))
+           && double.IsFinite(value);
 
     private static bool TrySamplePath(
         IReadOnlyList<(Editor2DPoint start, Editor2DPoint end, double length)> segments,

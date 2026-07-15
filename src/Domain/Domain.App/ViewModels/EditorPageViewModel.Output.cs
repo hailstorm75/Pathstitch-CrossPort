@@ -229,6 +229,7 @@ public sealed partial class EditorPageViewModel
             _twoDWorkspace.SetActiveTool(value);
             ClearTwoDCircularPatternPivot();
             TwoDPatternGuidePathId = null;
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
             OnPropertyChanged();
 
             SyncSidebarToolStates();
@@ -373,6 +374,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDCleanupSummary));
             OnPropertyChanged(nameof(CanApplyTwoDPattern));
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
             OnPropertyChanged(nameof(CanApplyTwoDPaperFoldingCreases));
             OnPropertyChanged(nameof(CanApplyTwoDGlueTabs));
             OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
@@ -868,6 +870,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDPatternSummary));
             ClearTwoDCircularPatternPivot();
             TwoDPatternGuidePathId = null;
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
         }
     }
 
@@ -888,6 +891,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged();
             OnPropertyChanged(nameof(TwoDPatternPivotSummary));
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
         }
     }
 
@@ -924,6 +928,7 @@ public sealed partial class EditorPageViewModel
             if (!SetWorkspaceFacadeValue(_twoDPatternGuidePathId, normalized, updated => _twoDPatternGuidePathId = updated))
                 return;
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
         }
     }
 
@@ -940,6 +945,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
         }
     }
 
@@ -952,6 +958,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
         }
     }
 
@@ -964,6 +971,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
         }
     }
 
@@ -976,6 +984,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
         }
     }
 
@@ -988,6 +997,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
         }
     }
 
@@ -1000,6 +1010,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
         }
     }
 
@@ -1011,6 +1022,7 @@ public sealed partial class EditorPageViewModel
             if (!SetWorkspaceFacadeValue(_twoDPatternPathCopiesText, value ?? string.Empty, updated => _twoDPatternPathCopiesText = updated))
                 return;
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
         }
     }
 
@@ -1022,6 +1034,7 @@ public sealed partial class EditorPageViewModel
             if (!SetWorkspaceFacadeValue(_twoDPatternPathSpacingText, value ?? string.Empty, updated => _twoDPatternPathSpacingText = updated))
                 return;
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
         }
     }
 
@@ -1045,6 +1058,11 @@ public sealed partial class EditorPageViewModel
             return $"Rectangular pattern will create a {TwoDPatternCopiesXText} x {TwoDPatternCopiesYText} layout using {TwoDPatternSpacingXText} mm / {TwoDPatternSpacingYText} mm spacing. Counts include the source selection.";
         }
     }
+
+    public IReadOnlyList<Editor2DPreviewPath> TwoDPatternPreviewPaths
+        => TwoDActiveTool == Editor2DTool.Patterning
+            ? _twoDWorkspace.GetPatternPreviewPaths(TwoDPatternPivot, TwoDPatternGuidePathId)
+            : [];
 
     public IReadOnlyList<string> TwoDGlueTabTypeOptionItems => TwoDGlueTabTypeOptions;
 
