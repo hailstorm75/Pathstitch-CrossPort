@@ -31,6 +31,31 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void SewingHoleGeometry_VariableSpacingClampsClosedLoopPitch()
+    {
+        var document = new Editor2DPreviewDocument(
+            [new Editor2DPreviewPath("outline", "LWPOLYLINE", [
+                new Editor2DPoint(0, 0), new Editor2DPoint(25, 0),
+                new Editor2DPoint(25, 25), new Editor2DPoint(0, 25)], true)],
+            new Editor2DBounds(0, 0, 25, 25),
+            new Dictionary<string, int>(),
+            []);
+
+        var preview = Editor2DSewingHoleGeometry.BuildPreview(
+            document,
+            ["outline"],
+            new Editor2DSewingHoleParameters(
+                Pitch: 4,
+                VariableSpacingEnabled: true,
+                VariableSpacingMin: 8,
+                VariableSpacingMax: 12,
+                CornerMode: Editor2DSewingCornerMode.Continuous),
+            "variable-test");
+
+        Assert.Equal(12, preview.Count);
+    }
+
+    [Fact]
     public void Snapping_DefaultsOnAndPersistsWithoutPollutingUndoHistory()
     {
         var workspace = new Editor2DWorkspaceViewModel();

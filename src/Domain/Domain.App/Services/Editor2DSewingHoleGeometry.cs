@@ -84,6 +84,16 @@ public static class Editor2DSewingHoleGeometry
         else if (parameters.SymmetricDistribution)
         {
             var intervals = Math.Max(1, (int)Math.Round(length / pitch));
+            if (closed && parameters.VariableSpacingEnabled)
+            {
+                var minimum = Math.Max(0.1, Math.Min(parameters.VariableSpacingMin, parameters.VariableSpacingMax));
+                var maximum = Math.Max(minimum, Math.Max(parameters.VariableSpacingMin, parameters.VariableSpacingMax));
+                var clampedPitch = length / intervals;
+                if (clampedPitch < minimum && intervals > 1)
+                    intervals = Math.Max(1, (int)Math.Floor(length / minimum));
+                else if (clampedPitch > maximum)
+                    intervals = Math.Max(1, (int)Math.Ceiling(length / maximum));
+            }
             var count = closed ? intervals : intervals + 1;
             var actualPitch = length / intervals;
             for (var index = 0; index < count; index++)

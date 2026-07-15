@@ -213,6 +213,9 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool SewingSymmetricDistribution { get => SewingHoleParameters.SymmetricDistribution; set => UpdateSewingParameters(p => p with { SymmetricDistribution = value }); }
     public Editor2DSewingDistributionMode SewingDistributionMode { get => SewingHoleParameters.DistributionMode; set => UpdateSewingParameters(p => p with { DistributionMode = value }); }
     public int SewingHoleCount { get => SewingHoleParameters.Count; set => UpdateSewingParameters(p => p with { Count = Math.Max(1, value) }); }
+    public bool SewingVariableSpacingEnabled { get => SewingHoleParameters.VariableSpacingEnabled; set => UpdateSewingParameters(p => p with { VariableSpacingEnabled = value }); }
+    public double SewingVariableSpacingMin { get => SewingHoleParameters.VariableSpacingMin; set => UpdateSewingParameters(p => p with { VariableSpacingMin = Math.Max(0.1, value) }); }
+    public double SewingVariableSpacingMax { get => SewingHoleParameters.VariableSpacingMax; set => UpdateSewingParameters(p => p with { VariableSpacingMax = Math.Max(0.1, value) }); }
     public int SewingAvoidPathCount => (SewingHoleParameters.AvoidPathIds ?? []).Count;
     public Editor2DSewingHoleOperation? SelectedSewingHoleOperation
     {
@@ -1268,6 +1271,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             AvoidanceClearance = Math.Max(0, value.AvoidanceClearance),
             AvoidPathIds = (value.AvoidPathIds ?? []).Distinct(StringComparer.Ordinal).ToArray(),
             Count = Math.Max(1, value.Count),
+            VariableSpacingMin = Math.Max(0.1, Math.Min(value.VariableSpacingMin, value.VariableSpacingMax)),
+            VariableSpacingMax = Math.Max(0.1, Math.Max(value.VariableSpacingMin, value.VariableSpacingMax)),
         };
     }
 
@@ -1284,6 +1289,9 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(SewingSymmetricDistribution));
         OnPropertyChanged(nameof(SewingDistributionMode));
         OnPropertyChanged(nameof(SewingHoleCount));
+        OnPropertyChanged(nameof(SewingVariableSpacingEnabled));
+        OnPropertyChanged(nameof(SewingVariableSpacingMin));
+        OnPropertyChanged(nameof(SewingVariableSpacingMax));
         OnPropertyChanged(nameof(SewingAvoidPathCount));
     }
 

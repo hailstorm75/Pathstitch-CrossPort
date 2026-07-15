@@ -26,7 +26,10 @@ public sealed record Editor2DSewingHoleParameters(
     [property: JsonPropertyName("avoidPathIds")] IReadOnlyList<string>? AvoidPathIds = null,
     [property: JsonPropertyName("symmetricDistribution")] bool SymmetricDistribution = true,
     [property: JsonPropertyName("distributionMode")] Editor2DSewingDistributionMode DistributionMode = Editor2DSewingDistributionMode.Pitch,
-    [property: JsonPropertyName("count")] int Count = 12)
+    [property: JsonPropertyName("count")] int Count = 12,
+    [property: JsonPropertyName("variableSpacingEnabled")] bool VariableSpacingEnabled = false,
+    [property: JsonPropertyName("variableSpacingMin")] double VariableSpacingMin = 4.0,
+    [property: JsonPropertyName("variableSpacingMax")] double VariableSpacingMax = 5.0)
 {
     public static Editor2DSewingHoleParameters Default { get; } = new();
 }
