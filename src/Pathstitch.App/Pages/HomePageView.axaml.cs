@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Domain.App.Models;
 using Domain.App.ViewModels;
 using Domain.MVVM.Navigation;
+using Pathstitch.App.Services;
 using UI.Navigation;
 
 namespace Pathstitch.App.Pages;
@@ -19,10 +20,12 @@ public partial class HomePageView : BasePageView
     private static readonly IBrush DropSurfaceNormalBorderBrush = new SolidColorBrush(Color.Parse("#1FFFFFFF"));
     private static readonly IBrush DropSurfaceActiveBrush = new SolidColorBrush(Color.Parse("#1C1C22"));
     private static readonly IBrush DropSurfaceActiveBorderBrush = new SolidColorBrush(Color.Parse("#4D7FFF"));
+    private readonly UserPreferencesStore _preferencesStore = new();
 
     public HomePageView(IServiceProvider serviceProvider) : base(serviceProvider, NavigationAddressBook.HomePage)
     {
         InitializeComponent();
+        GettingStartedCard.IsVisible = !_preferencesStore.Load().GettingStartedDismissed;
         Focusable = true;
         Loaded += OnLoaded;
         KeyDown += OnHomePageKeyDown;
@@ -98,6 +101,7 @@ public partial class HomePageView : BasePageView
     private void OnDismissGettingStartedClicked(object? sender, RoutedEventArgs e)
     {
         GettingStartedCard.IsVisible = false;
+        _preferencesStore.Save(_preferencesStore.Load() with { GettingStartedDismissed = true });
     }
 
     private async void OnHomePageKeyDown(object? sender, KeyEventArgs e)

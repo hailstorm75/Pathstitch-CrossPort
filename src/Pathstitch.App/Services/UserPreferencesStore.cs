@@ -4,7 +4,10 @@ using System.Text.Json;
 
 namespace Pathstitch.App.Services;
 
-public sealed record UserPreferences(string Appearance = "System", bool ReversePanDirection = false);
+public sealed record UserPreferences(
+    string Appearance = "System",
+    bool ReversePanDirection = false,
+    bool GettingStartedDismissed = false);
 
 public sealed class UserPreferencesStore
 {
