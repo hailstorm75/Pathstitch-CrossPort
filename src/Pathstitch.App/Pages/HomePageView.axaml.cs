@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -26,6 +27,7 @@ public partial class HomePageView : BasePageView
     {
         InitializeComponent();
         GettingStartedCard.IsVisible = !_preferencesStore.Load().GettingStartedDismissed;
+        SupportCard.IsVisible = !_preferencesStore.Load().SupportCardDismissed;
         Focusable = true;
         Loaded += OnLoaded;
         KeyDown += OnHomePageKeyDown;
@@ -102,6 +104,21 @@ public partial class HomePageView : BasePageView
     {
         GettingStartedCard.IsVisible = false;
         _preferencesStore.Save(_preferencesStore.Load() with { GettingStartedDismissed = true });
+    }
+
+    private void OnDismissSupportCardClicked(object? sender, RoutedEventArgs e)
+    {
+        SupportCard.IsVisible = false;
+        _preferencesStore.Save(_preferencesStore.Load() with { SupportCardDismissed = true });
+    }
+
+    private static void OnSupportCardClicked(object? sender, RoutedEventArgs e)
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "https://buymeacoffee.com/masonchen",
+            UseShellExecute = true,
+        });
     }
 
     private async void OnHomePageKeyDown(object? sender, KeyEventArgs e)

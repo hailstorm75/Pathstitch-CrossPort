@@ -372,6 +372,31 @@
           </Border>
 
           <Border
+            x:Name="SupportCard"
+            AutomationProperties.AutomationId="home.support-card"
+            Padding="10,7"
+            Background="{StaticResource PanelBackgroundBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <DockPanel>
+              <Button
+                DockPanel.Dock="Right"
+                AutomationProperties.AutomationId="home.support-card.dismiss"
+                Classes="secondary-action"
+                Padding="6,2"
+                Content="×"
+                Click="OnDismissSupportCardClicked" />
+              <Button
+                AutomationProperties.AutomationId="home.support-card.open"
+                Classes="secondary-action"
+                Content="☕  Buy me a coffee"
+                HorizontalContentAlignment="Left"
+                Click="OnSupportCardClicked" />
+            </DockPanel>
+          </Border>
+
+          <Border
             Padding="16"
             Background="{StaticResource PanelBackgroundBrush}"
             BorderBrush="{StaticResource BorderBrush}"

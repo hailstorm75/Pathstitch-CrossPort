@@ -7,7 +7,8 @@ namespace Pathstitch.App.Services;
 public sealed record UserPreferences(
     string Appearance = "System",
     bool ReversePanDirection = false,
-    bool GettingStartedDismissed = false);
+    bool GettingStartedDismissed = false,
+    bool SupportCardDismissed = false);
 
 public sealed class UserPreferencesStore
 {

@@ -11,13 +11,14 @@ public sealed class UserPreferencesStoreTests
         try
         {
             var store = new UserPreferencesStore(path);
-            store.Save(new UserPreferences("Dark", true, true));
+            store.Save(new UserPreferences("Dark", true, true, true));
 
             var loaded = store.Load();
 
             Assert.Equal("Dark", loaded.Appearance);
             Assert.True(loaded.ReversePanDirection);
             Assert.True(loaded.GettingStartedDismissed);
+            Assert.True(loaded.SupportCardDismissed);
         }
         finally
         {

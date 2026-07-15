@@ -104,6 +104,9 @@ public sealed class UiAutomationIdentifierTests
         _ui.FindXamlElementByAutomationId(home, "home.new-project.name");
         _ui.FindXamlElementByAutomationId(home, "home.getting-started");
         _ui.FindXamlElementByAutomationId(home, "home.getting-started.dismiss");
+        _ui.FindXamlElementByAutomationId(home, "home.support-card");
+        _ui.FindXamlElementByAutomationId(home, "home.support-card.open");
+        _ui.FindXamlElementByAutomationId(home, "home.support-card.dismiss");
     }
 
     [Fact]
