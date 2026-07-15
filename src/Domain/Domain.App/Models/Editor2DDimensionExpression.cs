@@ -4,6 +4,26 @@ namespace Domain.App.Models;
 
 internal static class Editor2DDimensionExpression
 {
+    public static IReadOnlySet<string> ReferencedVariables(string expression)
+    {
+        var variables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var index = 0;
+        while (index < expression.Length)
+        {
+            if (!char.IsLetter(expression[index]) && expression[index] != '_')
+            {
+                index++;
+                continue;
+            }
+
+            var start = index++;
+            while (index < expression.Length && (char.IsLetterOrDigit(expression[index]) || expression[index] == '_'))
+                index++;
+            variables.Add(expression[start..index]);
+        }
+        return variables;
+    }
+
     public static bool TryEvaluate(string expression, IReadOnlyDictionary<string, double> variables, out double value)
     {
         var parser = new Parser(expression, variables);

@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Domain.App.Models;
 using Domain.App.Services;
+using System.Globalization;
 
 namespace Domain.App.ViewModels;
 
@@ -272,41 +273,81 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         }
 
         var normalized = expression.Trim();
-        var variables = Measurements
+        var expressions = Measurements
             .Where(item => !string.IsNullOrWhiteSpace(item.VarName))
-            .ToDictionary(item => item.VarName!, item => item.Distance, StringComparer.OrdinalIgnoreCase);
-        if (!Editor2DDimensionExpression.TryEvaluate(normalized, variables, out var value) || value <= 0)
+            .ToDictionary(item => item.VarName!, item => item.Expression ?? item.Distance.ToString(CultureInfo.InvariantCulture), StringComparer.OrdinalIgnoreCase);
+        var varName = measurement.VarName;
+        if (string.IsNullOrWhiteSpace(varName))
+            varName = NextDimensionVariableName();
+        expressions[varName] = normalized;
+
+        var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var resolving = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        bool TryResolve(string name, out double resolved)
+        {
+            if (values.TryGetValue(name, out resolved)) return true;
+            if (!expressions.TryGetValue(name, out var candidate) || !resolving.Add(name))
+            {
+                resolved = 0;
+                return false;
+            }
+
+            var dependencies = Editor2DDimensionExpression.ReferencedVariables(candidate);
+            var variables = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            foreach (var dependency in dependencies)
+            {
+                if (!TryResolve(dependency, out var dependencyValue))
+                {
+                    resolving.Remove(name);
+                    resolved = 0;
+                    return false;
+                }
+                variables[dependency] = dependencyValue;
+            }
+
+            var success = Editor2DDimensionExpression.TryEvaluate(candidate, variables, out resolved)
+                && double.IsFinite(resolved);
+            resolving.Remove(name);
+            if (success) values[name] = resolved;
+            return success;
+        }
+
+        if (!TryResolve(varName, out var value) || value <= 0)
         {
             error = "Enter a positive number or arithmetic expression";
             return false;
         }
 
-        var varName = measurement.VarName;
-        if (string.IsNullOrWhiteSpace(varName))
-            varName = NextDimensionVariableName();
-        var updated = measurement with
+        var updatedMeasurements = Measurements.Select(item =>
         {
-            VarName = varName,
-            Expression = normalized,
-            IsParametric = true,
-        };
-        if (!measurement.Driven)
-        {
-            var dx = measurement.End.X - measurement.Start.X;
-            var dy = measurement.End.Y - measurement.Start.Y;
+            var itemVariable = item.Id == measurementId ? varName : item.VarName;
+            if (string.IsNullOrWhiteSpace(itemVariable) || !values.TryGetValue(itemVariable, out var itemValue))
+                return item;
+
+            var updated = item with
+            {
+                Expression = item.Id == measurementId ? normalized : item.Expression,
+                VarName = item.Id == measurementId ? varName : item.VarName,
+                IsParametric = item.Id == measurementId || item.IsParametric,
+            };
+            if (updated.Driven)
+                return updated;
+
+            var dx = item.End.X - item.Start.X;
+            var dy = item.End.Y - item.Start.Y;
             var length = Math.Sqrt((dx * dx) + (dy * dy));
             var unitX = length > 1e-9 ? dx / length : 1.0;
             var unitY = length > 1e-9 ? dy / length : 0.0;
-            updated = updated with
+            return updated with
             {
                 End = new Editor2DPoint(
-                    measurement.Start.X + (unitX * value),
-                    measurement.Start.Y + (unitY * value)),
+                    item.Start.X + (unitX * itemValue),
+                    item.Start.Y + (unitY * itemValue)),
             };
-        }
+        }).ToArray();
 
         SetMeasurements(
-            Measurements.Select(item => item.Id == measurementId ? updated : item).ToArray(),
+            updatedMeasurements,
             measurementId);
         return true;
     }

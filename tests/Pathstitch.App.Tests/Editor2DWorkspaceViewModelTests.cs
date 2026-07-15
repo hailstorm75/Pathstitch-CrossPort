@@ -101,6 +101,22 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void ParametricMeasurement_ResolvesDependenciesAndRejectsCycles()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetMeasurements([
+            new Editor2DMeasurement("first", new(0, 0), new(10, 0), VarName: "d1", Expression: "10", IsParametric: true),
+            new Editor2DMeasurement("second", new(0, 10), new(10, 10), VarName: "d2", Expression: "d1 * 2", IsParametric: true),
+        ]);
+
+        Assert.True(workspace.TrySetMeasurementExpression("first", "5", out var error), error);
+        Assert.Equal(5, Assert.Single(workspace.Measurements, item => item.Id == "first").Distance, 6);
+        Assert.Equal(10, Assert.Single(workspace.Measurements, item => item.Id == "second").Distance, 6);
+
+        Assert.False(workspace.TrySetMeasurementExpression("first", "d2", out _));
+    }
+
+    [Fact]
     public void BlankWorkspace_IsImmediatelyEditableWithoutTwoD()
     {
         var workspace = new Editor2DWorkspaceViewModel();
