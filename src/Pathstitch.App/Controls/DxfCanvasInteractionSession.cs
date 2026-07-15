@@ -29,6 +29,10 @@ internal sealed class DxfCanvasInteractionSession
     internal bool IsScalingSelection;
     internal bool IsAwaitingSecondaryContextClick;
     internal bool IsEditingVertex;
+    internal bool IsDraggingCorner;
+    internal string? CornerDragPathId;
+    internal int CornerDragIndex;
+    internal Editor2DCornerKind CornerDragKind;
     internal Editor2DPreviewDocument? MoveDocumentSnapshot;
     internal Editor2DPreviewDocument? ScaleDocumentSnapshot;
     internal IReadOnlyList<string> MoveSelectionIds = Array.Empty<string>();
@@ -84,6 +88,10 @@ internal sealed class DxfCanvasInteractionSession
         IsMovingSelection = false;
         IsScalingSelection = false;
         IsEditingVertex = false;
+        IsDraggingCorner = false;
+        CornerDragPathId = null;
+        CornerDragIndex = 0;
+        CornerDragKind = Editor2DCornerKind.Fillet;
         MoveDocumentSnapshot = null;
         ScaleDocumentSnapshot = null;
         MoveSelectionIds = Array.Empty<string>();

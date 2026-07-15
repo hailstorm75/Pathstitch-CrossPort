@@ -66,6 +66,29 @@ public static class Editor2DCornerGeometry
         return kind == Editor2DCornerKind.Chamfer ? shortest * 0.2 : shortest * 0.15;
     }
 
+    public static double ValueFromPoint(
+        Editor2DPoint previous,
+        Editor2DPoint corner,
+        Editor2DPoint next,
+        Editor2DPoint point,
+        Editor2DCornerKind kind)
+    {
+        var towardPrevious = Normalize(previous.X - corner.X, previous.Y - corner.Y);
+        var towardNext = Normalize(next.X - corner.X, next.Y - corner.Y);
+        var dot = Math.Clamp((towardPrevious.X * towardNext.X) + (towardPrevious.Y * towardNext.Y), -1, 1);
+        var angle = Math.Acos(dot);
+        var bisector = Normalize(towardPrevious.X + towardNext.X, towardPrevious.Y + towardNext.Y);
+        var setback = Math.Max(0, ((point.X - corner.X) * bisector.X) + ((point.Y - corner.Y) * bisector.Y));
+        var rawValue = kind == Editor2DCornerKind.Chamfer
+            ? setback
+            : setback * Math.Tan(angle / 2);
+        var maximumSetback = Math.Min(Distance(previous, corner), Distance(corner, next)) * 0.5;
+        var maximumValue = kind == Editor2DCornerKind.Chamfer
+            ? maximumSetback
+            : maximumSetback * Math.Tan(angle / 2);
+        return Math.Clamp(rawValue, 0.001, Math.Max(0.001, maximumValue));
+    }
+
     private static IReadOnlyList<Editor2DPoint> BuildCorner(
         Editor2DPoint previous,
         Editor2DPoint corner,

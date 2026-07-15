@@ -195,6 +195,10 @@ public sealed class DxfPreviewCanvas : Control
     private ref bool _isScalingSelection => ref _interaction.IsScalingSelection;
     private ref bool _isAwaitingSecondaryContextClick => ref _interaction.IsAwaitingSecondaryContextClick;
     private ref bool _isEditingVertex => ref _interaction.IsEditingVertex;
+    private ref bool _isDraggingCorner => ref _interaction.IsDraggingCorner;
+    private ref string? _cornerDragPathId => ref _interaction.CornerDragPathId;
+    private ref int _cornerDragIndex => ref _interaction.CornerDragIndex;
+    private ref Editor2DCornerKind _cornerDragKind => ref _interaction.CornerDragKind;
     private ref Editor2DPreviewDocument? _moveDocumentSnapshot => ref _interaction.MoveDocumentSnapshot;
     private ref Editor2DPreviewDocument? _scaleDocumentSnapshot => ref _interaction.ScaleDocumentSnapshot;
     private ref IReadOnlyList<string> _moveSelectionIds => ref _interaction.MoveSelectionIds;
@@ -598,6 +602,9 @@ public sealed class DxfPreviewCanvas : Control
         _cancelInteractionOnPointerRelease = true;
         _isAwaitingSecondaryContextClick = false;
         _isEditingVertex = false;
+        _isDraggingCorner = false;
+        _cornerDragPathId = null;
+        _cornerDragIndex = 0;
         _isPanning = false;
         _isMovingSelection = false;
         _isScalingSelection = false;
@@ -894,7 +901,7 @@ public sealed class DxfPreviewCanvas : Control
                 case DxfCanvasPressRoute.Measure: HandleMeasurementClick(point.Position); break;
                 case DxfCanvasPressRoute.Dimension: HandleDimensionClick(point.Position); break;
                 case DxfCanvasPressRoute.Trim: HandleTrimClick(point.Position); break;
-                case DxfCanvasPressRoute.Corner: HandleCornerToolClick(point.Position, ActiveTool == Editor2DTool.Chamfer ? "chamfer" : "fillet"); break;
+                case DxfCanvasPressRoute.Corner: HandleCornerToolClick(point.Position, ActiveTool == Editor2DTool.Chamfer ? "chamfer" : "fillet", e.Pointer); break;
                 case DxfCanvasPressRoute.SketchLine: HandleSketchLineClick(point.Position); break;
                 case DxfCanvasPressRoute.SketchRectangle: HandleSketchRectangleClick(point.Position); break;
                 case DxfCanvasPressRoute.SketchCircle: HandleSketchCircleClick(point.Position); break;
@@ -1004,6 +1011,7 @@ public sealed class DxfPreviewCanvas : Control
                 SetCurrentValue(OffsetXProperty, OffsetX + pan.X); SetCurrentValue(OffsetYProperty, OffsetY + pan.Y); e.Handled = true; return;
             case DxfCanvasMoveRoute.MoveSelection: ApplyMoveSelection(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.ScaleSelection: ApplyScaleSelection(position); e.Handled = true; return;
+            case DxfCanvasMoveRoute.Corner: ApplyCornerDrag(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.EditVertex:
                 if (!_editingVertexIsConstrainedRectangle) ApplyVertexEdit(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.LineDraft: _pendingLineEnd = ResolvePlacementPoint(position, _pendingLineStart, allowOrthogonal: true); break;
@@ -1076,6 +1084,8 @@ Hover:
                 _isMovingSelection = false; _moveDocumentSnapshot = null; _moveSelectionIds = Array.Empty<string>(); _moveStartPoint = null; break;
             case DxfCanvasReleaseRoute.ScaleSelection:
                 _isScalingSelection = false; _scaleDocumentSnapshot = null; _scaleSelectionIds = Array.Empty<string>(); _scaleCenterPoint = null; _scaleStartDistance = 0; _scalePreviewFactor = 1; break;
+            case DxfCanvasReleaseRoute.Corner:
+                _isDraggingCorner = false; _cornerDragPathId = null; _cornerDragIndex = 0; break;
             case DxfCanvasReleaseRoute.EditVertex:
                 _isEditingVertex = false; _editingVertexPathId = null; _editingVertexIndex = 0; _editingVertexIsConstrainedRectangle = false; break;
             case DxfCanvasReleaseRoute.PenHandleDrag:
@@ -1475,6 +1485,16 @@ Selection:
                 var screenPoint = WorldToScreen(point, size);
                 var radius = IsCornerHandleHovered(path.Id, cornerIndex) ? 5.0 : 4.0;
                 context.DrawEllipse(CornerToolHandleBrush, CornerToolHandlePen, screenPoint, radius, radius);
+
+                var parameter = CornerParameters.FirstOrDefault(item =>
+                    item.PathId == path.Id && item.CornerIndex == cornerIndex);
+                if (parameter is not null && parameter.SourcePoints.Count >= 3)
+                {
+                    var arrowPoint = CornerArrowPoint(parameter);
+                    var arrowScreen = WorldToScreen(arrowPoint, size);
+                    context.DrawLine(CornerToolHandlePen, screenPoint, arrowScreen);
+                    context.DrawEllipse(CornerToolHandleBrush, CornerToolHandlePen, arrowScreen, 5.0, 5.0);
+                }
             }
         }
     }
@@ -1913,9 +1933,11 @@ Selection:
         InvalidateVisual();
     }
 
-    private void HandleCornerToolClick(Point screenPoint, string kind)
+    private void HandleCornerToolClick(Point screenPoint, string kind, IPointer pointer)
     {
-        if (Document is null || !TryHitTestCornerHandle(GetVisiblePaths(), screenPoint, out var hit))
+        if (Document is null
+            || (!TryHitTestCornerArrow(screenPoint, out var hit)
+                && !TryHitTestCornerHandle(GetVisiblePaths(), screenPoint, out hit)))
             return;
 
         var path = Document.Paths.FirstOrDefault(candidate => candidate.Id == hit.PathId);
@@ -1932,7 +1954,8 @@ Selection:
         var cornerKind = kind.Equals("chamfer", StringComparison.OrdinalIgnoreCase)
             ? Editor2DCornerKind.Chamfer
             : Editor2DCornerKind.Fillet;
-        _cornerToolSessionValue ??= Editor2DCornerGeometry.DefaultValue(
+        _cornerToolSessionValue = existingForPath.FirstOrDefault(item => item.CornerIndex == hit.CornerIndex)?.Value
+            ?? Editor2DCornerGeometry.DefaultValue(
             sourcePoints[previousIndex],
             sourcePoints[hit.CornerIndex],
             sourcePoints[nextIndex],
@@ -1958,7 +1981,90 @@ Selection:
         SetCurrentValue(DocumentProperty, nextDocument);
         SetCurrentValue(SelectedPathIdsProperty, new[] { hit.PathId });
         SetCurrentValue(SelectedMeasurementIdProperty, null);
+        _isDraggingCorner = true;
+        _cornerDragPathId = hit.PathId;
+        _cornerDragIndex = hit.CornerIndex;
+        _cornerDragKind = cornerKind;
+        pointer.Capture(this);
         InvalidateVisual();
+    }
+
+    private void ApplyCornerDrag(Point screenPoint)
+    {
+        if (Document is null || _cornerDragPathId is null)
+            return;
+
+        var parameter = CornerParameters.FirstOrDefault(item =>
+            item.PathId == _cornerDragPathId && item.CornerIndex == _cornerDragIndex);
+        if (parameter is null)
+            return;
+        var path = Document.Paths.FirstOrDefault(item => item.Id == _cornerDragPathId);
+        if (path is null)
+            return;
+        var source = parameter.SourcePoints;
+        if (_cornerDragIndex <= 0 && !path.IsClosed)
+            return;
+
+        var previousIndex = _cornerDragIndex == 0 ? source.Count - 1 : _cornerDragIndex - 1;
+        var nextIndex = _cornerDragIndex == source.Count - 1 ? 0 : _cornerDragIndex + 1;
+        var value = Editor2DCornerGeometry.ValueFromPoint(
+            source[previousIndex],
+            source[_cornerDragIndex],
+            source[nextIndex],
+            ScreenToWorld(screenPoint),
+            _cornerDragKind);
+        var nextParameters = CornerParameters
+            .Select(item => item.Id == parameter.Id ? item with { Value = value } : item)
+            .ToArray();
+        var nextPath = Editor2DCornerGeometry.Apply(path with { Points = source }, nextParameters);
+        SetCurrentValue(CornerParametersProperty, nextParameters);
+        SetCurrentValue(DocumentProperty, Document with
+        {
+            Paths = Document.Paths.Select(item => item.Id == path.Id ? nextPath : item).ToArray(),
+        });
+        InvalidateVisual();
+    }
+
+    private bool TryHitTestCornerArrow(Point screenPoint, out CornerHandleHit hit)
+    {
+        const double tolerance = 10.0;
+        var bestDistance = double.PositiveInfinity;
+        CornerHandleHit? best = null;
+        foreach (var parameter in CornerParameters)
+        {
+            var arrowScreen = WorldToScreen(CornerArrowPoint(parameter), Bounds.Size);
+            var distance = ScreenDistance(screenPoint, arrowScreen);
+            if (distance <= tolerance && distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = new CornerHandleHit(parameter.PathId, parameter.CornerIndex);
+            }
+        }
+        if (best is { } resolved)
+        {
+            hit = resolved;
+            return true;
+        }
+        hit = default;
+        return false;
+    }
+
+    private static Editor2DPoint CornerArrowPoint(Editor2DCornerParameter parameter)
+    {
+        var source = parameter.SourcePoints;
+        var index = parameter.CornerIndex;
+        var previous = source[index == 0 ? source.Count - 1 : index - 1];
+        var corner = source[index];
+        var next = source[index == source.Count - 1 ? 0 : index + 1];
+        var incoming = NormalizeVector(previous.X - corner.X, previous.Y - corner.Y);
+        var outgoing = NormalizeVector(next.X - corner.X, next.Y - corner.Y);
+        var bisector = NormalizeVector(incoming.X + outgoing.X, incoming.Y + outgoing.Y);
+        var dot = Math.Clamp((incoming.X * outgoing.X) + (incoming.Y * outgoing.Y), -1, 1);
+        var angle = Math.Acos(dot);
+        var setback = parameter.Kind == Editor2DCornerKind.Chamfer
+            ? parameter.Value
+            : parameter.Value / Math.Max(Math.Tan(angle / 2), 1e-6);
+        return new Editor2DPoint(corner.X + (bisector.X * setback), corner.Y + (bisector.Y * setback));
     }
 
     private static bool TryCreateAttachedDimensionMeasurement(

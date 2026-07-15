@@ -368,6 +368,20 @@ public sealed class Editor2DWorkspaceViewModelTests
         Assert.Equal(source.Points, workspace.CornerParameters[0].SourcePoints);
     }
 
+    [Fact]
+    public void CornerValueFromPoint_MapsBisectorDragToFilletAndChamferValues()
+    {
+        var previous = new Editor2DPoint(-10, 0);
+        var corner = new Editor2DPoint(0, 0);
+        var next = new Editor2DPoint(0, 10);
+
+        var fillet = Editor2DCornerGeometry.ValueFromPoint(previous, corner, next, new(-3, 3), Editor2DCornerKind.Fillet);
+        var chamfer = Editor2DCornerGeometry.ValueFromPoint(previous, corner, next, new(-3, 3), Editor2DCornerKind.Chamfer);
+
+        Assert.Equal(3 * Math.Sqrt(2), fillet, 6);
+        Assert.Equal(3 * Math.Sqrt(2), chamfer, 6);
+    }
+
     private static string FindRepositoryFile(params string[] parts)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

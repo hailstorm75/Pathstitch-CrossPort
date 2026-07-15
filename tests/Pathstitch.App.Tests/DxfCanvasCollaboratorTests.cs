@@ -151,6 +151,12 @@ public sealed class DxfCanvasCollaboratorTests
         session.MoveStartPoint = new Editor2DPoint(0, 0);
         Assert.Equal(DxfCanvasMoveRoute.MoveSelection, controller.RouteMove(Editor2DTool.Move, true));
         Assert.Equal(DxfCanvasReleaseRoute.MoveSelection, controller.RouteRelease(Editor2DTool.Move, true));
+
+        session.IsMovingSelection = false;
+        session.MoveDocumentSnapshot = null;
+        session.IsDraggingCorner = true;
+        Assert.Equal(DxfCanvasMoveRoute.Corner, controller.RouteMove(Editor2DTool.Fillet, true));
+        Assert.Equal(DxfCanvasReleaseRoute.Corner, controller.RouteRelease(Editor2DTool.Fillet, true));
     }
 
     [Fact]

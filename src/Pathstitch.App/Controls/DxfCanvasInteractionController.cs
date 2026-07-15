@@ -15,9 +15,9 @@ internal enum DxfCanvasMoveRoute
 {
     Pan, MoveSelection, ScaleSelection, EditVertex, LineDraft, RectangleDraft, CircleDraft,
     PolygonDraft, TextDraft, PenHandleDrag, PenDraft, MirrorDraft, MeasurementDraft, DimensionDraft,
-    ToolPreview, Marquee, Hover,
+    Corner, ToolPreview, Marquee, Hover,
 }
-internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, EditVertex, PenHandleDrag, Selection, None }
+internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, EditVertex, PenHandleDrag, Corner, Selection, None }
 internal enum DxfPenCompletion { Open, Closed }
 
 internal static class DxfCanvasPenInteraction
@@ -141,6 +141,7 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (session.IsMovingSelection && session.MoveDocumentSnapshot is not null && session.MoveStartPoint is not null) return DxfCanvasMoveRoute.MoveSelection;
         if (session.IsScalingSelection && session.ScaleDocumentSnapshot is not null && session.ScaleCenterPoint is not null) return DxfCanvasMoveRoute.ScaleSelection;
         if (session.IsEditingVertex && session.EditingVertexPathId is not null) return DxfCanvasMoveRoute.EditVertex;
+        if (session.IsDraggingCorner) return DxfCanvasMoveRoute.Corner;
         if (tool == Editor2DTool.SketchLine && session.PendingLineStart is not null) return DxfCanvasMoveRoute.LineDraft;
         if (tool == Editor2DTool.SketchRectangle && session.PendingRectangleStart is not null) return DxfCanvasMoveRoute.RectangleDraft;
         if (tool == Editor2DTool.SketchCircle && session.PendingCircleCenter is not null) return DxfCanvasMoveRoute.CircleDraft;
@@ -167,6 +168,7 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (session.IsMovingSelection) return DxfCanvasReleaseRoute.MoveSelection;
         if (session.IsScalingSelection) return DxfCanvasReleaseRoute.ScaleSelection;
         if (session.IsEditingVertex) return DxfCanvasReleaseRoute.EditVertex;
+        if (session.IsDraggingCorner) return DxfCanvasReleaseRoute.Corner;
         if (capturedByCanvas && tool == Editor2DTool.Pen && session.PendingPenDragAnchorIndex is not null) return DxfCanvasReleaseRoute.PenHandleDrag;
         return capturedByCanvas && RoutePrimaryPress(tool) == DxfCanvasPressRoute.Selection
             ? DxfCanvasReleaseRoute.Selection : DxfCanvasReleaseRoute.None;
