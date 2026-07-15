@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.Json;
 using Domain.App.Models;
 
@@ -15,13 +16,20 @@ public sealed class RecentProjectsService
 
     private readonly string _storagePath;
 
-    public RecentProjectsService()
+    public RecentProjectsService(string? storagePath = null)
     {
-        var storageDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Pathstitch-CrossPort");
+        var storageDirectory = Path.GetDirectoryName(storagePath);
+        if (string.IsNullOrWhiteSpace(storageDirectory))
+        {
+            storageDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Pathstitch-CrossPort");
+        }
+
         Directory.CreateDirectory(storageDirectory);
-        _storagePath = Path.Combine(storageDirectory, "recent-projects.json");
+        _storagePath = string.IsNullOrWhiteSpace(storagePath)
+            ? Path.Combine(storageDirectory, "recent-projects.json")
+            : Path.GetFullPath(storagePath);
     }
 
     public IReadOnlyList<RecentProjectSummary> GetRecentProjects()
@@ -106,7 +114,37 @@ public sealed class RecentProjectsService
             TemplateDisplayName: entry.TemplateDisplayName,
             LastOpenedAtUtc: entry.LastOpenedAtUtc,
             LastModifiedAtUtc: lastModifiedAtUtc,
-            IsAvailable: isAvailable);
+            IsAvailable: isAvailable)
+        {
+            ThumbnailDataBase64 = isAvailable ? TryReadThumbnail(projectPath) : null,
+        };
+    }
+
+    private static string? TryReadThumbnail(string projectPath)
+    {
+        if (!Path.GetExtension(projectPath).Equals(".stch", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        try
+        {
+            using var archive = ZipFile.OpenRead(projectPath);
+            var entry = archive.GetEntry("preview.png");
+            if (entry is null || entry.Length <= 0 || entry.Length > 4 * 1024 * 1024)
+                return null;
+
+            using var stream = entry.Open();
+            using var memory = new MemoryStream();
+            stream.CopyTo(memory);
+            return Convert.ToBase64String(memory.ToArray());
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
     }
 
     private static string NormalizePath(string path) => Path.GetFullPath(path);

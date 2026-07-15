@@ -10,6 +10,10 @@ public sealed record RecentProjectSummary(
     bool IsAvailable,
     bool IsSelected = false)
 {
+    public string? ThumbnailDataBase64 { get; init; }
+
+    public bool HasThumbnail => !string.IsNullOrWhiteSpace(ThumbnailDataBase64);
+
     public string ProjectFileName => Path.GetFileName(ProjectFilePath);
 
     public string ProjectDirectory => Path.GetDirectoryName(ProjectFilePath) ?? string.Empty;

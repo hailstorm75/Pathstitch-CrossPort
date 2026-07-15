@@ -4,6 +4,7 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:pages="using:Pathstitch.App.Pages"
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:HomePageViewModel"
   AutomationProperties.AutomationId="home.page"
@@ -11,6 +12,8 @@
   d:DesignWidth="1180"
   mc:Ignorable="d">
   <UserControl.Resources>
+    <pages:RecentProjectThumbnailConverter x:Key="RecentProjectThumbnailConverter" />
+    <pages:InverseBooleanConverter x:Key="InverseBooleanConverter" />
     <SolidColorBrush x:Key="BaseBackgroundBrush" Color="#0D0D10" />
     <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#141418" />
     <SolidColorBrush x:Key="InputBackgroundBrush" Color="#1C1C22" />
@@ -196,7 +199,12 @@
                           BorderThickness="1"
                           CornerRadius="8">
                           <Grid>
+                            <Image
+                              Source="{Binding ThumbnailDataBase64, Converter={StaticResource RecentProjectThumbnailConverter}}"
+                              Stretch="UniformToFill"
+                              IsVisible="{Binding HasThumbnail}" />
                             <TextBlock
+                              IsVisible="{Binding HasThumbnail, Converter={StaticResource InverseBooleanConverter}}"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Center"
                               FontSize="20"
