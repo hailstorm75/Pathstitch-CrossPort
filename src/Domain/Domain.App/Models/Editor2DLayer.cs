@@ -21,7 +21,9 @@ public sealed record Editor2DReferenceImage(
     [property: JsonPropertyName("rotationDegrees")] double RotationDegrees = 0.0,
     [property: JsonPropertyName("opacity")] double Opacity = 0.65,
     [property: JsonPropertyName("calibrationUnitsPerPixel")] double CalibrationUnitsPerPixel = 1.0,
-    [property: JsonPropertyName("traceThreshold")] double TraceThreshold = 0.5)
+    [property: JsonPropertyName("traceThreshold")] double TraceThreshold = 0.5,
+    [property: JsonPropertyName("originalDataBase64")] string? OriginalDataBase64 = null,
+    [property: JsonPropertyName("backgroundRemoved")] bool BackgroundRemoved = false)
 {
     public string SizeSummary => $"{Width:0.###} × {Height:0.###} units";
 }

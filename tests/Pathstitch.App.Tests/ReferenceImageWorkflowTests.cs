@@ -4,6 +4,7 @@ using Domain.App.Services;
 using Domain.App.ViewModels;
 using Pathstitch.App.Controls;
 using Pathstitch.App.Services;
+using SkiaSharp;
 
 namespace Pathstitch.App.Tests;
 
@@ -89,6 +90,46 @@ public sealed class ReferenceImageWorkflowTests
     }
 
     [Fact]
+    public void ReferenceImageBackgroundRemoval_IsReversibleAndPersistsOriginal()
+    {
+        var remover = new RecordingReferenceImageBackgroundRemovalService("removed");
+        var workspace = new Editor2DWorkspaceViewModel(null, remover);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var layer = workspace.ImportReferenceImage("pattern.png", "original", 10, 10);
+
+        Assert.True(workspace.RemoveReferenceImageBackground(layer.Id));
+        var removed = workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!;
+        Assert.Equal("removed", removed.DataBase64);
+        Assert.Equal("original", removed.OriginalDataBase64);
+        Assert.True(removed.BackgroundRemoved);
+
+        Assert.True(workspace.RestoreReferenceImageBackground(layer.Id));
+        var restored = workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!;
+        Assert.Equal("original", restored.DataBase64);
+        Assert.Null(restored.OriginalDataBase64);
+        Assert.False(restored.BackgroundRemoved);
+    }
+
+    [Fact]
+    public void AvaloniaBackgroundRemoval_ClearsConnectedBorderColor()
+    {
+        using var bitmap = new SKBitmap(5, 5);
+        bitmap.Erase(SKColors.White);
+        bitmap.SetPixel(2, 2, SKColors.Black);
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+
+        var output = new AvaloniaReferenceImageBackgroundRemovalService()
+            .RemoveBackground(Convert.ToBase64String(data.ToArray()));
+
+        Assert.NotNull(output);
+        var outputBytes = Convert.FromBase64String(output!);
+        using var decoded = SKBitmap.Decode(outputBytes);
+        Assert.Equal(0, decoded.GetPixel(0, 0).Alpha);
+        Assert.Equal(255, decoded.GetPixel(2, 2).Alpha);
+    }
+
+    [Fact]
     public void AvaloniaTracer_UsesThresholdedPixelsInsteadOfTheImageBounds()
     {
         var fixture = RepositoryFile(
@@ -156,6 +197,8 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Contains("OnCalibrateReferenceImageClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceThresholdUpClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnTraceReferenceImageClicked", panel, StringComparison.Ordinal);
+        Assert.Contains("OnRemoveReferenceBackgroundClicked", panel, StringComparison.Ordinal);
+        Assert.Contains("OnRestoreReferenceBackgroundClicked", panel, StringComparison.Ordinal);
     }
 
     private static string ReadPage(string fileName)
@@ -187,6 +230,16 @@ public sealed class ReferenceImageWorkflowTests
             Assert.False(string.IsNullOrWhiteSpace(imageDataBase64));
             LastThreshold = threshold;
             return contours;
+        }
+    }
+
+    private sealed class RecordingReferenceImageBackgroundRemovalService(string result)
+        : IReferenceImageBackgroundRemovalService
+    {
+        public string? RemoveBackground(string imageDataBase64)
+        {
+            Assert.Equal("original", imageDataBase64);
+            return result;
         }
     }
 

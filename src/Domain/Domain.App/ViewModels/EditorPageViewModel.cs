@@ -19,6 +19,7 @@ public sealed partial class EditorPageViewModel(
     IEditor3DOperationService editor3DOperationService,
     IGeometryKernelDescriptorProvider geometryKernelDescriptorProvider,
     IReferenceImageTraceService? referenceImageTraceService = null,
+    IReferenceImageBackgroundRemovalService? referenceImageBackgroundRemovalService = null,
     IUnsavedChangesPromptService? unsavedChangesPromptService = null,
     IEditorImportUnitsPromptService? importUnitsPromptService = null) : BasePageViewModel(logger)
 {
@@ -45,7 +46,9 @@ public sealed partial class EditorPageViewModel(
         unsavedChangesPromptService ?? CancelUnsavedChangesPromptService.Instance;
     private readonly IEditorImportUnitsPromptService _importUnitsPromptService =
         importUnitsPromptService ?? CancelEditorImportUnitsPromptService.Instance;
-    private readonly Editor2DWorkspaceViewModel _twoDWorkspace = new(referenceImageTraceService);
+    private readonly Editor2DWorkspaceViewModel _twoDWorkspace = new(
+        referenceImageTraceService,
+        referenceImageBackgroundRemovalService);
     private readonly EditorBatchWorkspaceViewModel _batchWorkspace = new();
     private ProjectSession? _projectSession;
     private string _projectName = string.Empty;

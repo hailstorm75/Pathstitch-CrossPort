@@ -201,6 +201,24 @@ public sealed partial class EditorPageViewModel
         StatusText = "Reference bounds traced to editable geometry";
     }
 
+    public void RemoveTwoDReferenceImageBackground(string layerId)
+    {
+        if (_twoDWorkspace.RemoveReferenceImageBackground(layerId))
+        {
+            RefreshTwoDLayerFacade();
+            StatusText = "Reference image background removed";
+        }
+    }
+
+    public void RestoreTwoDReferenceImageBackground(string layerId)
+    {
+        if (_twoDWorkspace.RestoreReferenceImageBackground(layerId))
+        {
+            RefreshTwoDLayerFacade();
+            StatusText = "Reference image background restored";
+        }
+    }
+
     public void SelectTwoDLayer(string layerId)
     {
         if (_twoDWorkspace.SelectLayer(layerId))

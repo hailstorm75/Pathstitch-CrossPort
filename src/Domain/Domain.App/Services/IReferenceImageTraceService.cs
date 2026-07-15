@@ -13,3 +13,8 @@ public interface IReferenceImageTraceService
         string imageDataBase64,
         double threshold);
 }
+
+public interface IReferenceImageBackgroundRemovalService
+{
+    string? RemoveBackground(string imageDataBase64);
+}

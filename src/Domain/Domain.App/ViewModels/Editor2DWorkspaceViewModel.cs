@@ -12,6 +12,7 @@ namespace Domain.App.ViewModels;
 public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 {
     private readonly IReferenceImageTraceService? _referenceImageTraceService;
+    private readonly IReferenceImageBackgroundRemovalService? _referenceImageBackgroundRemovalService;
     private readonly Stack<Editor2DWorkspaceState> _undo = new();
     private readonly Stack<Editor2DWorkspaceState> _redo = new();
     private Editor2DWorkspaceState _state = Editor2DWorkspaceState.Empty;
@@ -57,9 +58,12 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private string? _editingSewingHoleOperationId;
     private Editor2DSewingHoleOperation? _selectedSewingHoleOperation;
 
-    public Editor2DWorkspaceViewModel(IReferenceImageTraceService? referenceImageTraceService = null)
+    public Editor2DWorkspaceViewModel(
+        IReferenceImageTraceService? referenceImageTraceService = null,
+        IReferenceImageBackgroundRemovalService? referenceImageBackgroundRemovalService = null)
     {
         _referenceImageTraceService = referenceImageTraceService;
+        _referenceImageBackgroundRemovalService = referenceImageBackgroundRemovalService;
     }
 
     public Editor2DWorkspaceState State => _state;
@@ -681,6 +685,41 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public bool SetReferenceImageOpacity(string layerId, double opacity)
         => UpdateReferenceImage(layerId, image => image with { Opacity = Math.Clamp(opacity, 0.0, 1.0) });
+
+    public bool RemoveReferenceImageBackground(string layerId)
+    {
+        var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId && candidate.IsReferenceImage);
+        var image = layer?.ReferenceImage;
+        if (layer is null || image is null || layer.IsLocked || _referenceImageBackgroundRemovalService is null)
+            return false;
+
+        var original = image.OriginalDataBase64 ?? image.DataBase64;
+        var removed = _referenceImageBackgroundRemovalService.RemoveBackground(original);
+        if (string.IsNullOrWhiteSpace(removed))
+            return false;
+
+        return UpdateReferenceImage(layerId, current => current with
+        {
+            DataBase64 = removed,
+            OriginalDataBase64 = original,
+            BackgroundRemoved = true,
+        });
+    }
+
+    public bool RestoreReferenceImageBackground(string layerId)
+    {
+        var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId && candidate.IsReferenceImage);
+        var image = layer?.ReferenceImage;
+        if (layer is null || image is null || layer.IsLocked || string.IsNullOrWhiteSpace(image.OriginalDataBase64))
+            return false;
+
+        return UpdateReferenceImage(layerId, current => current with
+        {
+            DataBase64 = current.OriginalDataBase64!,
+            OriginalDataBase64 = null,
+            BackgroundRemoved = false,
+        });
+    }
 
     public bool SetReferenceImageTraceThreshold(string layerId, double threshold)
         => UpdateReferenceImage(layerId, image => image with { TraceThreshold = Math.Clamp(threshold, 0.0, 1.0) });
