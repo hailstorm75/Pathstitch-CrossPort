@@ -1,0 +1,34 @@
+<Window
+  x:Class="Pathstitch.App.Dialogs.ModeIntroDialog"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  Title="Pathstitch"
+  Width="460"
+  Height="330"
+  CanResize="False"
+  ShowInTaskbar="False"
+  WindowStartupLocation="CenterOwner"
+  AutomationProperties.AutomationId="dialog.mode-intro">
+  <Grid Margin="24" RowDefinitions="Auto,*,Auto">
+    <StackPanel Spacing="5">
+      <TextBlock x:Name="TitleText" FontSize="20" FontWeight="SemiBold" />
+      <TextBlock Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Text="A quick guide to this workspace" />
+    </StackPanel>
+    <ItemsControl Grid.Row="1" x:Name="BulletList" Margin="0,18,0,18">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate>
+          <Border Padding="0,0,0,12">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+              <Ellipse Width="7" Height="7" Margin="0,6,0,0" Fill="#4D7FFF" />
+              <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="{Binding}" />
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+      <CheckBox x:Name="DontShowAgain" Content="Don't show again" IsChecked="True" VerticalAlignment="Center" />
+      <Button AutomationProperties.AutomationId="dialog.mode-intro.ok" MinWidth="88" Content="OK" IsDefault="True" Click="OnOkClicked" />
+    </StackPanel>
+  </Grid>
+</Window>

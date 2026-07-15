@@ -8,7 +8,10 @@ public sealed record UserPreferences(
     string Appearance = "System",
     bool ReversePanDirection = false,
     bool GettingStartedDismissed = false,
-    bool SupportCardDismissed = false);
+    bool SupportCardDismissed = false,
+    bool TwoDIntroDismissed = false,
+    bool ThreeDIntroDismissed = false,
+    bool BatchIntroDismissed = false);
 
 public sealed class UserPreferencesStore
 {
