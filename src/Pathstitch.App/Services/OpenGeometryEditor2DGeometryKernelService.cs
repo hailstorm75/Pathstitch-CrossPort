@@ -19,6 +19,44 @@ public sealed class OpenGeometryEditor2DGeometryKernelService(
     private readonly ILogger<OpenGeometryEditor2DGeometryKernelService> _logger = logger;
     private readonly OpenGeometryKernelBridge _openGeometryKernelBridge = openGeometryKernelBridge;
 
+    public async Task<Editor2DGeometryKernelResult> BuildBooleanPathsAsync(
+        IReadOnlyList<Editor2DPreviewPath> sourcePaths,
+        Editor2DBooleanOperation operation,
+        CancellationToken cancellationToken = default)
+    {
+        var candidates = sourcePaths
+            .Where(static path => path.IsClosed && path.Points.Count >= 3)
+            .Select(static path => new DxfPolyline(
+                path.Points.Select(static point => new DxfPoint(point.X, point.Y)).ToArray(), true))
+            .ToArray();
+        if (candidates.Length < 2)
+            return Editor2DGeometryKernelResult.Failure("Select at least two closed paths.");
+
+        var result = await _openGeometryKernelBridge.TryBooleanAsync(
+            candidates,
+            operation switch
+            {
+                Editor2DBooleanOperation.Union => "union",
+                Editor2DBooleanOperation.Subtract => "subtract",
+                Editor2DBooleanOperation.Intersect => "intersect",
+                _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+            },
+            cancellationToken).ConfigureAwait(false);
+        if (!result.IsSuccess)
+            return Editor2DGeometryKernelResult.Failure(result.Error ?? "OpenGeometry returned no boolean result.");
+
+        var paths = result.Paths
+            .Select(path => NormalizePoints(path.Points, true))
+            .Where(static points => points.Count >= 3)
+            .Select(points => new Editor2DPreviewPath(
+                $"opengeometry-boolean-{Guid.NewGuid():N}", "LWPOLYLINE", points, true,
+                Editor2DGeometry.IsAxisAlignedRectangle(points, true)))
+            .ToArray();
+        return paths.Length == 0
+            ? Editor2DGeometryKernelResult.Failure("OpenGeometry returned no usable boolean paths.")
+            : Editor2DGeometryKernelResult.Success(paths);
+    }
+
     public async Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(
         IReadOnlyList<Editor2DPreviewPath> sourcePaths,
         double offsetDistance,

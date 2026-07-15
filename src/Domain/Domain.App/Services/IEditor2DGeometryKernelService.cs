@@ -4,6 +4,14 @@ namespace Domain.App.Services;
 
 public interface IEditor2DGeometryKernelService
 {
+    async Task<Editor2DGeometryKernelResult> BuildBooleanPathsAsync(
+        IReadOnlyList<Editor2DPreviewPath> sourcePaths,
+        Editor2DBooleanOperation operation,
+        CancellationToken cancellationToken = default)
+    {
+        await Task.CompletedTask;
+        return Editor2DGeometryKernelResult.Failure("Boolean operations are not supported by this geometry kernel.");
+    }
     Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(
         IReadOnlyList<Editor2DPreviewPath> sourcePaths,
         double offsetDistance,
@@ -14,6 +22,13 @@ public interface IEditor2DGeometryKernelService
         IReadOnlyList<Editor2DPreviewPath> sourcePaths,
         double thickness,
         CancellationToken cancellationToken = default);
+}
+
+public enum Editor2DBooleanOperation
+{
+    Union,
+    Subtract,
+    Intersect,
 }
 
 public sealed record Editor2DGeometryKernelResult(

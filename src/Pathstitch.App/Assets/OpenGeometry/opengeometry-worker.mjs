@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import init, { OGArc, OGPolyline, Vector3, offsetPolylineGroupRegions } from "opengeometry/opengeometry/pkg/opengeometry";
+import init, { OGArc, OGPolyline, OGPolygon, Vector3, booleanUnion, booleanIntersection, booleanSubtraction, offsetPolylineGroupRegions } from "opengeometry/opengeometry/pkg/opengeometry";
 
 const [, , requestPath, responsePath] = process.argv;
 
@@ -34,8 +34,44 @@ function execute(request) {
       return offsetCurves(request);
     case "offset-polylines":
       return offsetPolylines(request);
+    case "boolean":
+      return booleanPaths(request);
     default:
       throw new Error(`Unsupported OpenGeometry command: ${request.command}`);
+  }
+}
+
+function booleanPaths(request) {
+  const inputs = Array.isArray(request.paths) ? request.paths : [];
+  if (inputs.length < 2) throw new Error("boolean requires at least two paths.");
+  const operation = String(request.operation ?? "union").toLowerCase();
+  const polygons = inputs.map((path, index) => {
+    const polygon = new OGPolygon(`boolean-${index}`);
+    polygon.set_config((path.points ?? []).map((point) => new Vector3(Number(point.x), 0, Number(point.y))));
+    polygon.generate_brep();
+    return polygon;
+  });
+
+  try {
+    const ordered = polygons;
+    let serialized = ordered[0].get_brep_serialized();
+    let outline = null;
+    for (let index = 1; index < ordered.length; index += 1) {
+      const result = operation === "union"
+        ? booleanUnion(serialized, ordered[index].get_brep_serialized())
+        : operation === "intersect"
+          ? booleanIntersection(serialized, ordered[index].get_brep_serialized())
+          : operation === "subtract"
+            ? booleanSubtraction(serialized, ordered[index].get_brep_serialized())
+            : null;
+      if (result === null) throw new Error(`Unsupported boolean operation: ${operation}`);
+      serialized = result.brepSerialized;
+      outline = result.outlineGeometrySerialized;
+      result.free();
+    }
+    return { paths: [ { points: mapFlatKernelPoints(JSON.parse(outline ?? "[]")), isClosed: true } ] };
+  } finally {
+    for (const polygon of polygons) polygon.free();
   }
 }
 

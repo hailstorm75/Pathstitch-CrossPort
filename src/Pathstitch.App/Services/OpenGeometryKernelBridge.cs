@@ -178,6 +178,53 @@ public sealed class OpenGeometryKernelBridge(ILogger<OpenGeometryKernelBridge> l
         }
     }
 
+    internal async Task<OpenGeometryBooleanResult> TryBooleanAsync(
+        IReadOnlyList<DxfPolyline> paths,
+        string operation,
+        CancellationToken cancellationToken)
+    {
+        if (paths.Count < 2)
+            return OpenGeometryBooleanResult.Success([]);
+
+        var runtime = OpenGeometryPackagedRuntime.Resolve();
+        if (runtime is null)
+            return OpenGeometryBooleanResult.Failure("Packaged OpenGeometry runtime was not found.");
+
+        var requestPath = Path.Combine(Path.GetTempPath(), $"pathstitch_og_request_{Guid.NewGuid():N}.json");
+        var responsePath = Path.Combine(Path.GetTempPath(), $"pathstitch_og_response_{Guid.NewGuid():N}.json");
+        try
+        {
+            var request = new OpenGeometryBooleanRequest(
+                "boolean",
+                operation,
+                paths.Select(static path => new OpenGeometryPolyline(
+                    path.Points.Select(static point => new OpenGeometryPoint(point.X, point.Y)).ToArray(), true)).ToArray());
+            await File.WriteAllTextAsync(requestPath, JsonSerializer.Serialize(request, JsonOptions), cancellationToken).ConfigureAwait(false);
+            var workerRun = await RunNodeAsync(runtime, requestPath, responsePath, cancellationToken).ConfigureAwait(false);
+            if (!File.Exists(responsePath))
+                return OpenGeometryBooleanResult.Failure(workerRun.TimedOut
+                    ? "OpenGeometry worker timed out after 15 seconds."
+                    : $"OpenGeometry worker exited with code {workerRun.ExitCode} without writing a response.");
+
+            var response = JsonSerializer.Deserialize<OpenGeometryBooleanResponse>(
+                await File.ReadAllTextAsync(responsePath, cancellationToken).ConfigureAwait(false), JsonOptions);
+            return response is { Ok: true }
+                ? OpenGeometryBooleanResult.Success(response.Paths ?? [])
+                : OpenGeometryBooleanResult.Failure(response?.Error ?? "OpenGeometry worker returned an empty boolean response.");
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "OpenGeometry boolean worker invocation failed.");
+            return OpenGeometryBooleanResult.Failure($"OpenGeometry worker invocation failed: {ex.Message}");
+        }
+        finally
+        {
+            TryDelete(requestPath);
+            TryDelete(responsePath);
+        }
+    }
+
     private static async Task<OpenGeometryWorkerRunResult> RunNodeAsync(
         OpenGeometryPackagedRuntime runtime,
         string requestPath,
@@ -292,6 +339,16 @@ public sealed class OpenGeometryKernelBridge(ILogger<OpenGeometryKernelBridge> l
         [property: JsonPropertyName("paths")] IReadOnlyList<OpenGeometryCurveOffsetPath>? Paths,
         [property: JsonPropertyName("error")] string? Error);
 
+    private sealed record OpenGeometryBooleanRequest(
+        [property: JsonPropertyName("command")] string Command,
+        [property: JsonPropertyName("operation")] string Operation,
+        [property: JsonPropertyName("paths")] IReadOnlyList<OpenGeometryPolyline> Paths);
+
+    private sealed record OpenGeometryBooleanResponse(
+        [property: JsonPropertyName("ok")] bool Ok,
+        [property: JsonPropertyName("paths")] IReadOnlyList<OpenGeometryCurveOffsetPath>? Paths,
+        [property: JsonPropertyName("error")] string? Error);
+
     private sealed record OpenGeometryWorkerRunResult(
         int ExitCode,
         bool TimedOut,
@@ -345,3 +402,12 @@ internal sealed record OpenGeometryCurveOffsetResult(
 internal sealed record OpenGeometryCurveOffsetPath(
     [property: JsonPropertyName("points")] IReadOnlyList<OpenGeometryPoint> Points,
     [property: JsonPropertyName("isClosed")] bool IsClosed);
+
+internal sealed record OpenGeometryBooleanResult(
+    bool IsSuccess,
+    IReadOnlyList<OpenGeometryCurveOffsetPath> Paths,
+    string? Error)
+{
+    public static OpenGeometryBooleanResult Success(IReadOnlyList<OpenGeometryCurveOffsetPath> paths) => new(true, paths, null);
+    public static OpenGeometryBooleanResult Failure(string error) => new(false, [], error);
+}
