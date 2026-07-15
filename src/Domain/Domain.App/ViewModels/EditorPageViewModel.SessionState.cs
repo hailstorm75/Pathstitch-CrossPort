@@ -122,6 +122,13 @@ public sealed partial class EditorPageViewModel
                 _ => [],
             }
             : [];
+        _pendingTwoDFilePaths = parameters.TryGetValue(EditorNavigationParameterKeys.PendingTwoDFilePaths, out var pendingTwoDValue)
+            ? pendingTwoDValue switch
+            {
+                IReadOnlyList<string> paths => paths,
+                _ => [],
+            }
+            : [];
         WeakReferenceMessenger.Default.Register<PreviewApplicationClosingMessage>(this, OnPreviewApplicationClosing);
         return ValueTask.FromResult(true);
     }
@@ -199,6 +206,20 @@ public sealed partial class EditorPageViewModel
             await LoadPendingSourceModelsAsync(state, token).ConfigureAwait(true);
             _pendingSourceModelPaths = [];
             MarkDocumentDirty();
+        }
+
+        if (_pendingTwoDFilePaths.Count > 0)
+        {
+            var importedDocument = await _editorOutputPreviewService
+                .LoadPreviewDocumentAsync(_pendingTwoDFilePaths[0], token)
+                .ConfigureAwait(true);
+            if (importedDocument is not null)
+            {
+                SetTwoDDocument(importedDocument);
+                StatusText = $"Imported DXF drawing: {Path.GetFileName(_pendingTwoDFilePaths[0])}";
+                MarkDocumentDirty();
+            }
+            _pendingTwoDFilePaths = [];
         }
     }
 }

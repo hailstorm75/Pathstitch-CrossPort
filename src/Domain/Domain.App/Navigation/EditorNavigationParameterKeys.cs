@@ -4,4 +4,5 @@ public static class EditorNavigationParameterKeys
 {
     public const string ProjectSession = nameof(ProjectSession);
     public const string PendingSourceModelPaths = nameof(PendingSourceModelPaths);
+    public const string PendingTwoDFilePaths = nameof(PendingTwoDFilePaths);
 }

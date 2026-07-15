@@ -115,7 +115,7 @@ public sealed partial class HomePageViewModel(
         ProjectName = SelectedTemplate.DefaultProjectName;
         CurrentSession = projectSessionService.CurrentSession;
         RefreshRecentProjects();
-        HomeStatusText = "Drop a Pathstitch project or 3D model to continue.";
+        HomeStatusText = "Drop a Pathstitch project, DXF drawing, or 3D model to continue.";
         return ValueTask.CompletedTask;
     }
 
@@ -374,6 +374,8 @@ public sealed partial class HomePageViewModel(
 
         if (launchRequest.PendingSourceModelPaths.Count > 0)
             parameters[EditorNavigationParameterKeys.PendingSourceModelPaths] = launchRequest.PendingSourceModelPaths;
+        if (launchRequest.PendingTwoDFilePaths.Count > 0)
+            parameters[EditorNavigationParameterKeys.PendingTwoDFilePaths] = launchRequest.PendingTwoDFilePaths;
 
         WeakReferenceMessenger.Default.Send(new NavigationChangeRequestMessage(
             NavigationAddressBook.EditorPage,

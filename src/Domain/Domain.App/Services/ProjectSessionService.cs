@@ -17,6 +17,10 @@ public sealed class ProjectSessionService(
         ".step",
         ".stp",
     };
+    private static readonly HashSet<string> SupportedTwoDFileExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".dxf",
+    };
 
     private static readonly ProjectTemplateDefinition[] Templates =
     [
@@ -107,13 +111,15 @@ public sealed class ProjectSessionService(
 
         var projectFiles = normalizedFilePaths.Where(IsProjectFile).ToArray();
         var sourceModelFiles = normalizedFilePaths.Where(IsSupported3DModelFile).ToArray();
+        var twoDFilePaths = normalizedFilePaths.Where(IsSupportedTwoDFile).ToArray();
         var unsupportedFiles = normalizedFilePaths
             .Except(projectFiles, StringComparer.OrdinalIgnoreCase)
             .Except(sourceModelFiles, StringComparer.OrdinalIgnoreCase)
+            .Except(twoDFilePaths, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         if (unsupportedFiles.Length > 0)
-            throw new InvalidOperationException("The home screen supports existing .stch projects, STEP/STP B-rep models, and OBJ/STL meshes.");
+            throw new InvalidOperationException("The home screen supports .stch projects, DXF drawings, STEP/STP B-rep models, and OBJ/STL meshes.");
 
         if (projectFiles.Length > 1)
         {
@@ -123,13 +129,16 @@ public sealed class ProjectSessionService(
         if (projectFiles.Length == 1)
         {
             var session = await OpenProjectAsync(projectFiles[0], ProjectSessionOrigin.Opened, cancellationToken).ConfigureAwait(false);
-            return session is null ? null : new ProjectLaunchRequest(session, sourceModelFiles);
+            return session is null
+                ? null
+                : new ProjectLaunchRequest(session, sourceModelFiles) { PendingTwoDFilePaths = twoDFilePaths };
         }
 
-        if (sourceModelFiles.Length > 0)
+        if (sourceModelFiles.Length > 0 || twoDFilePaths.Length > 0)
         {
-            var session = await CreateImportedWorkspaceSessionAsync(sourceModelFiles, cancellationToken).ConfigureAwait(false);
-            return new ProjectLaunchRequest(session, sourceModelFiles);
+            var sessionSeedPaths = sourceModelFiles.Length > 0 ? sourceModelFiles : twoDFilePaths;
+            var session = await CreateImportedWorkspaceSessionAsync(sessionSeedPaths, cancellationToken).ConfigureAwait(false);
+            return new ProjectLaunchRequest(session, sourceModelFiles) { PendingTwoDFilePaths = twoDFilePaths };
         }
 
         throw new InvalidOperationException("Select a Pathstitch project or one or more 3D source models to continue.");
@@ -267,6 +276,9 @@ public sealed class ProjectSessionService(
 
     private static bool IsSupported3DModelFile(string filePath)
         => Supported3DModelExtensions.Contains(Path.GetExtension(filePath));
+
+    private static bool IsSupportedTwoDFile(string filePath)
+        => SupportedTwoDFileExtensions.Contains(Path.GetExtension(filePath));
 
     private static string ResolveProjectName(string? projectName, ProjectTemplateDefinition template)
         => string.IsNullOrWhiteSpace(projectName)

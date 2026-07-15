@@ -330,7 +330,7 @@
               TextAlignment="Center"
               TextWrapping="Wrap"
               Foreground="{StaticResource SecondaryTextBrush}"
-              Text="Supports .stch, .obj, .stl. Drag files here or browse from disk." />
+              Text="Supports .stch, .dxf, .obj, .stl, and STEP. Drag files here or browse from disk." />
             <Button
               AutomationProperties.AutomationId="home.dialog.open-files"
               Classes="primary-action"

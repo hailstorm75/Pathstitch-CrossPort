@@ -39,6 +39,21 @@ public sealed class ProjectSessionServiceTests
         File.Delete(request.Session.ProjectFilePath);
     }
 
+    [Fact]
+    public async Task OpenWorkspaceFilesAsync_QueuesDxfForTwoDWorkspace()
+    {
+        using var workspace = TestWorkspace.Create();
+        var dxfPath = workspace.WriteText("drawing.dxf", "0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n");
+        var service = CreateService();
+
+        var request = await service.OpenWorkspaceFilesAsync([dxfPath]);
+
+        Assert.NotNull(request);
+        Assert.Empty(request.PendingSourceModelPaths);
+        Assert.Equal([Path.GetFullPath(dxfPath)], request.PendingTwoDFilePaths);
+        File.Delete(request.Session.ProjectFilePath);
+    }
+
     private static ProjectSessionService CreateService()
         => new(new FakeProjectFileDialogService(), new RecentProjectsService());
 
