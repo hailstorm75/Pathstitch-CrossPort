@@ -46,6 +46,26 @@ public sealed class BezierPenFoundationTests
     }
 
     [Fact]
+    public void PenEditing_InsertsAnchorOnNearestOpenSegment()
+    {
+        var anchors = new[]
+        {
+            new Editor2DBezierAnchor(new(0, 0)),
+            new Editor2DBezierAnchor(new(20, 0)),
+            new Editor2DBezierAnchor(new(20, 20)),
+        };
+
+        var inserted = DxfCanvasPenEditing.TryInsertAnchorAt(
+            anchors, new(9, 2), isClosed: false, tolerance: 3,
+            out var updated, out var index);
+
+        Assert.True(inserted);
+        Assert.Equal(1, index);
+        Assert.Equal(new Editor2DPoint(9, 0), updated[index].Point);
+        Assert.Equal(4, updated.Count);
+    }
+
+    [Fact]
     public void PenCommit_KeepsEditableAnchorsAndRendererReadySampledGeometry()
     {
         var document = Editor2DWorkspaceState.Empty.Document;

@@ -3247,6 +3247,24 @@ Selection:
             return;
         }
 
+        if (_editingPenPathId is not null
+            && DxfCanvasPenEditing.TryInsertAnchorAt(
+                _pendingPenAnchors,
+                ScreenToWorld(screenPoint, Zoom),
+                _editingPenClosed,
+                12.0 / Math.Max(Zoom, 1e-6),
+                out var insertedAnchors,
+                out var insertedIndex))
+        {
+            _pendingPenAnchors = insertedAnchors.ToArray();
+            _pendingPenDragAnchorIndex = insertedIndex;
+            _pendingPenDragControl = DxfCanvasInteractionSession.PenDragControl.Anchor;
+            _pointerPressPosition = screenPoint;
+            pointer.Capture(this);
+            InvalidateVisual();
+            return;
+        }
+
         var worldPoint = ResolvePlacementPoint(
             screenPoint,
             _pendingPenAnchors.LastOrDefault()?.Point,
