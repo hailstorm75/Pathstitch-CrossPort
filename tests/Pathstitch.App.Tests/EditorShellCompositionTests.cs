@@ -214,6 +214,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Stroke to Fill", canvas, StringComparison.Ordinal);
         Assert.Contains("Fill to Stroke", canvas, StringComparison.Ordinal);
         Assert.Contains("OffsetDistanceText=\"{Binding TwoDOffsetDistanceText, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
+        Assert.Contains("TwoDSelectedTextFitModeOptions", inspector, StringComparison.Ordinal);
     }
 
     [Fact]

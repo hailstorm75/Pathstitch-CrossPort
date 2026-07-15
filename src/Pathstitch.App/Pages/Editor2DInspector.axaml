@@ -677,6 +677,13 @@
             Width="76"
             Text="{Binding TwoDSelectedTextCharacterSpacingText, Mode=TwoWay}" />
         </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Fit to box" />
+          <ComboBox
+            Width="120"
+            ItemsSource="{Binding TwoDSelectedTextFitModeOptions}"
+            SelectedItem="{Binding TwoDSelectedTextFitMode, Mode=TwoWay}" />
+        </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="10">
           <ToggleSwitch Content="Bold" IsChecked="{Binding TwoDSelectedTextBold, Mode=TwoWay}" />
           <ToggleSwitch Content="Italic" IsChecked="{Binding TwoDSelectedTextItalic, Mode=TwoWay}" />
