@@ -1161,7 +1161,7 @@ public sealed partial class EditorPageViewModel
 
     public string WorkspaceModeHint => ActiveEditorMode switch
     {
-        EditorMode.TwoD => "Viewing the local 2D workspace. Use the 2D tool chips for selection, moving, scaling, mirroring, offsetting, thickening, cleanup, patterning, paper folding, dimensioning, trimming, filleting, chamfering, line conversion, drawing, pen paths, text, panning, and manual measurements. Rectangles and circles now generate attached auto dimensions.",
+        EditorMode.TwoD => "Viewing the local 2D workspace. Use the 2D tool chips",
         EditorMode.Batch => "Validate queued projects in an isolated batch workspace without opening or mutating either editor workspace.",
         _ => !HasLoadedModel
             ? HasTwoDWorkspaceDocument
