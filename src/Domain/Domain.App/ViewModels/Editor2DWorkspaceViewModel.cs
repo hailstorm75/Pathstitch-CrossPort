@@ -480,6 +480,25 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         return true;
     }
 
+    public bool SetLayerColor(string layerId, string colorHex)
+    {
+        var normalized = colorHex.Trim().ToUpperInvariant();
+        if (!IsValidColorHex(normalized))
+            return false;
+
+        var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId);
+        if (layer is null || string.Equals(layer.ColorHex, normalized, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        Apply(_state with
+        {
+            Layers = Layers.Select(candidate => candidate.Id == layerId
+                ? candidate with { ColorHex = normalized }
+                : candidate).ToArray(),
+        });
+        return true;
+    }
+
     public bool DeleteLayer(string layerId)
     {
         var ordered = Layers.OrderBy(layer => layer.Order).ToArray();
@@ -1021,6 +1040,11 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         var normalized = rotationDegrees % 360.0;
         return normalized < -180.0 ? normalized + 360.0 : normalized > 180.0 ? normalized - 360.0 : normalized;
     }
+
+    private static bool IsValidColorHex(string colorHex)
+        => (colorHex.Length is 7 or 9)
+            && colorHex[0] == '#'
+            && colorHex.Skip(1).All(Uri.IsHexDigit);
 
     private static IReadOnlyList<Editor2DLayer> NormalizeLayers(
         Editor2DWorkspaceState state,

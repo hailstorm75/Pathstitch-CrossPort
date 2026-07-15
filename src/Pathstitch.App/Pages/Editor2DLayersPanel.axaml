@@ -64,6 +64,11 @@
                     <Button Padding="5,2" Content="Rename" Tag="{Binding Id}" Click="OnRenameLayerClicked" />
                     <Button Padding="5,2" Content="Delete" Tag="{Binding Id}" Click="OnDeleteLayerClicked" />
                   </StackPanel>
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock VerticalAlignment="Center" Text="Color" />
+                    <TextBox Width="88" Text="{Binding ColorHex, Mode=OneWay}" Tag="{Binding Id}" />
+                    <Button Padding="5,2" Content="Set" Tag="{Binding Id}" Click="OnSetLayerColorClicked" />
+                  </StackPanel>
                   <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding ContentSummary}" />
                   <StackPanel Orientation="Horizontal" Spacing="4">
                     <Button Padding="5,2" Content="Visible" Tag="{Binding Id}" Click="OnToggleVisibilityClicked" />

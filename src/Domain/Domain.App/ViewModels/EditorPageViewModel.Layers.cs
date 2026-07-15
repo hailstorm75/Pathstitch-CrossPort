@@ -211,6 +211,12 @@ public sealed partial class EditorPageViewModel
             RefreshTwoDLayerFacade();
     }
 
+    public void SetTwoDLayerColor(string layerId, string colorHex)
+    {
+        if (_twoDWorkspace.SetLayerColor(layerId, colorHex))
+            RefreshTwoDLayerFacade();
+    }
+
     public void DeleteTwoDLayer(string layerId)
     {
         if (_twoDWorkspace.DeleteLayer(layerId))

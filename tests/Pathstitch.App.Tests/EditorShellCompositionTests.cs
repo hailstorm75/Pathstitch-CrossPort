@@ -233,6 +233,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Content=\"Delete\"", layers, StringComparison.Ordinal);
         Assert.Contains("OnRenameLayerClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("OnDeleteLayerClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Set\"", layers, StringComparison.Ordinal);
+        Assert.Contains("OnSetLayerColorClicked", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]

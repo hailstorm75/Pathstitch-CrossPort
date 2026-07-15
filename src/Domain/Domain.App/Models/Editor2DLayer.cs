@@ -34,7 +34,8 @@ public sealed record Editor2DLayer(
     [property: JsonPropertyName("isLocked")] bool IsLocked = false,
     [property: JsonPropertyName("order")] int Order = 0,
     [property: JsonPropertyName("kind")] Editor2DLayerKind Kind = Editor2DLayerKind.Geometry,
-    [property: JsonPropertyName("referenceImage")] Editor2DReferenceImage? ReferenceImage = null)
+    [property: JsonPropertyName("referenceImage")] Editor2DReferenceImage? ReferenceImage = null,
+    [property: JsonPropertyName("colorHex")] string ColorHex = "#4D7FFF")
 {
     public bool IsReferenceImage => Kind == Editor2DLayerKind.ReferenceImage && ReferenceImage is not null;
 

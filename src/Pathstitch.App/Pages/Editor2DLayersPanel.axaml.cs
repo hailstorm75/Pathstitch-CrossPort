@@ -47,6 +47,17 @@ public partial class Editor2DLayersPanel : UserControl
 
     private void OnDeleteLayerClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.DeleteTwoDLayer(id));
 
+    private void OnSetLayerColorClicked(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null || sender is not Button { Tag: string layerId })
+            return;
+        var textBox = (sender as Control)?.GetLogicalAncestors().OfType<Border>().FirstOrDefault()?
+            .GetLogicalDescendants().OfType<TextBox>().FirstOrDefault(control => Equals(control.Tag, layerId)
+                && control.Width < 100);
+        if (textBox is not null)
+            ViewModel.SetTwoDLayerColor(layerId, textBox.Text ?? string.Empty);
+    }
+
     private void OnReferenceMoveLeftClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, -5, 0));
 
     private void OnReferenceMoveRightClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, 5, 0));

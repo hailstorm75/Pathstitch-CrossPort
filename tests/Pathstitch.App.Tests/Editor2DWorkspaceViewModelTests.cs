@@ -448,6 +448,21 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void Layers_SetColorValidatesHexAndRecordsUndoHistory()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var layer = workspace.CreateLayer("Sketch");
+
+        Assert.False(workspace.SetLayerColor(layer.Id, "blue"));
+        Assert.Equal("#4D7FFF", workspace.Layers.Single(item => item.Id == layer.Id).ColorHex);
+
+        Assert.True(workspace.SetLayerColor(layer.Id, " #ff8800 "));
+        Assert.Equal("#FF8800", workspace.Layers.Single(item => item.Id == layer.Id).ColorHex);
+        Assert.True(workspace.Undo());
+        Assert.Equal("#4D7FFF", workspace.Layers.Single(item => item.Id == layer.Id).ColorHex);
+    }
+
+    [Fact]
     public void Layers_DeleteGeometryLayer_ReassignsPathsAndKeepsOneGeometryLayer()
     {
         var workspace = new Editor2DWorkspaceViewModel();
