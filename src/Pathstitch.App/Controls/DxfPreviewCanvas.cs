@@ -205,6 +205,8 @@ public sealed class DxfPreviewCanvas : Control
     {
         Move,
         Scale,
+        ScaleWidth,
+        ScaleHeight,
         Rotate,
     }
 
@@ -799,6 +801,12 @@ public sealed class DxfPreviewCanvas : Control
                     width *= factor;
                     height *= factor;
                     break;
+                case ReferenceImageDragMode.ScaleWidth:
+                    width *= Math.Max(0.01, Math.Abs(ReferenceImageLocalPoint(position, image).X) / Math.Max(image.Width / 2.0, 0.0001));
+                    break;
+                case ReferenceImageDragMode.ScaleHeight:
+                    height *= Math.Max(0.01, Math.Abs(ReferenceImageLocalPoint(position, image).Y) / Math.Max(image.Height / 2.0, 0.0001));
+                    break;
                 case ReferenceImageDragMode.Rotate:
                     rotation = Math.Atan2(currentWorld.Y - image.Y, currentWorld.X - image.X) * 180.0 / Math.PI - 90.0;
                     break;
@@ -1139,6 +1147,14 @@ Selection:
             new Point(rect.Right, rect.Top),
             new Point(rect.Right, rect.Bottom),
             new Point(rect.Left, rect.Bottom),
+        })
+        {
+            context.FillRectangle(EditableVertexHandleFillBrush, new Rect(point.X - handle / 2.0, point.Y - handle / 2.0, handle, handle));
+        }
+        foreach (var point in new[]
+        {
+            new Point(rect.Center.X, rect.Top), new Point(rect.Right, rect.Center.Y),
+            new Point(rect.Center.X, rect.Bottom), new Point(rect.Left, rect.Center.Y),
         })
         {
             context.FillRectangle(EditableVertexHandleFillBrush, new Rect(point.X - handle / 2.0, point.Y - handle / 2.0, handle, handle));
@@ -3008,6 +3024,21 @@ Selection:
             if (Math.Sqrt(Math.Pow(local.X - corner.X, 2) + Math.Pow(local.Y - corner.Y, 2)) <= tolerance)
             {
                 mode = ReferenceImageDragMode.Scale;
+                return true;
+            }
+        }
+
+        foreach (var edge in new[]
+        {
+            (Point)new Point(0, -halfHeight),
+            new Point(halfWidth, 0),
+            new Point(0, halfHeight),
+            new Point(-halfWidth, 0),
+        })
+        {
+            if (Math.Sqrt(Math.Pow(local.X - edge.X, 2) + Math.Pow(local.Y - edge.Y, 2)) <= tolerance)
+            {
+                mode = Math.Abs(edge.X) > 0 ? ReferenceImageDragMode.ScaleWidth : ReferenceImageDragMode.ScaleHeight;
                 return true;
             }
         }
