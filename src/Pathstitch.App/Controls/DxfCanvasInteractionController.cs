@@ -61,12 +61,24 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         double offsetX,
         double offsetY,
         double wheelDelta)
+        => ApplyZoom(
+            screenPoint,
+            viewport,
+            zoom,
+            offsetX,
+            offsetY,
+            wheelDelta >= 0 ? ZoomStep : 1.0 / ZoomStep);
+
+    public DxfCanvasViewportUpdate ApplyZoom(
+        Point screenPoint,
+        Size viewport,
+        double zoom,
+        double offsetX,
+        double offsetY,
+        double zoomFactor)
     {
         var currentZoom = zoom <= 0 ? 1.0 : zoom;
-        var nextZoom = Math.Clamp(
-            currentZoom * (wheelDelta >= 0 ? ZoomStep : 1.0 / ZoomStep),
-            0.02,
-            2000.0);
+        var nextZoom = Math.Clamp(currentZoom * zoomFactor, 0.02, 2000.0);
         var world = DxfCanvasViewportTransform.ScreenToWorld(
             screenPoint, viewport, currentZoom, offsetX, offsetY);
         return new DxfCanvasViewportUpdate(
@@ -74,6 +86,17 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
             screenPoint.X - (viewport.Width / 2.0) - (world.X * nextZoom),
             screenPoint.Y - (viewport.Height / 2.0) + (world.Y * nextZoom));
     }
+
+    public DxfCanvasViewportUpdate ApplyPan(
+        double zoom,
+        double offsetX,
+        double offsetY,
+        Vector delta,
+        bool reverseVertical)
+        => new(
+            zoom,
+            offsetX + delta.X,
+            offsetY + (reverseVertical ? -delta.Y : delta.Y));
 
     public void BeginPan(Point position)
     {

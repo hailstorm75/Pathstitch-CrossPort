@@ -110,6 +110,28 @@ public sealed class DxfCanvasCollaboratorTests
     }
 
     [Fact]
+    public void InteractionController_AppliesPinchZoomAndPrecisePan()
+    {
+        var session = new DxfCanvasInteractionSession();
+        var controller = new DxfCanvasInteractionController(session);
+        var viewport = new Size(800, 600);
+        var anchor = new Point(300, 200);
+        var before = DxfCanvasViewportTransform.ScreenToWorld(anchor, viewport, 2, 12, -8);
+
+        var zoomed = controller.ApplyZoom(anchor, viewport, 2, 12, -8, 1.25);
+        var after = DxfCanvasViewportTransform.ScreenToWorld(anchor, viewport, zoomed.Zoom, zoomed.OffsetX, zoomed.OffsetY);
+
+        Assert.Equal(2.5, zoomed.Zoom, 8);
+        Assert.InRange(Math.Abs(before.X - after.X), 0, 1e-9);
+        Assert.InRange(Math.Abs(before.Y - after.Y), 0, 1e-9);
+
+        var panned = controller.ApplyPan(zoomed.Zoom, zoomed.OffsetX, zoomed.OffsetY, new Vector(7, -4), reverseVertical: false);
+        Assert.Equal(zoomed.Zoom, panned.Zoom);
+        Assert.Equal(zoomed.OffsetX + 7, panned.OffsetX);
+        Assert.Equal(zoomed.OffsetY - 4, panned.OffsetY);
+    }
+
+    [Fact]
     public void InteractionController_RoutesPrimaryToolPressesWithoutControlInputEvents()
     {
         var session = new DxfCanvasInteractionSession();

@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Input.GestureRecognizers;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
@@ -189,6 +190,7 @@ public sealed class DxfPreviewCanvas : Control
     private ref double? _cornerToolSessionValue => ref _interaction.CornerToolSessionValue;
     private DxfCanvasSnapResult? _activeSnapResult;
     private bool _shiftSnapHeld;
+    private double? _pinchLastScale;
 
     static DxfPreviewCanvas()
     {
@@ -214,6 +216,16 @@ public sealed class DxfPreviewCanvas : Control
     public DxfPreviewCanvas()
     {
         _interactionController = new DxfCanvasInteractionController(_interaction);
+        GestureRecognizers.Add(new ScrollGestureRecognizer
+        {
+            CanHorizontallyScroll = true,
+            CanVerticallyScroll = true,
+            IsScrollInertiaEnabled = false,
+        });
+        GestureRecognizers.Add(new PinchGestureRecognizer());
+        ScrollGesture += OnScrollGesture;
+        Pinch += OnPinch;
+        PinchEnded += OnPinchEnded;
         _expandRectanglesMenuItem = new MenuItem
         {
             Header = "Expand",
@@ -248,6 +260,54 @@ public sealed class DxfPreviewCanvas : Control
         if (!DeleteSelectedMeasurement())
             DeleteSelectedPaths();
         _contextMenu.Close();
+    }
+
+    private void OnScrollGesture(object? sender, ScrollGestureEventArgs e)
+    {
+        if (Document is null)
+            return;
+
+        var update = _interactionController.ApplyPan(
+            Zoom,
+            OffsetX,
+            OffsetY,
+            e.Delta,
+            ReversePanDirection);
+        SetCurrentValue(OffsetXProperty, update.OffsetX);
+        SetCurrentValue(OffsetYProperty, update.OffsetY);
+        InvalidateVisual();
+        e.Handled = true;
+    }
+
+    private void OnPinch(object? sender, PinchEventArgs e)
+    {
+        if (Document is null || e.Scale <= 0.0)
+            return;
+
+        var previousScale = _pinchLastScale ?? e.Scale;
+        var factor = e.Scale / previousScale;
+        _pinchLastScale = e.Scale;
+        if (!double.IsFinite(factor) || factor <= 0.0 || Math.Abs(factor - 1.0) <= 1e-6)
+            return;
+
+        var update = _interactionController.ApplyZoom(
+            e.ScaleOrigin,
+            Bounds.Size,
+            Zoom,
+            OffsetX,
+            OffsetY,
+            factor);
+        SetCurrentValue(ZoomProperty, update.Zoom);
+        SetCurrentValue(OffsetXProperty, update.OffsetX);
+        SetCurrentValue(OffsetYProperty, update.OffsetY);
+        InvalidateVisual();
+        e.Handled = true;
+    }
+
+    private void OnPinchEnded(object? sender, PinchEndedEventArgs e)
+    {
+        _pinchLastScale = null;
+        e.Handled = true;
     }
 
     private ref bool _isPanning => ref _interaction.IsPanning;
