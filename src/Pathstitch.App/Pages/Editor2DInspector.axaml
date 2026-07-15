@@ -720,7 +720,15 @@
         <ComboBox
           x:Name="InstalledFontSelector"
           AutomationProperties.AutomationId="editor.text.font-family"
-          SelectedItem="{Binding TwoDSelectedTextFontFamily, Mode=TwoWay}" />
+          SelectedItem="{Binding TwoDSelectedTextFontFamily, Mode=TwoWay}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <Border PointerEntered="OnFontPreviewEntered" PointerExited="OnFontPreviewExited">
+                <TextBlock Text="{Binding}" />
+              </Border>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock
             VerticalAlignment="Center"

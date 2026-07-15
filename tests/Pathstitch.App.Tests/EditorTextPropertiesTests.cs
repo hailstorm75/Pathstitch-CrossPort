@@ -72,7 +72,11 @@ public sealed class EditorTextPropertiesTests
         var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
 
         Assert.Contains("InstalledFontSelector", inspector, StringComparison.Ordinal);
+        Assert.Contains("PointerEntered=\"OnFontPreviewEntered\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("PointerExited=\"OnFontPreviewExited\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDTextFontPreview", codeBehind, StringComparison.Ordinal);
         Assert.Contains("FontManager.Current.SystemFonts", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("TextFontPreview=\"{Binding TwoDTextFontPreview}\"", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DView.axaml"), StringComparison.Ordinal);
         Assert.Contains("path.IsBold", canvas, StringComparison.Ordinal);
         Assert.Contains("path.IsItalic", canvas, StringComparison.Ordinal);
         Assert.Contains("path.IsUnderline", canvas, StringComparison.Ordinal);
