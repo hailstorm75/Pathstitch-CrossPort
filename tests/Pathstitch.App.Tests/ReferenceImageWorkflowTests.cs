@@ -109,6 +109,36 @@ public sealed class ReferenceImageWorkflowTests
     }
 
     [Fact]
+    public void ImageMetadata_ReadsLittleEndianTiffDimensions()
+    {
+        var header = new byte[38];
+        header[0] = (byte)'I';
+        header[1] = (byte)'I';
+        header[2] = 42;
+        header[4] = 8;
+        header[8] = 2;
+
+        WriteTiffLongEntry(header, 10, 256, 640);
+        WriteTiffLongEntry(header, 22, 257, 480);
+
+        Assert.True(Editor2DReferenceImageMetadata.TryReadPixelSize(header, out var width, out var height));
+        Assert.Equal(640, width);
+        Assert.Equal(480, height);
+    }
+
+    private static void WriteTiffLongEntry(byte[] data, int offset, ushort tag, uint value)
+    {
+        data[offset] = (byte)tag;
+        data[offset + 1] = (byte)(tag >> 8);
+        data[offset + 2] = 4;
+        data[offset + 4] = 1;
+        data[offset + 8] = (byte)value;
+        data[offset + 9] = (byte)(value >> 8);
+        data[offset + 10] = (byte)(value >> 16);
+        data[offset + 11] = (byte)(value >> 24);
+    }
+
+    [Fact]
     public void ReferenceImageBackgroundRemoval_IsReversibleAndPersistsOriginal()
     {
         var remover = new RecordingReferenceImageBackgroundRemovalService("removed");

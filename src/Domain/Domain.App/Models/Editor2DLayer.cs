@@ -122,6 +122,9 @@ public static class Editor2DReferenceImageMetadata
             return width > 0 && height > 0;
         }
 
+        if (TryReadTiffPixelSize(data, out width, out height))
+            return true;
+
         return false;
     }
 
@@ -130,4 +133,77 @@ public static class Editor2DReferenceImageMetadata
 
     private static int ReadLittleEndianUInt24(ReadOnlySpan<byte> bytes)
         => bytes[0] | bytes[1] << 8 | bytes[2] << 16;
+
+    private static bool TryReadTiffPixelSize(ReadOnlySpan<byte> data, out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+        if (data.Length < 10
+            || !((data[0] == (byte)'I' && data[1] == (byte)'I')
+                || (data[0] == (byte)'M' && data[1] == (byte)'M')))
+            return false;
+
+        var littleEndian = data[0] == (byte)'I';
+        if (ReadUInt16(data[2..4], littleEndian) != 42)
+            return false;
+
+        var ifdOffset = ReadUInt32(data[4..8], littleEndian);
+        if (ifdOffset > int.MaxValue || ifdOffset + 2 > (uint)data.Length)
+            return false;
+
+        var entryCount = ReadUInt16(data[(int)ifdOffset..], littleEndian);
+        var entriesStart = (int)ifdOffset + 2;
+        if (entryCount > (data.Length - entriesStart) / 12)
+            return false;
+
+        for (var index = 0; index < entryCount; index++)
+        {
+            var entry = data[(entriesStart + index * 12)..];
+            var tag = ReadUInt16(entry[..2], littleEndian);
+            if (tag is not (256 or 257))
+                continue;
+
+            var type = ReadUInt16(entry[2..4], littleEndian);
+            var count = ReadUInt32(entry[4..8], littleEndian);
+            if (count == 0)
+                continue;
+
+            uint value;
+            if (type == 3 && count == 1)
+                value = ReadUInt16(entry[8..10], littleEndian);
+            else if (type == 4 && count == 1)
+                value = ReadUInt32(entry[8..12], littleEndian);
+            else if (type is 3 or 4)
+            {
+                var valueOffset = ReadUInt32(entry[8..12], littleEndian);
+                var valueBytes = type == 3 ? 2u : 4u;
+                if (valueOffset > int.MaxValue || valueOffset + valueBytes > (uint)data.Length)
+                    continue;
+                value = type == 3
+                    ? ReadUInt16(data[(int)valueOffset..], littleEndian)
+                    : ReadUInt32(data[(int)valueOffset..], littleEndian);
+            }
+            else
+                continue;
+
+            if (value == 0 || value > int.MaxValue)
+                continue;
+            if (tag == 256)
+                width = (int)value;
+            else
+                height = (int)value;
+        }
+
+        return width > 0 && height > 0;
+    }
+
+    private static ushort ReadUInt16(ReadOnlySpan<byte> bytes, bool littleEndian)
+        => littleEndian
+            ? (ushort)(bytes[0] | bytes[1] << 8)
+            : (ushort)(bytes[0] << 8 | bytes[1]);
+
+    private static uint ReadUInt32(ReadOnlySpan<byte> bytes, bool littleEndian)
+        => littleEndian
+            ? (uint)(bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24)
+            : (uint)(bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]);
 }
