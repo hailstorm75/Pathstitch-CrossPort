@@ -52,6 +52,35 @@ public sealed class EditorQuickDxfExportTests
     }
 
     [Fact]
+    public async Task Export_SelectedOnlyWritesOnlySelectedPaths()
+    {
+        const string outputPath = "selected.dxf";
+        var document = new Editor2DPreviewDocument(
+            [
+                new Editor2DPreviewPath("selected", "LINE", [new(1, 2), new(3, 4)], false),
+                new Editor2DPreviewPath("other", "LINE", [new(10, 20), new(30, 40)], false),
+            ],
+            new Editor2DBounds(1, 2, 30, 40),
+            new Dictionary<string, int> { ["LINE"] = 2 },
+            []);
+        var output = new RecordingOutputPreviewService();
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+            new RecordingFileDialogService(outputPath),
+            output);
+        viewModel.TwoDDocument = document;
+        viewModel.TwoDSelectedPathIds = ["selected"];
+        viewModel.TwoDExportSelectedOnly = true;
+
+        await viewModel.ExportTwoDDxfAsync();
+
+        Assert.NotNull(output.SavedDocument);
+        var path = Assert.Single(output.SavedDocument!.Paths);
+        Assert.Equal("selected", path.Id);
+        Assert.Equal(1, output.SavedDocument.Bounds.MinX);
+        Assert.Equal(4, output.SavedDocument.Bounds.MaxY);
+    }
+
+    [Fact]
     public async Task Export_WriteFailureSetsErrorMessage()
     {
         var output = new RecordingOutputPreviewService(new IOException("disk full"));

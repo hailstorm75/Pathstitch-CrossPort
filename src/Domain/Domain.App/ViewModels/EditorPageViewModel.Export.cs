@@ -1,12 +1,28 @@
+using Domain.App.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Domain.App.ViewModels;
 
 public sealed partial class EditorPageViewModel
 {
+    private bool _twoDExportSelectedOnly;
+
     public bool CanExportTwoDDxf => TwoDDocument is not null;
 
     public bool CanExportTwoDSvg => TwoDDocument is not null;
+
+    public bool TwoDExportSelectedOnly
+    {
+        get => _twoDExportSelectedOnly;
+        set
+        {
+            if (_twoDExportSelectedOnly == value)
+                return;
+
+            _twoDExportSelectedOnly = value;
+            OnPropertyChanged();
+        }
+    }
 
     public async Task ExportTwoDDxfAsync(CancellationToken cancellationToken = default)
     {
@@ -27,7 +43,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             await _editorOutputPreviewService
-                .SavePreviewDocumentAsync(document, outputPath, cancellationToken)
+                .SavePreviewDocumentAsync(BuildExportDocument(document), outputPath, cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported DXF to {Path.GetFileName(outputPath)}";
         }
@@ -61,7 +77,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             await _editorOutputPreviewService
-                .SavePreviewDocumentAsync(document, outputPath, cancellationToken)
+                .SavePreviewDocumentAsync(BuildExportDocument(document), outputPath, cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported SVG to {Path.GetFileName(outputPath)}";
         }
@@ -74,5 +90,13 @@ public sealed partial class EditorPageViewModel
             _logger.LogError(exception, "Failed to export 2D workspace SVG.");
             ErrorMessage = $"Could not export SVG: {exception.Message}";
         }
+    }
+
+    private Editor2DPreviewDocument BuildExportDocument(Editor2DPreviewDocument document)
+    {
+        if (!TwoDExportSelectedOnly || TwoDSelectedPathIds.Count == 0)
+            return document;
+
+        return CreateUpdatedTwoDDocument(document, GetSelectedTwoDPaths());
     }
 }
