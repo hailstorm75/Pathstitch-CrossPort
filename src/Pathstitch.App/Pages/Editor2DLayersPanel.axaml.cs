@@ -3,6 +3,7 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Domain.App.Models;
 using Domain.App.ViewModels;
 
 namespace Pathstitch.App.Pages;
@@ -12,6 +13,18 @@ public partial class Editor2DLayersPanel : UserControl
     public Editor2DLayersPanel() => InitializeComponent();
 
     private void OnCreateLayerClicked(object? sender, RoutedEventArgs e) => ViewModel?.CreateTwoDLayer();
+
+    private void OnCreateFolderClicked(object? sender, RoutedEventArgs e) => ViewModel?.CreateTwoDFolder();
+
+    private void OnDeleteFolderClicked(object? sender, RoutedEventArgs e) => WithFolder(sender, id => ViewModel?.DeleteTwoDFolder(id));
+
+    private void OnLayerFolderChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (ViewModel is not null
+            && sender is ComboBox { Tag: string layerId } combo
+            && e.AddedItems.Count > 0)
+            ViewModel.MoveTwoDLayerToFolder(layerId, (e.AddedItems[0] as Editor2DLayerFolder)?.Id);
+    }
 
     private void OnMergeSelectedLayersClicked(object? sender, RoutedEventArgs e) => ViewModel?.MergeTwoDSelectedLayers();
 
@@ -94,5 +107,11 @@ public partial class Editor2DLayersPanel : UserControl
     {
         if (sender is Button { Tag: string layerId })
             action?.Invoke(layerId);
+    }
+
+    private static void WithFolder(object? sender, Action<string>? action)
+    {
+        if (sender is Button { Tag: string folderId })
+            action?.Invoke(folderId);
     }
 }

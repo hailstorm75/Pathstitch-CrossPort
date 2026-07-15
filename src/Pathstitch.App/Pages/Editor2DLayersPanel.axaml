@@ -11,7 +11,7 @@
     BorderBrush="{StaticResource BorderBrush}"
     BorderThickness="0,0,1,0"
     Padding="14">
-    <Grid RowDefinitions="Auto,*,Auto,Auto">
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
       <DockPanel>
         <TextBlock
           FontSize="13"
@@ -28,6 +28,12 @@
           DockPanel.Dock="Right"
           Margin="0,0,6,0"
           Padding="8,2"
+          Content="+ Folder"
+          Click="OnCreateFolderClicked" />
+        <Button
+          DockPanel.Dock="Right"
+          Margin="0,0,6,0"
+          Padding="8,2"
           Content="Merge selected"
           Click="OnMergeSelectedLayersClicked" />
         <Button
@@ -38,7 +44,18 @@
           Content="+ Image"
           Click="OnImportReferenceImageClicked" />
       </DockPanel>
-      <ScrollViewer Grid.Row="1" Margin="0,12,0,0">
+      <ItemsControl Grid.Row="1" ItemsSource="{Binding TwoDFolders}" Margin="0,12,0,0">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="models:Editor2DLayerFolder">
+            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,0,4">
+              <TextBlock VerticalAlignment="Center" Text="📁" />
+              <TextBlock Width="150" VerticalAlignment="Center" Text="{Binding Name}" />
+              <Button Padding="5,2" Content="Delete" Tag="{Binding Id}" Click="OnDeleteFolderClicked" />
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <ScrollViewer Grid.Row="2" Margin="0,12,0,0">
         <ItemsControl ItemsSource="{Binding TwoDLayers}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="models:Editor2DLayer">
@@ -64,6 +81,13 @@
                     <Button Padding="5,2" Content="Rename" Tag="{Binding Id}" Click="OnRenameLayerClicked" />
                     <Button Padding="5,2" Content="Delete" Tag="{Binding Id}" Click="OnDeleteLayerClicked" />
                   </StackPanel>
+                  <ComboBox
+                    Tag="{Binding Id}"
+                    PlaceholderText="Folder (root)"
+                    ItemsSource="{Binding $parent[UserControl].DataContext.TwoDFolders}"
+                    SelectedValue="{Binding ParentFolderId, Mode=OneWay}"
+                    SelectedValueBinding="{Binding Id}"
+                    SelectionChanged="OnLayerFolderChanged" />
                   <StackPanel Orientation="Horizontal" Spacing="4">
                     <TextBlock VerticalAlignment="Center" Text="Color" />
                     <TextBox Width="88" Text="{Binding ColorHex, Mode=OneWay}" Tag="{Binding Id}" />
@@ -112,7 +136,7 @@
         </ItemsControl>
       </ScrollViewer>
       <StackPanel
-        Grid.Row="2"
+        Grid.Row="3"
         Margin="0,8,0,0"
         Spacing="4"
         IsVisible="{Binding HasTwoDActiveReferenceImage}">
@@ -123,7 +147,7 @@
         </StackPanel>
       </StackPanel>
       <TextBlock
-        Grid.Row="3"
+        Grid.Row="4"
         Margin="0,8,0,0"
         FontSize="10"
         TextWrapping="Wrap"

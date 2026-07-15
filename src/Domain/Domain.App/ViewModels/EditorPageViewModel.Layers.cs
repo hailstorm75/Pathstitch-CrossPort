@@ -7,6 +7,8 @@ public sealed partial class EditorPageViewModel
 {
     public IReadOnlyList<Editor2DLayer> TwoDLayers => _twoDWorkspace.Layers;
 
+    public IReadOnlyList<Editor2DLayerFolder> TwoDFolders => _twoDWorkspace.Folders;
+
     public string? TwoDActiveLayerId => _twoDWorkspace.ActiveLayerId;
 
     public IReadOnlyList<Editor2DReferenceImage> TwoDReferenceImages => TwoDLayers
@@ -40,6 +42,24 @@ public sealed partial class EditorPageViewModel
     {
         _twoDWorkspace.CreateLayer();
         RefreshTwoDLayerFacade();
+    }
+
+    public void CreateTwoDFolder()
+    {
+        _twoDWorkspace.CreateFolder();
+        RefreshTwoDLayerFacade();
+    }
+
+    public void DeleteTwoDFolder(string folderId)
+    {
+        if (_twoDWorkspace.DeleteFolder(folderId))
+            RefreshTwoDLayerFacade();
+    }
+
+    public void MoveTwoDLayerToFolder(string layerId, string? folderId)
+    {
+        if (_twoDWorkspace.MoveLayerToFolder(layerId, folderId))
+            RefreshTwoDLayerFacade();
     }
 
     public async Task ImportTwoDReferenceImageAsync(CancellationToken cancellationToken = default)
@@ -233,6 +253,7 @@ public sealed partial class EditorPageViewModel
     {
         NotifyTwoDWorkspaceFacadeProperties();
         OnPropertyChanged(nameof(TwoDLayers));
+        OnPropertyChanged(nameof(TwoDFolders));
         OnPropertyChanged(nameof(TwoDActiveLayerId));
         OnPropertyChanged(nameof(TwoDHiddenPathIds));
         OnPropertyChanged(nameof(TwoDReferenceImages));

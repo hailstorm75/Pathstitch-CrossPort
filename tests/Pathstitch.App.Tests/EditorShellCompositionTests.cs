@@ -235,6 +235,10 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("OnDeleteLayerClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Content=\"Set\"", layers, StringComparison.Ordinal);
         Assert.Contains("OnSetLayerColorClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("Content=\"+ Folder\"", layers, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding TwoDFolders}\"", layers, StringComparison.Ordinal);
+        Assert.Contains("OnCreateFolderClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("OnDeleteFolderClicked", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]
