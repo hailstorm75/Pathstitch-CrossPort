@@ -59,6 +59,11 @@
                     Click="OnSelectLayerClicked">
                     <TextBlock Foreground="{StaticResource PrimaryTextBrush}" Text="{Binding Name}" />
                   </Button>
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBox Width="150" Text="{Binding Name, Mode=OneWay}" Tag="{Binding Id}" />
+                    <Button Padding="5,2" Content="Rename" Tag="{Binding Id}" Click="OnRenameLayerClicked" />
+                    <Button Padding="5,2" Content="Delete" Tag="{Binding Id}" Click="OnDeleteLayerClicked" />
+                  </StackPanel>
                   <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding ContentSummary}" />
                   <StackPanel Orientation="Horizontal" Spacing="4">
                     <Button Padding="5,2" Content="Visible" Tag="{Binding Id}" Click="OnToggleVisibilityClicked" />

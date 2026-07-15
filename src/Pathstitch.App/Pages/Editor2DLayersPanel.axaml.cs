@@ -1,6 +1,8 @@
 using System;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Domain.App.ViewModels;
 
 namespace Pathstitch.App.Pages;
@@ -32,6 +34,18 @@ public partial class Editor2DLayersPanel : UserControl
     private void OnMergeLayerWithBelowClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.MergeTwoDLayerWithBelow(id));
 
     private void OnAssignSelectionClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.AssignTwoDSelectionToLayer(id));
+
+    private void OnRenameLayerClicked(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null || sender is not Button { Tag: string layerId })
+            return;
+        var textBox = (sender as Control)?.GetLogicalAncestors().OfType<Border>().FirstOrDefault()?
+            .GetLogicalDescendants().OfType<TextBox>().FirstOrDefault(control => Equals(control.Tag, layerId));
+        if (textBox is not null)
+            ViewModel.RenameTwoDLayer(layerId, textBox.Text ?? string.Empty);
+    }
+
+    private void OnDeleteLayerClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.DeleteTwoDLayer(id));
 
     private void OnReferenceMoveLeftClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, -5, 0));
 

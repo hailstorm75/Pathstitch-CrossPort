@@ -229,6 +229,10 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("OnMergeLayerWithBelowClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Merge selected", layers, StringComparison.Ordinal);
         Assert.Contains("OnMergeSelectedLayersClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Rename\"", layers, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Delete\"", layers, StringComparison.Ordinal);
+        Assert.Contains("OnRenameLayerClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("OnDeleteLayerClicked", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]

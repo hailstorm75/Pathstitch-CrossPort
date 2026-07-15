@@ -205,6 +205,18 @@ public sealed partial class EditorPageViewModel
             RefreshTwoDLayerFacade();
     }
 
+    public void RenameTwoDLayer(string layerId, string name)
+    {
+        if (_twoDWorkspace.RenameLayer(layerId, name))
+            RefreshTwoDLayerFacade();
+    }
+
+    public void DeleteTwoDLayer(string layerId)
+    {
+        if (_twoDWorkspace.DeleteLayer(layerId))
+            RefreshTwoDLayerFacade();
+    }
+
     public void AssignTwoDSelectionToLayer(string layerId)
     {
         if (_twoDWorkspace.AssignPathsToLayer(layerId, TwoDSelectedPathIds))
