@@ -58,6 +58,66 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task StrokeAndFillConversionAvailability_FollowsTheCurrentSelection()
+    {
+        var viewModel = CreateViewModel();
+
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with
+        {
+            Paths =
+            [
+                new Editor2DPreviewPath("stroke", "LWPOLYLINE", [new(0, 0), new(5, 0), new(5, 5), new(0, 5)], true),
+                new Editor2DPreviewPath("fill", "LWPOLYLINE", [new(10, 0), new(15, 0), new(15, 5), new(10, 5)], true, IsFilled: true),
+            ],
+        };
+
+        var changes = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+
+        viewModel.TwoDSelectedPathIds = ["stroke"];
+
+        Assert.True(viewModel.CanApplyTwoDStrokeToFill);
+        Assert.False(viewModel.CanApplyTwoDFillToStroke);
+        Assert.Contains(nameof(EditorPageViewModel.CanApplyTwoDStrokeToFill), changes);
+        Assert.Contains(nameof(EditorPageViewModel.CanApplyTwoDFillToStroke), changes);
+
+        changes.Clear();
+        viewModel.TwoDSelectedPathIds = ["fill"];
+
+        Assert.False(viewModel.CanApplyTwoDStrokeToFill);
+        Assert.True(viewModel.CanApplyTwoDFillToStroke);
+        Assert.Contains(nameof(EditorPageViewModel.CanApplyTwoDStrokeToFill), changes);
+        Assert.Contains(nameof(EditorPageViewModel.CanApplyTwoDFillToStroke), changes);
+    }
+
+    [Fact]
+    public async Task StrokeAndFillConversions_UseTheWorkspaceOperationAndUpdateDocumentState()
+    {
+        var viewModel = CreateViewModel();
+
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with
+        {
+            Paths =
+            [
+                new Editor2DPreviewPath("stroke", "LWPOLYLINE", [new(0, 0), new(5, 0), new(5, 5), new(0, 5)], true),
+                new Editor2DPreviewPath("fill", "LWPOLYLINE", [new(10, 0), new(15, 0), new(15, 5), new(10, 5)], true, IsFilled: true),
+            ],
+        };
+
+        viewModel.TwoDSelectedPathIds = ["stroke"];
+
+        Assert.True(viewModel.ApplyTwoDStrokeToFill());
+        Assert.True(viewModel.TwoDDocument!.Paths.Single(path => path.Id == "stroke").IsFilled);
+
+        viewModel.TwoDSelectedPathIds = ["fill"];
+
+        Assert.True(viewModel.ApplyTwoDFillToStroke());
+        Assert.False(viewModel.TwoDDocument!.Paths.Single(path => path.Id == "fill").IsFilled);
+    }
+
+    [Fact]
     public void ScalePivot_IsTransientAcrossToolSessions()
     {
         var viewModel = CreateViewModel();
