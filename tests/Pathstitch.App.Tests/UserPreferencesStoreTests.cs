@@ -19,6 +19,7 @@ public sealed class UserPreferencesStoreTests
             Assert.True(loaded.ReversePanDirection);
             Assert.True(loaded.GettingStartedDismissed);
             Assert.True(loaded.SupportCardDismissed);
+            Assert.True(loaded.ConsolidateSvgStrokes);
         }
         finally
         {

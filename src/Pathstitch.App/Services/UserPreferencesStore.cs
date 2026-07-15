@@ -12,7 +12,8 @@ public sealed record UserPreferences(
     bool TwoDIntroDismissed = false,
     bool ThreeDIntroDismissed = false,
     bool BatchIntroDismissed = false,
-    bool TutorialCompleted = false);
+    bool TutorialCompleted = false,
+    bool ConsolidateSvgStrokes = true);
 
 public sealed class UserPreferencesStore
 {

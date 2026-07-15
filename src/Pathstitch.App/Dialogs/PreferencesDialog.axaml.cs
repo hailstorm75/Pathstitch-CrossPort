@@ -57,12 +57,20 @@ public sealed partial class PreferencesDialog : Window
             : Equals(themeKey, ThemeVariant.Dark.Key) ? 2 : 0;
         AppearanceSelector.SelectionChanged += OnAppearanceChanged;
         ReversePanDirection.IsChecked = DxfPreviewCanvas.ReversePanDirection;
+        ConsolidateSvgStrokes.IsChecked = _preferencesStore.Load().ConsolidateSvgStrokes;
         ReversePanDirection.IsCheckedChanged += OnReversePanDirectionChanged;
+        ConsolidateSvgStrokes.IsCheckedChanged += OnConsolidateSvgStrokesChanged;
     }
 
     private void OnReversePanDirectionChanged(object? sender, RoutedEventArgs e)
     {
         DxfPreviewCanvas.ReversePanDirection = ReversePanDirection.IsChecked == true;
+        SavePreferences();
+    }
+
+    private void OnConsolidateSvgStrokesChanged(object? sender, RoutedEventArgs e)
+    {
+        SvgPreviewDocumentParser.ConsolidateStrokes = ConsolidateSvgStrokes.IsChecked == true;
         SavePreferences();
     }
 
@@ -92,6 +100,7 @@ public sealed partial class PreferencesDialog : Window
         {
             Appearance = appearance,
             ReversePanDirection = DxfPreviewCanvas.ReversePanDirection,
+            ConsolidateSvgStrokes = ConsolidateSvgStrokes.IsChecked == true,
         });
     }
 

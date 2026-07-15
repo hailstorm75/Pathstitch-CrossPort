@@ -42,6 +42,32 @@ public sealed class EditorPreferencesTests
     }
 
     [Fact]
+    public async Task PreferencesDialog_TogglesSvgStrokeConsolidation()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-ui-svg-preferences-{Guid.NewGuid():N}.json");
+        try
+        {
+            var store = new UserPreferencesStore(path);
+            store.Save(new UserPreferences(ConsolidateSvgStrokes: false));
+            var dialog = await _ui.RunAsync(() => new PreferencesDialog(null, store));
+            await _ui.RunAsync(() =>
+            {
+                dialog.Show();
+                dialog.UpdateLayout();
+                var toggle = _ui.FindByAutomationId<CheckBox>(dialog, "dialog.preferences.consolidate-svg-strokes");
+                toggle.IsChecked = true;
+            });
+
+            Assert.True(store.Load().ConsolidateSvgStrokes);
+            await _ui.RunAsync(dialog.Close);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task PreferencesDialog_CanRestoreGettingStartedCard()
     {
         var path = Path.Combine(Path.GetTempPath(), $"pathstitch-ui-preferences-{Guid.NewGuid():N}.json");
