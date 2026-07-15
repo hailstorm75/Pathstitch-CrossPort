@@ -58,6 +58,15 @@
         Content="Export selected paths only"
         IsEnabled="{Binding HasTwoDSelection}"
         IsChecked="{Binding TwoDExportSelectedOnly, Mode=TwoWay}" />
+      <StackPanel Spacing="4">
+        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="SVG export options" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock VerticalAlignment="Center" FontSize="10" Text="Precision" />
+          <TextBox Width="48" Text="{Binding TwoDSvgPrecisionText, Mode=TwoWay}" />
+          <TextBlock VerticalAlignment="Center" FontSize="10" Text="Stroke" />
+          <TextBox Width="60" Text="{Binding TwoDSvgStrokeWidthText, Mode=TwoWay}" />
+        </StackPanel>
+      </StackPanel>
       <StackPanel Orientation="Horizontal" Spacing="8">
         <Button
           Classes="chip-button"
