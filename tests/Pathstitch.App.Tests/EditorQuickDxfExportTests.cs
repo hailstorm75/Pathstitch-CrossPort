@@ -88,6 +88,29 @@ public sealed class EditorQuickDxfExportTests
         }
     }
 
+    [Fact]
+    public async Task SvgWriter_RoundTripsGeometryThroughExistingPreviewPipeline()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-export-{Guid.NewGuid():N}.svg");
+        try
+        {
+            var document = CreateDocument();
+            var service = new DxfOutputPreviewService();
+
+            await service.SavePreviewDocumentAsync(document, outputPath);
+            var loaded = await service.LoadPreviewDocumentAsync(outputPath);
+
+            Assert.NotNull(loaded);
+            Assert.Single(loaded.Paths);
+            Assert.Equal("POLYLINE", loaded.Paths[0].EntityType);
+            Assert.Equal(document.Paths[0].Points, loaded.Paths[0].Points);
+        }
+        finally
+        {
+            File.Delete(outputPath);
+        }
+    }
+
     private static Editor2DPreviewDocument CreateDocument()
         => new(
             [new Editor2DPreviewPath("line-1", "LINE", [new(1, 2), new(3, 4)], false)],

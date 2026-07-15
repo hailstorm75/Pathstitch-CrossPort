@@ -6,6 +6,8 @@ public sealed partial class EditorPageViewModel
 {
     public bool CanExportTwoDDxf => TwoDDocument is not null;
 
+    public bool CanExportTwoDSvg => TwoDDocument is not null;
+
     public async Task ExportTwoDDxfAsync(CancellationToken cancellationToken = default)
     {
         var document = TwoDDocument;
@@ -37,6 +39,40 @@ public sealed partial class EditorPageViewModel
         {
             _logger.LogError(exception, "Failed to export 2D workspace DXF.");
             ErrorMessage = $"Could not export DXF: {exception.Message}";
+        }
+    }
+
+    public async Task ExportTwoDSvgAsync(CancellationToken cancellationToken = default)
+    {
+        var document = TwoDDocument;
+        if (document is null)
+            return;
+
+        try
+        {
+            ErrorMessage = null;
+            var suggestedFileName = string.IsNullOrWhiteSpace(ProjectName)
+                ? "Pathstitch Export.svg"
+                : $"{ProjectName}.svg";
+            var outputPath = await _projectFileDialogService
+                .PickSvgExportFileAsync(suggestedFileName, cancellationToken)
+                .ConfigureAwait(true);
+            if (string.IsNullOrWhiteSpace(outputPath))
+                return;
+
+            await _editorOutputPreviewService
+                .SavePreviewDocumentAsync(document, outputPath, cancellationToken)
+                .ConfigureAwait(true);
+            StatusText = $"Exported SVG to {Path.GetFileName(outputPath)}";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to export 2D workspace SVG.");
+            ErrorMessage = $"Could not export SVG: {exception.Message}";
         }
     }
 }

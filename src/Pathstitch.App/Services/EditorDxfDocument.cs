@@ -42,6 +42,12 @@ internal static class EditorDxfDocument
         Editor2DPreviewDocument document,
         string layerName = "EDITED_OUTPUT")
     {
+        if (Path.GetExtension(outputPath).Equals(".svg", StringComparison.OrdinalIgnoreCase))
+        {
+            SvgOutputDocumentWriter.Save(outputPath, document);
+            return;
+        }
+
         var outputDirectory = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrWhiteSpace(outputDirectory))
             Directory.CreateDirectory(outputDirectory);

@@ -34,6 +34,12 @@
         IsEnabled="{Binding HasTwoDWorkspaceDocument}"
         Content="Export DXF"
         Click="OnExportTwoDDxfClicked" />
+      <Button
+        AutomationProperties.AutomationId="editor.2d.export-svg"
+        Classes="chip-button"
+        IsEnabled="{Binding CanExportTwoDSvg}"
+        Content="Export SVG"
+        Click="OnExportTwoDSvgClicked" />
       <StackPanel Orientation="Horizontal" Spacing="8">
         <Button
           Classes="chip-button"

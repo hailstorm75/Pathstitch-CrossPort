@@ -17,4 +17,7 @@ public interface IProjectFileDialogService
 
     Task<string?> PickDxfExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
         => Task.FromResult<string?>(null);
+
+    Task<string?> PickSvgExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
 }

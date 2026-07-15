@@ -37,6 +37,11 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
         Patterns = ["*.dxf"],
     };
 
+    private static readonly FilePickerFileType SvgFileType = new("SVG Drawing")
+    {
+        Patterns = ["*.svg"],
+    };
+
     public async Task<string?> PickExistingProjectFileAsync(CancellationToken cancellationToken = default)
     {
         var topLevel = GetTopLevel();
@@ -151,6 +156,27 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
             SuggestedFileName = suggestedFileName,
             DefaultExtension = "dxf",
             FileTypeChoices = [DxfFileType],
+            ShowOverwritePrompt = true,
+        }).ConfigureAwait(true);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return result?.TryGetLocalPath();
+    }
+
+    public async Task<string?> PickSvgExportFileAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default)
+    {
+        var topLevel = GetTopLevel();
+        if (topLevel?.StorageProvider is null)
+            return null;
+
+        var result = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export 2D Workspace as SVG",
+            SuggestedFileName = suggestedFileName,
+            DefaultExtension = "svg",
+            FileTypeChoices = [SvgFileType],
             ShowOverwritePrompt = true,
         }).ConfigureAwait(true);
 
