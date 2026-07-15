@@ -68,6 +68,7 @@ public sealed class EditorTextPropertiesTests
     {
         var inspector = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DInspector.axaml");
         var codeBehind = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DPersistentPanels.axaml.cs");
+        var interactionBase = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorInteractionControlBase.cs");
         var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
 
         Assert.Contains("InstalledFontSelector", inspector, StringComparison.Ordinal);
@@ -77,6 +78,11 @@ public sealed class EditorTextPropertiesTests
         Assert.Contains("path.IsUnderline", canvas, StringComparison.Ordinal);
         Assert.Contains("path.CharacterSpacing", canvas, StringComparison.Ordinal);
         Assert.Contains("TwoDSelectedTextFitModeOptions", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.text.selected-draft\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("Loaded=\"OnTwoDSelectedTextLoaded\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("GotFocus=\"OnTwoDSelectedTextGotFocus\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("KeyDown=\"OnTwoDSelectedTextKeyDown\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("OnTwoDSelectedTextKeyDown", interactionBase, StringComparison.Ordinal);
     }
 
     [Fact]

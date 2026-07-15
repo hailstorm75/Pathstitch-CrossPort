@@ -372,6 +372,34 @@ public abstract class EditorInteractionControlBase : UserControl
             viewModel.ApplyTwoDSelectedText();
     }
 
+    protected void OnTwoDSelectedTextLoaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            textBox.Focus();
+            textBox.SelectAll();
+        }
+    }
+
+    protected void OnTwoDSelectedTextGotFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+            textBox.SelectAll();
+    }
+
+    protected void OnTwoDSelectedTextKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter
+            || (e.KeyModifiers & KeyModifiers.Shift) != 0)
+            return;
+
+        if (DataContext is not EditorPageViewModel viewModel)
+            return;
+
+        e.Handled = true;
+        viewModel.ApplyTwoDSelectedText();
+    }
+
     protected void OnSelectTwoDCornerParameterClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel && sender is Button { Tag: string parameterId })

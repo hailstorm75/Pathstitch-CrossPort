@@ -670,10 +670,14 @@
           Foreground="{StaticResource PrimaryTextBrush}"
           Text="Selected Text" />
         <TextBox
+          AutomationProperties.AutomationId="editor.text.selected-draft"
           MinWidth="240"
           MinHeight="68"
           AcceptsReturn="True"
           TextWrapping="Wrap"
+          Loaded="OnTwoDSelectedTextLoaded"
+          GotFocus="OnTwoDSelectedTextGotFocus"
+          KeyDown="OnTwoDSelectedTextKeyDown"
           Text="{Binding TwoDSelectedTextDraft, Mode=TwoWay}" />
         <ComboBox
           x:Name="InstalledFontSelector"
