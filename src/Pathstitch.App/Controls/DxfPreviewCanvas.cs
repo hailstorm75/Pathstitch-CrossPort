@@ -198,7 +198,15 @@ public sealed class DxfPreviewCanvas : Control
     private bool _shiftSnapHeld;
     private Editor2DReferenceImage? _referenceImageDragStart;
     private Point _referenceImageDragStartPoint;
+    private ReferenceImageDragMode _referenceImageDragMode;
     private double? _pinchLastScale;
+
+    private enum ReferenceImageDragMode
+    {
+        Move,
+        Scale,
+        Rotate,
+    }
 
     static DxfPreviewCanvas()
     {
@@ -509,6 +517,7 @@ public sealed class DxfPreviewCanvas : Control
         _editingVertexIndex = 0;
         _editingVertexIsConstrainedRectangle = false;
         _referenceImageDragStart = null;
+        _referenceImageDragMode = default;
         _pressedPathId = null;
         SetCurrentValue(SelectedMeasurementIdProperty, null);
         CancelMarqueeSelection();
@@ -677,9 +686,10 @@ public sealed class DxfPreviewCanvas : Control
         if (ActiveTool == Editor2DTool.Select
             && !ActiveReferenceImageLocked
             && ActiveReferenceImage is { } activeImage
-            && IsInsideReferenceImage(point.Position, activeImage))
+            && TryHitReferenceImageGizmo(point.Position, activeImage, out var dragMode))
         {
             _referenceImageDragStart = activeImage;
+            _referenceImageDragMode = dragMode;
             _referenceImageDragStartPoint = point.Position;
             e.Pointer.Capture(this);
             e.Handled = true;
@@ -768,17 +778,34 @@ public sealed class DxfPreviewCanvas : Control
         _hasHoverPointerPosition = true;
         if (_referenceImageDragStart is { } image)
         {
-            var startWorld = ScreenToWorld(_referenceImageDragStartPoint);
             var currentWorld = ScreenToWorld(position);
-            var deltaX = currentWorld.X - startWorld.X;
-            var deltaY = currentWorld.Y - startWorld.Y;
+            var x = image.X;
+            var y = image.Y;
+            var width = image.Width;
+            var height = image.Height;
+            var rotation = image.RotationDegrees;
+            switch (_referenceImageDragMode)
+            {
+                case ReferenceImageDragMode.Move:
+                    var startWorld = ScreenToWorld(_referenceImageDragStartPoint);
+                    x += currentWorld.X - startWorld.X;
+                    y += currentWorld.Y - startWorld.Y;
+                    break;
+                case ReferenceImageDragMode.Scale:
+                    var local = ReferenceImageLocalPoint(position, image);
+                    var widthFactor = Math.Abs(local.X) / Math.Max(image.Width / 2.0, 0.0001);
+                    var heightFactor = Math.Abs(local.Y) / Math.Max(image.Height / 2.0, 0.0001);
+                    var factor = Math.Max(0.01, Math.Max(widthFactor, heightFactor));
+                    width *= factor;
+                    height *= factor;
+                    break;
+                case ReferenceImageDragMode.Rotate:
+                    rotation = Math.Atan2(currentWorld.Y - image.Y, currentWorld.X - image.X) * 180.0 / Math.PI - 90.0;
+                    break;
+            }
             ReferenceImageTransformChanged?.Invoke(
                 image.Id,
-                image.X + deltaX,
-                image.Y + deltaY,
-                image.Width,
-                image.Height,
-                image.RotationDegrees);
+                x, y, width, height, rotation);
             InvalidateVisual();
             e.Handled = true;
             return;
@@ -844,6 +871,7 @@ Hover:
         if (_referenceImageDragStart is not null)
         {
             _referenceImageDragStart = null;
+            _referenceImageDragMode = default;
             e.Pointer.Capture(null);
             InvalidateVisual();
             e.Handled = true;
@@ -1115,6 +1143,9 @@ Selection:
         {
             context.FillRectangle(EditableVertexHandleFillBrush, new Rect(point.X - handle / 2.0, point.Y - handle / 2.0, handle, handle));
         }
+        var rotationHandle = new Point(rect.Center.X, rect.Top - 24.0);
+        context.DrawLine(SelectedPathPen, new Point(rect.Center.X, rect.Top), rotationHandle);
+        context.DrawEllipse(EditableVertexHandleFillBrush, SelectedPathPen, rotationHandle, handle / 2.0, handle / 2.0);
     }
 
     private Bitmap? GetReferenceImageBitmap(Editor2DReferenceImage image)
@@ -2937,6 +2968,13 @@ Selection:
 
     private bool IsInsideReferenceImage(Point screenPoint, Editor2DReferenceImage image)
     {
+        var local = ReferenceImageLocalPoint(screenPoint, image);
+        return Math.Abs(local.X) <= image.Width / 2.0
+            && Math.Abs(local.Y) <= image.Height / 2.0;
+    }
+
+    private Point ReferenceImageLocalPoint(Point screenPoint, Editor2DReferenceImage image)
+    {
         var center = WorldToScreen(new Editor2DPoint(image.X, image.Y), Bounds.Size);
         var dx = screenPoint.X - center.X;
         var dy = screenPoint.Y - center.Y;
@@ -2945,8 +2983,37 @@ Selection:
         var sine = Math.Sin(radians);
         var localX = (cosine * dx - sine * dy) / Math.Max(Zoom, 0.0001);
         var localY = (sine * dx + cosine * dy) / Math.Max(Zoom, 0.0001);
-        return Math.Abs(localX) <= image.Width / 2.0
-            && Math.Abs(localY) <= image.Height / 2.0;
+        return new Point(localX, localY);
+    }
+
+    private bool TryHitReferenceImageGizmo(Point screenPoint, Editor2DReferenceImage image, out ReferenceImageDragMode mode)
+    {
+        var local = ReferenceImageLocalPoint(screenPoint, image);
+        var tolerance = 10.0 / Math.Max(Zoom, 0.0001);
+        var halfWidth = image.Width / 2.0;
+        var halfHeight = image.Height / 2.0;
+        var rotationHandle = new Point(0, -halfHeight - 24.0 / Math.Max(Zoom, 0.0001));
+        if (Math.Sqrt(Math.Pow(local.X - rotationHandle.X, 2) + Math.Pow(local.Y - rotationHandle.Y, 2)) <= tolerance)
+        {
+            mode = ReferenceImageDragMode.Rotate;
+            return true;
+        }
+
+        foreach (var corner in new[]
+        {
+            new Point(-halfWidth, -halfHeight), new Point(halfWidth, -halfHeight),
+            new Point(halfWidth, halfHeight), new Point(-halfWidth, halfHeight),
+        })
+        {
+            if (Math.Sqrt(Math.Pow(local.X - corner.X, 2) + Math.Pow(local.Y - corner.Y, 2)) <= tolerance)
+            {
+                mode = ReferenceImageDragMode.Scale;
+                return true;
+            }
+        }
+
+        mode = ReferenceImageDragMode.Move;
+        return IsInsideReferenceImage(screenPoint, image);
     }
 
     private bool IsSnappingActive => SnapEnabled != _shiftSnapHeld;
