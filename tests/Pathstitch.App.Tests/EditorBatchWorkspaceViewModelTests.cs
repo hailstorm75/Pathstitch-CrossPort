@@ -1,5 +1,6 @@
-using Domain.App.Models;
 using Domain.App.ViewModels;
+using Domain.App.Models;
+using Domain.App.Services;
 using Pathstitch.App.Services;
 
 namespace Pathstitch.App.Tests;
@@ -100,5 +101,46 @@ public sealed class EditorBatchWorkspaceViewModelTests
         Assert.Same(document, editor.TwoDDocument);
         Assert.Equal(Editor2DTool.SketchCircle, editor.TwoDActiveTool);
         Assert.Equal(Editor3DTool.Move, editor.ActiveTool);
+    }
+
+    [Fact]
+    public async Task ApplyOffsetAsync_StoresTransformedDocumentForExport()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchOffset", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var input = Path.Combine(directory, "drawing.dxf");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel();
+            Assert.True(workspace.AddFile(input));
+            await workspace.ApplyOffsetAsync(
+                new DxfOutputPreviewService(),
+                new StubOffsetGeometryKernel(),
+                2.0);
+            Assert.Equal(EditorBatchItemStatus.Succeeded, workspace.Items[0].Status);
+            Assert.Equal("Offset applied", workspace.Items[0].Message);
+            Assert.NotNull(workspace.Items[0].Document);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private sealed class StubOffsetGeometryKernel : IEditor2DGeometryKernelService
+    {
+        public Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(
+            IReadOnlyList<Editor2DPreviewPath> sourcePaths,
+            double offsetDistance,
+            bool offsetOutward,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(Editor2DGeometryKernelResult.Success(sourcePaths));
+
+        public Task<Editor2DGeometryKernelResult> BuildThicknessOutlinesAsync(
+            IReadOnlyList<Editor2DPreviewPath> sourcePaths,
+            double thickness,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(Editor2DGeometryKernelResult.Success(sourcePaths));
     }
 }

@@ -38,6 +38,11 @@
         AutomationProperties.AutomationId="editor.batch.output-directory"
         PlaceholderText="Output directory (optional)"
         Text="{Binding OutputDirectory, Mode=TwoWay}" />
+      <TextBox
+        x:Name="OffsetDistanceText"
+        AutomationProperties.AutomationId="editor.batch.offset-distance"
+        PlaceholderText="Offset distance"
+        Text="1" />
       <ToggleSwitch
         AutomationProperties.AutomationId="editor.batch.continue-on-error"
         Content="Continue after errors"
@@ -54,6 +59,12 @@
         Content="Export DXF outputs"
         IsEnabled="{Binding CanExport}"
         Click="OnExportDxfClicked" />
+      <Button
+        AutomationProperties.AutomationId="editor.batch.apply-offset"
+        Classes="panel-button"
+        Content="Apply offset to DXFs"
+        IsEnabled="{Binding CanExport}"
+        Click="OnApplyOffsetClicked" />
     </StackPanel>
   </Border>
 </UserControl>

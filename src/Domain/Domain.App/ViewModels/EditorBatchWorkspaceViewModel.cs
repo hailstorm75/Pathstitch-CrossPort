@@ -173,7 +173,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                 item.Message = "Exporting DXF";
                 try
                 {
-                    var document = await outputPreviewService.LoadPreviewDocumentAsync(item.FilePath, cancellationToken).ConfigureAwait(false)
+                    var document = item.Document
+                        ?? await outputPreviewService.LoadPreviewDocumentAsync(item.FilePath, cancellationToken).ConfigureAwait(false)
                         ?? throw new InvalidDataException("DXF preview could not be loaded.");
                     var outputPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(item.FilePath)}-batch.dxf");
                     await outputPreviewService.SavePreviewDocumentAsync(document, outputPath, cancellationToken).ConfigureAwait(false);
@@ -198,6 +199,65 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             Summary = $"DXF export complete: {succeeded} succeeded, {failed} failed.";
         }
     }
+
+    public async Task ApplyOffsetAsync(
+        IEditorOutputPreviewService outputPreviewService,
+        IEditor2DGeometryKernelService geometryKernel,
+        double distance,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsRunning || distance <= 0)
+            return;
+
+        IsRunning = true;
+        var succeeded = 0;
+        var failed = 0;
+        try
+        {
+            foreach (var item in Items.Where(item => Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                item.Status = EditorBatchItemStatus.Running;
+                item.Message = "Applying offset";
+                try
+                {
+                    var source = item.Document
+                        ?? await outputPreviewService.LoadPreviewDocumentAsync(item.FilePath, cancellationToken).ConfigureAwait(false)
+                        ?? throw new InvalidDataException("DXF preview could not be loaded.");
+                    var result = await geometryKernel.BuildCurveOffsetPathsAsync(
+                        source.Paths, distance, offsetOutward: true, cancellationToken).ConfigureAwait(false);
+                    if (!result.IsSuccess || result.Paths.Count == 0)
+                        throw new InvalidDataException(result.Error ?? "No offsettable paths were found.");
+
+                    item.Document = source with
+                    {
+                        Paths = result.Paths,
+                        EntityCounts = CountEntities(result.Paths),
+                    };
+                    item.Status = EditorBatchItemStatus.Succeeded;
+                    item.Message = "Offset applied";
+                    succeeded++;
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    item.Status = EditorBatchItemStatus.Failed;
+                    item.Message = exception.Message;
+                    failed++;
+                    if (!ContinueOnError)
+                        break;
+                }
+            }
+        }
+        finally
+        {
+            IsRunning = false;
+            Summary = $"Batch offset complete: {succeeded} succeeded, {failed} failed.";
+        }
+    }
+
+    private static IReadOnlyDictionary<string, int> CountEntities(IReadOnlyList<Editor2DPreviewPath> paths)
+        => paths.GroupBy(path => path.EntityType, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
 
     private static async Task ValidateInputAsync(string path, CancellationToken cancellationToken)
     {
