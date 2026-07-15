@@ -24,6 +24,7 @@ public sealed class UiAutomationIdentifierTests
             "editor.menu.file.close-document",
             "editor.menu.help",
             "editor.menu.help.about",
+            "editor.menu.help.preferences",
             "editor.header",
             "editor.tool-rail",
             "editor.context-panel",
@@ -61,6 +62,17 @@ public sealed class UiAutomationIdentifierTests
 
         _ui.FindXamlElementByAutomationId(dialog, "dialog.about");
         _ui.FindXamlElementByAutomationId(dialog, "dialog.about.close");
+    }
+
+    [Fact]
+    public void PreferencesDialog_ExposesStableActionIdentifiers()
+    {
+        var dialog = _ui.LoadXaml("src", "Pathstitch.App", "Dialogs", "PreferencesDialog.axaml");
+
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.preferences");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.preferences.reset");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.preferences.cancel");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.preferences.apply");
     }
 
     [Fact]

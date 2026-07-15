@@ -134,6 +134,10 @@
         AutomationProperties.AutomationId="editor.menu.help"
         Header="_Help">
         <MenuItem
+          AutomationProperties.AutomationId="editor.menu.help.preferences"
+          Header="_Preferences"
+          Click="OnPreferencesClicked" />
+        <MenuItem
           AutomationProperties.AutomationId="editor.menu.help.about"
           Header="_About Pathstitch"
           Click="OnAboutClicked" />

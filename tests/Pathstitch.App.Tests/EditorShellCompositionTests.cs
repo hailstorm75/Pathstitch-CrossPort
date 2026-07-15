@@ -61,6 +61,19 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void HelpMenu_ExposesPreferencesShortcutEditor()
+    {
+        var shell = ReadPage("EditorShellView.axaml");
+        var preferences = ReadRepositoryFile("src", "Pathstitch.App", "Dialogs", "PreferencesDialog.axaml");
+
+        Assert.Contains("editor.menu.help.preferences", shell, StringComparison.Ordinal);
+        Assert.Contains("Click=\"OnPreferencesClicked\"", shell, StringComparison.Ordinal);
+        Assert.Contains("dialog.preferences", preferences, StringComparison.Ordinal);
+        Assert.Contains("dialog.preferences.apply", preferences, StringComparison.Ordinal);
+        Assert.Contains("dialog.preferences.reset", preferences, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WorkspaceViews_ContainOnlyTheirOwnViewportTechnology()
     {
         var twoD = ReadPage("Editor2DView.axaml");

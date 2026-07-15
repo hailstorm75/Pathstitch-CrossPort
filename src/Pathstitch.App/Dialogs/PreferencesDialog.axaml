@@ -1,0 +1,32 @@
+<Window
+  x:Class="Pathstitch.App.Dialogs.PreferencesDialog"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  Title="Preferences"
+  Width="620"
+  Height="520"
+  MinWidth="520"
+  MinHeight="360"
+  ShowInTaskbar="False"
+  WindowStartupLocation="CenterOwner"
+  AutomationProperties.AutomationId="dialog.preferences">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto">
+    <TextBlock FontSize="20" FontWeight="SemiBold" Text="Preferences" />
+    <TextBlock Grid.Row="1" Margin="0,6,0,14"
+               Foreground="Gray"
+               Text="Customize shortcuts for the active editor mode." />
+    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+      <StackPanel x:Name="ToolRows" Spacing="6" />
+    </ScrollViewer>
+    <TextBlock Grid.Row="3" x:Name="StatusText" Margin="0,10,0,0"
+               Foreground="IndianRed" TextWrapping="Wrap" />
+    <StackPanel Grid.Row="4" Margin="0,16,0,0" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button AutomationProperties.AutomationId="dialog.preferences.reset"
+              Content="Reset Toolbar" Click="OnResetClicked" />
+      <Button AutomationProperties.AutomationId="dialog.preferences.cancel"
+              Content="Cancel" Click="OnCancelClicked" />
+      <Button AutomationProperties.AutomationId="dialog.preferences.apply"
+              Content="Apply" IsDefault="True" Click="OnApplyClicked" />
+    </StackPanel>
+  </Grid>
+</Window>

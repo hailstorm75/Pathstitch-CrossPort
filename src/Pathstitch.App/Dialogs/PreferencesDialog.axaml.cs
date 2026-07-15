@@ -1,0 +1,104 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Domain.App.Models;
+using Domain.App.ViewModels;
+
+namespace Pathstitch.App.Dialogs;
+
+public sealed partial class PreferencesDialog : Window
+{
+    private readonly EditorPageViewModel? _viewModel;
+    private readonly EditorMode _mode;
+    private readonly List<(string Identifier, TextBox Shortcut)> _shortcutEditors = [];
+
+    public PreferencesDialog()
+    {
+        InitializeComponent();
+        _mode = EditorMode.TwoD;
+    }
+
+    public PreferencesDialog(EditorPageViewModel viewModel)
+    {
+        InitializeComponent();
+        _viewModel = viewModel;
+        _mode = viewModel.ActiveEditorMode;
+        BuildShortcutEditors();
+    }
+
+    private void BuildShortcutEditors()
+    {
+        if (_viewModel is null)
+            return;
+
+        foreach (var customization in _viewModel.ToolCustomizations
+                     .Where(item => FindDescriptor(item.Identifier) is not null)
+                     .OrderBy(item => item.Order)
+                     .ThenBy(item => item.Identifier, StringComparer.Ordinal))
+        {
+            var descriptor = FindDescriptor(customization.Identifier)!;
+            var shortcut = new TextBox
+            {
+                Width = 90,
+                Text = customization.ShortcutText ?? string.Empty,
+                Tag = customization.Identifier,
+            };
+            AutomationProperties.SetAutomationId(shortcut, $"preferences.shortcut.{customization.Identifier}");
+            var row = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+                Children =
+                {
+                    new TextBlock { Text = descriptor.Label, VerticalAlignment = VerticalAlignment.Center },
+                    shortcut,
+                },
+            };
+            Grid.SetColumn(shortcut, 1);
+            ToolRows.Children.Add(row);
+            _shortcutEditors.Add((customization.Identifier, shortcut));
+        }
+    }
+
+    private void OnApplyClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel is null)
+        {
+            Close();
+            return;
+        }
+
+        try
+        {
+            var current = _viewModel.ToolCustomizations.ToDictionary(item => item.Identifier, StringComparer.Ordinal);
+            foreach (var (identifier, shortcut) in _shortcutEditors)
+            {
+                var customization = current[identifier];
+                _viewModel.CustomizeTool(identifier, customization.Order, shortcut.Text);
+            }
+            Close(true);
+        }
+        catch (InvalidOperationException exception)
+        {
+            StatusText.Text = exception.Message;
+        }
+    }
+
+    private void OnResetClicked(object? sender, RoutedEventArgs e)
+    {
+        _viewModel?.ResetToolbarCustomizationForActiveMode();
+        foreach (var (identifier, shortcut) in _shortcutEditors)
+            shortcut.Text = FindDescriptor(identifier)?.ShortcutText ?? string.Empty;
+        StatusText.Text = "Toolbar and shortcuts reset for active mode.";
+    }
+
+    private EditorToolDescriptor? FindDescriptor(string identifier)
+        => EditorToolCatalog.All.FirstOrDefault(descriptor =>
+            descriptor.Mode == _mode
+            && string.Equals(descriptor.Identifier, identifier, StringComparison.Ordinal));
+
+    private void OnCancelClicked(object? sender, RoutedEventArgs e) => Close(false);
+}
