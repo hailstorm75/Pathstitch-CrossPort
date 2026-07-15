@@ -72,6 +72,7 @@ public partial class EditorCommandPalette : UserControl
             : Math.Clamp(_selectedIndex + direction, 0, count - 1);
         ClearSelection(viewModel);
         viewModel.CommandSearchResults[_selectedIndex].IsCommandSearchSelected = true;
+        CommandSearchResults.ScrollIntoView(_selectedIndex);
     }
 
     private void ActivateSelected(EditorPageViewModel viewModel)

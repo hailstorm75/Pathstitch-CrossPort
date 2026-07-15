@@ -103,9 +103,11 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("case Key.Up", codeBehind, StringComparison.Ordinal);
         Assert.Contains("case Key.Enter", codeBehind, StringComparison.Ordinal);
         Assert.Contains("MoveSelection", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ScrollIntoView", codeBehind, StringComparison.Ordinal);
         Assert.Contains("ActivateSelected", codeBehind, StringComparison.Ordinal);
         Assert.Contains("IsCommandSearchSelected", codeBehind + ReadPage("EditorCommandPalette.axaml"), StringComparison.Ordinal);
         Assert.Contains("Button.command-result.selected", ReadPage("EditorCommandPalette.axaml"), StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CommandSearchResults\"", ReadPage("EditorCommandPalette.axaml"), StringComparison.Ordinal);
         Assert.Contains("FocusSearch", codeBehind, StringComparison.Ordinal);
         Assert.Contains("KeyModifiers.Control", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
         Assert.Contains("KeyModifiers.Meta", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);

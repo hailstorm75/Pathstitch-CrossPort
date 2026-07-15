@@ -38,7 +38,9 @@
         CornerRadius="8">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Spacing="4">
-            <ItemsControl ItemsSource="{Binding CommandSearchResults}">
+            <ItemsControl
+              x:Name="CommandSearchResults"
+              ItemsSource="{Binding CommandSearchResults}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="viewModels:EditorSidebarToolItemViewModel">
                   <Button
