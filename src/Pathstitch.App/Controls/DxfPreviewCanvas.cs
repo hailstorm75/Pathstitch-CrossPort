@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
@@ -217,6 +218,10 @@ public sealed class DxfPreviewCanvas : Control
     private readonly MenuItem _duplicateSelectionMenuItem;
     private readonly MenuItem _flipHorizontalMenuItem;
     private readonly MenuItem _flipVerticalMenuItem;
+    private readonly MenuItem _unionMenuItem;
+    private readonly MenuItem _subtractMenuItem;
+    private readonly MenuItem _intersectMenuItem;
+    private readonly MenuItem _convertLinesMenuItem;
     private readonly MenuItem _strokeToFillMenuItem;
     private readonly MenuItem _fillToStrokeMenuItem;
     private readonly MenuItem _deleteSelectionMenuItem;
@@ -347,6 +352,14 @@ public sealed class DxfPreviewCanvas : Control
             Header = "Flip Vertical",
             Command = new RelayCommand(() => ExecuteFlipSelectionCommand(horizontal: false)),
         };
+        _unionMenuItem = CreateBooleanMenuItem("Union", "Union");
+        _subtractMenuItem = CreateBooleanMenuItem("Subtract", "Subtract");
+        _intersectMenuItem = CreateBooleanMenuItem("Intersect", "Intersect");
+        _convertLinesMenuItem = new MenuItem
+        {
+            Header = "Convert Lines",
+            Command = new RelayCommand(ExecuteConvertLinesCommand),
+        };
 
         _explodeCompoundMenuItem = new MenuItem
         {
@@ -379,6 +392,10 @@ public sealed class DxfPreviewCanvas : Control
                 _duplicateSelectionMenuItem,
                 _flipHorizontalMenuItem,
                 _flipVerticalMenuItem,
+                _unionMenuItem,
+                _subtractMenuItem,
+                _intersectMenuItem,
+                _convertLinesMenuItem,
                 _expandRectanglesMenuItem,
                 _explodeCompoundMenuItem,
                 _strokeToFillMenuItem,
@@ -399,6 +416,27 @@ public sealed class DxfPreviewCanvas : Control
     {
         if (DataContext is EditorPageViewModel viewModel)
             viewModel.FlipTwoDSelection(horizontal);
+        _contextMenu.Close();
+    }
+
+    private MenuItem CreateBooleanMenuItem(string header, string operation)
+        => new()
+        {
+            Header = header,
+            Command = new AsyncRelayCommand(() => ExecuteBooleanSelectionCommandAsync(operation)),
+        };
+
+    private async Task ExecuteBooleanSelectionCommandAsync(string operation)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            await viewModel.ApplyTwoDBooleanAsync(operation).ConfigureAwait(true);
+        _contextMenu.Close();
+    }
+
+    private void ExecuteConvertLinesCommand()
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ApplyTwoDConvertLines();
         _contextMenu.Close();
     }
 
@@ -4400,6 +4438,16 @@ Selection:
         _duplicateSelectionMenuItem.IsVisible = !hasMeasurementSelection && hasSelection;
         _flipHorizontalMenuItem.IsVisible = !hasMeasurementSelection && hasSelection;
         _flipVerticalMenuItem.IsVisible = !hasMeasurementSelection && hasSelection;
+        var canBoolean = !hasMeasurementSelection
+            && Document is not null
+            && selectedIds is not null
+            && Document.Paths.Count(path => selectedIds.Contains(path.Id) && path.IsClosed && path.Points.Count >= 3) >= 2;
+        _unionMenuItem.IsVisible = canBoolean;
+        _subtractMenuItem.IsVisible = canBoolean;
+        _intersectMenuItem.IsVisible = canBoolean;
+        var canConvertLines = !hasMeasurementSelection
+            && DataContext is EditorPageViewModel { CanApplyTwoDConvertLines: true };
+        _convertLinesMenuItem.IsVisible = canConvertLines;
         _explodeCompoundMenuItem.IsVisible = !hasMeasurementSelection && canExplodeCompound;
         _strokeToFillMenuItem.IsVisible = !hasMeasurementSelection && canStrokeToFill;
         _fillToStrokeMenuItem.IsVisible = !hasMeasurementSelection && canFillToStroke;

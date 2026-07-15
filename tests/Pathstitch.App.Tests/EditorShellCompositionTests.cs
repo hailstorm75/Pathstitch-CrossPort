@@ -366,6 +366,12 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Header = \"Flip Vertical\"", canvas, StringComparison.Ordinal);
         Assert.Contains("DuplicateTwoDSelection", canvas, StringComparison.Ordinal);
         Assert.Contains("FlipTwoDSelection(horizontal)", canvas, StringComparison.Ordinal);
+        Assert.Contains("CreateBooleanMenuItem(\"Union\", \"Union\")", canvas, StringComparison.Ordinal);
+        Assert.Contains("CreateBooleanMenuItem(\"Subtract\", \"Subtract\")", canvas, StringComparison.Ordinal);
+        Assert.Contains("CreateBooleanMenuItem(\"Intersect\", \"Intersect\")", canvas, StringComparison.Ordinal);
+        Assert.Contains("ApplyTwoDBooleanAsync(operation)", canvas, StringComparison.Ordinal);
+        Assert.Contains("Header = \"Convert Lines\"", canvas, StringComparison.Ordinal);
+        Assert.Contains("ApplyTwoDConvertLines", canvas, StringComparison.Ordinal);
     }
 
     [Fact]
