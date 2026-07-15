@@ -68,6 +68,22 @@ public sealed class ProjectSessionServiceTests
         File.Delete(request.Session.ProjectFilePath);
     }
 
+    [Fact]
+    public async Task OpenWorkspaceFilesAsync_QueuesReferenceImageForTwoDWorkspace()
+    {
+        using var workspace = TestWorkspace.Create();
+        var imagePath = workspace.WriteText("reference.png", "not decoded here");
+        var service = CreateService();
+
+        var request = await service.OpenWorkspaceFilesAsync([imagePath]);
+
+        Assert.NotNull(request);
+        Assert.Empty(request.PendingSourceModelPaths);
+        Assert.Empty(request.PendingTwoDFilePaths);
+        Assert.Equal([Path.GetFullPath(imagePath)], request.PendingReferenceImagePaths);
+        File.Delete(request.Session.ProjectFilePath);
+    }
+
     private static ProjectSessionService CreateService()
         => new(new FakeProjectFileDialogService(), new RecentProjectsService());
 

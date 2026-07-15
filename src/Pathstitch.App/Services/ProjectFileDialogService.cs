@@ -24,7 +24,7 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
 
     private static readonly FilePickerFileType WorkspaceFileType = new("Pathstitch Workspace")
     {
-        Patterns = ["*.stch", "*.dxf", "*.svg", "*.step", "*.stp", "*.obj", "*.stl"],
+        Patterns = ["*.stch", "*.dxf", "*.svg", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.step", "*.stp", "*.obj", "*.stl"],
     };
 
     private static readonly FilePickerFileType ReferenceImageFileType = new("Reference Image")
@@ -87,7 +87,7 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
         var result = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             AllowMultiple = true,
-            Title = "Open Pathstitch Project or 3D Models",
+            Title = "Open Pathstitch Project, Drawing, Image, or 3D Model",
             FileTypeFilter = [WorkspaceFileType],
         }).ConfigureAwait(true);
 

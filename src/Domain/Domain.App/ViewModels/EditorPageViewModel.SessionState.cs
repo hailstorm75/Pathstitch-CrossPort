@@ -27,7 +27,7 @@ public sealed partial class EditorPageViewModel
                 : value.Origin == ProjectSessionOrigin.Created
                     ? "New template project"
                     : value.Origin == ProjectSessionOrigin.Imported
-                        ? "Imported 3D workspace"
+                        ? "Imported workspace"
                         : "Opened template project";
             ViewportStateText = "Booting viewport";
             SelectionSummary = "No selection";
@@ -129,6 +129,13 @@ public sealed partial class EditorPageViewModel
                 _ => [],
             }
             : [];
+        _pendingReferenceImagePaths = parameters.TryGetValue(EditorNavigationParameterKeys.PendingReferenceImagePaths, out var pendingImageValue)
+            ? pendingImageValue switch
+            {
+                IReadOnlyList<string> paths => paths,
+                _ => [],
+            }
+            : [];
         WeakReferenceMessenger.Default.Register<PreviewApplicationClosingMessage>(this, OnPreviewApplicationClosing);
         return ValueTask.FromResult(true);
     }
@@ -220,6 +227,45 @@ public sealed partial class EditorPageViewModel
                 MarkDocumentDirty();
             }
             _pendingTwoDFilePaths = [];
+        }
+
+        if (_pendingReferenceImagePaths.Count > 0)
+        {
+            var importedCount = 0;
+            foreach (var imagePath in _pendingReferenceImagePaths)
+            {
+                try
+                {
+                    var bytes = await File.ReadAllBytesAsync(imagePath, token).ConfigureAwait(true);
+                    if (!Editor2DReferenceImageMetadata.TryReadPixelSize(bytes, out var pixelWidth, out var pixelHeight))
+                        continue;
+
+                    if (!TwoDWorkspace.IsInitialized)
+                        TwoDDocument = Editor2DWorkspaceState.Empty.Document;
+                    _twoDWorkspace.ImportReferenceImage(
+                        Path.GetFileName(imagePath),
+                        Convert.ToBase64String(bytes),
+                        pixelWidth,
+                        pixelHeight);
+                    importedCount++;
+                }
+                catch (IOException)
+                {
+                    // Keep opening the workspace when one queued image is unavailable.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Keep opening the workspace when one queued image is inaccessible.
+                }
+            }
+
+            if (importedCount > 0)
+            {
+                RefreshTwoDLayerFacade();
+                StatusText = $"Imported {importedCount} reference image(s)";
+                MarkDocumentDirty();
+            }
+            _pendingReferenceImagePaths = [];
         }
     }
 }

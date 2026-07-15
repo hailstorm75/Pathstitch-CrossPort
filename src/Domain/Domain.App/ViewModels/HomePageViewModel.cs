@@ -115,7 +115,7 @@ public sealed partial class HomePageViewModel(
         ProjectName = SelectedTemplate.DefaultProjectName;
         CurrentSession = projectSessionService.CurrentSession;
         RefreshRecentProjects();
-        HomeStatusText = "Drop a Pathstitch project, DXF drawing, or 3D model to continue.";
+        HomeStatusText = "Drop a Pathstitch project, drawing, reference image, or 3D model to continue.";
         return ValueTask.CompletedTask;
     }
 
@@ -351,6 +351,8 @@ public sealed partial class HomePageViewModel(
                     => $"Opening {launchRequest.PendingSourceModelPaths.Count} 3D model(s) in a fresh workspace.",
                 > 0
                     => $"Opening {launchRequest.Session.ProjectName} and importing {launchRequest.PendingSourceModelPaths.Count} 3D model(s).",
+                _ when launchRequest.PendingReferenceImagePaths.Count > 0
+                    => $"Opening {launchRequest.Session.ProjectName} and importing {launchRequest.PendingReferenceImagePaths.Count} reference image(s).",
                 _ => $"Opening {launchRequest.Session.ProjectName}.",
             };
 
@@ -376,6 +378,8 @@ public sealed partial class HomePageViewModel(
             parameters[EditorNavigationParameterKeys.PendingSourceModelPaths] = launchRequest.PendingSourceModelPaths;
         if (launchRequest.PendingTwoDFilePaths.Count > 0)
             parameters[EditorNavigationParameterKeys.PendingTwoDFilePaths] = launchRequest.PendingTwoDFilePaths;
+        if (launchRequest.PendingReferenceImagePaths.Count > 0)
+            parameters[EditorNavigationParameterKeys.PendingReferenceImagePaths] = launchRequest.PendingReferenceImagePaths;
 
         WeakReferenceMessenger.Default.Send(new NavigationChangeRequestMessage(
             NavigationAddressBook.EditorPage,
