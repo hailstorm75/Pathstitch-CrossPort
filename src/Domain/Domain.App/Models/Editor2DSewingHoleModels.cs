@@ -9,6 +9,12 @@ public enum Editor2DSewingCornerMode
     AvoidCorners,
 }
 
+public enum Editor2DSewingDistributionMode
+{
+    Pitch,
+    Count,
+}
+
 public sealed record Editor2DSewingHoleParameters(
     [property: JsonPropertyName("diameter")] double Diameter = 1.0,
     [property: JsonPropertyName("pitch")] double Pitch = 4.0,
@@ -18,7 +24,9 @@ public sealed record Editor2DSewingHoleParameters(
     [property: JsonPropertyName("avoidanceEnabled")] bool AvoidanceEnabled = false,
     [property: JsonPropertyName("avoidanceClearance")] double AvoidanceClearance = 3.0,
     [property: JsonPropertyName("avoidPathIds")] IReadOnlyList<string>? AvoidPathIds = null,
-    [property: JsonPropertyName("symmetricDistribution")] bool SymmetricDistribution = true)
+    [property: JsonPropertyName("symmetricDistribution")] bool SymmetricDistribution = true,
+    [property: JsonPropertyName("distributionMode")] Editor2DSewingDistributionMode DistributionMode = Editor2DSewingDistributionMode.Pitch,
+    [property: JsonPropertyName("count")] int Count = 12)
 {
     public static Editor2DSewingHoleParameters Default { get; } = new();
 }

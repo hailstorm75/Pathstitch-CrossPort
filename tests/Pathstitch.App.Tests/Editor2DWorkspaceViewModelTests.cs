@@ -1,4 +1,5 @@
 using Domain.App.Models;
+using Domain.App.Services;
 using Domain.App.ViewModels;
 using System.Text.Json;
 
@@ -6,6 +7,29 @@ namespace Pathstitch.App.Tests;
 
 public sealed class Editor2DWorkspaceViewModelTests
 {
+    [Fact]
+    public void SewingHoleGeometry_CountModePlacesExactClosedLoopCount()
+    {
+        var document = new Editor2DPreviewDocument(
+            [new Editor2DPreviewPath("outline", "LWPOLYLINE", [
+                new Editor2DPoint(0, 0), new Editor2DPoint(20, 0),
+                new Editor2DPoint(20, 10), new Editor2DPoint(0, 10)], true)],
+            new Editor2DBounds(0, 0, 20, 10),
+            new Dictionary<string, int>(),
+            []);
+
+        var preview = Editor2DSewingHoleGeometry.BuildPreview(
+            document,
+            ["outline"],
+            new Editor2DSewingHoleParameters(
+                DistributionMode: Editor2DSewingDistributionMode.Count,
+                Count: 7,
+                CornerMode: Editor2DSewingCornerMode.Continuous),
+            "count-test");
+
+        Assert.Equal(7, preview.Count);
+    }
+
     [Fact]
     public void Snapping_DefaultsOnAndPersistsWithoutPollutingUndoHistory()
     {

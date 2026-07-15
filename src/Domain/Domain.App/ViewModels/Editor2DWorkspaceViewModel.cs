@@ -202,6 +202,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool CanPreviewSewingHoles => SelectedPathIds.Any(id => Document.Paths.Any(path => path.Id == id));
     public bool CanCommitSewingHoles => HasSewingHolePreview;
     public IReadOnlyList<Editor2DSewingCornerMode> SewingCornerModes { get; } = Enum.GetValues<Editor2DSewingCornerMode>();
+    public IReadOnlyList<Editor2DSewingDistributionMode> SewingDistributionModes { get; } = Enum.GetValues<Editor2DSewingDistributionMode>();
     public double SewingHoleDiameter { get => SewingHoleParameters.Diameter; set => UpdateSewingParameters(p => p with { Diameter = Math.Max(0.02, value) }); }
     public double SewingHolePitch { get => SewingHoleParameters.Pitch; set => UpdateSewingParameters(p => p with { Pitch = Math.Max(0.1, value) }); }
     public double SewingHoleMargin { get => SewingHoleParameters.Margin; set => UpdateSewingParameters(p => p with { Margin = value }); }
@@ -210,6 +211,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool SewingAvoidanceEnabled { get => SewingHoleParameters.AvoidanceEnabled; set => UpdateSewingParameters(p => p with { AvoidanceEnabled = value }); }
     public double SewingAvoidanceClearance { get => SewingHoleParameters.AvoidanceClearance; set => UpdateSewingParameters(p => p with { AvoidanceClearance = Math.Max(0, value) }); }
     public bool SewingSymmetricDistribution { get => SewingHoleParameters.SymmetricDistribution; set => UpdateSewingParameters(p => p with { SymmetricDistribution = value }); }
+    public Editor2DSewingDistributionMode SewingDistributionMode { get => SewingHoleParameters.DistributionMode; set => UpdateSewingParameters(p => p with { DistributionMode = value }); }
+    public int SewingHoleCount { get => SewingHoleParameters.Count; set => UpdateSewingParameters(p => p with { Count = Math.Max(1, value) }); }
     public int SewingAvoidPathCount => (SewingHoleParameters.AvoidPathIds ?? []).Count;
     public Editor2DSewingHoleOperation? SelectedSewingHoleOperation
     {
@@ -1264,6 +1267,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             CornerClearance = Math.Max(0, value.CornerClearance),
             AvoidanceClearance = Math.Max(0, value.AvoidanceClearance),
             AvoidPathIds = (value.AvoidPathIds ?? []).Distinct(StringComparer.Ordinal).ToArray(),
+            Count = Math.Max(1, value.Count),
         };
     }
 
@@ -1278,6 +1282,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(SewingAvoidanceEnabled));
         OnPropertyChanged(nameof(SewingAvoidanceClearance));
         OnPropertyChanged(nameof(SewingSymmetricDistribution));
+        OnPropertyChanged(nameof(SewingDistributionMode));
+        OnPropertyChanged(nameof(SewingHoleCount));
         OnPropertyChanged(nameof(SewingAvoidPathCount));
     }
 

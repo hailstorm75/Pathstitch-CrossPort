@@ -61,7 +61,27 @@ public static class Editor2DSewingHoleGeometry
 
         var pitch = Math.Max(0.1, parameters.Pitch);
         var distances = new List<double>();
-        if (parameters.SymmetricDistribution)
+        if (parameters.DistributionMode == Editor2DSewingDistributionMode.Count)
+        {
+            var count = Math.Max(1, parameters.Count);
+            if (closed)
+            {
+                var step = length / count;
+                for (var index = 0; index < count; index++)
+                    distances.Add(index * step);
+            }
+            else if (count == 1)
+            {
+                distances.Add(0);
+            }
+            else
+            {
+                var step = length / (count - 1);
+                for (var index = 0; index < count; index++)
+                    distances.Add(index * step);
+            }
+        }
+        else if (parameters.SymmetricDistribution)
         {
             var intervals = Math.Max(1, (int)Math.Round(length / pitch));
             var count = closed ? intervals : intervals + 1;
