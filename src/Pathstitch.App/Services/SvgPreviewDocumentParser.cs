@@ -11,6 +11,7 @@ namespace Pathstitch.App.Services;
 
 internal static class SvgPreviewDocumentParser
 {
+    public static bool ConsolidateStrokes { get; set; }
     private static readonly Regex NumberPattern = new(@"[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?", RegexOptions.Compiled);
 
     public static DxfPreviewDocument Load(string path)
@@ -45,7 +46,10 @@ internal static class SvgPreviewDocumentParser
                 if (parsed is null)
                     unsupported.Add(type);
                 else
+                {
+                    parsed = ConsolidateStrokes ? ConsolidateStroke(parsed) : parsed;
                     paths.Add(parsed);
+                }
                     index++;
             }
 
@@ -108,6 +112,28 @@ internal static class SvgPreviewDocumentParser
             .ToArray();
         return new DxfPreviewPath($"svg-{(ellipse ? "ellipse" : "circle")}-{index}", ellipse ? "ELLIPSE" : "CIRCLE", points, true,
             Center: new DxfPoint(cx, cy), Radius: ellipse ? null : rx);
+    }
+
+    private static DxfPreviewPath ConsolidateStroke(DxfPreviewPath path)
+    {
+        if (!path.IsClosed || path.Points.Count < 4
+            || (path.EntityType is not "RECTANGLE" and not "POLYGON"))
+            return path;
+
+        var minX = path.Points.Min(point => point.X);
+        var maxX = path.Points.Max(point => point.X);
+        var minY = path.Points.Min(point => point.Y);
+        var maxY = path.Points.Max(point => point.Y);
+        var width = maxX - minX;
+        var height = maxY - minY;
+        const double maxRibbonWidth = 5.0;
+        if (width <= 0 || height <= 0 || (width > height && height > maxRibbonWidth) || (height >= width && width > maxRibbonWidth))
+            return path;
+
+        var centerline = width >= height
+            ? new[] { new DxfPoint(minX, (minY + maxY) / 2.0), new DxfPoint(maxX, (minY + maxY) / 2.0) }
+            : new[] { new DxfPoint((minX + maxX) / 2.0, minY), new DxfPoint((minX + maxX) / 2.0, maxY) };
+        return path with { EntityType = "POLYLINE", Points = centerline, IsClosed = false, IsAxisAlignedRectangle = false };
     }
 
     private static (double ScaleX, double ScaleY, double OffsetX, double OffsetY)? ResolveRootTransform(XElement root)

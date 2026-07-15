@@ -5,6 +5,26 @@ namespace Pathstitch.App.Tests;
 public sealed class SvgPreviewDocumentTests
 {
     [Fact]
+    public async Task LoadPreviewDocumentAsync_CanConsolidateNarrowClosedStroke()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-{Guid.NewGuid():N}.svg");
+        try
+        {
+            await File.WriteAllTextAsync(path, "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"0\" y=\"0\" width=\"20\" height=\"2\" /></svg>");
+            SvgPreviewDocumentParser.ConsolidateStrokes = true;
+            var document = await new DxfOutputPreviewService().LoadPreviewDocumentAsync(path);
+            var stroke = Assert.Single(document!.Paths);
+            Assert.Equal("POLYLINE", stroke.EntityType);
+            Assert.False(stroke.IsClosed);
+            Assert.Equal(2, stroke.Points.Count);
+        }
+        finally
+        {
+            SvgPreviewDocumentParser.ConsolidateStrokes = false;
+            File.Delete(path);
+        }
+    }
+    [Fact]
     public async Task LoadPreviewDocumentAsync_ParsesCommonSvgPrimitives()
     {
         var path = Path.Combine(Path.GetTempPath(), $"pathstitch-{Guid.NewGuid():N}.svg");
@@ -12,6 +32,7 @@ public sealed class SvgPreviewDocumentTests
 
         try
         {
+            SvgPreviewDocumentParser.ConsolidateStrokes = false;
             var document = await new DxfOutputPreviewService().LoadPreviewDocumentAsync(path);
 
             Assert.NotNull(document);
@@ -22,6 +43,7 @@ public sealed class SvgPreviewDocumentTests
         }
         finally
         {
+            SvgPreviewDocumentParser.ConsolidateStrokes = false;
             File.Delete(path);
         }
     }
