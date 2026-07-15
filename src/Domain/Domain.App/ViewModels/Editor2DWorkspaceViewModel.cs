@@ -114,6 +114,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public bool GridVisible => _state.GridVisible;
 
+    public bool ChainSelectionEnabled => _state.ChainSelectionEnabled;
+
     public bool IsSewingHoleToolActive => ActiveTool == Editor2DTool.AddSewingHoles;
 
     public IReadOnlyList<string> SelectedPathIds => _state.SelectedPathIds ?? [];
@@ -215,6 +217,11 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public void SetGridVisible(bool visible)
     {
         Apply(_state with { GridVisible = visible }, recordHistory: false);
+    }
+
+    public void SetChainSelectionEnabled(bool enabled)
+    {
+        Apply(_state with { ChainSelectionEnabled = enabled }, recordHistory: false);
     }
 
     public void SetSelection(IReadOnlyList<string> selectedPathIds)

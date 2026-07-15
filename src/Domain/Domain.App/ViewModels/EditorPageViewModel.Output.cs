@@ -314,6 +314,26 @@ public sealed partial class EditorPageViewModel
 
     public void ToggleTwoDGrid() => TwoDGridVisible = !TwoDGridVisible;
 
+    public bool TwoDChainSelectionEnabled
+    {
+        get => _twoDWorkspace.ChainSelectionEnabled;
+        set
+        {
+            if (_twoDWorkspace.ChainSelectionEnabled == value)
+                return;
+
+            _twoDWorkspace.SetChainSelectionEnabled(value);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TwoDChainSelectionSummary));
+            SyncTwoDWorkspaceState(recordHistory: false);
+            Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        }
+    }
+
+    public string TwoDChainSelectionSummary => TwoDChainSelectionEnabled ? "Chain selection: On (A)" : "Chain selection: Off (A)";
+
+    public void ToggleTwoDChainSelection() => TwoDChainSelectionEnabled = !TwoDChainSelectionEnabled;
+
     public IReadOnlyList<string> TwoDSelectedPathIds
     {
         get => _twoDWorkspace.SelectedPathIds;

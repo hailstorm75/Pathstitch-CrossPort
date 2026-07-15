@@ -48,6 +48,12 @@ public sealed class DxfPreviewCanvas : Control
             defaultValue: true,
             defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<bool> ChainSelectionEnabledProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(
+            nameof(ChainSelectionEnabled),
+            defaultValue: false,
+            defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<IReadOnlyList<string>> SelectedPathIdsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<string>>(
             nameof(SelectedPathIds),
@@ -224,6 +230,7 @@ public sealed class DxfPreviewCanvas : Control
             ActiveToolProperty,
             SnapEnabledProperty,
             GridVisibleProperty,
+            ChainSelectionEnabledProperty,
             SelectedPathIdsProperty,
             HiddenPathIdsProperty,
             PreviewPathsProperty,
@@ -372,6 +379,12 @@ public sealed class DxfPreviewCanvas : Control
     {
         get => GetValue(GridVisibleProperty);
         set => SetValue(GridVisibleProperty, value);
+    }
+
+    public bool ChainSelectionEnabled
+    {
+        get => GetValue(ChainSelectionEnabledProperty);
+        set => SetValue(ChainSelectionEnabledProperty, value);
     }
 
     public IReadOnlyList<string> SelectedPathIds
@@ -2984,7 +2997,9 @@ Selection:
         if (!isShiftSelection)
         {
             SetCurrentValue(SelectedMeasurementIdProperty, null);
-            SetCurrentValue(SelectedPathIdsProperty, new[] { pathId });
+            SetCurrentValue(
+                SelectedPathIdsProperty,
+                ChainSelectionEnabled ? FindConnectedPathIds(pathId) : new[] { pathId });
             return;
         }
 
@@ -2994,6 +3009,44 @@ Selection:
             selected.Remove(pathId);
 
         SetCurrentValue(SelectedPathIdsProperty, selected.ToArray());
+    }
+
+    private IReadOnlyList<string> FindConnectedPathIds(string seedPathId)
+    {
+        if (Document is null)
+            return [seedPathId];
+
+        var paths = Document.Paths
+            .Where(path => path.Points.Count >= 2 && !path.IsClosed)
+            .ToArray();
+        var connected = new HashSet<string>(StringComparer.Ordinal) { seedPathId };
+        var frontier = new Queue<string>([seedPathId]);
+        while (frontier.Count > 0)
+        {
+            var currentId = frontier.Dequeue();
+            var current = paths.FirstOrDefault(path => path.Id == currentId);
+            if (current is null)
+                continue;
+
+            var endpoints = new[] { current.Points[0], current.Points[^1] };
+            foreach (var candidate in paths)
+            {
+                if (connected.Contains(candidate.Id))
+                    continue;
+
+                var candidateEndpoints = new[] { candidate.Points[0], candidate.Points[^1] };
+                if (endpoints.Any(endpoint => candidateEndpoints.Any(other => DistanceBetween(endpoint, other) <= 1e-5)))
+                {
+                    connected.Add(candidate.Id);
+                    frontier.Enqueue(candidate.Id);
+                }
+            }
+        }
+
+        return Document.Paths
+            .Where(path => connected.Contains(path.Id))
+            .Select(path => path.Id)
+            .ToArray();
     }
 
     private void ApplyMarqueeSelection(Rect selectionRect, bool isShiftSelection)

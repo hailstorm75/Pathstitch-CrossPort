@@ -48,6 +48,24 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void ChainSelection_DefaultsOffAndPersistsWithoutPollutingUndoHistory()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+
+        Assert.False(workspace.ChainSelectionEnabled);
+        workspace.SetChainSelectionEnabled(true);
+
+        Assert.True(workspace.ChainSelectionEnabled);
+        Assert.True(workspace.State.ChainSelectionEnabled);
+        Assert.False(workspace.CanUndo);
+
+        var restored = JsonSerializer.Deserialize<Editor2DWorkspaceState>(JsonSerializer.Serialize(workspace.State));
+        var reopened = new Editor2DWorkspaceViewModel();
+        reopened.Apply(Assert.IsType<Editor2DWorkspaceState>(restored), recordHistory: false);
+        Assert.True(reopened.ChainSelectionEnabled);
+    }
+
+    [Fact]
     public void BlankWorkspace_IsImmediatelyEditableWithoutTwoD()
     {
         var workspace = new Editor2DWorkspaceViewModel();

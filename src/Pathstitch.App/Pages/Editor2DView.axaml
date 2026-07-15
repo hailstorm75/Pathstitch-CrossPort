@@ -14,6 +14,7 @@
     ActiveTool="{Binding TwoDActiveTool, Mode=TwoWay}"
     SnapEnabled="{Binding TwoDSnapEnabled, Mode=TwoWay}"
     GridVisible="{Binding TwoDGridVisible, Mode=TwoWay}"
+    ChainSelectionEnabled="{Binding TwoDChainSelectionEnabled, Mode=TwoWay}"
     SelectedPathIds="{Binding TwoDSelectedPathIds, Mode=TwoWay}"
     HiddenPathIds="{Binding TwoDHiddenPathIds}"
     PreviewPaths="{Binding TwoDWorkspace.SewingHolePreviewPaths}"

@@ -27,7 +27,7 @@
         <TextBlock FontSize="18" FontWeight="SemiBold" Text="Modes" />
         <TextBlock TextWrapping="Wrap" Text="2D: draw and edit patterns. 3D: import models, select faces, and unfold them. Batch: lay out and preview multiple pieces." />
         <TextBlock FontSize="18" FontWeight="SemiBold" Text="Shortcuts" />
-        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="18" RowSpacing="6">
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="18" RowSpacing="6">
           <TextBlock FontWeight="SemiBold" Text="V / M / H" /><TextBlock Grid.Column="1" Text="Select / Move / Pan" />
           <TextBlock Grid.Row="1" FontWeight="SemiBold" Text="O / G / I" /><TextBlock Grid.Row="1" Grid.Column="1" Text="Offset / Add Holes / Measure" />
           <TextBlock Grid.Row="2" FontWeight="SemiBold" Text="L / C / R / P" /><TextBlock Grid.Row="2" Grid.Column="1" Text="Line / Circle / Rectangle / Pen" />
@@ -35,10 +35,11 @@
           <TextBlock Grid.Row="4" FontWeight="SemiBold" Text="S" /><TextBlock Grid.Row="4" Grid.Column="1" Text="Command palette" />
           <TextBlock Grid.Row="5" FontWeight="SemiBold" Text="N" /><TextBlock Grid.Row="5" Grid.Column="1" Text="Toggle snapping" />
           <TextBlock Grid.Row="6" FontWeight="SemiBold" Text="Shift+G" /><TextBlock Grid.Row="6" Grid.Column="1" Text="Toggle grid" />
-          <TextBlock Grid.Row="7" FontWeight="SemiBold" Text="Esc" /><TextBlock Grid.Row="7" Grid.Column="1" Text="Cancel or deselect" />
-          <TextBlock Grid.Row="8" FontWeight="SemiBold" Text="Ctrl+S" /><TextBlock Grid.Row="8" Grid.Column="1" Text="Save project" />
-          <TextBlock Grid.Row="9" FontWeight="SemiBold" Text="Ctrl+Z" /><TextBlock Grid.Row="9" Grid.Column="1" Text="Undo" />
-          <TextBlock Grid.Row="10" FontWeight="SemiBold" Text="Delete" /><TextBlock Grid.Row="10" Grid.Column="1" Text="Delete selection" />
+          <TextBlock Grid.Row="7" FontWeight="SemiBold" Text="A" /><TextBlock Grid.Row="7" Grid.Column="1" Text="Toggle chain selection" />
+          <TextBlock Grid.Row="8" FontWeight="SemiBold" Text="Esc" /><TextBlock Grid.Row="8" Grid.Column="1" Text="Cancel or deselect" />
+          <TextBlock Grid.Row="9" FontWeight="SemiBold" Text="Ctrl+S" /><TextBlock Grid.Row="9" Grid.Column="1" Text="Save project" />
+          <TextBlock Grid.Row="10" FontWeight="SemiBold" Text="Ctrl+Z" /><TextBlock Grid.Row="10" Grid.Column="1" Text="Undo" />
+          <TextBlock Grid.Row="11" FontWeight="SemiBold" Text="Delete" /><TextBlock Grid.Row="11" Grid.Column="1" Text="Delete selection" />
         </Grid>
         <TextBlock FontSize="18" FontWeight="SemiBold" Text="Layers" />
         <TextBlock TextWrapping="Wrap" Text="Geometry belongs to layers. Visibility, locking, ordering, and layer colors remain part of the saved 2D project and carry through export." />
