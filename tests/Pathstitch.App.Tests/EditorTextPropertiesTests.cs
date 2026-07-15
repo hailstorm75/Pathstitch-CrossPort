@@ -76,6 +76,34 @@ public sealed class EditorTextPropertiesTests
         Assert.Contains("path.IsItalic", canvas, StringComparison.Ordinal);
         Assert.Contains("path.IsUnderline", canvas, StringComparison.Ordinal);
         Assert.Contains("path.CharacterSpacing", canvas, StringComparison.Ordinal);
+        Assert.Contains("TwoDSelectedTextFitModeOptions", inspector, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TextFitMode_PersistsAcrossSelectionReEditAndNonePreservesWarp()
+    {
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests();
+        await editor.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var text = new Editor2DPreviewPath(
+            "text",
+            "TEXT",
+            Editor2DGeometry.BuildTextBoundsPoints(new Editor2DPoint(0, 0), "AB", 5, widthFactor: 3),
+            true,
+            Start: new Editor2DPoint(0, 0),
+            Text: "AB",
+            TextHeight: 5,
+            WidthFactor: 3);
+        editor.TwoDDocument = editor.TwoDDocument! with { Paths = [text] };
+        editor.TwoDSelectedPathIds = [text.Id];
+        editor.TwoDSelectedTextFitMode = "Width";
+        editor.TwoDSelectedPathIds = [];
+        editor.TwoDSelectedPathIds = [text.Id];
+
+        Assert.Equal("Width", editor.TwoDSelectedTextFitMode);
+        editor.TwoDSelectedTextFitMode = "None";
+        editor.TwoDSelectedTextDraft = "AB!";
+        Assert.True(editor.ApplyTwoDSelectedText());
+        Assert.Equal(3, Assert.Single(editor.TwoDDocument.Paths).WidthFactor);
     }
 
     private static string ReadRepositoryFile(params string[] pathParts)

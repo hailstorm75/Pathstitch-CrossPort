@@ -2496,7 +2496,6 @@ public sealed partial class EditorPageViewModel
             _twoDSelectedTextBold = false;
             _twoDSelectedTextItalic = false;
             _twoDSelectedTextUnderline = false;
-            _twoDSelectedTextFitMode = "None";
             SetTwoDSelectedTextHeightValidity(true);
             NotifyTwoDSelectedTextEditorStateChanged();
             return;
@@ -2510,7 +2509,6 @@ public sealed partial class EditorPageViewModel
         _twoDSelectedTextBold = selectedTextPath.IsBold;
         _twoDSelectedTextItalic = selectedTextPath.IsItalic;
         _twoDSelectedTextUnderline = selectedTextPath.IsUnderline;
-        _twoDSelectedTextFitMode = "None";
         SetTwoDSelectedTextHeightValidity(true);
         NotifyTwoDSelectedTextEditorStateChanged();
     }
