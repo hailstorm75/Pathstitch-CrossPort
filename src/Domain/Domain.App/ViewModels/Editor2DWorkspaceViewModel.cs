@@ -461,6 +461,86 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         return layer;
     }
 
+    public bool RenameLayer(string layerId, string name)
+    {
+        var normalizedName = name.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedName))
+            return false;
+
+        var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId);
+        if (layer is null || string.Equals(layer.Name, normalizedName, StringComparison.Ordinal))
+            return false;
+
+        Apply(_state with
+        {
+            Layers = Layers.Select(candidate => candidate.Id == layerId
+                ? candidate with { Name = normalizedName }
+                : candidate).ToArray(),
+        });
+        return true;
+    }
+
+    public bool DeleteLayer(string layerId)
+    {
+        var ordered = Layers.OrderBy(layer => layer.Order).ToArray();
+        var sourceIndex = Array.FindIndex(ordered, layer => layer.Id == layerId);
+        if (sourceIndex < 0)
+            return false;
+
+        var source = ordered[sourceIndex];
+        if (source.Kind == Editor2DLayerKind.Geometry)
+        {
+            var geometryLayers = ordered.Where(layer => layer.Kind == Editor2DLayerKind.Geometry).ToArray();
+            if (geometryLayers.Length <= 1)
+                return false;
+
+            var geometryIndex = Array.FindIndex(geometryLayers, layer => layer.Id == source.Id);
+            var target = geometryIndex > 0 ? geometryLayers[geometryIndex - 1] : geometryLayers[1];
+            var reassignedPathIds = source.PathIds.Distinct(StringComparer.Ordinal).ToArray();
+            var remaining = ordered
+                .Where(layer => layer.Id != source.Id)
+                .Select(layer => layer.Id == target.Id
+                    ? layer with
+                    {
+                        PathIds = layer.PathIds
+                            .Concat(reassignedPathIds)
+                            .Distinct(StringComparer.Ordinal)
+                            .ToArray(),
+                    }
+                    : layer)
+                .OrderBy(layer => layer.Order)
+                .Select((layer, order) => layer with { Order = order })
+                .ToArray();
+
+            Apply(_state with
+            {
+                Layers = remaining,
+                ActiveLayerId = ActiveLayerId == source.Id ? target.Id : ActiveLayerId,
+            });
+            return true;
+        }
+
+        var nextLayers = ordered
+            .Where(layer => layer.Id != source.Id)
+            .OrderBy(layer => layer.Order)
+            .Select((layer, order) => layer with { Order = order })
+            .ToArray();
+        if (nextLayers.Length == 0)
+            return false;
+
+        var fallbackIndex = Math.Min(sourceIndex, nextLayers.Length - 1);
+        var fallbackActiveLayerId = ActiveLayerId == source.Id
+            ? nextLayers[fallbackIndex].Id
+            : ActiveLayerId;
+
+        Apply(_state with
+        {
+            Layers = nextLayers,
+            ActiveLayerId = fallbackActiveLayerId,
+        });
+        return true;
+    }
+
     public Editor2DLayer ImportReferenceImage(
         string fileName,
         string dataBase64,

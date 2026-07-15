@@ -431,6 +431,71 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void Layers_RenameTrimsWhitespaceAndRecordsUndoHistory()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var layer = workspace.CreateLayer("Draft");
+
+        Assert.False(workspace.RenameLayer(layer.Id, "   "));
+        Assert.Equal("Draft", workspace.Layers.Single(item => item.Id == layer.Id).Name);
+
+        Assert.True(workspace.RenameLayer(layer.Id, "  Final  "));
+        Assert.Equal("Final", workspace.Layers.Single(item => item.Id == layer.Id).Name);
+        Assert.True(workspace.CanUndo);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal("Draft", workspace.Layers.Single(item => item.Id == layer.Id).Name);
+    }
+
+    [Fact]
+    public void Layers_DeleteGeometryLayer_ReassignsPathsAndKeepsOneGeometryLayer()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var first = new Editor2DPreviewPath("first", "LINE", [new Editor2DPoint(0, 0), new Editor2DPoint(1, 0)], false);
+        var second = new Editor2DPreviewPath("second", "LINE", [new Editor2DPoint(0, 1), new Editor2DPoint(1, 1)], false);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [first, second] });
+        var baseLayer = Assert.Single(workspace.Layers);
+        var detailLayer = workspace.CreateLayer("Details");
+
+        Assert.True(workspace.AssignPathsToLayer(detailLayer.Id, [second.Id]));
+        workspace.SelectLayer(detailLayer.Id);
+
+        Assert.True(workspace.DeleteLayer(detailLayer.Id));
+
+        var remaining = Assert.Single(workspace.Layers);
+        Assert.Equal(baseLayer.Id, remaining.Id);
+        Assert.Equal([first.Id, second.Id], remaining.PathIds);
+        Assert.Equal(baseLayer.Id, workspace.ActiveLayerId);
+        Assert.Equal([second.Id], workspace.SelectedPathIds);
+        Assert.True(workspace.CanUndo);
+
+        Assert.False(workspace.DeleteLayer(baseLayer.Id));
+
+        Assert.True(workspace.Undo());
+        Assert.Contains(workspace.Layers, layer => layer.Id == detailLayer.Id);
+        Assert.Equal(2, workspace.Layers.Count);
+    }
+
+    [Fact]
+    public void Layers_DeleteReferenceImageRemovesImageLayerAndKeepsActiveGeometry()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var path = new Editor2DPreviewPath("shape", "LINE", [new Editor2DPoint(0, 0), new Editor2DPoint(2, 0)], false);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [path] });
+        var geometryLayer = Assert.Single(workspace.Layers);
+        var imageLayer = workspace.ImportReferenceImage("reference.png", "ZmFrZQ==", 10, 10);
+
+        Assert.True(imageLayer.IsReferenceImage);
+        Assert.Equal(imageLayer.Id, workspace.ActiveLayerId);
+
+        Assert.True(workspace.DeleteLayer(imageLayer.Id));
+
+        Assert.Single(workspace.Layers);
+        Assert.Equal(geometryLayer.Id, workspace.ActiveLayerId);
+        Assert.Equal([path.Id], workspace.Layers.Single().PathIds);
+    }
+
+    [Fact]
     public void Layers_MergeWithBelowMovesPathsAndRemovesSource()
     {
         var workspace = new Editor2DWorkspaceViewModel();
