@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.VisualTree;
 using Domain.App.Models;
 using Pathstitch.App.Dialogs;
+using Pathstitch.App.Controls;
 using Pathstitch.App.Tests.Fixtures;
 
 namespace Pathstitch.App.Tests;
@@ -11,6 +12,24 @@ namespace Pathstitch.App.Tests;
 public sealed class EditorPreferencesTests
 {
     private readonly HeadlessUiFixture _ui = new();
+
+    [Fact]
+    public async Task PreferencesDialog_TogglesReversePanDirection()
+    {
+        DxfPreviewCanvas.ReversePanDirection = false;
+        var dialog = await _ui.RunAsync(() => new PreferencesDialog());
+        await _ui.RunAsync(() =>
+        {
+            dialog.Show();
+            dialog.UpdateLayout();
+            var toggle = _ui.FindByAutomationId<CheckBox>(dialog, "dialog.preferences.reverse-pan");
+            toggle.IsChecked = true;
+        });
+
+        Assert.True(DxfPreviewCanvas.ReversePanDirection);
+        await _ui.RunAsync(dialog.Close);
+        DxfPreviewCanvas.ReversePanDirection = false;
+    }
 
     [Fact]
     public async Task PreferencesDialog_AppliesShortcutAndResetRestoresActiveModeDefaults()

@@ -16,6 +16,9 @@ namespace Pathstitch.App.Controls;
 
 public sealed class DxfPreviewCanvas : Control
 {
+    /// <summary>Flips vertical wheel/trackpad panning to match the user's preference.</summary>
+    public static bool ReversePanDirection { get; set; }
+
     private const double PointerDragThreshold = 4.0;
     private const double PenCloseHitTolerance = 10.0;
     private const double ScaleHandleHitTolerance = 12.0;
@@ -781,8 +784,9 @@ Selection:
             return;
 
         var screenPoint = e.GetPosition(this);
+        var wheelDelta = ReversePanDirection ? -e.Delta.Y : e.Delta.Y;
         var update = _interactionController.ApplyWheel(
-            screenPoint, Bounds.Size, Zoom, OffsetX, OffsetY, e.Delta.Y);
+            screenPoint, Bounds.Size, Zoom, OffsetX, OffsetY, wheelDelta);
         SetCurrentValue(ZoomProperty, update.Zoom);
         SetCurrentValue(OffsetXProperty, update.OffsetX);
         SetCurrentValue(OffsetYProperty, update.OffsetY);

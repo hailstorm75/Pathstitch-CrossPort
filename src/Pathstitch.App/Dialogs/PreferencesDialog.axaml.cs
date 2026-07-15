@@ -9,6 +9,7 @@ using Avalonia.Layout;
 using Avalonia.Styling;
 using Domain.App.Models;
 using Domain.App.ViewModels;
+using Pathstitch.App.Controls;
 
 namespace Pathstitch.App.Dialogs;
 
@@ -41,7 +42,12 @@ public sealed partial class PreferencesDialog : Window
             ? 1
             : Equals(themeKey, ThemeVariant.Dark.Key) ? 2 : 0;
         AppearanceSelector.SelectionChanged += OnAppearanceChanged;
+        ReversePanDirection.IsChecked = DxfPreviewCanvas.ReversePanDirection;
+        ReversePanDirection.IsCheckedChanged += OnReversePanDirectionChanged;
     }
+
+    private void OnReversePanDirectionChanged(object? sender, RoutedEventArgs e)
+        => DxfPreviewCanvas.ReversePanDirection = ReversePanDirection.IsChecked == true;
 
     private void OnAppearanceChanged(object? sender, SelectionChangedEventArgs e)
     {
