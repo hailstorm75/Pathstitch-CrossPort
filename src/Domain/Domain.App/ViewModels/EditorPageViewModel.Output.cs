@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Domain.App.Models;
+using Domain.App.Services;
 using Microsoft.Extensions.Logging;
 
 namespace Domain.App.ViewModels;
@@ -200,6 +201,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(HasTwoDCleanupCandidates));
             OnPropertyChanged(nameof(CanApplyTwoDCleanup));
             OnPropertyChanged(nameof(TwoDCleanupSummary));
+            OnPropertyChanged(nameof(CanApplyTwoDBoolean));
             OnPropertyChanged(nameof(CanApplyTwoDPattern));
             OnPropertyChanged(nameof(TwoDPatternSummary));
             OnPropertyChanged(nameof(CanApplyTwoDPaperFoldingCreases));
@@ -705,6 +707,12 @@ public sealed partial class EditorPageViewModel
                 && TwoDSelectedPathIds.Contains(path.Id, StringComparer.Ordinal));
 
     public bool CanExpandTwoDRectangles => TwoDSelectedRectangleCount > 0;
+
+    public bool CanApplyTwoDBoolean
+        => TwoDDocument is not null
+            && TwoDSelectedPathIds.Count >= 2
+            && TwoDSelectedPathIds.All(id => TwoDDocument.Paths.Any(path =>
+                path.Id.Equals(id, StringComparison.Ordinal) && path.IsClosed && path.Points.Count >= 3));
 
     public bool HasTwoDMeasurements => TwoDMeasurements.Any(static measurement => !measurement.IsAutoDimension);
 
@@ -1647,6 +1655,19 @@ public sealed partial class EditorPageViewModel
             string.Equals(TwoDOffsetSide, "Outward", StringComparison.Ordinal),
             cancellationToken).ConfigureAwait(true);
         return CompleteTwoDWorkspaceOperation(result);
+    }
+
+    public async Task<bool> ApplyTwoDBooleanAsync(string operation, CancellationToken cancellationToken = default)
+    {
+        if (!CanApplyTwoDBoolean || !Enum.TryParse<Editor2DBooleanOperation>(operation, true, out var parsed))
+        {
+            StatusText = "Select at least two closed paths before applying a boolean operation";
+            return false;
+        }
+
+        StatusText = $"{parsed} running through OpenGeometry";
+        return CompleteTwoDWorkspaceOperation(await _twoDWorkspace.ApplyBooleanAsync(
+            _editor2DGeometryKernelService, parsed, cancellationToken).ConfigureAwait(true));
     }
 
     public async Task<bool> ApplyTwoDAddThicknessAsync(CancellationToken cancellationToken = default)

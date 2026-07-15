@@ -304,6 +304,19 @@
           Content="Apply Cleanup"
           Click="OnApplyTwoDCleanupClicked" />
       </StackPanel>
+      <StackPanel Spacing="8">
+        <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Boolean" />
+        <TextBlock FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource SecondaryTextBrush}"
+                   Text="Combine two or more closed paths" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Button Classes="chip-button" Content="Union" Tag="Union"
+                  IsEnabled="{Binding CanApplyTwoDBoolean}" Click="OnApplyTwoDBooleanClicked" />
+          <Button Classes="chip-button" Content="Subtract" Tag="Subtract"
+                  IsEnabled="{Binding CanApplyTwoDBoolean}" Click="OnApplyTwoDBooleanClicked" />
+          <Button Classes="chip-button" Content="Intersect" Tag="Intersect"
+                  IsEnabled="{Binding CanApplyTwoDBoolean}" Click="OnApplyTwoDBooleanClicked" />
+        </StackPanel>
+      </StackPanel>
       <StackPanel
         Spacing="8"
         IsVisible="{Binding IsTwoDPatternToolActive}">

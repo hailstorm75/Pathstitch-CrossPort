@@ -274,6 +274,14 @@ public abstract class EditorInteractionControlBase : UserControl
             viewModel.ApplyTwoDCleanup();
     }
 
+    protected async void OnApplyTwoDBooleanClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel
+            && sender is Button button
+            && button.Tag is string operation)
+            await viewModel.ApplyTwoDBooleanAsync(operation);
+    }
+
     protected void OnApplyTwoDPatternClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

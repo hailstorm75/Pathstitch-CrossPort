@@ -97,6 +97,25 @@ public sealed partial class Editor2DWorkspaceViewModel
             : $"OpenGeometry created {result.Paths.Count} {(outward ? "outward" : "inward")} offset paths");
     }
 
+    public async Task<Editor2DWorkspaceOperationResult> ApplyBooleanAsync(
+        IEditor2DGeometryKernelService kernel,
+        Editor2DBooleanOperation operation,
+        CancellationToken token = default)
+    {
+        var selected = SelectedPaths(static path => path.IsClosed && path.Points.Count >= 3);
+        if (selected.Count < 2)
+            return Editor2DWorkspaceOperationResult.Failure("Select at least two closed paths before applying a boolean operation");
+
+        var result = await kernel.BuildBooleanPathsAsync(selected, operation, token).ConfigureAwait(true);
+        if (!result.IsSuccess || result.Paths.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure($"OpenGeometry boolean failed: {result.Error ?? "no result"}");
+
+        var selectedIds = selected.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
+        var nextPaths = Document.Paths.Where(path => !selectedIds.Contains(path.Id)).Concat(result.Paths).ToArray();
+        CommitDocumentEdit(RebuildDocument(Document, nextPaths), result.Paths.Select(path => path.Id).ToArray());
+        return Editor2DWorkspaceOperationResult.Success($"OpenGeometry {operation.ToString().ToLowerInvariant()} created {result.Paths.Count} path{(result.Paths.Count == 1 ? "" : "s")}");
+    }
+
     public Editor2DWorkspaceOperationResult ApplyBoundingBoxOffset(double distance, double cornerRadius)
     {
         var selected = SelectedPaths();
