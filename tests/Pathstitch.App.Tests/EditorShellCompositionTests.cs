@@ -219,6 +219,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("TwoDSelectedTextFitModeOptions", inspector, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.export-selected-only\"", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDExportSelectedOnly, Mode=TwoWay", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDExportMeasurementLines, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDSvgPrecisionText, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDSvgStrokeWidthText, Mode=TwoWay", inspector, StringComparison.Ordinal);
     }

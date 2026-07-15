@@ -58,6 +58,11 @@
         Content="Export selected paths only"
         IsEnabled="{Binding HasTwoDSelection}"
         IsChecked="{Binding TwoDExportSelectedOnly, Mode=TwoWay}" />
+      <CheckBox
+        AutomationProperties.AutomationId="editor.2d.export-measurement-lines"
+        Content="Include measurement lines"
+        IsEnabled="{Binding HasTwoDMeasurements}"
+        IsChecked="{Binding TwoDExportMeasurementLines, Mode=TwoWay}" />
       <StackPanel Spacing="4">
         <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="SVG export options" />
         <StackPanel Orientation="Horizontal" Spacing="6">
