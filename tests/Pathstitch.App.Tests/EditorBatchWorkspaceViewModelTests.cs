@@ -152,6 +152,32 @@ public sealed class EditorBatchWorkspaceViewModelTests
         }
     }
 
+    [Fact]
+    public async Task SelectedOnlyOperations_LeaveUnselectedDxfUntouched()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchSelection", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var first = Path.Combine(directory, "first.dxf");
+        var second = Path.Combine(directory, "second.dxf");
+        const string dxf = "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n";
+        await File.WriteAllTextAsync(first, dxf);
+        await File.WriteAllTextAsync(second, dxf);
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel();
+            Assert.True(workspace.AddFile(first));
+            Assert.True(workspace.AddFile(second));
+            workspace.Items[1].IsSelected = false;
+            await workspace.ApplySewingHolesAsync(new DxfOutputPreviewService(), new Editor2DSewingHoleParameters());
+            Assert.NotNull(workspace.Items[0].Document);
+            Assert.Null(workspace.Items[1].Document);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private sealed class StubOffsetGeometryKernel : IEditor2DGeometryKernelService
     {
         public Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(

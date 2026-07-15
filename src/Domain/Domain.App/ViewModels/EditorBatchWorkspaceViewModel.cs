@@ -13,6 +13,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     private bool _isRunning;
     private string _summary = "No files queued.";
     private string _outputDirectory = string.Empty;
+    private bool _exportSelectedOnly;
 
     public ObservableCollection<EditorBatchItem> Items { get; } = [];
 
@@ -38,6 +39,12 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         set => SetProperty(ref _outputDirectory, value ?? string.Empty);
     }
 
+    public bool ExportSelectedOnly
+    {
+        get => _exportSelectedOnly;
+        set => SetProperty(ref _exportSelectedOnly, value);
+    }
+
     public bool IsRunning
     {
         get => _isRunning;
@@ -47,6 +54,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(CanRun));
                 OnPropertyChanged(nameof(CanExport));
+                OnPropertyChanged(nameof(CanOperateSelected));
             }
         }
     }
@@ -55,6 +63,20 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
 
     public bool CanExport => !IsRunning && Items.Any(item =>
         Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase));
+
+    public bool CanOperateSelected => !IsRunning && Items.Any(item =>
+        item.IsSelected && Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase));
+
+    public int SelectedItemCount => Items.Count(item => item.IsSelected);
+
+    public void SetAllSelected(bool selected)
+    {
+        foreach (var item in Items)
+            item.IsSelected = selected;
+        OnPropertyChanged(nameof(CanExport));
+        OnPropertyChanged(nameof(CanOperateSelected));
+        OnPropertyChanged(nameof(SelectedItemCount));
+    }
 
     public string Summary
     {
@@ -157,7 +179,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             return;
 
         IsRunning = true;
-        var firstDxf = Items.First(item => Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase));
+        var firstDxf = Items.First(item => (!ExportSelectedOnly || item.IsSelected)
+            && Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase));
         var outputDirectory = string.IsNullOrWhiteSpace(OutputDirectory)
             ? Path.Combine(Path.GetDirectoryName(firstDxf.FilePath)!, "batch-output")
             : Path.GetFullPath(OutputDirectory.Trim().Trim('"'));
@@ -166,7 +189,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         var failed = 0;
         try
         {
-            foreach (var item in Items.Where(item => Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
+            foreach (var item in Items.Where(item => (!ExportSelectedOnly || item.IsSelected)
+                && Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 item.Status = EditorBatchItemStatus.Running;
@@ -206,7 +230,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         double distance,
         CancellationToken cancellationToken = default)
     {
-        if (IsRunning || distance <= 0)
+        if (!CanOperateSelected || distance <= 0)
             return;
 
         IsRunning = true;
@@ -214,7 +238,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         var failed = 0;
         try
         {
-            foreach (var item in Items.Where(item => Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
+            foreach (var item in Items.Where(item => item.IsSelected
+                && Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 item.Status = EditorBatchItemStatus.Running;
@@ -260,7 +285,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         Editor2DSewingHoleParameters parameters,
         CancellationToken cancellationToken = default)
     {
-        if (IsRunning)
+        if (!CanOperateSelected)
             return;
 
         IsRunning = true;
@@ -268,7 +293,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         var failed = 0;
         try
         {
-            foreach (var item in Items.Where(item => Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
+            foreach (var item in Items.Where(item => item.IsSelected
+                && Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 item.Status = EditorBatchItemStatus.Running;

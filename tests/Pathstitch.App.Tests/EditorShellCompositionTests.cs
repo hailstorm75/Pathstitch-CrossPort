@@ -159,6 +159,9 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("OutputDirectory", panel, StringComparison.Ordinal);
         Assert.Contains("editor.batch.apply-offset", panel, StringComparison.Ordinal);
         Assert.Contains("editor.batch.apply-sewing-holes", panel, StringComparison.Ordinal);
+        Assert.Contains("Select all", panel, StringComparison.Ordinal);
+        Assert.Contains("SelectedItemCount", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.batch.export-selected-only", panel, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -21,6 +21,11 @@
         TextWrapping="Wrap"
         Foreground="{StaticResource SecondaryTextBrush}"
         Text="Queue DXF files or projects here without opening them in the 2D or 3D editor." />
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <Button Content="Select all" Click="OnSelectAllClicked" />
+        <Button Content="Select none" Click="OnSelectNoneClicked" />
+        <TextBlock VerticalAlignment="Center" Text="{Binding SelectedItemCount, StringFormat='Selected: {0}'}" />
+      </StackPanel>
       <ComboBox
         AutomationProperties.AutomationId="editor.batch.action"
         ItemsSource="{Binding AvailableActions}"
@@ -38,6 +43,10 @@
         AutomationProperties.AutomationId="editor.batch.output-directory"
         PlaceholderText="Output directory (optional)"
         Text="{Binding OutputDirectory, Mode=TwoWay}" />
+      <CheckBox
+        AutomationProperties.AutomationId="editor.batch.export-selected-only"
+        Content="Export selected only"
+        IsChecked="{Binding ExportSelectedOnly, Mode=TwoWay}" />
       <TextBox
         x:Name="OffsetDistanceText"
         AutomationProperties.AutomationId="editor.batch.offset-distance"
@@ -63,7 +72,7 @@
         AutomationProperties.AutomationId="editor.batch.apply-offset"
         Classes="panel-button"
         Content="Apply offset to DXFs"
-        IsEnabled="{Binding CanExport}"
+        IsEnabled="{Binding CanOperateSelected}"
         Click="OnApplyOffsetClicked" />
       <TextBox
         x:Name="SewingDiameterText"
@@ -84,7 +93,7 @@
         AutomationProperties.AutomationId="editor.batch.apply-sewing-holes"
         Classes="panel-button"
         Content="Apply sewing holes to DXFs"
-        IsEnabled="{Binding CanExport}"
+        IsEnabled="{Binding CanOperateSelected}"
         Click="OnApplySewingHolesClicked" />
     </StackPanel>
   </Border>

@@ -62,6 +62,18 @@ public partial class EditorBatchContextPanel : UserControl
             new Editor2DSewingHoleParameters(Diameter: diameter, Pitch: pitch, Margin: margin));
     }
 
+    private void OnSelectAllClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorBatchWorkspaceViewModel viewModel)
+            viewModel.SetAllSelected(true);
+    }
+
+    private void OnSelectNoneClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorBatchWorkspaceViewModel viewModel)
+            viewModel.SetAllSelected(false);
+    }
+
     private static double ParsePositive(string? value, double fallback)
         => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) && parsed > 0
             ? parsed
