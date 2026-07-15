@@ -679,6 +679,20 @@ public sealed partial class EditorPageViewModel
 
     public bool IsTwoDSewingHoleToolActive => TwoDActiveTool == Editor2DTool.AddSewingHoles;
 
+    public double TwoDSewingHoleMargin
+    {
+        get => _twoDSewingHoleMargin;
+        set
+        {
+            var normalized = Math.Max(0.0, value);
+            if (!SetWorkspaceFacadeValue(_twoDSewingHoleMargin, normalized, updated => _twoDSewingHoleMargin = updated))
+                return;
+
+            OnPropertyChanged();
+            SyncTwoDWorkspaceState(recordHistory: false);
+        }
+    }
+
     public bool HasTwoDSelection => TwoDSelectedPathIds.Count > 0;
 
     public int TwoDSelectionCount => TwoDSelectedPathIds.Count;

@@ -60,4 +60,5 @@ public sealed partial class EditorPageViewModel
     private string _twoDGlueTabSide { get => _twoDWorkspace.GlueTabSide; set => _twoDWorkspace.GlueTabSide = value; }
     private string _twoDGlueTabStartOffsetText { get => _twoDWorkspace.GlueTabStartOffsetText; set => _twoDWorkspace.GlueTabStartOffsetText = value; }
     private string _twoDGlueTabEndOffsetText { get => _twoDWorkspace.GlueTabEndOffsetText; set => _twoDWorkspace.GlueTabEndOffsetText = value; }
+    private double _twoDSewingHoleMargin { get => _twoDWorkspace.SewingHoleMargin; set => _twoDWorkspace.SewingHoleMargin = value; }
 }
