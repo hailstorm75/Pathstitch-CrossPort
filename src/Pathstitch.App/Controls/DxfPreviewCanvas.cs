@@ -214,6 +214,9 @@ public sealed class DxfPreviewCanvas : Control
     private readonly Dictionary<string, Bitmap> _referenceImageBitmaps = new(StringComparer.Ordinal);
     private readonly MenuItem _expandRectanglesMenuItem;
     private readonly MenuItem _explodeCompoundMenuItem;
+    private readonly MenuItem _duplicateSelectionMenuItem;
+    private readonly MenuItem _flipHorizontalMenuItem;
+    private readonly MenuItem _flipVerticalMenuItem;
     private readonly MenuItem _strokeToFillMenuItem;
     private readonly MenuItem _fillToStrokeMenuItem;
     private readonly MenuItem _deleteSelectionMenuItem;
@@ -329,6 +332,22 @@ public sealed class DxfPreviewCanvas : Control
             Command = new RelayCommand(ExecuteExpandRectanglesCommand),
         };
 
+        _duplicateSelectionMenuItem = new MenuItem
+        {
+            Header = "Duplicate",
+            Command = new RelayCommand(ExecuteDuplicateSelectionCommand),
+        };
+        _flipHorizontalMenuItem = new MenuItem
+        {
+            Header = "Flip Horizontal",
+            Command = new RelayCommand(() => ExecuteFlipSelectionCommand(horizontal: true)),
+        };
+        _flipVerticalMenuItem = new MenuItem
+        {
+            Header = "Flip Vertical",
+            Command = new RelayCommand(() => ExecuteFlipSelectionCommand(horizontal: false)),
+        };
+
         _explodeCompoundMenuItem = new MenuItem
         {
             Header = "Explode Compound",
@@ -357,6 +376,9 @@ public sealed class DxfPreviewCanvas : Control
             Placement = PlacementMode.Pointer,
             ItemsSource = new Control[]
             {
+                _duplicateSelectionMenuItem,
+                _flipHorizontalMenuItem,
+                _flipVerticalMenuItem,
                 _expandRectanglesMenuItem,
                 _explodeCompoundMenuItem,
                 _strokeToFillMenuItem,
@@ -364,6 +386,20 @@ public sealed class DxfPreviewCanvas : Control
                 _deleteSelectionMenuItem,
             },
         };
+    }
+
+    private void ExecuteDuplicateSelectionCommand()
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.DuplicateTwoDSelection();
+        _contextMenu.Close();
+    }
+
+    private void ExecuteFlipSelectionCommand(bool horizontal)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.FlipTwoDSelection(horizontal);
+        _contextMenu.Close();
     }
 
     private void ExecuteExpandRectanglesCommand()
@@ -4361,6 +4397,9 @@ Selection:
             && Document.Paths.Any(path => selectedIds.Contains(path.Id) && path.IsClosed && path.IsFilled);
 
         _expandRectanglesMenuItem.IsVisible = !hasMeasurementSelection && canExpandRectangles;
+        _duplicateSelectionMenuItem.IsVisible = !hasMeasurementSelection && hasSelection;
+        _flipHorizontalMenuItem.IsVisible = !hasMeasurementSelection && hasSelection;
+        _flipVerticalMenuItem.IsVisible = !hasMeasurementSelection && hasSelection;
         _explodeCompoundMenuItem.IsVisible = !hasMeasurementSelection && canExplodeCompound;
         _strokeToFillMenuItem.IsVisible = !hasMeasurementSelection && canStrokeToFill;
         _fillToStrokeMenuItem.IsVisible = !hasMeasurementSelection && canFillToStroke;

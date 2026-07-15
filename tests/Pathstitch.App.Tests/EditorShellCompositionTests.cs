@@ -357,6 +357,18 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void DxfCanvasContextMenu_ExposesMacSelectionTransforms()
+    {
+        var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+
+        Assert.Contains("Header = \"Duplicate\"", canvas, StringComparison.Ordinal);
+        Assert.Contains("Header = \"Flip Horizontal\"", canvas, StringComparison.Ordinal);
+        Assert.Contains("Header = \"Flip Vertical\"", canvas, StringComparison.Ordinal);
+        Assert.Contains("DuplicateTwoDSelection", canvas, StringComparison.Ordinal);
+        Assert.Contains("FlipTwoDSelection(horizontal)", canvas, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CommandPalette_IsCatalogBackedAndHostedByTheEditorShell()
     {
         var shell = ReadPage("EditorShellView.axaml");
