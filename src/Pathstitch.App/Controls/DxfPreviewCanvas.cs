@@ -93,6 +93,12 @@ public sealed class DxfPreviewCanvas : Control
             nameof(SewingHoleMargin),
             defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<string> OffsetDistanceTextProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, string>(nameof(OffsetDistanceText), defaultValue: "12", defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<string> OffsetSideProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, string>(nameof(OffsetSide), defaultValue: "Outward", defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<IReadOnlyList<Editor2DPreviewPath>> PatternPreviewPathsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DPreviewPath>>(
             nameof(PatternPreviewPaths),
@@ -207,6 +213,7 @@ public sealed class DxfPreviewCanvas : Control
     private ref bool _isEditingVertex => ref _interaction.IsEditingVertex;
     private ref bool _isDraggingCorner => ref _interaction.IsDraggingCorner;
     private ref bool _isDraggingSewingHoleMargin => ref _interaction.IsDraggingSewingHoleMargin;
+    private ref bool _isDraggingOffsetHandle => ref _interaction.IsDraggingOffsetHandle;
     private ref string? _cornerDragPathId => ref _interaction.CornerDragPathId;
     private ref int _cornerDragIndex => ref _interaction.CornerDragIndex;
     private ref Editor2DCornerKind _cornerDragKind => ref _interaction.CornerDragKind;
@@ -275,6 +282,8 @@ public sealed class DxfPreviewCanvas : Control
             HiddenPathIdsProperty,
             PreviewPathsProperty,
             SewingHoleMarginProperty,
+            OffsetDistanceTextProperty,
+            OffsetSideProperty,
             ReferenceImagesProperty,
             ActiveReferenceImageProperty,
             ActiveReferenceImageLockedProperty,
@@ -578,6 +587,18 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(SewingHoleMarginProperty, value);
     }
 
+    public string OffsetDistanceText
+    {
+        get => GetValue(OffsetDistanceTextProperty);
+        set => SetValue(OffsetDistanceTextProperty, value);
+    }
+
+    public string OffsetSide
+    {
+        get => GetValue(OffsetSideProperty);
+        set => SetValue(OffsetSideProperty, value);
+    }
+
     public IReadOnlyList<Editor2DPreviewPath> PatternPreviewPaths
     {
         get => GetValue(PatternPreviewPathsProperty);
@@ -712,6 +733,7 @@ public sealed class DxfPreviewCanvas : Control
         _isEditingVertex = false;
         _isDraggingCorner = false;
         _isDraggingSewingHoleMargin = false;
+        _isDraggingOffsetHandle = false;
         _cornerDragPathId = null;
         _cornerDragIndex = 0;
         _isPanning = false;
@@ -854,6 +876,7 @@ public sealed class DxfPreviewCanvas : Control
         DrawConstrainedRectangleHandles(context, size, visiblePaths);
         DrawCornerToolHandles(context, size, visiblePaths);
         DrawSewingHoleMarginHandle(context, size, visiblePaths);
+        DrawOffsetHandle(context, size, visiblePaths);
         DrawLiveSketchLine(context, size);
         DrawLiveSketchRectangle(context, size);
         DrawLiveSketchCircle(context, size);
@@ -978,6 +1001,12 @@ public sealed class DxfPreviewCanvas : Control
             }
 
             if (ActiveTool == Editor2DTool.AddSewingHoles && TryBeginSewingHoleMarginDrag(point.Position, e.Pointer))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            if (ActiveTool == Editor2DTool.Offset && TryBeginOffsetHandleDrag(point.Position, e.Pointer))
             {
                 e.Handled = true;
                 return;
@@ -1129,6 +1158,7 @@ public sealed class DxfPreviewCanvas : Control
             case DxfCanvasMoveRoute.ScaleSelection: ApplyScaleSelection(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.Corner: ApplyCornerDrag(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.SewingHoleMargin: ApplySewingHoleMarginDrag(position); e.Handled = true; return;
+            case DxfCanvasMoveRoute.OffsetHandle: ApplyOffsetHandleDrag(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.EditVertex:
                 if (!_editingVertexIsConstrainedRectangle) ApplyVertexEdit(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.LineDraft: _pendingLineEnd = ResolvePlacementPoint(position, _pendingLineStart, allowOrthogonal: true); break;
@@ -1205,6 +1235,8 @@ Hover:
                 _isDraggingCorner = false; _cornerDragPathId = null; _cornerDragIndex = 0; break;
             case DxfCanvasReleaseRoute.SewingHoleMargin:
                 _isDraggingSewingHoleMargin = false; break;
+            case DxfCanvasReleaseRoute.OffsetHandle:
+                _isDraggingOffsetHandle = false; break;
             case DxfCanvasReleaseRoute.EditVertex:
                 _isEditingVertex = false; _editingVertexPathId = null; _editingVertexIndex = 0; _editingVertexIsConstrainedRectangle = false; break;
             case DxfCanvasReleaseRoute.PenHandleDrag:
@@ -1636,6 +1668,17 @@ Selection:
             context.DrawEllipse(SewingHoleHandleBrush, CornerToolHandlePen, handleScreen, 5.5, 5.5);
             break;
         }
+    }
+
+    private void DrawOffsetHandle(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
+    {
+        if (ActiveTool != Editor2DTool.Offset || !TryGetSelectedOffsetHandle(out var anchor, out var handle))
+            return;
+
+        var anchorScreen = WorldToScreen(anchor, size);
+        var handleScreen = WorldToScreen(handle, size);
+        context.DrawLine(CornerToolHandlePen, anchorScreen, handleScreen);
+        context.DrawEllipse(CornerToolHandleBrush, CornerToolHandlePen, handleScreen, 6.0, 6.0);
     }
 
     private void DrawEditableVertexHandles(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
@@ -2156,6 +2199,91 @@ Selection:
         var margin = Math.Max(0.0, (dx * axisX + dy * axisY) / length);
         SetCurrentValue(SewingHoleMarginProperty, margin);
         InvalidateVisual();
+    }
+
+    private bool TryBeginOffsetHandleDrag(Point screenPoint, IPointer pointer)
+    {
+        if (!TryGetSelectedOffsetHandle(out _, out var handle)
+            || ScreenDistance(screenPoint, WorldToScreen(handle, Bounds.Size)) > 12.0)
+            return false;
+
+        _isDraggingOffsetHandle = true;
+        pointer.Capture(this);
+        return true;
+    }
+
+    private void ApplyOffsetHandleDrag(Point screenPoint)
+    {
+        if (!TryGetSelectedOffsetHandle(out var anchor, out var handle))
+            return;
+
+        var axisX = handle.X - anchor.X;
+        var axisY = handle.Y - anchor.Y;
+        var length = Math.Sqrt(axisX * axisX + axisY * axisY);
+        if (length <= 0.0001)
+            return;
+
+        var point = ScreenToWorld(screenPoint);
+        var dx = point.X - anchor.X;
+        var dy = point.Y - anchor.Y;
+        var projection = (dx * axisX + dy * axisY) / length;
+        SetCurrentValue(OffsetDistanceTextProperty, Math.Max(0.1, Math.Abs(projection)).ToString("0.###", CultureInfo.InvariantCulture));
+        SetCurrentValue(OffsetSideProperty, projection >= 0.0 ? "Outward" : "Inward");
+        InvalidateVisual();
+    }
+
+    private bool TryGetSelectedOffsetHandle(out Editor2DPoint anchor, out Editor2DPoint handle)
+    {
+        anchor = default;
+        handle = default;
+        if (!double.TryParse(OffsetDistanceText, NumberStyles.Float, CultureInfo.InvariantCulture, out var distance)
+            || !double.IsFinite(distance))
+            distance = 12.0;
+        distance = Math.Max(0.1, Math.Abs(distance));
+        var side = string.Equals(OffsetSide, "Inward", StringComparison.OrdinalIgnoreCase) ? -1.0 : 1.0;
+        var selected = new HashSet<string>(SelectedPathIds, StringComparer.Ordinal);
+        var path = GetVisiblePaths()
+            .FirstOrDefault(candidate => selected.Contains(candidate.Id) && Editor2DGeometry.IsCurveOffsettablePath(candidate));
+        if (path is null)
+            return false;
+
+        if ((path.EntityType.Equals("CIRCLE", StringComparison.OrdinalIgnoreCase)
+                || path.EntityType.Equals("ARC", StringComparison.OrdinalIgnoreCase))
+            && path.Center is Editor2DPoint center)
+        {
+            anchor = center;
+            handle = new Editor2DPoint(center.X + (distance * side), center.Y);
+            return true;
+        }
+
+        if (path.Points.Count < 2)
+            return false;
+        var segmentCount = path.IsClosed ? path.Points.Count : path.Points.Count - 1;
+        var bestLength = 0.0;
+        Editor2DPoint bestStart = default;
+        Editor2DPoint bestEnd = default;
+        for (var index = 0; index < segmentCount; index++)
+        {
+            var start = path.Points[index];
+            var end = path.Points[(index + 1) % path.Points.Count];
+            var segmentLength = Math.Sqrt(Math.Pow(end.X - start.X, 2) + Math.Pow(end.Y - start.Y, 2));
+            if (segmentLength > bestLength)
+            {
+                bestLength = segmentLength;
+                bestStart = start;
+                bestEnd = end;
+            }
+        }
+
+        if (bestLength <= 0.0001)
+            return false;
+        anchor = new Editor2DPoint((bestStart.X + bestEnd.X) / 2.0, (bestStart.Y + bestEnd.Y) / 2.0);
+        var normalX = -(bestEnd.Y - bestStart.Y) / bestLength;
+        var normalY = (bestEnd.X - bestStart.X) / bestLength;
+        handle = new Editor2DPoint(
+            anchor.X + (normalX * distance * side),
+            anchor.Y + (normalY * distance * side));
+        return true;
     }
 
     private bool TryGetSelectedSewingHoleHandle(out Editor2DPoint anchor, out Editor2DPoint handle)

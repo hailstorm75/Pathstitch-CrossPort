@@ -31,6 +31,7 @@ internal sealed class DxfCanvasInteractionSession
     internal bool IsEditingVertex;
     internal bool IsDraggingCorner;
     internal bool IsDraggingSewingHoleMargin;
+    internal bool IsDraggingOffsetHandle;
     internal string? CornerDragPathId;
     internal int CornerDragIndex;
     internal Editor2DCornerKind CornerDragKind;
@@ -91,6 +92,7 @@ internal sealed class DxfCanvasInteractionSession
         IsEditingVertex = false;
         IsDraggingCorner = false;
         IsDraggingSewingHoleMargin = false;
+        IsDraggingOffsetHandle = false;
         CornerDragPathId = null;
         CornerDragIndex = 0;
         CornerDragKind = Editor2DCornerKind.Fillet;

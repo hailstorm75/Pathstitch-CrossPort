@@ -162,6 +162,11 @@ public sealed class DxfCanvasCollaboratorTests
         session.IsDraggingSewingHoleMargin = true;
         Assert.Equal(DxfCanvasMoveRoute.SewingHoleMargin, controller.RouteMove(Editor2DTool.AddSewingHoles, true));
         Assert.Equal(DxfCanvasReleaseRoute.SewingHoleMargin, controller.RouteRelease(Editor2DTool.AddSewingHoles, true));
+
+        session.IsDraggingSewingHoleMargin = false;
+        session.IsDraggingOffsetHandle = true;
+        Assert.Equal(DxfCanvasMoveRoute.OffsetHandle, controller.RouteMove(Editor2DTool.Offset, true));
+        Assert.Equal(DxfCanvasReleaseRoute.OffsetHandle, controller.RouteRelease(Editor2DTool.Offset, true));
     }
 
     [Fact]

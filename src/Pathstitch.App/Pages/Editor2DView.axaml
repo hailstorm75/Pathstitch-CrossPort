@@ -25,6 +25,8 @@
     HiddenPathIds="{Binding TwoDHiddenPathIds}"
     PreviewPaths="{Binding TwoDWorkspace.SewingHolePreviewPaths}"
     SewingHoleMargin="{Binding TwoDSewingHoleMargin, Mode=TwoWay}"
+    OffsetDistanceText="{Binding TwoDOffsetDistanceText, Mode=TwoWay}"
+    OffsetSide="{Binding TwoDOffsetSide, Mode=TwoWay}"
     PatternPreviewPaths="{Binding TwoDPatternPreviewPaths}"
     ReferenceImages="{Binding TwoDReferenceImages}"
     ActiveReferenceImage="{Binding TwoDActiveReferenceImage}"

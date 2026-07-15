@@ -213,6 +213,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Explode Compound", canvas, StringComparison.Ordinal);
         Assert.Contains("Stroke to Fill", canvas, StringComparison.Ordinal);
         Assert.Contains("Fill to Stroke", canvas, StringComparison.Ordinal);
+        Assert.Contains("OffsetDistanceText=\"{Binding TwoDOffsetDistanceText, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
     }
 
     [Fact]
