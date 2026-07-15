@@ -4,7 +4,7 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   Title="About Pathstitch"
   Width="460"
-  Height="260"
+  Height="300"
   CanResize="False"
   ShowInTaskbar="False"
   WindowStartupLocation="CenterOwner"
@@ -46,6 +46,10 @@
     </Border>
 
     <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button
+        AutomationProperties.AutomationId="dialog.about.check-updates"
+        Content="Check for Updates…"
+        Click="OnCheckForUpdatesClicked" />
       <Button
         AutomationProperties.AutomationId="dialog.about.support"
         Content="Buy me a coffee"

@@ -33,6 +33,7 @@ public partial class App : Application
             .AddSingleton<IUnsavedChangesPromptService, AvaloniaUnsavedChangesPromptService>()
             .AddSingleton<IEditorImportUnitsPromptService, AvaloniaEditorImportUnitsPromptService>()
             .AddSingleton<IProcessLauncher, SystemProcessLauncher>()
+            .AddSingleton<IAppUpdateService, AppUpdateService>()
             .AddSingleton<IFileIntegrationService>(services =>
                 DesktopFileIntegrationServiceFactory.CreateForCurrentPlatform(
                     services.GetRequiredService<IProcessLauncher>()))

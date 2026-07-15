@@ -7,6 +7,7 @@ using Domain.App.Models;
 using Domain.App.ViewModels;
 using Pathstitch.App.Dialogs;
 using Pathstitch.App.Services;
+using CommunityToolkit.Mvvm.DependencyInjection;
 
 namespace Pathstitch.App.Pages;
 
@@ -96,9 +97,12 @@ public partial class EditorShellView : EditorInteractionControlBase
         if (TopLevel.GetTopLevel(this) is not Window owner)
             return;
 
-        var dialog = new AboutDialog();
+        var dialog = new AboutDialog(Ioc.Default.GetRequiredService<IAppUpdateService>());
         await dialog.ShowDialog(owner);
     }
+
+    private void OnCheckForUpdatesClicked(object? sender, RoutedEventArgs e)
+        => Ioc.Default.GetRequiredService<IAppUpdateService>().CheckForUpdates();
 
     private async void OnPreferencesClicked(object? sender, RoutedEventArgs e)
     {

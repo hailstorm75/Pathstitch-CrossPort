@@ -55,9 +55,12 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("AutomationProperties.AutomationId=\"editor.menu.help\"", shell, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"editor.menu.help.about\"", shell, StringComparison.Ordinal);
         Assert.Contains("Click=\"OnAboutClicked\"", shell, StringComparison.Ordinal);
+        Assert.Contains("editor.menu.help.check-updates", shell, StringComparison.Ordinal);
+        Assert.Contains("Click=\"OnCheckForUpdatesClicked\"", shell, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"dialog.about\"", aboutDialog, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"dialog.about.close\"", aboutDialog, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"dialog.about.support\"", aboutDialog, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"dialog.about.check-updates\"", aboutDialog, StringComparison.Ordinal);
         Assert.Contains("VersionText", ReadRepositoryFile("src", "Pathstitch.App", "Dialogs", "AboutDialog.axaml.cs"), StringComparison.Ordinal);
         var home = ReadPage("HomePageView.axaml");
         Assert.DoesNotContain("vNext Home", home, StringComparison.Ordinal);
