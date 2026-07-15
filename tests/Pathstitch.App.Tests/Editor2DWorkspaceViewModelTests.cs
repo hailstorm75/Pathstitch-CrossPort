@@ -143,6 +143,30 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void SelectedTextFitMode_UsesExistingTextBoxForWidthWarp()
+    {
+        var text = new Editor2DPreviewPath(
+            "text",
+            "TEXT",
+            [new(0, 0), new(60, 0), new(60, 12), new(0, 12)],
+            IsClosed: true,
+            Start: new(0, 0),
+            Text: "AB",
+            TextHeight: 5,
+            WidthFactor: 1);
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [text] });
+        workspace.SetSelection([text.Id]);
+
+        var result = workspace.ApplySelectedText("AB", 5, "Inter", 0, false, false, false, "Width");
+
+        Assert.True(result.IsSuccess, result.Message);
+        var updated = Assert.Single(workspace.Document.Paths);
+        Assert.True(updated.WidthFactor > 9.0);
+        Assert.Equal(text.Start, updated.Start);
+    }
+
+    [Fact]
     public void CircularPattern_UsesExplicitPivotWhenProvided()
     {
         var workspace = new Editor2DWorkspaceViewModel();

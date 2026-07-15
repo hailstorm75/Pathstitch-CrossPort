@@ -1255,6 +1255,20 @@ public sealed partial class EditorPageViewModel
         set => SetWorkspaceFacadeValue(_twoDSelectedTextUnderline, value, updated => _twoDSelectedTextUnderline = updated);
     }
 
+    public IReadOnlyList<string> TwoDSelectedTextFitModeOptions => ["None", "Height", "Width", "Both"];
+
+    public string TwoDSelectedTextFitMode
+    {
+        get => _twoDSelectedTextFitMode;
+        set
+        {
+            var normalized = TwoDSelectedTextFitModeOptions.Contains(value, StringComparer.Ordinal)
+                ? value
+                : "None";
+            SetWorkspaceFacadeValue(_twoDSelectedTextFitMode, normalized, updated => _twoDSelectedTextFitMode = updated);
+        }
+    }
+
     public bool IsTwoDSelectedTextHeightValid => _isTwoDSelectedTextHeightValid;
 
     public bool IsTwoDSelectedTextHeightInvalid => !_isTwoDSelectedTextHeightValid;
@@ -1779,7 +1793,8 @@ public sealed partial class EditorPageViewModel
 
         var result = _twoDWorkspace.ApplySelectedText(
             normalizedText, normalizedHeight, TwoDSelectedTextFontFamily, characterSpacing,
-            TwoDSelectedTextBold, TwoDSelectedTextItalic, TwoDSelectedTextUnderline);
+            TwoDSelectedTextBold, TwoDSelectedTextItalic, TwoDSelectedTextUnderline,
+            TwoDSelectedTextFitMode);
         if (!CompleteTwoDWorkspaceOperation(result))
             return false;
         SetTwoDSelectedTextHeightValidity(true);
@@ -2481,6 +2496,7 @@ public sealed partial class EditorPageViewModel
             _twoDSelectedTextBold = false;
             _twoDSelectedTextItalic = false;
             _twoDSelectedTextUnderline = false;
+            _twoDSelectedTextFitMode = "None";
             SetTwoDSelectedTextHeightValidity(true);
             NotifyTwoDSelectedTextEditorStateChanged();
             return;
@@ -2494,6 +2510,7 @@ public sealed partial class EditorPageViewModel
         _twoDSelectedTextBold = selectedTextPath.IsBold;
         _twoDSelectedTextItalic = selectedTextPath.IsItalic;
         _twoDSelectedTextUnderline = selectedTextPath.IsUnderline;
+        _twoDSelectedTextFitMode = "None";
         SetTwoDSelectedTextHeightValidity(true);
         NotifyTwoDSelectedTextEditorStateChanged();
     }
@@ -2508,6 +2525,8 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDSelectedTextBold));
         OnPropertyChanged(nameof(TwoDSelectedTextItalic));
         OnPropertyChanged(nameof(TwoDSelectedTextUnderline));
+        OnPropertyChanged(nameof(TwoDSelectedTextFitMode));
+        OnPropertyChanged(nameof(TwoDSelectedTextFitModeOptions));
         OnPropertyChanged(nameof(CanApplyTwoDSelectedText));
     }
 

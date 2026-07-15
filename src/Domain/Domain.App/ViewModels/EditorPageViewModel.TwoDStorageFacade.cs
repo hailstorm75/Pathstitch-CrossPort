@@ -31,6 +31,7 @@ public sealed partial class EditorPageViewModel
     private bool _twoDSelectedTextBold { get => _twoDWorkspace.SelectedTextBold; set => _twoDWorkspace.SelectedTextBold = value; }
     private bool _twoDSelectedTextItalic { get => _twoDWorkspace.SelectedTextItalic; set => _twoDWorkspace.SelectedTextItalic = value; }
     private bool _twoDSelectedTextUnderline { get => _twoDWorkspace.SelectedTextUnderline; set => _twoDWorkspace.SelectedTextUnderline = value; }
+    private string _twoDSelectedTextFitMode { get => _twoDWorkspace.SelectedTextFitMode; set => _twoDWorkspace.SelectedTextFitMode = value; }
     private bool _isTwoDSelectedTextHeightValid { get => _twoDWorkspace.IsSelectedTextHeightValid; set => _twoDWorkspace.IsSelectedTextHeightValid = value; }
     private double _twoDViewportZoom { get => _twoDWorkspace.ViewportZoom; set => _twoDWorkspace.ViewportZoom = value; }
     private double _twoDViewportOffsetX { get => _twoDWorkspace.ViewportOffsetX; set => _twoDWorkspace.ViewportOffsetX = value; }

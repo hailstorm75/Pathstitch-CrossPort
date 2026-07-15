@@ -412,7 +412,8 @@ public sealed partial class Editor2DWorkspaceViewModel
     }
 
     public Editor2DWorkspaceOperationResult ApplySelectedText(
-        string text, double height, string font, double spacing, bool bold, bool italic, bool underline)
+        string text, double height, string font, double spacing, bool bold, bool italic, bool underline,
+        string fitMode = "None")
     {
         var selected = SelectedPaths(path => path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase));
         if (selected.Count != 1)
@@ -421,15 +422,42 @@ public sealed partial class Editor2DWorkspaceViewModel
         var start = source.Start ?? source.Points.FirstOrDefault() ?? new Editor2DPoint(0, 0);
         var normalizedText = string.IsNullOrWhiteSpace(text) ? "Label" : text.Replace("\r\n", "\n");
         var normalizedHeight = Math.Max(height, .1);
+        var normalizedFitMode = fitMode.Trim() is "Height" or "Width" or "Both" ? fitMode.Trim() : "None";
+        var widthFactor = source.WidthFactor ?? 1.0;
+        if (normalizedFitMode is "Height" or "Both")
+        {
+            var targetHeight = GetPathExtent(source.Points, axis: 1);
+            var lineCount = Math.Max(normalizedText.Split('\n').Length, 1);
+            if (targetHeight > 0.1)
+                normalizedHeight = Math.Max(0.1, targetHeight / (lineCount * 1.2));
+        }
+        if (normalizedFitMode is "Width" or "Both")
+        {
+            var targetWidth = GetPathExtent(source.Points, axis: 0);
+            var naturalBounds = Editor2DGeometry.BuildTextBoundsPoints(
+                start, normalizedText, normalizedHeight, source.RotationDegrees ?? 0, 1.0, spacing);
+            var naturalWidth = GetPathExtent(naturalBounds, axis: 0);
+            if (targetWidth > 0.1 && naturalWidth > 0.1)
+                widthFactor = Math.Max(0.1, targetWidth / naturalWidth);
+        }
         var updated = source with
         {
             Start = start, Text = normalizedText, TextHeight = normalizedHeight, FontFamily = font,
             CharacterSpacing = spacing, IsBold = bold, IsItalic = italic, IsUnderline = underline,
+            WidthFactor = widthFactor,
             Points = Editor2DGeometry.BuildTextBoundsPoints(start, normalizedText, normalizedHeight,
-                source.RotationDegrees ?? 0, source.WidthFactor ?? 1, spacing),
+                source.RotationDegrees ?? 0, widthFactor, spacing),
         };
         CommitDocumentEdit(RebuildDocument(Document, Document.Paths.Select(path => path.Id == source.Id ? updated : path).ToArray()), SelectedPathIds);
         return Editor2DWorkspaceOperationResult.Success("Updated the selected text entity", normalizedText, normalizedHeight);
+    }
+
+    private static double GetPathExtent(IReadOnlyList<Editor2DPoint> points, int axis)
+    {
+        if (points.Count == 0)
+            return 0.0;
+        var values = points.Select(point => axis == 0 ? point.X : point.Y).ToArray();
+        return values.Max() - values.Min();
     }
 
     private Editor2DWorkspaceOperationResult ReplaceSelectedConvertibleLines(

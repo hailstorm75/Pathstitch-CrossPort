@@ -24,6 +24,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private bool _selectedTextBold;
     private bool _selectedTextItalic;
     private bool _selectedTextUnderline;
+    private string _selectedTextFitMode = "None";
     private bool _isSelectedTextHeightValid = true;
     private double _viewportZoom;
     private double _viewportOffsetX;
@@ -72,6 +73,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     internal bool SelectedTextBold { get => _selectedTextBold; set => SetProperty(ref _selectedTextBold, value); }
     internal bool SelectedTextItalic { get => _selectedTextItalic; set => SetProperty(ref _selectedTextItalic, value); }
     internal bool SelectedTextUnderline { get => _selectedTextUnderline; set => SetProperty(ref _selectedTextUnderline, value); }
+    internal string SelectedTextFitMode { get => _selectedTextFitMode; set => SetProperty(ref _selectedTextFitMode, value); }
     internal bool IsSelectedTextHeightValid { get => _isSelectedTextHeightValid; set => SetProperty(ref _isSelectedTextHeightValid, value); }
     internal double ViewportZoom { get => _viewportZoom; set => SetProperty(ref _viewportZoom, value); }
     internal double ViewportOffsetX { get => _viewportOffsetX; set => SetProperty(ref _viewportOffsetX, value); }
