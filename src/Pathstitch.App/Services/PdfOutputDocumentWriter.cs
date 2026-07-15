@@ -34,6 +34,18 @@ internal static class PdfOutputDocumentWriter
                 continue;
             }
 
+            if (path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrEmpty(path.Text)
+                && (path.Start ?? path.Points.FirstOrDefault()) is { } textStart)
+            {
+                var mapped = ToPagePoint(textStart, bounds, scale);
+                var textHeight = Math.Max(path.TextHeight ?? 5.0, 0.1) * scale;
+                content.Append("BT /F1 ").Append(Number(textHeight)).Append(" Tf ")
+                    .Append(Number(mapped.X)).Append(' ').Append(Number(mapped.Y)).Append(" Td (")
+                    .Append(EscapeText(path.Text)).Append(") Tj ET\n");
+                continue;
+            }
+
             if (path.Points.Count == 0)
                 continue;
 
@@ -55,8 +67,9 @@ internal static class PdfOutputDocumentWriter
         {
             "<< /Type /Catalog /Pages 2 0 R >>",
             "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
             $"<< /Length {Encoding.ASCII.GetByteCount(content.ToString())} >>\nstream\n{content}endstream",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
         };
         var pdf = new StringBuilder("%PDF-1.4\n");
         var offsets = new List<int> { 0 };
@@ -114,4 +127,11 @@ internal static class PdfOutputDocumentWriter
 
     private static string Number(double value)
         => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static string EscapeText(string value)
+        => value.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("(", "\\(", StringComparison.Ordinal)
+            .Replace(")", "\\)", StringComparison.Ordinal)
+            .Replace("\r", string.Empty, StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
 }

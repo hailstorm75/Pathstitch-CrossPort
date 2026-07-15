@@ -247,6 +247,9 @@ public sealed class EditorQuickDxfExportTests
             Assert.Contains(" m\n", pdf, StringComparison.Ordinal);
             Assert.Contains(" l\n", pdf, StringComparison.Ordinal);
             Assert.Contains(" c\n", pdf, StringComparison.Ordinal);
+            Assert.Contains("/F1 5 0 R", pdf, StringComparison.Ordinal);
+            Assert.Contains("BT /F1", pdf, StringComparison.Ordinal);
+            Assert.Contains("hello \\(pdf\\)", pdf, StringComparison.Ordinal);
             Assert.Contains("xref", pdf, StringComparison.Ordinal);
         }
         finally
@@ -267,6 +270,7 @@ public sealed class EditorQuickDxfExportTests
             [
                 new Editor2DPreviewPath("line-1", "LINE", [new(1, 2), new(3, 4)], false),
                 new Editor2DPreviewPath("circle-1", "CIRCLE", [], true, Center: new(2, 3), Radius: 0.5),
+                new Editor2DPreviewPath("text-1", "TEXT", [], false, Start: new(1.2, 2.2), Text: "hello (pdf)", TextHeight: 2),
             ],
             new Editor2DBounds(1, 2, 3, 4),
             new Dictionary<string, int> { ["LINE"] = 1, ["CIRCLE"] = 1 },
