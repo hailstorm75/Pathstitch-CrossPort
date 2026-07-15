@@ -145,6 +145,19 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void BatchWorkspace_OffersDxfInputs()
+    {
+        var panel = ReadPage("EditorBatchContextPanel.axaml");
+        var view = ReadPage("EditorBatchView.axaml");
+        var codeBehind = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorBatchContextPanel.axaml.cs");
+
+        Assert.Contains(".dxf", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Content=\"Add file\"", panel, StringComparison.Ordinal);
+        Assert.Contains("Text=\"Batch inputs\"", view, StringComparison.Ordinal);
+        Assert.Contains("AddInputFile", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TwoDView_BindsScalePivotStateToCanvas()
     {
         var twoD = ReadPage("Editor2DView.axaml");

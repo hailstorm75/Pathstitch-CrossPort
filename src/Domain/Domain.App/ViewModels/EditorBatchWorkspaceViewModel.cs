@@ -10,7 +10,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     private string _inputPath = string.Empty;
     private bool _continueOnError = true;
     private bool _isRunning;
-    private string _summary = "No projects queued.";
+    private string _summary = "No files queued.";
 
     public ObservableCollection<EditorBatchItem> Items { get; } = [];
 
@@ -48,32 +48,38 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         private set => SetProperty(ref _summary, value);
     }
 
-    public bool AddProject(string path)
+    public bool AddFile(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
             return false;
 
         var fullPath = Path.GetFullPath(path.Trim().Trim('"'));
-        if (!Path.GetExtension(fullPath).Equals(".stch", StringComparison.OrdinalIgnoreCase)
+        var extension = Path.GetExtension(fullPath);
+        if (!(extension.Equals(".stch", StringComparison.OrdinalIgnoreCase)
+              || extension.Equals(".dxf", StringComparison.OrdinalIgnoreCase))
             || Items.Any(item => string.Equals(item.FilePath, fullPath, StringComparison.OrdinalIgnoreCase)))
         {
             return false;
         }
 
         Items.Add(new EditorBatchItem(fullPath));
-        Summary = $"{Items.Count} project(s) queued.";
+        Summary = $"{Items.Count} file(s) queued.";
         OnPropertyChanged(nameof(CanRun));
         return true;
     }
 
-    public bool AddInputProject()
+    public bool AddProject(string path) => AddFile(path);
+
+    public bool AddInputFile()
     {
-        if (!AddProject(InputPath))
+        if (!AddFile(InputPath))
             return false;
 
         InputPath = string.Empty;
         return true;
     }
+
+    public bool AddInputProject() => AddInputFile();
 
     public void RemoveProject(string filePath)
     {
@@ -83,7 +89,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             return;
 
         Items.Remove(item);
-        Summary = Items.Count == 0 ? "No projects queued." : $"{Items.Count} project(s) queued.";
+        Summary = Items.Count == 0 ? "No files queued." : $"{Items.Count} file(s) queued.";
         OnPropertyChanged(nameof(CanRun));
     }
 
@@ -101,13 +107,15 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 item.Status = EditorBatchItemStatus.Running;
-                item.Message = "Validating project";
+                item.Message = "Validating input";
 
                 try
                 {
-                    await ValidateProjectAsync(item.FilePath, cancellationToken).ConfigureAwait(false);
+                    await ValidateInputAsync(item.FilePath, cancellationToken).ConfigureAwait(false);
                     item.Status = EditorBatchItemStatus.Succeeded;
-                    item.Message = "Valid Pathstitch project";
+                    item.Message = Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)
+                        ? "Valid DXF input"
+                        : "Valid Pathstitch project";
                     succeeded++;
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
@@ -127,10 +135,18 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         }
     }
 
-    private static async Task ValidateProjectAsync(string path, CancellationToken cancellationToken)
+    private static async Task ValidateInputAsync(string path, CancellationToken cancellationToken)
     {
         if (!File.Exists(path))
-            throw new FileNotFoundException("Project file was not found.", path);
+            throw new FileNotFoundException("Batch input file was not found.", path);
+
+        if (Path.GetExtension(path).Equals(".dxf", StringComparison.OrdinalIgnoreCase))
+        {
+            var info = new FileInfo(path);
+            if (info.Length == 0)
+                throw new InvalidDataException("DXF input is empty.");
+            return;
+        }
 
         await using var stream = File.OpenRead(path);
         try

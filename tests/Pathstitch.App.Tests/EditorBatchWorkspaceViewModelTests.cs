@@ -32,14 +32,33 @@ public sealed class EditorBatchWorkspaceViewModelTests
     }
 
     [Fact]
-    public void Queue_RejectsNonProjectsAndDuplicateStablePaths()
+    public void Queue_AcceptsDxfAndProjectsAndRejectsDuplicates()
     {
         var workspace = new EditorBatchWorkspaceViewModel();
 
-        Assert.False(workspace.AddProject("drawing.dxf"));
-        Assert.True(workspace.AddProject("one.stch"));
-        Assert.False(workspace.AddProject("one.stch"));
-        Assert.Single(workspace.Items);
+        Assert.True(workspace.AddFile("drawing.dxf"));
+        Assert.True(workspace.AddFile("one.stch"));
+        Assert.False(workspace.AddFile("one.stch"));
+        Assert.Equal(2, workspace.Items.Count);
+    }
+
+    [Fact]
+    public async Task RunAsync_ValidatesDxfInputs()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-batch-{Guid.NewGuid():N}.dxf");
+        await File.WriteAllTextAsync(path, "0\nSECTION\n");
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel();
+            Assert.True(workspace.AddFile(path));
+            await workspace.RunAsync();
+            Assert.Equal(EditorBatchItemStatus.Succeeded, workspace.Items[0].Status);
+            Assert.Equal("Valid DXF input", workspace.Items[0].Message);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]

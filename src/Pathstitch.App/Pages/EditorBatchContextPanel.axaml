@@ -20,19 +20,19 @@
         FontSize="10"
         TextWrapping="Wrap"
         Foreground="{StaticResource SecondaryTextBrush}"
-        Text="Queue projects here without opening them in the 2D or 3D editor." />
+        Text="Queue DXF files or projects here without opening them in the 2D or 3D editor." />
       <ComboBox
         AutomationProperties.AutomationId="editor.batch.action"
         ItemsSource="{Binding AvailableActions}"
         SelectedItem="{Binding SelectedAction}" />
       <TextBox
         AutomationProperties.AutomationId="editor.batch.input-path"
-        PlaceholderText="Path to a .stch project"
+        PlaceholderText="Path to a .dxf or .stch file"
         Text="{Binding InputPath, Mode=TwoWay}" />
       <Button
         AutomationProperties.AutomationId="editor.batch.add"
         Classes="panel-button"
-        Content="Add project"
+        Content="Add file"
         Click="OnAddProjectClicked" />
       <ToggleSwitch
         AutomationProperties.AutomationId="editor.batch.continue-on-error"

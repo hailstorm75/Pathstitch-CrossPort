@@ -11,7 +11,7 @@ public partial class EditorBatchContextPanel : UserControl
     private void OnAddProjectClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorBatchWorkspaceViewModel viewModel)
-            viewModel.AddInputProject();
+            viewModel.AddInputFile();
     }
 
     private async void OnRunBatchClicked(object? sender, RoutedEventArgs e)
