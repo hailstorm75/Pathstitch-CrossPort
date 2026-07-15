@@ -230,9 +230,15 @@ public sealed partial class EditorPageViewModel
         set
         {
             if (_twoDWorkspace.ActiveTool == value)
+            {
+                if (value == Editor2DTool.Move)
+                    TwoDMoveCreateCopy = false;
                 return;
+            }
 
             _twoDWorkspace.SetActiveTool(value);
+            if (value == Editor2DTool.Move)
+                TwoDMoveCreateCopy = false;
             ClearTwoDCircularPatternPivot();
             TwoDPatternGuidePathId = null;
             OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
@@ -572,6 +578,14 @@ public sealed partial class EditorPageViewModel
     public bool IsTwoDSelectToolActive => TwoDActiveTool == Editor2DTool.Select;
 
     public bool IsTwoDMoveToolActive => TwoDActiveTool == Editor2DTool.Move;
+
+    private bool _twoDMoveCreateCopy;
+
+    public bool TwoDMoveCreateCopy
+    {
+        get => _twoDMoveCreateCopy;
+        set => SetProperty(ref _twoDMoveCreateCopy, value);
+    }
 
     public string TwoDPrecisionDeltaXText
     {
@@ -1593,7 +1607,11 @@ public sealed partial class EditorPageViewModel
 
     public void ActivateTwoDSelectTool() => TwoDActiveTool = Editor2DTool.Select;
 
-    public void ActivateTwoDMoveTool() => TwoDActiveTool = Editor2DTool.Move;
+    public void ActivateTwoDMoveTool()
+    {
+        TwoDMoveCreateCopy = false;
+        TwoDActiveTool = Editor2DTool.Move;
+    }
 
     public void ActivateTwoDPanTool() => TwoDActiveTool = Editor2DTool.Pan;
 

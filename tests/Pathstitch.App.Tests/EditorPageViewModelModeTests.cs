@@ -150,6 +150,24 @@ public sealed class EditorPageViewModelModeTests
         Assert.False(viewModel.TwoDScalePivotPicking);
     }
 
+    [Fact]
+    public void MoveCopyMode_ResetsWhenMoveToolActivates()
+    {
+        var viewModel = CreateViewModel();
+
+        Assert.False(viewModel.TwoDMoveCreateCopy);
+
+        viewModel.TwoDMoveCreateCopy = true;
+        viewModel.ActivateTwoDMoveTool();
+
+        Assert.False(viewModel.TwoDMoveCreateCopy);
+
+        viewModel.TwoDMoveCreateCopy = true;
+        viewModel.TwoDActiveTool = Editor2DTool.Move;
+
+        Assert.False(viewModel.TwoDMoveCreateCopy);
+    }
+
     [Theory]
     [InlineData(EditorMode.TwoD, true, false, false)]
     [InlineData(EditorMode.ThreeD, false, true, false)]

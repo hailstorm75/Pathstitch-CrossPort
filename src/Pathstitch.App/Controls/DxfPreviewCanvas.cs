@@ -65,6 +65,12 @@ public sealed class DxfPreviewCanvas : Control
             defaultValue: false,
             defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<bool> TwoDMoveCreateCopyProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(
+            nameof(TwoDMoveCreateCopy),
+            defaultValue: false,
+            defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<string> PatternModeProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, string>(nameof(PatternMode), defaultValue: "Rectangular");
 
@@ -299,6 +305,7 @@ public sealed class DxfPreviewCanvas : Control
             SnapEnabledProperty,
             GridVisibleProperty,
             ChainSelectionEnabledProperty,
+            TwoDMoveCreateCopyProperty,
             SelectedPathIdsProperty,
             HiddenPathIdsProperty,
             PreviewPathsProperty,
@@ -642,6 +649,12 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(ChainSelectionEnabledProperty, value);
     }
 
+    public bool TwoDMoveCreateCopy
+    {
+        get => GetValue(TwoDMoveCreateCopyProperty);
+        set => SetValue(TwoDMoveCreateCopyProperty, value);
+    }
+
     public string PatternMode
     {
         get => GetValue(PatternModeProperty);
@@ -921,7 +934,11 @@ public sealed class DxfPreviewCanvas : Control
             CancelPendingMeasurement();
 
         if (change.Property == ActiveToolProperty)
+        {
             _cornerToolSessionValue = null;
+            if (ActiveTool == Editor2DTool.Move)
+                SetCurrentValue(TwoDMoveCreateCopyProperty, false);
+        }
 
         if (change.Property == ActiveToolProperty && ActiveTool != Editor2DTool.Dimension)
             CancelPendingDimension();
@@ -3645,6 +3662,7 @@ Selection:
         _moveDocumentSnapshot = Document;
         _moveSelectionIds = selectionIds.ToArray();
         _moveStartPoint = ScreenToWorld(pointerPosition, Zoom);
+        _interaction.MoveSelectionCreateCopy = TwoDMoveCreateCopy;
         _cancelInteractionOnPointerRelease = false;
         pointer.Capture(this);
     }
@@ -3657,8 +3675,23 @@ Selection:
         var currentPoint = ScreenToWorld(pointerPosition, Zoom);
         var deltaX = currentPoint.X - _moveStartPoint.X;
         var deltaY = currentPoint.Y - _moveStartPoint.Y;
+        if (_interaction.MoveSelectionCreateCopy
+            && _moveDocumentSnapshot == Document
+            && _moveSelectionIds.Count > 0)
+        {
+            var copiedDocument = DuplicateSelectedPaths(_moveDocumentSnapshot, _moveSelectionIds, out var copySelectionIds);
+            if (copiedDocument is not null)
+            {
+                _moveDocumentSnapshot = copiedDocument;
+                _moveSelectionIds = copySelectionIds;
+                SetCurrentValue(SelectedPathIdsProperty, copySelectionIds);
+                SetCurrentValue(DocumentProperty, copiedDocument);
+            }
+        }
+
         var movedDocument = TranslatePaths(_moveDocumentSnapshot, _moveSelectionIds, deltaX, deltaY);
         SetCurrentValue(DocumentProperty, movedDocument);
+        SetCurrentValue(SelectedPathIdsProperty, _moveSelectionIds);
         InvalidateVisual();
     }
 
@@ -4628,6 +4661,25 @@ Selection:
         double deltaX,
         double deltaY)
         => DxfCanvasGeometryEditor.Translate(document, selectedIds, deltaX, deltaY);
+
+    private static Editor2DPreviewDocument? DuplicateSelectedPaths(
+        Editor2DPreviewDocument document,
+        IReadOnlyList<string> selectedIds,
+        out IReadOnlyList<string> copySelectionIds)
+    {
+        var selected = selectedIds.ToHashSet(StringComparer.Ordinal);
+        var copies = document.Paths
+            .Where(path => selected.Contains(path.Id))
+            .Select(path => CopyPath(path, $"{path.Id}:copy:{Guid.NewGuid():N}"))
+            .ToArray();
+        copySelectionIds = copies.Select(path => path.Id).ToArray();
+        return copies.Length == 0
+            ? null
+            : CreateUpdatedDocument(document, [.. document.Paths, .. copies]);
+    }
+
+    private static Editor2DPreviewPath CopyPath(Editor2DPreviewPath path, string id)
+        => path with { Id = id };
 
     private static Editor2DPreviewDocument ScalePaths(
         Editor2DPreviewDocument document,

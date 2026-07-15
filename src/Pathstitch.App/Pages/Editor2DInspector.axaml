@@ -528,6 +528,10 @@
       <StackPanel Spacing="8" IsVisible="{Binding IsTwoDMoveToolActive}">
         <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Precision transform" />
         <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Apply exact translation and rotation to the selected geometry." TextWrapping="Wrap" />
+        <CheckBox
+          Content="Create copy (move duplicates)"
+          IsChecked="{Binding TwoDMoveCreateCopy, Mode=TwoWay}"
+          AutomationProperties.AutomationId="editor.2d.move.create-copy" />
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="6">
           <TextBlock VerticalAlignment="Center" Text="ΔX (mm)" />
           <TextBox Grid.Column="1" Text="{Binding TwoDPrecisionDeltaXText, Mode=TwoWay}" />

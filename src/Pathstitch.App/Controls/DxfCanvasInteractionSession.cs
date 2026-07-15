@@ -39,6 +39,7 @@ internal sealed class DxfCanvasInteractionSession
     internal Editor2DPreviewDocument? ScaleDocumentSnapshot;
     internal IReadOnlyList<string> MoveSelectionIds = Array.Empty<string>();
     internal IReadOnlyList<string> ScaleSelectionIds = Array.Empty<string>();
+    internal bool MoveSelectionCreateCopy;
     internal Editor2DPoint? MoveStartPoint;
     internal Editor2DPoint? ScaleCenterPoint;
     internal double ScaleStartDistance;
@@ -100,6 +101,7 @@ internal sealed class DxfCanvasInteractionSession
         ScaleDocumentSnapshot = null;
         MoveSelectionIds = Array.Empty<string>();
         ScaleSelectionIds = Array.Empty<string>();
+        MoveSelectionCreateCopy = false;
         MoveStartPoint = null;
         ScaleCenterPoint = null;
         ScaleStartDistance = 0;

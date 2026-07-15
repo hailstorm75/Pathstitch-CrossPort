@@ -1,5 +1,6 @@
 namespace Pathstitch.App.Tests;
 
+using System.Reflection;
 using Avalonia;
 using Domain.App.Models;
 using Pathstitch.App.Controls;
@@ -58,5 +59,53 @@ public sealed class DxfPreviewCanvasInteractionTests
     public void SelectionHandles_AreHiddenForOtherTools(Editor2DTool activeTool)
     {
         Assert.False(DxfCanvasSelectionInteraction.ShouldDrawHandles(activeTool));
+    }
+
+    [Fact]
+    public void MoveCopyHelper_PreservesOriginalsAndAssignsNewIds()
+    {
+        var document = new Editor2DPreviewDocument(
+            [new Editor2DPreviewPath("shape-1", "LINE", [new Editor2DPoint(0, 0), new Editor2DPoint(5, 0)], false)],
+            new Editor2DBounds(0, 0, 5, 0),
+            new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+            []);
+        var selectedIds = new[] { "shape-1" };
+
+        var method = typeof(DxfPreviewCanvas).GetMethod(
+            "DuplicateSelectedPaths",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+        var arguments = new object[] { document, selectedIds, null! };
+
+        var duplicatedDocument = Assert.IsType<Editor2DPreviewDocument>(method!.Invoke(null, arguments));
+        var copiedSelectionIds = Assert.IsAssignableFrom<IReadOnlyList<string>>(arguments[2]);
+
+        Assert.Single(document.Paths);
+        Assert.Equal("shape-1", document.Paths[0].Id);
+        Assert.Equal(2, duplicatedDocument.Paths.Count);
+        Assert.Equal("shape-1", duplicatedDocument.Paths[0].Id);
+        var copiedPath = duplicatedDocument.Paths[1];
+        Assert.StartsWith("shape-1:copy:", copiedPath.Id, StringComparison.Ordinal);
+        Assert.Equal(document.Paths[0].Points, copiedPath.Points);
+        Assert.Equal(new[] { copiedPath.Id }, copiedSelectionIds);
+    }
+
+    [Fact]
+    public void InPlaceMoveHelper_TranslatesSelectedGeometry()
+    {
+        var document = new Editor2DPreviewDocument(
+            [new Editor2DPreviewPath("shape-1", "LINE", [new Editor2DPoint(0, 0), new Editor2DPoint(5, 0)], false)],
+            new Editor2DBounds(0, 0, 5, 0),
+            new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+            []);
+
+        var movedDocument = typeof(DxfCanvasGeometryEditor)
+            .GetMethod("Translate", BindingFlags.Public | BindingFlags.Static)!
+            .Invoke(null, new object[] { document, new[] { "shape-1" }, 10.0, 2.0 });
+
+        var translated = Assert.IsType<Editor2DPreviewDocument>(movedDocument);
+        Assert.Equal(new Editor2DPoint(10, 2), translated.Paths[0].Points[0]);
+        Assert.Equal(new Editor2DPoint(15, 2), translated.Paths[0].Points[1]);
+        Assert.Single(translated.Paths);
     }
 }
