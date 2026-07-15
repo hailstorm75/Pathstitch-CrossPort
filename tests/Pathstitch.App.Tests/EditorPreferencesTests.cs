@@ -105,4 +105,26 @@ public sealed class EditorPreferencesTests
         Assert.Equal("C", viewModel.ToolCustomizations.Single(item => item.Identifier == "2d.circle").ShortcutText);
         await _ui.RunAsync(resetDialog.Close);
     }
+
+    [Fact]
+    public async Task PreferencesDialog_ResetAllRestoresShortcutsAcrossModes()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        viewModel.CustomizeTool("2d.circle", 99, "G");
+        viewModel.CustomizeTool("3d.move", 99, "Z");
+
+        var dialog = await _ui.RunAsync(() => new PreferencesDialog(viewModel));
+        await _ui.RunAsync(() =>
+        {
+            dialog.Show();
+            dialog.UpdateLayout();
+            _ui.FindByAutomationId<Button>(dialog, "dialog.preferences.reset-all")
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        });
+
+        Assert.Equal("C", viewModel.ToolCustomizations.Single(item => item.Identifier == "2d.circle").ShortcutText);
+        Assert.Equal("2", viewModel.ToolCustomizations.Single(item => item.Identifier == "3d.move").ShortcutText);
+        await _ui.RunAsync(dialog.Close);
+    }
 }

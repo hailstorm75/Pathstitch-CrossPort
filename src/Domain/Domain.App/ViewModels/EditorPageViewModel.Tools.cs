@@ -233,6 +233,18 @@ public sealed partial class EditorPageViewModel
         ApplyToolCustomizations(customizations, requestPersistence: true);
     }
 
+    public void ResetToolbarCustomizationForAllModes()
+    {
+        var defaults = EditorToolCatalog.All
+            .ToDictionary(descriptor => descriptor.Identifier, StringComparer.Ordinal);
+        var customizations = ToolCustomizations
+            .Select(customization => defaults.TryGetValue(customization.Identifier, out var descriptor)
+                ? customization with { Order = descriptor.Order, ShortcutText = descriptor.ShortcutText }
+                : customization)
+            .ToArray();
+        ApplyToolCustomizations(customizations, requestPersistence: true);
+    }
+
     public bool TryActivateEditorShortcut(string shortcutText)
     {
         if (ActiveEditorMode == EditorMode.Batch || string.IsNullOrWhiteSpace(shortcutText))

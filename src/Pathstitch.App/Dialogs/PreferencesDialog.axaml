@@ -45,6 +45,8 @@
     <StackPanel Grid.Row="6" Margin="0,16,0,0" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button AutomationProperties.AutomationId="dialog.preferences.reset"
               Content="Reset Toolbar" Click="OnResetClicked" />
+      <Button AutomationProperties.AutomationId="dialog.preferences.reset-all"
+              Content="Reset All Shortcuts" Click="OnResetAllClicked" />
       <Button AutomationProperties.AutomationId="dialog.preferences.cancel"
               Content="Cancel" Click="OnCancelClicked" />
       <Button AutomationProperties.AutomationId="dialog.preferences.apply"

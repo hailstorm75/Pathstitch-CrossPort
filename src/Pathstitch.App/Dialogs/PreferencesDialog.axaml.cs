@@ -162,6 +162,14 @@ public sealed partial class PreferencesDialog : Window
         StatusText.Text = "Toolbar and shortcuts reset for active mode.";
     }
 
+    private void OnResetAllClicked(object? sender, RoutedEventArgs e)
+    {
+        _viewModel?.ResetToolbarCustomizationForAllModes();
+        foreach (var (identifier, shortcut) in _shortcutEditors)
+            shortcut.Text = FindDescriptor(identifier)?.ShortcutText ?? string.Empty;
+        StatusText.Text = "Toolbar and shortcuts reset for all editor modes.";
+    }
+
     private EditorToolDescriptor? FindDescriptor(string identifier)
         => EditorToolCatalog.All.FirstOrDefault(descriptor =>
             descriptor.Mode == _mode
