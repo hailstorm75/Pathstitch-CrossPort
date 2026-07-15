@@ -802,10 +802,16 @@ public sealed class DxfPreviewCanvas : Control
                     height *= factor;
                     break;
                 case ReferenceImageDragMode.ScaleWidth:
-                    width *= Math.Max(0.01, Math.Abs(ReferenceImageLocalPoint(position, image).X) / Math.Max(image.Width / 2.0, 0.0001));
+                    var edgeWidthFactor = Math.Max(0.01, Math.Abs(ReferenceImageLocalPoint(position, image).X) / Math.Max(image.Width / 2.0, 0.0001));
+                    width *= edgeWidthFactor;
+                    if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                        height *= edgeWidthFactor;
                     break;
                 case ReferenceImageDragMode.ScaleHeight:
-                    height *= Math.Max(0.01, Math.Abs(ReferenceImageLocalPoint(position, image).Y) / Math.Max(image.Height / 2.0, 0.0001));
+                    var edgeHeightFactor = Math.Max(0.01, Math.Abs(ReferenceImageLocalPoint(position, image).Y) / Math.Max(image.Height / 2.0, 0.0001));
+                    height *= edgeHeightFactor;
+                    if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                        width *= edgeHeightFactor;
                     break;
                 case ReferenceImageDragMode.Rotate:
                     rotation = Math.Atan2(currentWorld.Y - image.Y, currentWorld.X - image.X) * 180.0 / Math.PI - 90.0;
