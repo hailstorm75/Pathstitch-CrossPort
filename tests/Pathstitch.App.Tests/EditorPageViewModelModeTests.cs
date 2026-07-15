@@ -184,6 +184,25 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task FillStrokeActions_ExposeAndApplyExistingWorkspaceOperations()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var path = new Editor2DPreviewPath(
+            "fill-toggle", "LWPOLYLINE",
+            [new(0, 0), new(10, 0), new(10, 10), new(0, 10)], true);
+        viewModel.TwoDDocument = viewModel.TwoDDocument! with { Paths = [path] };
+        viewModel.TwoDSelectedPathIds = [path.Id];
+
+        Assert.True(viewModel.CanApplyTwoDStrokeToFill);
+        Assert.True(viewModel.ApplyTwoDStrokeToFill());
+        Assert.True(viewModel.TwoDDocument!.Paths.Single().IsFilled);
+        Assert.True(viewModel.CanApplyTwoDFillToStroke);
+        Assert.True(viewModel.ApplyTwoDFillToStroke());
+        Assert.False(viewModel.TwoDDocument!.Paths.Single().IsFilled);
+    }
+
+    [Fact]
     public async Task LoadingSavedTwoDProject_RestoresDocumentAndActiveMode()
     {
         var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-2d-mode-{Guid.NewGuid():N}");

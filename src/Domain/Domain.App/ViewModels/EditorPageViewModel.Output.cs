@@ -202,6 +202,8 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(CanApplyTwoDCleanup));
             OnPropertyChanged(nameof(TwoDCleanupSummary));
             OnPropertyChanged(nameof(CanApplyTwoDBoolean));
+            OnPropertyChanged(nameof(CanApplyTwoDStrokeToFill));
+            OnPropertyChanged(nameof(CanApplyTwoDFillToStroke));
             OnPropertyChanged(nameof(CanApplyTwoDPattern));
             OnPropertyChanged(nameof(TwoDPatternSummary));
             OnPropertyChanged(nameof(CanApplyTwoDPaperFoldingCreases));
@@ -375,6 +377,8 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(HasTwoDCleanupCandidates));
             OnPropertyChanged(nameof(CanApplyTwoDCleanup));
             OnPropertyChanged(nameof(TwoDCleanupSummary));
+            OnPropertyChanged(nameof(CanApplyTwoDStrokeToFill));
+            OnPropertyChanged(nameof(CanApplyTwoDFillToStroke));
             OnPropertyChanged(nameof(CanApplyTwoDPattern));
             OnPropertyChanged(nameof(TwoDPatternSummary));
             OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
@@ -713,6 +717,16 @@ public sealed partial class EditorPageViewModel
             && TwoDSelectedPathIds.Count >= 2
             && TwoDSelectedPathIds.All(id => TwoDDocument.Paths.Any(path =>
                 path.Id.Equals(id, StringComparison.Ordinal) && path.IsClosed && path.Points.Count >= 3));
+
+    public bool CanApplyTwoDStrokeToFill
+        => TwoDDocument is not null
+            && TwoDSelectedPathIds.Any(id => TwoDDocument.Paths.Any(path =>
+                path.Id.Equals(id, StringComparison.Ordinal) && path.IsClosed && !path.IsFilled));
+
+    public bool CanApplyTwoDFillToStroke
+        => TwoDDocument is not null
+            && TwoDSelectedPathIds.Any(id => TwoDDocument.Paths.Any(path =>
+                path.Id.Equals(id, StringComparison.Ordinal) && path.IsClosed && path.IsFilled));
 
     public bool HasTwoDMeasurements => TwoDMeasurements.Any(static measurement => !measurement.IsAutoDimension);
 
@@ -1698,6 +1712,22 @@ public sealed partial class EditorPageViewModel
         }
 
         return CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyCleanup(tolerance));
+    }
+
+    public bool ApplyTwoDStrokeToFill()
+    {
+        if (TwoDDocument is null)
+            return false;
+
+        return CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyStrokeToFill());
+    }
+
+    public bool ApplyTwoDFillToStroke()
+    {
+        if (TwoDDocument is null)
+            return false;
+
+        return CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyFillToStroke());
     }
 
     public bool ApplyTwoDPattern()
