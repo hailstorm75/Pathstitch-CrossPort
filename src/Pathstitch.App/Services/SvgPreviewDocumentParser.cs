@@ -46,8 +46,12 @@ internal static class SvgPreviewDocumentParser
                     unsupported.Add(type);
                 else
                     paths.Add(parsed);
-                index++;
+                    index++;
             }
+
+            var transform = ResolveRootTransform(root);
+            if (transform is not null)
+                paths = paths.Select(path => TransformPath(path, transform.Value)).ToList();
 
             return new DxfPreviewDocument(paths, counts, unsupported.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray());
         }
@@ -104,6 +108,70 @@ internal static class SvgPreviewDocumentParser
             .ToArray();
         return new DxfPreviewPath($"svg-{(ellipse ? "ellipse" : "circle")}-{index}", ellipse ? "ELLIPSE" : "CIRCLE", points, true,
             Center: new DxfPoint(cx, cy), Radius: ellipse ? null : rx);
+    }
+
+    private static (double ScaleX, double ScaleY, double OffsetX, double OffsetY)? ResolveRootTransform(XElement root)
+    {
+        var viewBox = ParseNumbers((string?)root.Attribute("viewBox"));
+        if (viewBox.Count != 4 || viewBox[2] <= 0 || viewBox[3] <= 0)
+            return null;
+
+        var parsedWidth = ParsePhysicalLength((string?)root.Attribute("width"));
+        var parsedHeight = ParsePhysicalLength((string?)root.Attribute("height"));
+        if (parsedWidth is null && parsedHeight is null)
+            return null;
+
+        var scaleX = parsedWidth is { } width
+            ? width / viewBox[2]
+            : 1.0;
+        var scaleY = parsedHeight is { } height
+            ? height / viewBox[3]
+            : scaleX;
+        if (!double.IsFinite(scaleX) || !double.IsFinite(scaleY) || scaleX <= 0 || scaleY <= 0)
+            return null;
+
+        return (scaleX, scaleY, -viewBox[0] * scaleX, -viewBox[1] * scaleY);
+    }
+
+    private static DxfPreviewPath TransformPath(
+        DxfPreviewPath path,
+        (double ScaleX, double ScaleY, double OffsetX, double OffsetY) transform)
+    {
+        DxfPoint Transform(DxfPoint point)
+            => new(point.X * transform.ScaleX + transform.OffsetX, point.Y * transform.ScaleY + transform.OffsetY);
+
+        return path with
+        {
+            Points = path.Points.Select(Transform).ToArray(),
+            Start = path.Start is { } start ? Transform(start) : null,
+            Center = path.Center is { } center ? Transform(center) : null,
+            Radius = path.Radius is { } radius ? radius * (transform.ScaleX + transform.ScaleY) / 2.0 : null,
+            TextHeight = path.TextHeight is { } textHeight ? textHeight * transform.ScaleY : null,
+        };
+    }
+
+    private static double? ParsePhysicalLength(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var match = Regex.Match(value.Trim(), @"^([-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?)([a-zA-Z]*)$");
+        if (!match.Success || !double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
+            return null;
+
+        var unit = match.Groups[2].Value.ToLowerInvariant();
+        var factor = unit switch
+        {
+            "mm" => 1.0,
+            "cm" => 10.0,
+            "in" => 25.4,
+            "pt" => 25.4 / 72.0,
+            "pc" => 25.4 / 6.0,
+            "px" => 25.4 / 96.0,
+            "" => 1.0,
+            _ => double.NaN,
+        };
+        return double.IsFinite(factor) && double.IsFinite(number) && number > 0 ? number * factor : null;
     }
 
     private static List<double> ParseNumbers(string? value)
