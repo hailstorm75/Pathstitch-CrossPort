@@ -431,6 +431,26 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void Layers_MergeWithBelowMovesPathsAndRemovesSource()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var first = new Editor2DPreviewPath("first", "LINE", [new Editor2DPoint(0, 0), new Editor2DPoint(1, 0)], false);
+        var second = new Editor2DPreviewPath("second", "LINE", [new Editor2DPoint(0, 1), new Editor2DPoint(1, 1)], false);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [first, second] });
+        var baseLayer = Assert.Single(workspace.Layers);
+        var detailLayer = workspace.CreateLayer("Details");
+
+        Assert.True(workspace.AssignPathsToLayer(detailLayer.Id, [second.Id]));
+        Assert.True(workspace.MergeLayerWithBelow(detailLayer.Id));
+
+        var merged = Assert.Single(workspace.Layers);
+        Assert.Equal(baseLayer.Id, merged.Id);
+        Assert.Equal([first.Id, second.Id], merged.PathIds);
+        Assert.Equal(baseLayer.Id, workspace.ActiveLayerId);
+        Assert.False(workspace.MergeLayerWithBelow(merged.Id));
+    }
+
+    [Fact]
     public void CornerParameters_RecomputeFromPersistedSourceWithoutLinkingValues()
     {
         var workspace = new Editor2DWorkspaceViewModel();

@@ -639,6 +639,38 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         return true;
     }
 
+    public bool MergeLayerWithBelow(string layerId)
+    {
+        var ordered = Layers.OrderBy(layer => layer.Order).ToArray();
+        var sourceIndex = Array.FindIndex(ordered, layer => layer.Id == layerId);
+        if (sourceIndex <= 0)
+            return false;
+
+        var source = ordered[sourceIndex];
+        var target = ordered[sourceIndex - 1];
+        if (source.Kind != Editor2DLayerKind.Geometry
+            || target.Kind != Editor2DLayerKind.Geometry
+            || source.IsLocked
+            || target.IsLocked)
+            return false;
+
+        var mergedTarget = target with
+        {
+            PathIds = target.PathIds.Concat(source.PathIds).Distinct(StringComparer.Ordinal).ToArray(),
+        };
+        var layers = ordered
+            .Where(layer => layer.Id != source.Id)
+            .Select(layer => layer.Id == target.Id ? mergedTarget : layer)
+            .Select((layer, order) => layer with { Order = order })
+            .ToArray();
+        Apply(_state with
+        {
+            Layers = layers,
+            ActiveLayerId = ActiveLayerId == source.Id ? target.Id : ActiveLayerId,
+        });
+        return true;
+    }
+
     public bool AssignPathsToLayer(string layerId, IReadOnlyList<string> pathIds)
     {
         var validPathIds = pathIds

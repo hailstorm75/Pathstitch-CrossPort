@@ -1849,6 +1849,17 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
+    public bool MergeTwoDLayerWithBelow(string layerId)
+    {
+        if (!_twoDWorkspace.MergeLayerWithBelow(layerId))
+            return false;
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+        StatusText = "Merged the layer with the layer below";
+        ViewportStateText = OutputStatusSummary;
+        return true;
+    }
+
     public void FrameTwoDToContent()
     {
         if (!HasTwoDWorkspaceDocument)
