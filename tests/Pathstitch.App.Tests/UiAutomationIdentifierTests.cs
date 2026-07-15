@@ -63,6 +63,7 @@ public sealed class UiAutomationIdentifierTests
 
         _ui.FindXamlElementByAutomationId(dialog, "dialog.about");
         _ui.FindXamlElementByAutomationId(dialog, "dialog.about.close");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.about.support");
     }
 
     [Fact]

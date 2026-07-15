@@ -16,6 +16,10 @@
         FontWeight="SemiBold"
         Text="Pathstitch" />
       <TextBlock
+        x:Name="VersionText"
+        FontSize="11"
+        Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+      <TextBlock
         FontSize="12"
         Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
         Text="Avalonia cross-port for leathercraft and sewing pattern workflows." />
@@ -41,13 +45,17 @@
         Text="Use the shell to switch between 2D, 3D, and Batch workspaces, then export or save projects from the File menu." />
     </Border>
 
-    <Button
-      Grid.Row="3"
-      AutomationProperties.AutomationId="dialog.about.close"
-      HorizontalAlignment="Right"
-      MinWidth="88"
-      Content="Close"
-      IsDefault="True"
-      Click="OnCloseClicked" />
+    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button
+        AutomationProperties.AutomationId="dialog.about.support"
+        Content="Buy me a coffee"
+        Click="OnSupportClicked" />
+      <Button
+        AutomationProperties.AutomationId="dialog.about.close"
+        MinWidth="88"
+        Content="Close"
+        IsDefault="True"
+        Click="OnCloseClicked" />
+    </StackPanel>
   </Grid>
 </Window>

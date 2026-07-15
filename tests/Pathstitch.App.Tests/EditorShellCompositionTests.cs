@@ -57,6 +57,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Click=\"OnAboutClicked\"", shell, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"dialog.about\"", aboutDialog, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"dialog.about.close\"", aboutDialog, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"dialog.about.support\"", aboutDialog, StringComparison.Ordinal);
+        Assert.Contains("VersionText", ReadRepositoryFile("src", "Pathstitch.App", "Dialogs", "AboutDialog.axaml.cs"), StringComparison.Ordinal);
         Assert.Contains("About Pathstitch", aboutDialog, StringComparison.Ordinal);
     }
 
