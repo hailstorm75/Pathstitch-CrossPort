@@ -83,10 +83,17 @@ public partial class EditorShellView : EditorInteractionControlBase
 
     private void OnEditorKeyDown(object? sender, KeyEventArgs e)
     {
+        var commandModifier = e.KeyModifiers is (KeyModifiers.Control or KeyModifiers.Meta);
+        var commandShiftModifier = (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift)) == (KeyModifiers.Control | KeyModifiers.Shift)
+            || (e.KeyModifiers & (KeyModifiers.Meta | KeyModifiers.Shift)) == (KeyModifiers.Meta | KeyModifiers.Shift);
+        var validModifiedShortcut = (e.Key == Key.K && commandModifier)
+            || (e.Key == Key.D && commandModifier)
+            || (e.Key is Key.H or Key.J && commandShiftModifier)
+            || (e.Key == Key.G && e.KeyModifiers == KeyModifiers.Shift);
         if (DataContext is not EditorPageViewModel viewModel
             || IsShortcutSuppressedByFocusedElement()
             || (e.KeyModifiers != KeyModifiers.None
-                && !(e.Key == Key.K && e.KeyModifiers is (KeyModifiers.Control or KeyModifiers.Meta))))
+                && !validModifiedShortcut))
             return;
 
         if (e.Key == Key.K && e.KeyModifiers is (KeyModifiers.Control or KeyModifiers.Meta))
@@ -100,6 +107,20 @@ public partial class EditorShellView : EditorInteractionControlBase
 
         if (shortcutToken is null)
             return;
+
+        if ((e.Key == Key.D
+                && e.KeyModifiers is (KeyModifiers.Control or KeyModifiers.Meta)
+            || e.Key is Key.H or Key.J
+                && (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift)) == (KeyModifiers.Control | KeyModifiers.Shift)
+            || e.Key is Key.H or Key.J
+                && (e.KeyModifiers & (KeyModifiers.Meta | KeyModifiers.Shift)) == (KeyModifiers.Meta | KeyModifiers.Shift))
+            && viewModel.ActiveEditorMode == EditorMode.TwoD)
+        {
+            var modifier = e.Key == Key.D ? "Ctrl+D" : e.Key == Key.H ? "Ctrl+Shift+H" : "Ctrl+Shift+J";
+            if (viewModel.TryActivateEditorShortcut(modifier))
+                e.Handled = true;
+            return;
+        }
 
         if (shortcutToken.Equals("N", System.StringComparison.OrdinalIgnoreCase)
             && viewModel.ActiveEditorMode == EditorMode.TwoD)
