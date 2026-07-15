@@ -36,6 +36,26 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task ThreeDBodyMove_CanUndoAndRedoOffsetChanges()
+    {
+        var viewModel = CreateViewModelForTests();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
+        viewModel.ThreeDWorkspace.ReplaceBodies([new Body3D(0, "body", [])], "{}", "body.obj");
+        viewModel.ActivateMoveTool();
+        viewModel.SelectBodyFromPanel(0);
+
+        viewModel.NudgeSelectedBody(axis: 0, direction: 1);
+
+        Assert.Equal(1.0, Assert.Single(viewModel.BodyOffsets).X);
+        Assert.True(viewModel.CanUndoThreeDBodyMove);
+        Assert.True(viewModel.UndoThreeDBodyMove());
+        Assert.Empty(viewModel.BodyOffsets);
+        Assert.True(viewModel.CanRedoThreeDBodyMove);
+        Assert.True(viewModel.RedoThreeDBodyMove());
+        Assert.Equal(1.0, Assert.Single(viewModel.BodyOffsets).X);
+    }
+
+    [Fact]
     public void PatternPreview_IsComputedWithoutMutatingDocument()
     {
         var viewModel = CreateViewModel();

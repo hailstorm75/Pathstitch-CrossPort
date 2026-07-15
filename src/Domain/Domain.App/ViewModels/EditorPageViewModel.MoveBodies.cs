@@ -1,4 +1,5 @@
 using System.Globalization;
+using CommunityToolkit.Mvvm.Input;
 using Domain.App.Models;
 
 namespace Domain.App.ViewModels;
@@ -162,6 +163,10 @@ public sealed partial class EditorPageViewModel
 
     public bool CanResetAllBodyPositions => HasAnyBodyOffsets;
 
+    public bool CanUndoThreeDBodyMove => _threeDBodyMoveUndo.Count > 0;
+
+    public bool CanRedoThreeDBodyMove => _threeDBodyMoveRedo.Count > 0;
+
     public IReadOnlyList<MovedBodyOffsetSummary> MovedBodyOffsets
         => BodyOffsets
             .Select(offset =>
@@ -300,6 +305,7 @@ public sealed partial class EditorPageViewModel
         if (!HasAnyBodyOffsets)
             return;
 
+        CaptureBodyMoveUndo();
         BodyOffsets = [];
         BodyOffsetCount = 0;
         SyncSelectedBodyOffsetText();
@@ -315,6 +321,7 @@ public sealed partial class EditorPageViewModel
         if (!BodyOffsets.Any(offset => offset.BodyIndex == bodyIndex))
             return;
 
+        CaptureBodyMoveUndo();
         BodyOffsets = BodyOffsets
             .Where(offset => offset.BodyIndex != bodyIndex)
             .OrderBy(offset => offset.BodyIndex)
@@ -329,6 +336,26 @@ public sealed partial class EditorPageViewModel
 
         var bodyName = Bodies.FirstOrDefault(body => body.BodyIndex == bodyIndex)?.Name ?? $"Body {bodyIndex + 1}";
         StatusText = $"Body reset: {bodyName}";
+    }
+
+    public bool UndoThreeDBodyMove()
+    {
+        if (_threeDBodyMoveUndo.Count == 0)
+            return false;
+
+        _threeDBodyMoveRedo.Push(BodyOffsets.ToArray());
+        ApplyBodyMoveHistory(_threeDBodyMoveUndo.Pop(), "Undid 3D body move");
+        return true;
+    }
+
+    public bool RedoThreeDBodyMove()
+    {
+        if (_threeDBodyMoveRedo.Count == 0)
+            return false;
+
+        _threeDBodyMoveUndo.Push(BodyOffsets.ToArray());
+        ApplyBodyMoveHistory(_threeDBodyMoveRedo.Pop(), "Redid 3D body move");
+        return true;
     }
 
     private void SetBodyOffsetText(string current, string value, int axis, Action<string> assign, string propertyName)
@@ -361,6 +388,14 @@ public sealed partial class EditorPageViewModel
         if (SelectedBodyIndex is not int bodyIndex)
             return;
 
+        if (TryGetSelectedBodyOffset(out var previous)
+            && Math.Abs(previous[0] - x) < 1e-9
+            && Math.Abs(previous[1] - y) < 1e-9
+            && Math.Abs(previous[2] - z) < 1e-9)
+            return;
+
+        CaptureBodyMoveUndo();
+
         var normalizedOffsets = BodyOffsets
             .Where(existingOffset => existingOffset.BodyIndex != bodyIndex)
             .ToList();
@@ -382,6 +417,48 @@ public sealed partial class EditorPageViewModel
         if (syncText)
             SyncSelectedBodyOffsetText();
     }
+
+    private void CaptureBodyMoveUndo()
+    {
+        if (_isApplyingBodyMoveHistory)
+            return;
+
+        _threeDBodyMoveUndo.Push(BodyOffsets.ToArray());
+        _threeDBodyMoveRedo.Clear();
+        OnPropertyChanged(nameof(CanUndoThreeDBodyMove));
+        OnPropertyChanged(nameof(CanRedoThreeDBodyMove));
+        UndoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
+        RedoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
+    }
+
+    private void ApplyBodyMoveHistory(IReadOnlyList<BodyOffset3D> offsets, string status)
+    {
+        _isApplyingBodyMoveHistory = true;
+        try
+        {
+            BodyOffsets = offsets.ToArray();
+            BodyOffsetCount = BodyOffsets.Count;
+            SyncSelectedBodyOffsetText();
+        }
+        finally
+        {
+            _isApplyingBodyMoveHistory = false;
+        }
+
+        RequestBodyMoveStateSync();
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        StatusText = status;
+        OnPropertyChanged(nameof(CanUndoThreeDBodyMove));
+        OnPropertyChanged(nameof(CanRedoThreeDBodyMove));
+        UndoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
+        RedoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUndoThreeDBodyMove))]
+    private void UndoThreeDBodyMoveAction() => UndoThreeDBodyMove();
+
+    [RelayCommand(CanExecute = nameof(CanRedoThreeDBodyMove))]
+    private void RedoThreeDBodyMoveAction() => RedoThreeDBodyMove();
 
     private bool TryGetSelectedBodyOffset(out double[] offset)
     {

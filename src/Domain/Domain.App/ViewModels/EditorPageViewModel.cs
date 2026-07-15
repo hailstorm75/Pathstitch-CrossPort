@@ -68,6 +68,9 @@ public sealed partial class EditorPageViewModel(
     private ProjectTemplateDefinition? _template;
     private ProjectSessionOrigin? _sessionOrigin;
     private bool _isLoading;
+    private readonly Stack<IReadOnlyList<BodyOffset3D>> _threeDBodyMoveUndo = [];
+    private readonly Stack<IReadOnlyList<BodyOffset3D>> _threeDBodyMoveRedo = [];
+    private bool _isApplyingBodyMoveHistory;
 
     private sealed class CancelUnsavedChangesPromptService : IUnsavedChangesPromptService
     {
