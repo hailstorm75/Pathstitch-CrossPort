@@ -208,6 +208,7 @@ public sealed class EditorShellCompositionTests
         Assert.DoesNotContain("TextBox", twoD, StringComparison.Ordinal);
         Assert.Contains("TwoDOffsetDistanceText", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDPolygonSides", inspector, StringComparison.Ordinal);
+        Assert.Contains("SewingHoleMargin=\"{Binding TwoDSewingHoleMargin, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -88,6 +88,11 @@ public sealed class DxfPreviewCanvas : Control
             nameof(PreviewPaths),
             defaultValue: Array.Empty<Editor2DPreviewPath>());
 
+    public static readonly StyledProperty<double> SewingHoleMarginProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, double>(
+            nameof(SewingHoleMargin),
+            defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<IReadOnlyList<Editor2DPreviewPath>> PatternPreviewPathsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DPreviewPath>>(
             nameof(PatternPreviewPaths),
@@ -177,6 +182,7 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly IBrush MeasurementLabelFillBrush = new SolidColorBrush(Color.Parse("#C010241D"));
     private static readonly IBrush LiveMeasurementPointBrush = new SolidColorBrush(Color.Parse("#B0F5DA"));
     private static readonly IBrush CornerToolHandleBrush = new SolidColorBrush(Color.Parse("#F5B35C"));
+    private static readonly IBrush SewingHoleHandleBrush = new SolidColorBrush(Color.Parse("#C084FC"));
     private static readonly IBrush MarqueeFillBrush = new SolidColorBrush(Color.Parse("#224D7FFF"));
     private static readonly Pen SnapIndicatorPen = new(new SolidColorBrush(Color.Parse("#FF9F43")), 1.5);
     private static readonly IBrush SnapIndicatorBrush = new SolidColorBrush(Color.Parse("#FF9F43"));
@@ -196,6 +202,7 @@ public sealed class DxfPreviewCanvas : Control
     private ref bool _isAwaitingSecondaryContextClick => ref _interaction.IsAwaitingSecondaryContextClick;
     private ref bool _isEditingVertex => ref _interaction.IsEditingVertex;
     private ref bool _isDraggingCorner => ref _interaction.IsDraggingCorner;
+    private ref bool _isDraggingSewingHoleMargin => ref _interaction.IsDraggingSewingHoleMargin;
     private ref string? _cornerDragPathId => ref _interaction.CornerDragPathId;
     private ref int _cornerDragIndex => ref _interaction.CornerDragIndex;
     private ref Editor2DCornerKind _cornerDragKind => ref _interaction.CornerDragKind;
@@ -263,6 +270,7 @@ public sealed class DxfPreviewCanvas : Control
             SelectedPathIdsProperty,
             HiddenPathIdsProperty,
             PreviewPathsProperty,
+            SewingHoleMarginProperty,
             ReferenceImagesProperty,
             ActiveReferenceImageProperty,
             ActiveReferenceImageLockedProperty,
@@ -470,6 +478,12 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(PreviewPathsProperty, value);
     }
 
+    public double SewingHoleMargin
+    {
+        get => GetValue(SewingHoleMarginProperty);
+        set => SetValue(SewingHoleMarginProperty, value);
+    }
+
     public IReadOnlyList<Editor2DPreviewPath> PatternPreviewPaths
     {
         get => GetValue(PatternPreviewPathsProperty);
@@ -603,6 +617,7 @@ public sealed class DxfPreviewCanvas : Control
         _isAwaitingSecondaryContextClick = false;
         _isEditingVertex = false;
         _isDraggingCorner = false;
+        _isDraggingSewingHoleMargin = false;
         _cornerDragPathId = null;
         _cornerDragIndex = 0;
         _isPanning = false;
@@ -744,6 +759,7 @@ public sealed class DxfPreviewCanvas : Control
         DrawEditableVertexHandles(context, size, visiblePaths);
         DrawConstrainedRectangleHandles(context, size, visiblePaths);
         DrawCornerToolHandles(context, size, visiblePaths);
+        DrawSewingHoleMarginHandle(context, size, visiblePaths);
         DrawLiveSketchLine(context, size);
         DrawLiveSketchRectangle(context, size);
         DrawLiveSketchCircle(context, size);
@@ -862,6 +878,12 @@ public sealed class DxfPreviewCanvas : Control
             || ActiveTool == Editor2DTool.AddSewingHoles)
         {
             if (ActiveTool == Editor2DTool.Scale && TryBeginScaleSelection(point.Position, e.Pointer))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            if (ActiveTool == Editor2DTool.AddSewingHoles && TryBeginSewingHoleMarginDrag(point.Position, e.Pointer))
             {
                 e.Handled = true;
                 return;
@@ -1012,6 +1034,7 @@ public sealed class DxfPreviewCanvas : Control
             case DxfCanvasMoveRoute.MoveSelection: ApplyMoveSelection(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.ScaleSelection: ApplyScaleSelection(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.Corner: ApplyCornerDrag(position); e.Handled = true; return;
+            case DxfCanvasMoveRoute.SewingHoleMargin: ApplySewingHoleMarginDrag(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.EditVertex:
                 if (!_editingVertexIsConstrainedRectangle) ApplyVertexEdit(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.LineDraft: _pendingLineEnd = ResolvePlacementPoint(position, _pendingLineStart, allowOrthogonal: true); break;
@@ -1086,6 +1109,8 @@ Hover:
                 _isScalingSelection = false; _scaleDocumentSnapshot = null; _scaleSelectionIds = Array.Empty<string>(); _scaleCenterPoint = null; _scaleStartDistance = 0; _scalePreviewFactor = 1; break;
             case DxfCanvasReleaseRoute.Corner:
                 _isDraggingCorner = false; _cornerDragPathId = null; _cornerDragIndex = 0; break;
+            case DxfCanvasReleaseRoute.SewingHoleMargin:
+                _isDraggingSewingHoleMargin = false; break;
             case DxfCanvasReleaseRoute.EditVertex:
                 _isEditingVertex = false; _editingVertexPathId = null; _editingVertexIndex = 0; _editingVertexIsConstrainedRectangle = false; break;
             case DxfCanvasReleaseRoute.PenHandleDrag:
@@ -1496,6 +1521,25 @@ Selection:
                     context.DrawEllipse(CornerToolHandleBrush, CornerToolHandlePen, arrowScreen, 5.0, 5.0);
                 }
             }
+        }
+    }
+
+    private void DrawSewingHoleMarginHandle(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
+    {
+        if (ActiveTool != Editor2DTool.AddSewingHoles || SelectedPathIds.Count == 0)
+            return;
+
+        var selected = new HashSet<string>(SelectedPathIds, StringComparer.Ordinal);
+        foreach (var path in paths)
+        {
+            if (!selected.Contains(path.Id) || !TryGetSewingHoleHandle(path, out var anchor, out var handle))
+                continue;
+
+            var anchorScreen = WorldToScreen(anchor, size);
+            var handleScreen = WorldToScreen(handle, size);
+            context.DrawLine(CornerToolHandlePen, anchorScreen, handleScreen);
+            context.DrawEllipse(SewingHoleHandleBrush, CornerToolHandlePen, handleScreen, 5.5, 5.5);
+            break;
         }
     }
 
@@ -1987,6 +2031,81 @@ Selection:
         _cornerDragKind = cornerKind;
         pointer.Capture(this);
         InvalidateVisual();
+    }
+
+    private bool TryBeginSewingHoleMarginDrag(Point screenPoint, IPointer pointer)
+    {
+        if (!TryGetSelectedSewingHoleHandle(out _, out var handle)
+            || ScreenDistance(screenPoint, WorldToScreen(handle, Bounds.Size)) > 12.0)
+            return false;
+
+        _isDraggingSewingHoleMargin = true;
+        pointer.Capture(this);
+        return true;
+    }
+
+    private void ApplySewingHoleMarginDrag(Point screenPoint)
+    {
+        if (!TryGetSelectedSewingHoleHandle(out var anchor, out var handle))
+            return;
+
+        var axisX = handle.X - anchor.X;
+        var axisY = handle.Y - anchor.Y;
+        var length = Math.Sqrt(axisX * axisX + axisY * axisY);
+        if (length <= 0.0001)
+            return;
+
+        var point = ScreenToWorld(screenPoint);
+        var dx = point.X - anchor.X;
+        var dy = point.Y - anchor.Y;
+        var margin = Math.Max(0.0, (dx * axisX + dy * axisY) / length);
+        SetCurrentValue(SewingHoleMarginProperty, margin);
+        InvalidateVisual();
+    }
+
+    private bool TryGetSelectedSewingHoleHandle(out Editor2DPoint anchor, out Editor2DPoint handle)
+    {
+        anchor = default;
+        handle = default;
+        var selected = new HashSet<string>(SelectedPathIds, StringComparer.Ordinal);
+        var path = GetVisiblePaths().FirstOrDefault(candidate => selected.Contains(candidate.Id));
+        return path is not null && TryGetSewingHoleHandle(path, out anchor, out handle);
+    }
+
+    private bool TryGetSewingHoleHandle(Editor2DPreviewPath path, out Editor2DPoint anchor, out Editor2DPoint handle)
+    {
+        anchor = default;
+        handle = default;
+        if (path.Points.Count < 2)
+            return false;
+
+        var segmentCount = path.IsClosed ? path.Points.Count : path.Points.Count - 1;
+        var bestLength = 0.0;
+        Editor2DPoint bestStart = default;
+        Editor2DPoint bestEnd = default;
+        for (var index = 0; index < segmentCount; index++)
+        {
+            var start = path.Points[index];
+            var end = path.Points[(index + 1) % path.Points.Count];
+            var length = Math.Sqrt(Math.Pow(end.X - start.X, 2) + Math.Pow(end.Y - start.Y, 2));
+            if (length > bestLength)
+            {
+                bestLength = length;
+                bestStart = start;
+                bestEnd = end;
+            }
+        }
+
+        if (bestLength <= 0.0001)
+            return false;
+
+        anchor = new Editor2DPoint((bestStart.X + bestEnd.X) / 2.0, (bestStart.Y + bestEnd.Y) / 2.0);
+        var normalX = -(bestEnd.Y - bestStart.Y) / bestLength;
+        var normalY = (bestEnd.X - bestStart.X) / bestLength;
+        handle = new Editor2DPoint(
+            anchor.X + normalX * SewingHoleMargin,
+            anchor.Y + normalY * SewingHoleMargin);
+        return true;
     }
 
     private void ApplyCornerDrag(Point screenPoint)
