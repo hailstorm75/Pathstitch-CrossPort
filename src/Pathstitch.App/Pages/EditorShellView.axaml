@@ -143,6 +143,18 @@
           Command="{Binding RedoTwoDCommand}"
           Header="_Redo"
           HotKey="Ctrl+Shift+Z" />
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.edit.undo-3d"
+          Command="{Binding UndoThreeDBodyMoveActionCommand}"
+          Header="Undo 3D _Move"
+          IsVisible="{Binding IsShowing3DWorkspace}"
+          HotKey="Ctrl+Z" />
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.edit.redo-3d"
+          Command="{Binding RedoThreeDBodyMoveActionCommand}"
+          Header="Redo 3D Move"
+          IsVisible="{Binding IsShowing3DWorkspace}"
+          HotKey="Ctrl+Shift+Z" />
       </MenuItem>
       <MenuItem
         AutomationProperties.AutomationId="editor.menu.help"
