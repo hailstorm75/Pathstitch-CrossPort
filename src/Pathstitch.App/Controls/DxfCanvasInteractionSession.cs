@@ -33,6 +33,8 @@ internal sealed class DxfCanvasInteractionSession
     internal string? EditingVertexPathId;
     internal int EditingVertexIndex;
     internal bool EditingVertexIsConstrainedRectangle;
+    internal string? EditingPenPathId;
+    internal bool EditingPenClosed;
     internal Editor2DPoint? PendingLineStart;
     internal Editor2DPoint? PendingLineEnd;
     internal Editor2DPoint? PendingRectangleStart;
@@ -81,6 +83,8 @@ internal sealed class DxfCanvasInteractionSession
         ScaleStartDistance = 0;
         ScalePreviewFactor = 1.0;
         EditingVertexPathId = null;
+        EditingPenPathId = null;
+        EditingPenClosed = false;
         PendingLineStart = null;
         PendingLineEnd = null;
         PendingRectangleStart = null;

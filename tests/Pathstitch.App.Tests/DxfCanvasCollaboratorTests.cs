@@ -66,6 +66,8 @@ public sealed class DxfCanvasCollaboratorTests
             IsMovingSelection = true,
             PendingLineStart = new Editor2DPoint(1, 1),
             EditingVertexPathId = "path",
+            EditingPenPathId = "pen-path",
+            EditingPenClosed = true,
         };
 
         Assert.True(session.HasActivePointerGesture);
@@ -79,6 +81,8 @@ public sealed class DxfCanvasCollaboratorTests
         Assert.False(session.IsMovingSelection);
         Assert.Null(session.PendingLineStart);
         Assert.Null(session.EditingVertexPathId);
+        Assert.Null(session.EditingPenPathId);
+        Assert.False(session.EditingPenClosed);
     }
 
     [Fact]
@@ -145,6 +149,33 @@ public sealed class DxfCanvasCollaboratorTests
         Assert.Equal(2, Assert.Single(circle!.Paths).Radius);
         var text = committer.Text(document, new(0, 0), new(10, 2), "Label");
         Assert.Equal("Label", Assert.Single(text!.Paths).Text);
+    }
+
+    [Fact]
+    public void PenEditing_ReplacesExistingPathAndPreservesItsIdentity()
+    {
+        var anchors = new[]
+        {
+            new Editor2DBezierAnchor(new(0, 0)),
+            new Editor2DBezierAnchor(new(10, 0)),
+            new Editor2DBezierAnchor(new(10, 10)),
+        };
+        var path = new Editor2DPreviewPath(
+            "pen-existing",
+            "LWPOLYLINE",
+            Editor2DBezierGeometry.Flatten(anchors, closed: true),
+            true,
+            BezierAnchors: anchors);
+        var document = Document(path);
+        var movedAnchors = anchors.Select(anchor => DxfCanvasPenEditing.MoveAnchor(anchor, new(2, 3))).ToArray();
+
+        var edited = DxfCanvasPenEditing.ReplacePath(document, path.Id, movedAnchors, isClosed: true);
+
+        var editedPath = Assert.Single(edited.Paths);
+        Assert.Equal(path.Id, editedPath.Id);
+        Assert.Equal(new Editor2DPoint(2, 3), editedPath.BezierAnchors![0].Point);
+        Assert.Equal(new Editor2DPoint(2, 3), editedPath.Points[0]);
+        Assert.True(editedPath.IsClosed);
     }
 
     [Fact]

@@ -164,6 +164,8 @@ public sealed class DxfPreviewCanvas : Control
     private ref string? _editingVertexPathId => ref _interaction.EditingVertexPathId;
     private ref int _editingVertexIndex => ref _interaction.EditingVertexIndex;
     private ref bool _editingVertexIsConstrainedRectangle => ref _interaction.EditingVertexIsConstrainedRectangle;
+    private ref string? _editingPenPathId => ref _interaction.EditingPenPathId;
+    private ref bool _editingPenClosed => ref _interaction.EditingPenClosed;
     private ref Editor2DPoint? _pendingLineStart => ref _interaction.PendingLineStart;
     private ref Editor2DPoint? _pendingLineEnd => ref _interaction.PendingLineEnd;
     private ref Editor2DPoint? _pendingRectangleStart => ref _interaction.PendingRectangleStart;
@@ -791,6 +793,27 @@ Selection:
         SetCurrentValue(OffsetXProperty, update.OffsetX);
         SetCurrentValue(OffsetYProperty, update.OffsetY);
         InvalidateVisual();
+        e.Handled = true;
+    }
+
+    protected override void OnDoubleTapped(TappedEventArgs e)
+    {
+        base.OnDoubleTapped(e);
+
+        if (Document is null)
+            return;
+
+        if (ActiveTool == Editor2DTool.Pen)
+        {
+            CommitPendingPenPath(_editingPenPathId is not null && _editingPenClosed);
+            e.Handled = true;
+            return;
+        }
+
+        if (ActiveTool != Editor2DTool.Select
+            || !TryBeginPenEdit(e.GetPosition(this)))
+            return;
+
         e.Handled = true;
     }
 
@@ -2347,6 +2370,15 @@ Selection:
             return;
         }
 
+        if (_editingPenPathId is not null
+            && TryFindPendingPenAnchor(screenPoint, out var anchorIndex))
+        {
+            _pendingPenDragAnchorIndex = anchorIndex;
+            _pointerPressPosition = screenPoint;
+            pointer.Capture(this);
+            return;
+        }
+
         var worldPoint = ResolvePlacementPoint(
             screenPoint,
             _pendingPenAnchors.LastOrDefault()?.Point,
@@ -2369,9 +2401,18 @@ Selection:
         var screenDelta = screenPoint - _pointerPressPosition;
         if (Math.Abs(screenDelta.X) <= PointerDragThreshold && Math.Abs(screenDelta.Y) <= PointerDragThreshold)
             return;
-        var handleOut = ScreenToWorld(screenPoint, Zoom);
         var anchors = _pendingPenAnchors.ToArray();
-        anchors[index] = Editor2DBezierGeometry.CreateSmoothAnchor(anchors[index].Point, handleOut);
+        var nextPoint = ScreenToWorld(screenPoint, Zoom);
+        if (_editingPenPathId is not null)
+        {
+            var previous = anchors[index];
+            var delta = new Editor2DPoint(nextPoint.X - previous.Point.X, nextPoint.Y - previous.Point.Y);
+            anchors[index] = DxfCanvasPenEditing.MoveAnchor(previous, delta);
+        }
+        else
+        {
+            anchors[index] = Editor2DBezierGeometry.CreateSmoothAnchor(anchors[index].Point, nextPoint);
+        }
         _pendingPenAnchors = anchors;
         _pendingPenHoverPoint = anchors[^1].Point;
     }
@@ -2618,7 +2659,9 @@ Selection:
         }
 
         var resolvedClosed = isClosed && _pendingPenAnchors.Count >= 3;
-        var nextDocument = AddPenPathToDocument(_pendingPenAnchors, resolvedClosed);
+        var nextDocument = _editingPenPathId is string editingPathId && Document is not null
+            ? DxfCanvasPenEditing.ReplacePath(Document, editingPathId, _pendingPenAnchors, resolvedClosed)
+            : AddPenPathToDocument(_pendingPenAnchors, resolvedClosed);
         if (nextDocument is not null)
         {
             SetCurrentValue(DocumentProperty, nextDocument);
@@ -2629,6 +2672,48 @@ Selection:
 
         CancelPendingPen();
         InvalidateVisual();
+    }
+
+    private bool TryBeginPenEdit(Point screenPoint)
+    {
+        var pathId = HitTestPathId(screenPoint);
+        if (string.IsNullOrWhiteSpace(pathId) || Document is null)
+            return false;
+
+        var path = Document.Paths.FirstOrDefault(candidate => string.Equals(candidate.Id, pathId, StringComparison.Ordinal));
+        if (path?.BezierAnchors is not { Count: >= 2 } anchors)
+            return false;
+
+        _pendingPenAnchors = anchors.ToArray();
+        _editingPenPathId = path.Id;
+        _editingPenClosed = path.IsClosed;
+        _pendingPenHoverPoint = null;
+        _pendingPenDragAnchorIndex = null;
+        SetCurrentValue(SelectedPathIdsProperty, new[] { path.Id });
+        SetCurrentValue(SelectedMeasurementIdProperty, null);
+        SetCurrentValue(ActiveToolProperty, Editor2DTool.Pen);
+        InvalidateVisual();
+        return true;
+    }
+
+    private bool TryFindPendingPenAnchor(Point screenPoint, out int index)
+    {
+        index = -1;
+        var nearestDistance = PenCloseHitTolerance;
+        for (var candidate = 0; candidate < _pendingPenAnchors.Count; candidate++)
+        {
+            var anchorScreen = WorldToScreen(_pendingPenAnchors[candidate].Point, Bounds.Size);
+            var distance = Math.Sqrt(
+                Math.Pow(screenPoint.X - anchorScreen.X, 2)
+                + Math.Pow(screenPoint.Y - anchorScreen.Y, 2));
+            if (distance <= nearestDistance)
+            {
+                nearestDistance = distance;
+                index = candidate;
+            }
+        }
+
+        return index >= 0;
     }
 
     private void ApplyClickSelection(string? pathId, bool isShiftSelection)
@@ -3116,6 +3201,8 @@ Selection:
         _pendingPenAnchors = Array.Empty<Editor2DBezierAnchor>();
         _pendingPenHoverPoint = null;
         _pendingPenDragAnchorIndex = null;
+        _editingPenPathId = null;
+        _editingPenClosed = false;
     }
 
     private void CancelPendingMirror()
