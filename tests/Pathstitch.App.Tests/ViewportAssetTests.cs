@@ -72,7 +72,7 @@ public sealed class ViewportAssetTests
     }
 
     [Fact]
-    public void ViewportLocator_LoadsAvaloniaOwnedHtmlWithHostBridge()
+    public void ViewportLocator_LoadsSelfContainedAvaloniaOwnedHtmlWithHostBridge()
     {
         var locator = new EditorViewportAssetLocator();
 
@@ -80,7 +80,10 @@ public sealed class ViewportAssetTests
         var baseUri = locator.GetViewportBaseUri();
 
         Assert.Contains("window.webkit.messageHandlers.pathstitch", html, StringComparison.Ordinal);
-        Assert.Contains("vendor/three.min.js", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script src=", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("(t=\"undefined\"!=typeof globalThis?globalThis:t||self).THREE={}", html, StringComparison.Ordinal);
+        Assert.Contains("THREE.OrbitControls = OrbitControls", html, StringComparison.Ordinal);
+        Assert.Contains("THREE.TransformControls = TransformControls", html, StringComparison.Ordinal);
         Assert.Contains("Compute a mesh face normal and origin", html, StringComparison.Ordinal);
         Assert.EndsWith("/Assets/Web/", baseUri.AbsoluteUri.Replace('\\', '/'), StringComparison.Ordinal);
     }

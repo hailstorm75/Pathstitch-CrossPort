@@ -43,6 +43,7 @@ public sealed class EditorViewportAssetLocator : IEditorViewportAssetLocator
         var viewportPath = GetViewportPath();
         var html = File.ReadAllText(viewportPath);
         html = RewriteRemoteViewportScripts(html);
+        html = InlineVendoredViewportScripts(html, Path.GetDirectoryName(viewportPath)!);
         return html.Contains("</head>", StringComparison.OrdinalIgnoreCase)
             ? html.Replace("</head>", $"{BridgeShim}{Environment.NewLine}</head>", StringComparison.OrdinalIgnoreCase)
             : $"{BridgeShim}{Environment.NewLine}{html}";
@@ -60,11 +61,32 @@ public sealed class EditorViewportAssetLocator : IEditorViewportAssetLocator
 
     private static string RewriteRemoteViewportScripts(string html)
     {
-        
-        
         return html
             .Replace(ThreeJsCdnUrl, "vendor/three.min.js", StringComparison.Ordinal)
             .Replace(OrbitControlsCdnUrl, "vendor/OrbitControls.js", StringComparison.Ordinal)
             .Replace(TransformControlsCdnUrl, "vendor/TransformControls.js", StringComparison.Ordinal);
+    }
+
+    private static string InlineVendoredViewportScripts(string html, string webAssetDirectory)
+    {
+        html = InlineVendoredScript(html, webAssetDirectory, "vendor/three.min.js");
+        html = InlineVendoredScript(html, webAssetDirectory, "vendor/OrbitControls.js");
+        return InlineVendoredScript(html, webAssetDirectory, "vendor/TransformControls.js");
+    }
+
+    private static string InlineVendoredScript(string html, string webAssetDirectory, string relativePath)
+    {
+        var scriptTag = $"<script src=\"{relativePath}\"></script>";
+        if (!html.Contains(scriptTag, StringComparison.Ordinal))
+            throw new InvalidDataException($"Viewport script tag was not found: {scriptTag}");
+
+        var scriptPath = Path.Combine(webAssetDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        var script = File.ReadAllText(scriptPath)
+            .Replace("</script", "<\\/script", StringComparison.OrdinalIgnoreCase);
+
+        return html.Replace(
+            scriptTag,
+            $"<script>{Environment.NewLine}{script}{Environment.NewLine}</script>",
+            StringComparison.Ordinal);
     }
 }
