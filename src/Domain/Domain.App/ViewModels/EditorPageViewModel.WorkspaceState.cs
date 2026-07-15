@@ -256,6 +256,8 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(HasTwoDSelection));
         OnPropertyChanged(nameof(TwoDSelectionCount));
         OnPropertyChanged(nameof(TwoDSelectionSummary));
+        OnPropertyChanged(nameof(CanApplyTwoDStrokeToFill));
+        OnPropertyChanged(nameof(CanApplyTwoDFillToStroke));
         OnPropertyChanged(nameof(HasTwoDMeasurements));
         OnPropertyChanged(nameof(HasTwoDSelectedMeasurement));
         OnPropertyChanged(nameof(TwoDMeasurementSummary));
