@@ -1733,16 +1733,17 @@ Selection:
         }
 
         var center = new Editor2DPoint((minX + maxX) / 2.0, (minY + maxY) / 2.0);
+        var pivot = ScalePivot ?? center;
         var corner = new Editor2DPoint(maxX, maxY);
-        var centerScreen = WorldToScreen(center, size);
+        var pivotScreen = WorldToScreen(pivot, size);
         var cornerScreen = WorldToScreen(corner, size);
         var currentFactor = _isScalingSelection ? _scalePreviewFactor : 1.0;
         var handleScreen = new Point(
-            centerScreen.X + ((cornerScreen.X - centerScreen.X) * currentFactor),
-            centerScreen.Y + ((cornerScreen.Y - centerScreen.Y) * currentFactor));
+            pivotScreen.X + ((cornerScreen.X - pivotScreen.X) * currentFactor),
+            pivotScreen.Y + ((cornerScreen.Y - pivotScreen.Y) * currentFactor));
 
-        context.DrawLine(HoverPathPen, centerScreen, handleScreen);
-        context.DrawEllipse(null, HoverPathPen, centerScreen, 6.0, 6.0);
+        context.DrawLine(HoverPathPen, pivotScreen, handleScreen);
+        context.DrawEllipse(null, HoverPathPen, pivotScreen, 6.0, 6.0);
         var handleRect = new Rect(handleScreen.X - 7.0, handleScreen.Y - 7.0, 14.0, 14.0);
         context.DrawRectangle(EditableVertexHandleFillBrush, EditableVertexHandlePen, handleRect);
 
@@ -2944,6 +2945,7 @@ Selection:
         }
 
         var center = new Editor2DPoint((minX + maxX) / 2.0, (minY + maxY) / 2.0);
+        var pivot = ScalePivot ?? center;
         var handleScreen = WorldToScreen(new Editor2DPoint(maxX, maxY), Bounds.Size);
         var distanceToHandle = Math.Sqrt(Math.Pow(screenPoint.X - handleScreen.X, 2) + Math.Pow(screenPoint.Y - handleScreen.Y, 2));
         if (distanceToHandle > ScaleHandleHitTolerance)
@@ -2954,7 +2956,7 @@ Selection:
         _scaleSelectionIds = SelectedPathIds.ToArray();
         _scaleCenterPoint = ScalePivot ?? center;
         var startWorldPoint = ScreenToWorld(screenPoint, Zoom);
-        _scaleStartDistance = Math.Max(DistanceBetween(center, startWorldPoint), 1e-6);
+        _scaleStartDistance = Math.Max(DistanceBetween(pivot, startWorldPoint), 1e-6);
         _scalePreviewFactor = 1.0;
         _cancelInteractionOnPointerRelease = false;
         SetCurrentValue(SelectedMeasurementIdProperty, null);

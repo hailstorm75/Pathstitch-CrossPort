@@ -129,6 +129,15 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void TwoDView_BindsScalePivotStateToCanvas()
+    {
+        var twoD = ReadPage("Editor2DView.axaml");
+
+        Assert.Contains("ScalePivot=\"{Binding TwoDScalePivot, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
+        Assert.Contains("ScalePivotPicking=\"{Binding TwoDScalePivotPicking, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PersistentTwoDControls_LiveOutsideTheViewportView()
     {
         var toolbar = ReadPage("EditorToolRail.axaml");

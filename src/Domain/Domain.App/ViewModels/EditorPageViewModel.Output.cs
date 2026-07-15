@@ -1441,7 +1441,7 @@ public sealed partial class EditorPageViewModel
         Editor2DTool.Pan => "Pan tool: left-drag to move the 2D workspace. Mouse wheel zoom stays available on every tool.",
         Editor2DTool.Measure => "Measure tool: click once to place the start point, click again to place the end point, and press Escape to cancel the in-progress measurement.",
         Editor2DTool.Dimension => "Dimension tool: click a line to place an attached length dimension, click a circle or arc to place an attached radius dimension, or click empty space twice for a reference distance. Press Escape to cancel an in-progress reference dimension.",
-        Editor2DTool.Scale => "Scale tool: select entities, then drag the corner scale handle to scale them uniformly around the selection center.",
+        Editor2DTool.Scale => "Scale tool: select entities, pick an optional pivot, then drag the corner handle.",
         Editor2DTool.Mirror => "Mirror tool: select entities, click once to place the mirror axis start, then click again to place the axis end and mirror the selection.",
         Editor2DTool.Offset => "Offset tool: keep geometry selected, choose Curve or BBox mode in the lower 2D panel, and apply an OpenGeometry offset copy. Open paths offset relative to their point order.",
         Editor2DTool.AddThickness => "Add Thickness tool: thicken selected open line or polyline centerlines into closed OpenGeometry outlines, or process every eligible open centerline when nothing is selected.",
