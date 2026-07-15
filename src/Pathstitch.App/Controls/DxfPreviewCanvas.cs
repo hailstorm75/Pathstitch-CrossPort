@@ -196,6 +196,7 @@ public sealed class DxfPreviewCanvas : Control
     private readonly DxfCanvasSnapResolver _snapResolver = new();
     private readonly Dictionary<string, Bitmap> _referenceImageBitmaps = new(StringComparer.Ordinal);
     private readonly MenuItem _expandRectanglesMenuItem;
+    private readonly MenuItem _explodeCompoundMenuItem;
     private readonly MenuItem _deleteSelectionMenuItem;
     private ref bool _isMovingSelection => ref _interaction.IsMovingSelection;
     private ref bool _isScalingSelection => ref _interaction.IsScalingSelection;
@@ -304,6 +305,12 @@ public sealed class DxfPreviewCanvas : Control
             Command = new RelayCommand(ExecuteExpandRectanglesCommand),
         };
 
+        _explodeCompoundMenuItem = new MenuItem
+        {
+            Header = "Explode Compound",
+            Command = new RelayCommand(ExecuteExplodeCompoundCommand),
+        };
+
         _deleteSelectionMenuItem = new MenuItem
         {
             Header = "Delete",
@@ -316,6 +323,7 @@ public sealed class DxfPreviewCanvas : Control
             ItemsSource = new Control[]
             {
                 _expandRectanglesMenuItem,
+                _explodeCompoundMenuItem,
                 _deleteSelectionMenuItem,
             },
         };
@@ -324,6 +332,50 @@ public sealed class DxfPreviewCanvas : Control
     private void ExecuteExpandRectanglesCommand()
     {
         ExpandSelectedRectangles();
+        _contextMenu.Close();
+    }
+
+    private void ExecuteExplodeCompoundCommand()
+    {
+        if (Document is null || SelectedPathIds.Count == 0)
+        {
+            _contextMenu.Close();
+            return;
+        }
+
+        var selectedIds = new HashSet<string>(SelectedPathIds, StringComparer.Ordinal);
+        var replacements = new Dictionary<string, IReadOnlyList<Editor2DPreviewPath>>(StringComparer.Ordinal);
+        foreach (var path in Document.Paths.Where(path => selectedIds.Contains(path.Id)))
+        {
+            var loops = Editor2DGeometry.ExplodeCompoundPath(path);
+            if (loops.Count > 1)
+                replacements[path.Id] = loops;
+        }
+
+        if (replacements.Count > 0)
+        {
+            var nextPaths = new List<Editor2DPreviewPath>();
+            var nextSelection = new List<string>();
+            foreach (var path in Document.Paths)
+            {
+                if (!replacements.TryGetValue(path.Id, out var loops))
+                {
+                    nextPaths.Add(path);
+                    if (selectedIds.Contains(path.Id))
+                        nextSelection.Add(path.Id);
+                    continue;
+                }
+
+                nextPaths.AddRange(loops);
+                nextSelection.AddRange(loops.Select(loop => loop.Id));
+            }
+
+            SetCurrentValue(DocumentProperty, CreateUpdatedDocument(Document, nextPaths));
+            SetCurrentValue(SelectedPathIdsProperty, nextSelection);
+            SetCurrentValue(SelectedMeasurementIdProperty, null);
+            InvalidateVisual();
+        }
+
         _contextMenu.Close();
     }
 
@@ -4007,8 +4059,15 @@ Selection:
         var canExpandRectangles = Document is not null
             && selectedIds is not null
             && Document.Paths.Any(path => path.IsAxisAlignedRectangle && selectedIds.Contains(path.Id));
+        var canExplodeCompound = Document is not null
+            && selectedIds is not null
+            && Document.Paths.Any(path => selectedIds.Contains(path.Id)
+                && path.IsClosed
+                && (path.EntityType.Equals("LWPOLYLINE", StringComparison.OrdinalIgnoreCase)
+                    || path.EntityType.Equals("POLYLINE", StringComparison.OrdinalIgnoreCase)));
 
         _expandRectanglesMenuItem.IsVisible = !hasMeasurementSelection && canExpandRectangles;
+        _explodeCompoundMenuItem.IsVisible = !hasMeasurementSelection && canExplodeCompound;
         _deleteSelectionMenuItem.IsVisible = hasMeasurementSelection || hasSelection;
     }
 

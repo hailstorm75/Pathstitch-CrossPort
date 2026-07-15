@@ -201,6 +201,7 @@ public sealed class EditorShellCompositionTests
     {
         var twoD = ReadPage("Editor2DView.axaml");
         var inspector = ReadPage("Editor2DInspector.axaml");
+        var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
 
         Assert.Contains("DxfPreviewCanvas", twoD, StringComparison.Ordinal);
         Assert.DoesNotContain("StackPanel", twoD, StringComparison.Ordinal);
@@ -209,6 +210,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("TwoDOffsetDistanceText", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDPolygonSides", inspector, StringComparison.Ordinal);
         Assert.Contains("SewingHoleMargin=\"{Binding TwoDSewingHoleMargin, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
+        Assert.Contains("Explode Compound", canvas, StringComparison.Ordinal);
     }
 
     [Fact]
