@@ -134,6 +134,10 @@
         AutomationProperties.AutomationId="editor.menu.help"
         Header="_Help">
         <MenuItem
+          AutomationProperties.AutomationId="editor.menu.help.documentation"
+          Header="_Documentation"
+          Click="OnDocumentationClicked" />
+        <MenuItem
           AutomationProperties.AutomationId="editor.menu.help.preferences"
           Header="_Preferences"
           Click="OnPreferencesClicked" />

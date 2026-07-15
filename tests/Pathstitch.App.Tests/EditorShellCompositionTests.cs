@@ -74,6 +74,19 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void HelpMenu_ExposesDocumentationSurface()
+    {
+        var shell = ReadPage("EditorShellView.axaml");
+        var documentation = ReadRepositoryFile("src", "Pathstitch.App", "Dialogs", "DocumentationDialog.axaml");
+
+        Assert.Contains("editor.menu.help.documentation", shell, StringComparison.Ordinal);
+        Assert.Contains("Click=\"OnDocumentationClicked\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Pathstitch Documentation", documentation, StringComparison.Ordinal);
+        Assert.Contains("dialog.documentation.close", documentation, StringComparison.Ordinal);
+        Assert.Contains("Typical workflow", documentation, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CommandPalette_HandlesKeyboardSelectionAndActivation()
     {
         var codeBehind = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorCommandPalette.axaml.cs");

@@ -1,0 +1,50 @@
+<Window
+  x:Class="Pathstitch.App.Dialogs.DocumentationDialog"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  Title="Pathstitch Documentation"
+  Width="620"
+  Height="700"
+  MinWidth="480"
+  MinHeight="420"
+  ShowInTaskbar="False"
+  WindowStartupLocation="CenterOwner"
+  AutomationProperties.AutomationId="dialog.documentation">
+  <Grid RowDefinitions="*,Auto" Margin="20">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="14">
+        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Pathstitch Documentation" />
+        <Separator />
+        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Overview" />
+        <TextBlock TextWrapping="Wrap" Text="Pathstitch turns 2D shapes and 3D models into flat, sewable patterns. Import a model or drawing, edit it in the workspace, then export a precise DXF or SVG." />
+        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Typical workflow" />
+        <StackPanel Spacing="4">
+          <TextBlock TextWrapping="Wrap" Text="• Import a DXF, SVG, STEP, STL, PDF, or image, or start from a blank canvas." />
+          <TextBlock TextWrapping="Wrap" Text="• Unfold 3D model faces into connected 2D nets." />
+          <TextBlock TextWrapping="Wrap" Text="• Add offsets, sewing holes, tabs, measurements, and editable layers." />
+          <TextBlock TextWrapping="Wrap" Text="• Export precise DXF or SVG, or use Batch mode for multiple pieces." />
+        </StackPanel>
+        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Modes" />
+        <TextBlock TextWrapping="Wrap" Text="2D: draw and edit patterns. 3D: import models, select faces, and unfold them. Batch: lay out and preview multiple pieces." />
+        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Shortcuts" />
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="18" RowSpacing="6">
+          <TextBlock FontWeight="SemiBold" Text="V / M / H" /><TextBlock Grid.Column="1" Text="Select / Move / Pan" />
+          <TextBlock Grid.Row="1" FontWeight="SemiBold" Text="O / G / I" /><TextBlock Grid.Row="1" Grid.Column="1" Text="Offset / Add Holes / Measure" />
+          <TextBlock Grid.Row="2" FontWeight="SemiBold" Text="L / C / R / P" /><TextBlock Grid.Row="2" Grid.Column="1" Text="Line / Circle / Rectangle / Pen" />
+          <TextBlock Grid.Row="3" FontWeight="SemiBold" Text="F / B / T" /><TextBlock Grid.Row="3" Grid.Column="1" Text="Fillet / Chamfer / Trim" />
+          <TextBlock Grid.Row="4" FontWeight="SemiBold" Text="S" /><TextBlock Grid.Row="4" Grid.Column="1" Text="Command palette" />
+          <TextBlock Grid.Row="5" FontWeight="SemiBold" Text="N" /><TextBlock Grid.Row="5" Grid.Column="1" Text="Toggle snapping" />
+          <TextBlock Grid.Row="6" FontWeight="SemiBold" Text="Esc" /><TextBlock Grid.Row="6" Grid.Column="1" Text="Cancel or deselect" />
+          <TextBlock Grid.Row="7" FontWeight="SemiBold" Text="Ctrl+S" /><TextBlock Grid.Row="7" Grid.Column="1" Text="Save project" />
+          <TextBlock Grid.Row="8" FontWeight="SemiBold" Text="Ctrl+Z" /><TextBlock Grid.Row="8" Grid.Column="1" Text="Undo" />
+          <TextBlock Grid.Row="9" FontWeight="SemiBold" Text="Delete" /><TextBlock Grid.Row="9" Grid.Column="1" Text="Delete selection" />
+        </Grid>
+        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Layers" />
+        <TextBlock TextWrapping="Wrap" Text="Geometry belongs to layers. Visibility, locking, ordering, and layer colors remain part of the saved 2D project and carry through export." />
+      </StackPanel>
+    </ScrollViewer>
+    <Button Grid.Row="1" Margin="0,16,0,0" HorizontalAlignment="Right" MinWidth="90"
+            AutomationProperties.AutomationId="dialog.documentation.close"
+            Content="Close" IsDefault="True" Click="OnCloseClicked" />
+  </Grid>
+</Window>

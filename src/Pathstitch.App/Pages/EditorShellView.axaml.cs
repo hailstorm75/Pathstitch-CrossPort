@@ -54,6 +54,15 @@ public partial class EditorShellView : EditorInteractionControlBase
         await dialog.ShowDialog(owner);
     }
 
+    private async void OnDocumentationClicked(object? sender, RoutedEventArgs e)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+            return;
+
+        var dialog = new DocumentationDialog();
+        await dialog.ShowDialog(owner);
+    }
+
     private async void OnShowBatchWorkspaceClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)
