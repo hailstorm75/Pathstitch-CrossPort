@@ -74,6 +74,18 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void CommandPalette_HandlesKeyboardSelectionAndActivation()
+    {
+        var codeBehind = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorCommandPalette.axaml.cs");
+
+        Assert.Contains("case Key.Down", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("case Key.Up", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("case Key.Enter", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("MoveSelection", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ActivateSelected", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WorkspaceViews_ContainOnlyTheirOwnViewportTechnology()
     {
         var twoD = ReadPage("Editor2DView.axaml");
@@ -197,9 +209,12 @@ public sealed class EditorShellCompositionTests
         var palette = ReadPage("EditorCommandPalette.axaml");
 
         Assert.Contains("<pages:EditorCommandPalette", shell, StringComparison.Ordinal);
+        Assert.Contains("PlaceholderText=\"Search tools and commands…\"", palette, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding CommandSearchQuery, Mode=TwoWay}\"", palette, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding CommandSearchResults}\"", palette, StringComparison.Ordinal);
         Assert.Contains("Tag=\"{Binding Identifier}\"", palette, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsCommandSearchEmpty}\"", palette, StringComparison.Ordinal);
+        Assert.Contains("No matching commands", palette, StringComparison.Ordinal);
     }
 
     private static string ReadPage(string fileName)

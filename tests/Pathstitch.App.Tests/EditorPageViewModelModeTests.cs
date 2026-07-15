@@ -265,6 +265,22 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task CommandSearch_ReportsAnEmptyStateForUnmatchedQueries()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+
+        Assert.False(viewModel.IsCommandSearchOpen);
+        Assert.False(viewModel.IsCommandSearchEmpty);
+
+        viewModel.CommandSearchQuery = "definitely-not-a-tool";
+
+        Assert.True(viewModel.IsCommandSearchOpen);
+        Assert.True(viewModel.IsCommandSearchEmpty);
+        Assert.Empty(viewModel.CommandSearchResults);
+    }
+
+    [Fact]
     public void WorkspaceState_RoundTripsToolCustomizationByStableIdentifier()
     {
         var state = new EditorWorkspaceState(

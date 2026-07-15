@@ -28,10 +28,13 @@ public sealed partial class EditorPageViewModel
 
             OnPropertyChanged(nameof(CommandSearchResults));
             OnPropertyChanged(nameof(IsCommandSearchOpen));
+            OnPropertyChanged(nameof(IsCommandSearchEmpty));
         }
     }
 
     public bool IsCommandSearchOpen => !string.IsNullOrWhiteSpace(CommandSearchQuery);
+
+    public bool IsCommandSearchEmpty => IsCommandSearchOpen && CommandSearchResults.Count == 0;
 
     public IReadOnlyList<EditorSidebarToolItemViewModel> CommandSearchResults
     {
@@ -403,6 +406,7 @@ public sealed partial class EditorPageViewModel
         SyncSidebarToolStates();
         OnPropertyChanged(nameof(SidebarTools));
         OnPropertyChanged(nameof(CommandSearchResults));
+        OnPropertyChanged(nameof(IsCommandSearchEmpty));
         OnPropertyChanged(nameof(ToolCustomizations));
         OnPropertyChanged(nameof(ActiveToolLabel));
 
