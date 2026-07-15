@@ -178,6 +178,9 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(HasTwoDWorkspaceDocument));
             OnPropertyChanged(nameof(HasTwoDPreview));
             OnPropertyChanged(nameof(HasNoTwoDPreview));
+            OnPropertyChanged(nameof(TwoDLayers));
+            OnPropertyChanged(nameof(TwoDActiveLayerId));
+            OnPropertyChanged(nameof(TwoDHiddenPathIds));
             OnPropertyChanged(nameof(TwoDViewportSummary));
             OnPropertyChanged(nameof(TwoDSelectionSummary));
             OnPropertyChanged(nameof(OutputStatusSummary));

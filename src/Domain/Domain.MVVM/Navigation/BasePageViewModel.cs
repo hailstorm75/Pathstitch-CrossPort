@@ -16,6 +16,12 @@ public abstract partial class BasePageViewModel(ILogger<BasePageViewModel> logge
 
     [RelayCommand]
     private async Task LoadAsync()
+        => await LoadCoreAsync(_pageLeaveCancellationSource.Token).ConfigureAwait(true);
+
+    ValueTask INavigablePageViewModel.LoadAsync(CancellationToken cancellationToken)
+        => LoadCoreAsync(cancellationToken);
+
+    private async ValueTask LoadCoreAsync(CancellationToken cancellationToken)
     {
         if (_isLoaded)
             return;
@@ -29,7 +35,10 @@ public abstract partial class BasePageViewModel(ILogger<BasePageViewModel> logge
             logger.LogInformation("Loading page started");
             var start = Stopwatch.GetTimestamp();
             
-            await LoadPageAsync(_pageLeaveCancellationSource.Token).ConfigureAwait(true);
+            using var linkedCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(
+                _pageLeaveCancellationSource.Token,
+                cancellationToken);
+            await LoadPageAsync(linkedCancellationSource.Token).ConfigureAwait(true);
 
             logger.LogInformation("Loading page completed in {Time}ms", Stopwatch.GetElapsedTime(start));
         }

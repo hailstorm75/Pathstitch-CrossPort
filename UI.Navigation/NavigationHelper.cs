@@ -74,6 +74,7 @@ public static class NavigationHelper
 				currentPage.Dispose();
 
 			container.Content = page;
+			await page.ViewModel.LoadAsync(cancellationToken).ConfigureAwait(true);
 
 			logger.LogInformation("Navigated to {Page}", request.Value);
 

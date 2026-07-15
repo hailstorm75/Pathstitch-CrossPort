@@ -171,8 +171,8 @@ public sealed partial class EditorPageViewModel
             ApplyPersistedProjectionWorkspaceState(state.ProjectionWorkspaceState);
         }
 
-        ApplyPersistedEditorWorkspaceState(state.WorkspaceState);
         ApplyPersistedTwoDWorkspaceState(state.TwoDWorkspaceState);
+        ApplyPersistedEditorWorkspaceState(state.WorkspaceState);
         if (state.ThreeDWorkspaceState is { } threeDState)
         {
             _threeDWorkspace.RestoreState(threeDState);

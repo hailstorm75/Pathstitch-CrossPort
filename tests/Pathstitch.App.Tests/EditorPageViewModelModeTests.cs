@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Domain.App.Models;
+using Domain.App.Navigation;
 using Domain.App.Services;
 using Domain.App.ViewModels;
+using Domain.MVVM.Navigation;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Pathstitch.App.Tests;
@@ -92,6 +94,78 @@ public sealed class EditorPageViewModelModeTests
         Assert.False(viewModel.HasGeneratedOutput);
         Assert.Null(viewModel.LastGeneratedOutputPath);
         Assert.Same(viewModel.TwoDDocument, viewModel.TwoDWorkspace.Document);
+    }
+
+    [Fact]
+    public async Task EditingTwoDDocument_NotifiesLayersPanelWithUpdatedMembership()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var changes = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+        var path = new Editor2DPreviewPath(
+            "line-1",
+            "LINE",
+            [new Editor2DPoint(0, 0), new Editor2DPoint(10, 0)],
+            IsClosed: false);
+
+        viewModel.TwoDDocument = viewModel.TwoDDocument! with { Paths = [path] };
+
+        var layer = Assert.Single(viewModel.TwoDLayers);
+        Assert.Equal([path.Id], layer.PathIds);
+        Assert.Equal("1 entities", layer.ContentSummary);
+        Assert.Contains(nameof(EditorPageViewModel.TwoDLayers), changes);
+    }
+
+    [Fact]
+    public async Task LoadingSavedTwoDProject_RestoresDocumentAndActiveMode()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-2d-mode-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var projectPath = Path.Combine(directory, "saved-2d.stch");
+        try
+        {
+            var path = new Editor2DPreviewPath(
+                "rectangle-1",
+                "LWPOLYLINE",
+                [new Editor2DPoint(0, 0), new Editor2DPoint(10, 0), new Editor2DPoint(10, 5), new Editor2DPoint(0, 5)],
+                IsClosed: true);
+            var twoDState = Editor2DWorkspaceState.Empty with
+            {
+                IsInitialized = true,
+                Document = Editor2DWorkspaceState.Empty.Document with { Paths = [path] },
+            };
+            var shellState = new EditorWorkspaceState(
+                Editor3DTool.Select,
+                ThreeDOrthographic: false,
+                ShowTwoDWorkspace: true,
+                ActiveEditorMode: EditorMode.TwoD);
+            await new Project3DStateService().SaveAsync(
+                projectPath,
+                new Project3DState(null, [], [], WorkspaceState: shellState, TwoDWorkspaceState: twoDState));
+            var session = new ProjectSession(
+                Guid.NewGuid(),
+                "Saved 2D",
+                projectPath,
+                new ProjectTemplateDefinition("blank", "Blank", "Untitled"),
+                ProjectSessionOrigin.Opened,
+                DateTimeOffset.UtcNow);
+            var viewModel = CreateViewModel();
+
+            Assert.True(await viewModel.ConfigureParametersAsync(
+                new Dictionary<string, object> { [EditorNavigationParameterKeys.ProjectSession] = session },
+                CancellationToken.None));
+            await ((INavigablePageViewModel)viewModel).LoadAsync(CancellationToken.None);
+
+            Assert.Equal(EditorMode.TwoD, viewModel.ActiveEditorMode);
+            Assert.True(viewModel.IsShowingTwoDWorkspace);
+            Assert.Equal(path.Id, Assert.Single(viewModel.TwoDDocument!.Paths).Id);
+            Assert.Equal([path.Id], Assert.Single(viewModel.TwoDLayers).PathIds);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]

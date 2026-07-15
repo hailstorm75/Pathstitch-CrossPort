@@ -1,3 +1,6 @@
 ﻿namespace Domain.MVVM.Navigation;
 
-public interface INavigablePageViewModel : INavigablePage;
+public interface INavigablePageViewModel : INavigablePage
+{
+    ValueTask LoadAsync(CancellationToken cancellationToken);
+}
