@@ -70,6 +70,15 @@
           Content="Clear Measures"
           Click="OnClearTwoDMeasurementsClicked" />
       </StackPanel>
+      <StackPanel Spacing="8">
+        <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Fill / Stroke" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Button Classes="chip-button" Content="Stroke to Fill"
+                  IsEnabled="{Binding CanApplyTwoDStrokeToFill}" Click="OnApplyTwoDStrokeToFillClicked" />
+          <Button Classes="chip-button" Content="Fill to Stroke"
+                  IsEnabled="{Binding CanApplyTwoDFillToStroke}" Click="OnApplyTwoDFillToStrokeClicked" />
+        </StackPanel>
+      </StackPanel>
       <StackPanel
         Spacing="8"
         IsVisible="{Binding IsTwoDPolygonToolActive}">

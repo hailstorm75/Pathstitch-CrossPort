@@ -239,6 +239,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("ItemsSource=\"{Binding TwoDFolders}\"", layers, StringComparison.Ordinal);
         Assert.Contains("OnCreateFolderClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("OnDeleteFolderClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Stroke to Fill\"", layers + ReadPage("Editor2DInspector.axaml"), StringComparison.Ordinal);
+        Assert.Contains("Content=\"Fill to Stroke\"", ReadPage("Editor2DInspector.axaml"), StringComparison.Ordinal);
     }
 
     [Fact]

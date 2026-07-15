@@ -282,6 +282,18 @@ public abstract class EditorInteractionControlBase : UserControl
             await viewModel.ApplyTwoDBooleanAsync(operation);
     }
 
+    protected void OnApplyTwoDStrokeToFillClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ApplyTwoDStrokeToFill();
+    }
+
+    protected void OnApplyTwoDFillToStrokeClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ApplyTwoDFillToStroke();
+    }
+
     protected void OnApplyTwoDPatternClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)
