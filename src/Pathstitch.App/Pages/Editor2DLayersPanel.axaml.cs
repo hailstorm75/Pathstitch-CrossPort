@@ -95,6 +95,12 @@ public partial class Editor2DLayersPanel : UserControl
 
     private void OnTraceReferenceImageClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.TraceTwoDReferenceImage(id));
 
+    private void OnRemoveReferenceBackgroundClicked(object? sender, RoutedEventArgs e)
+        => WithLayer(sender, id => ViewModel?.RemoveTwoDReferenceImageBackground(id));
+
+    private void OnRestoreReferenceBackgroundClicked(object? sender, RoutedEventArgs e)
+        => WithLayer(sender, id => ViewModel?.RestoreTwoDReferenceImageBackground(id));
+
     private void OnCalibrateReferenceImageClicked(object? sender, RoutedEventArgs e)
     {
         if (ViewModel?.TwoDActiveLayerId is { } layerId)

@@ -44,6 +44,7 @@ public partial class App : Application
             .AddSingleton<IGeometryWorkerRuntimeResolver, AppOwnedGeometryWorkerRuntimeResolver>()
             .AddSingleton<IStepGeometryKernelService, PackagedStepGeometryKernelService>()
             .AddSingleton<IReferenceImageTraceService, AvaloniaReferenceImageTraceService>()
+            .AddSingleton<IReferenceImageBackgroundRemovalService, AvaloniaReferenceImageBackgroundRemovalService>()
             .AddSingleton<IEditor2DGeometryKernelService, OpenGeometryEditor2DGeometryKernelService>()
             .AddSingleton<IEditor3DOperationService, OpenGeometryEditor3DOperationService>()
             .AddSingleton<INavigationManager, NavigationManager>();

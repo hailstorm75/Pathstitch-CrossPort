@@ -128,6 +128,20 @@
                       Content="Trace image bounds"
                       Tag="{Binding Id}"
                       Click="OnTraceReferenceImageClicked" />
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <Button
+                        IsVisible="{Binding !ReferenceImage.BackgroundRemoved}"
+                        Padding="5,2"
+                        Content="Remove Background"
+                        Tag="{Binding Id}"
+                        Click="OnRemoveReferenceBackgroundClicked" />
+                      <Button
+                        IsVisible="{Binding ReferenceImage.BackgroundRemoved}"
+                        Padding="5,2"
+                        Content="Restore Background"
+                        Tag="{Binding Id}"
+                        Click="OnRestoreReferenceBackgroundClicked" />
+                    </StackPanel>
                   </StackPanel>
                 </StackPanel>
               </Border>
