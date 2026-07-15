@@ -115,7 +115,7 @@ public sealed class DxfCanvasCollaboratorTests
         Assert.Equal(DxfCanvasPressRoute.Move, controller.RoutePrimaryPress(Editor2DTool.Move));
         Assert.Equal(DxfCanvasPressRoute.SketchRectangle, controller.RoutePrimaryPress(Editor2DTool.SketchRectangle));
         Assert.Equal(DxfCanvasPressRoute.Corner, controller.RoutePrimaryPress(Editor2DTool.Fillet));
-        Assert.Equal(DxfCanvasPressRoute.None, controller.RoutePrimaryPress(Editor2DTool.AddSewingHoles));
+        Assert.Equal(DxfCanvasPressRoute.Selection, controller.RoutePrimaryPress(Editor2DTool.AddSewingHoles));
 
         session.PendingLineStart = new Editor2DPoint(0, 0);
         Assert.Equal(DxfCanvasMoveRoute.LineDraft, controller.RouteMove(Editor2DTool.SketchLine, false));

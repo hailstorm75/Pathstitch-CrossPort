@@ -1,5 +1,7 @@
+using Avalonia.Media;
 using Domain.App.Models;
 using Domain.App.ViewModels;
+using Pathstitch.App.Tests.Fixtures;
 
 namespace Pathstitch.App.Tests;
 
@@ -42,6 +44,7 @@ public sealed class EditorToolCatalogTests
         {
             Assert.False(string.IsNullOrWhiteSpace(descriptor.Identifier));
             Assert.False(string.IsNullOrWhiteSpace(descriptor.IconKey));
+            Assert.False(string.IsNullOrWhiteSpace(descriptor.IconPathData));
             Assert.False(string.IsNullOrWhiteSpace(descriptor.Label));
             Assert.False(string.IsNullOrWhiteSpace(descriptor.Hint));
             Assert.False(string.IsNullOrWhiteSpace(descriptor.CommandKey));
@@ -72,6 +75,21 @@ public sealed class EditorToolCatalogTests
             Assert.Equal(
                 modeGroup.Count(),
                 modeGroup.Select(descriptor => descriptor.CommandKey).Distinct(StringComparer.Ordinal).Count());
+        }
+    }
+
+    [Fact]
+    public void Catalog_ProvidesParsableVectorIconsForEveryToolAndAction()
+    {
+        AvaloniaHeadlessTestHost.EnsureInitialized();
+
+        foreach (var descriptor in EditorToolCatalog.All)
+        {
+            var geometry = StreamGeometry.Parse(descriptor.IconPathData);
+
+            Assert.NotNull(geometry);
+            Assert.True(geometry.Bounds.Width > 0, descriptor.Identifier);
+            Assert.True(geometry.Bounds.Height > 0, descriptor.Identifier);
         }
     }
 

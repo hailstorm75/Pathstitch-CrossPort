@@ -65,7 +65,8 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
     {
         Editor2DTool.Select or Editor2DTool.Scale or Editor2DTool.Mirror or
         Editor2DTool.ConvertLines or Editor2DTool.Offset or Editor2DTool.AddThickness or
-        Editor2DTool.Cleanup or Editor2DTool.Patterning or Editor2DTool.PaperFolding => DxfCanvasPressRoute.Selection,
+        Editor2DTool.Cleanup or Editor2DTool.Patterning or Editor2DTool.PaperFolding or
+        Editor2DTool.AddSewingHoles => DxfCanvasPressRoute.Selection,
         Editor2DTool.Move => DxfCanvasPressRoute.Move,
         Editor2DTool.Measure => DxfCanvasPressRoute.Measure,
         Editor2DTool.Dimension => DxfCanvasPressRoute.Dimension,
@@ -97,7 +98,8 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (tool == Editor2DTool.Dimension && session.PendingDimensionStart is not null) return DxfCanvasMoveRoute.DimensionDraft;
         if (tool is Editor2DTool.Trim or Editor2DTool.Fillet or Editor2DTool.Chamfer) return DxfCanvasMoveRoute.ToolPreview;
         if (capturedByCanvas && (tool is Editor2DTool.Select or Editor2DTool.ConvertLines or Editor2DTool.Offset or
-            Editor2DTool.AddThickness or Editor2DTool.Cleanup or Editor2DTool.Patterning or Editor2DTool.PaperFolding) &&
+            Editor2DTool.AddThickness or Editor2DTool.Cleanup or Editor2DTool.Patterning or
+            Editor2DTool.PaperFolding or Editor2DTool.AddSewingHoles) &&
             session.MarqueeStartPoint is not null) return DxfCanvasMoveRoute.Marquee;
         return DxfCanvasMoveRoute.Hover;
     }

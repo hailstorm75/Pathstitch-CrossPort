@@ -565,7 +565,8 @@ public sealed class DxfPreviewCanvas : Control
             || ActiveTool == Editor2DTool.AddThickness
             || ActiveTool == Editor2DTool.Cleanup
             || ActiveTool == Editor2DTool.Patterning
-            || ActiveTool == Editor2DTool.PaperFolding)
+            || ActiveTool == Editor2DTool.PaperFolding
+            || ActiveTool == Editor2DTool.AddSewingHoles)
         {
             if (ActiveTool == Editor2DTool.Scale && TryBeginScaleSelection(point.Position, e.Pointer))
             {
