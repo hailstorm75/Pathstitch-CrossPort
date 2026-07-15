@@ -406,6 +406,8 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(HasTwoDMeasurements));
             OnPropertyChanged(nameof(TwoDAutoDimensionCount));
             OnPropertyChanged(nameof(TwoDMeasurementSummary));
+            OnPropertyChanged(nameof(TwoDSelectedMeasurementExpressionText));
+            OnPropertyChanged(nameof(TwoDSelectedMeasurementDriven));
             OnPropertyChanged(nameof(TwoDToolHint));
         }
     }
@@ -423,7 +425,46 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged();
 
             OnPropertyChanged(nameof(HasTwoDSelectedMeasurement));
+            OnPropertyChanged(nameof(TwoDSelectedMeasurementExpressionText));
+            OnPropertyChanged(nameof(TwoDSelectedMeasurementDriven));
             OnPropertyChanged(nameof(TwoDMeasurementSummary));
+        }
+    }
+
+    public string TwoDSelectedMeasurementExpressionText
+    {
+        get
+        {
+            var measurement = TwoDMeasurements.FirstOrDefault(item => item.Id == TwoDSelectedMeasurementId);
+            return measurement?.Expression ?? measurement?.Distance.ToString("0.###", CultureInfo.InvariantCulture) ?? string.Empty;
+        }
+        set
+        {
+            if (string.IsNullOrWhiteSpace(TwoDSelectedMeasurementId))
+                return;
+            if (!_twoDWorkspace.TrySetMeasurementExpression(TwoDSelectedMeasurementId, value ?? string.Empty, out var error))
+            {
+                StatusText = error;
+                return;
+            }
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TwoDMeasurementSummary));
+            Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+        }
+    }
+
+    public bool TwoDSelectedMeasurementDriven
+    {
+        get => TwoDMeasurements.FirstOrDefault(item => item.Id == TwoDSelectedMeasurementId)?.Driven == true;
+        set
+        {
+            if (string.IsNullOrWhiteSpace(TwoDSelectedMeasurementId)
+                || !_twoDWorkspace.SetMeasurementDriven(TwoDSelectedMeasurementId, value))
+                return;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TwoDSelectedMeasurementExpressionText));
+            OnPropertyChanged(nameof(TwoDMeasurementSummary));
+            Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
         }
     }
 

@@ -1430,7 +1430,15 @@ Selection:
         Point start,
         Point end)
     {
-        var labelText = $"{measurement.Distance:0.###} mm";
+        var expression = measurement.Expression?.Trim();
+        var labelValue = measurement.IsParametric && !string.IsNullOrWhiteSpace(expression)
+            ? measurement.Driven
+                ? $"({expression})"
+                : expression.Any(character => char.IsLetter(character) || character is '+' or '-' or '*' or '/')
+                    ? $"fx: {expression}"
+                    : expression
+            : measurement.Distance.ToString("0.###", CultureInfo.InvariantCulture);
+        var labelText = $"{labelValue} mm";
         var text = new FormattedText(
             labelText,
             CultureInfo.InvariantCulture,

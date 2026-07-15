@@ -28,6 +28,19 @@
         TextWrapping="Wrap"
         Foreground="{StaticResource MutedTextBrush}"
         Text="{Binding TwoDMeasurementSummary}" />
+      <StackPanel
+        Spacing="6"
+        IsVisible="{Binding HasTwoDSelectedMeasurement}">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="Selected dimension expression" />
+        <TextBox
+          Text="{Binding TwoDSelectedMeasurementExpressionText, Mode=TwoWay}" />
+        <CheckBox
+          Content="Driven / reference dimension"
+          IsChecked="{Binding TwoDSelectedMeasurementDriven, Mode=TwoWay}" />
+      </StackPanel>
       <Button
         AutomationProperties.AutomationId="editor.2d.export-dxf"
         Classes="chip-button"
