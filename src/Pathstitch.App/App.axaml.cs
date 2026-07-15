@@ -87,6 +87,7 @@ public partial class App : Application
         DxfPreviewCanvas.ReversePanDirection = preferences.ReversePanDirection;
         SvgPreviewDocumentParser.ConsolidateStrokes = preferences.ConsolidateSvgStrokes;
         SvgPreviewDocumentParser.FillMode = preferences.SvgFillMode;
+        SvgPreviewDocumentParser.ImportThickness = preferences.SvgImportThickness;
         if (Current is not null)
         {
             Current.RequestedThemeVariant = preferences.Appearance.ToLowerInvariant() switch

@@ -14,7 +14,8 @@ public sealed record UserPreferences(
     bool BatchIntroDismissed = false,
     bool TutorialCompleted = false,
     bool ConsolidateSvgStrokes = true,
-    string SvgFillMode = "strokes");
+    string SvgFillMode = "strokes",
+    double SvgImportThickness = 3.0);
 
 public sealed class UserPreferencesStore
 {

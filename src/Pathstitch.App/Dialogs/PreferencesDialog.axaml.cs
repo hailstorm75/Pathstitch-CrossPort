@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -58,10 +59,13 @@ public sealed partial class PreferencesDialog : Window
         AppearanceSelector.SelectionChanged += OnAppearanceChanged;
         ReversePanDirection.IsChecked = DxfPreviewCanvas.ReversePanDirection;
         ConsolidateSvgStrokes.IsChecked = _preferencesStore.Load().ConsolidateSvgStrokes;
-        SvgFillModeSelector.SelectedIndex = string.Equals(_preferencesStore.Load().SvgFillMode, "preserve", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        var preferences = _preferencesStore.Load();
+        SvgFillModeSelector.SelectedIndex = string.Equals(preferences.SvgFillMode, "preserve", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        SvgImportThickness.Text = preferences.SvgImportThickness.ToString("0.###", CultureInfo.InvariantCulture);
         ReversePanDirection.IsCheckedChanged += OnReversePanDirectionChanged;
         ConsolidateSvgStrokes.IsCheckedChanged += OnConsolidateSvgStrokesChanged;
         SvgFillModeSelector.SelectionChanged += OnSvgFillModeChanged;
+        SvgImportThickness.TextChanged += OnSvgImportThicknessChanged;
     }
 
     private void OnReversePanDirectionChanged(object? sender, RoutedEventArgs e)
@@ -96,8 +100,18 @@ public sealed partial class PreferencesDialog : Window
         SavePreferences();
     }
 
+    private void OnSvgImportThicknessChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (!double.TryParse(SvgImportThickness.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var thickness))
+            return;
+
+        SvgPreviewDocumentParser.ImportThickness = Math.Max(0.0, thickness);
+        SavePreferences();
+    }
+
     private void SavePreferences()
     {
+        var importThickness = ParseImportThickness();
         var appearance = AppearanceSelector.SelectedIndex switch
         {
             1 => "Light",
@@ -110,8 +124,14 @@ public sealed partial class PreferencesDialog : Window
             ReversePanDirection = DxfPreviewCanvas.ReversePanDirection,
             ConsolidateSvgStrokes = ConsolidateSvgStrokes.IsChecked == true,
             SvgFillMode = SvgFillModeSelector.SelectedIndex == 1 ? "preserve" : "strokes",
+            SvgImportThickness = importThickness,
         });
     }
+
+    private double ParseImportThickness()
+        => double.TryParse(SvgImportThickness.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var thickness)
+            ? Math.Max(0.0, thickness)
+            : 3.0;
 
     private void OnShowGettingStartedClicked(object? sender, RoutedEventArgs e)
     {
@@ -173,12 +193,15 @@ public sealed partial class PreferencesDialog : Window
     {
         if (_viewModel is null)
         {
+            SvgPreviewDocumentParser.ImportThickness = ParseImportThickness();
+            SavePreferences();
             Close();
             return;
         }
 
         try
         {
+            SvgPreviewDocumentParser.ImportThickness = ParseImportThickness();
             var current = _viewModel.ToolCustomizations.ToDictionary(item => item.Identifier, StringComparer.Ordinal);
             foreach (var (identifier, shortcut) in _shortcutEditors)
             {

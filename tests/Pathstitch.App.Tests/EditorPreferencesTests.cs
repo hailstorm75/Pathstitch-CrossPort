@@ -63,6 +63,7 @@ public sealed class EditorPreferencesTests
         }
         finally
         {
+            SvgPreviewDocumentParser.ImportThickness = 0;
             File.Delete(path);
         }
     }
@@ -87,6 +88,32 @@ public sealed class EditorPreferencesTests
         }
         finally
         {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task PreferencesDialog_UpdatesSvgImportThickness()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-ui-svg-thickness-{Guid.NewGuid():N}.json");
+        try
+        {
+            var store = new UserPreferencesStore(path);
+            var dialog = await _ui.RunAsync(() => new PreferencesDialog(null, store));
+            await _ui.RunAsync(() =>
+            {
+                dialog.Show();
+                dialog.UpdateLayout();
+                _ui.FindByAutomationId<TextBox>(dialog, "dialog.preferences.svg-import-thickness").Text = "5.5";
+                _ui.FindByAutomationId<Button>(dialog, "dialog.preferences.apply").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            });
+
+            Assert.Equal(5.5, store.Load().SvgImportThickness, 6);
+            await _ui.RunAsync(dialog.Close);
+        }
+        finally
+        {
+            SvgPreviewDocumentParser.ImportThickness = 0;
             File.Delete(path);
         }
     }

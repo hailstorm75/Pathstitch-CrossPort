@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
+using Domain.App.Models;
 
 namespace Pathstitch.App.Services;
 
@@ -13,6 +14,7 @@ internal static class SvgPreviewDocumentParser
 {
     public static bool ConsolidateStrokes { get; set; }
     public static string FillMode { get; set; } = "strokes";
+    public static double ImportThickness { get; set; }
     private static readonly Regex NumberPattern = new(@"[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?", RegexOptions.Compiled);
 
     public static DxfPreviewDocument Load(string path)
@@ -51,6 +53,7 @@ internal static class SvgPreviewDocumentParser
                     if (parsed.IsClosed)
                         parsed = parsed with { IsFilled = PreserveFill(element) };
                     parsed = ConsolidateStrokes ? ConsolidateStroke(parsed) : parsed;
+                    parsed = ThickenStroke(parsed);
                     paths.Add(parsed);
                 }
                     index++;
@@ -146,6 +149,8 @@ internal static class SvgPreviewDocumentParser
 
         var fill = (string?)element.Attribute("fill")
             ?? ParseStyle((string?)element.Attribute("style"), "fill");
+        if (string.IsNullOrWhiteSpace(fill))
+            return false;
         if (string.Equals(fill?.Trim(), "none", StringComparison.OrdinalIgnoreCase)
             || string.Equals(fill?.Trim(), "transparent", StringComparison.OrdinalIgnoreCase))
             return false;
@@ -154,6 +159,38 @@ internal static class SvgPreviewDocumentParser
             ?? ParseStyle((string?)element.Attribute("style"), "fill-opacity");
         return !double.TryParse(opacity, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
             || value > 0;
+    }
+
+    private static DxfPreviewPath ThickenStroke(DxfPreviewPath path)
+    {
+        if (ImportThickness <= 0 || path.IsFilled)
+            return path;
+
+        var sourceEntityType = path.EntityType is "RECTANGLE" or "POLYGON" ? "POLYLINE" : path.EntityType;
+        var source = new Editor2DPreviewPath(
+            path.Id,
+            sourceEntityType,
+            path.Points.Select(point => new Editor2DPoint(point.X, point.Y)).ToArray(),
+            path.IsClosed);
+
+        Editor2DPreviewPath thickened;
+        if (path.IsClosed)
+        {
+            if (!Editor2DGeometry.TryBuildCurveOffsetPath(source, ImportThickness / 2.0, true, out thickened))
+                return path;
+        }
+        else if (!Editor2DGeometry.TryBuildThicknessPath(source, ImportThickness, out thickened))
+            return path;
+
+        return path with
+        {
+            EntityType = thickened.EntityType,
+            Points = thickened.Points.Select(point => new DxfPoint(point.X, point.Y)).ToArray(),
+            IsClosed = thickened.IsClosed,
+            IsAxisAlignedRectangle = thickened.IsAxisAlignedRectangle,
+            Center = thickened.Center is { } center ? new DxfPoint(center.X, center.Y) : path.Center,
+            Radius = thickened.Radius ?? path.Radius,
+        };
     }
 
     private static string? ParseStyle(string? style, string property)

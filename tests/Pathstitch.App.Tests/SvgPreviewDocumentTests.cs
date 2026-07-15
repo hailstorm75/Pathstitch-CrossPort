@@ -12,6 +12,7 @@ public sealed class SvgPreviewDocumentTests
         {
             await File.WriteAllTextAsync(path, "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"0\" y=\"0\" width=\"20\" height=\"2\" /></svg>");
             SvgPreviewDocumentParser.ConsolidateStrokes = true;
+            SvgPreviewDocumentParser.ImportThickness = 0;
             var document = await new DxfOutputPreviewService().LoadPreviewDocumentAsync(path);
             var stroke = Assert.Single(document!.Paths);
             Assert.Equal("POLYLINE", stroke.EntityType);
@@ -21,6 +22,7 @@ public sealed class SvgPreviewDocumentTests
         finally
         {
             SvgPreviewDocumentParser.ConsolidateStrokes = false;
+            SvgPreviewDocumentParser.ImportThickness = 0;
             File.Delete(path);
         }
     }
@@ -33,6 +35,7 @@ public sealed class SvgPreviewDocumentTests
         try
         {
             SvgPreviewDocumentParser.ConsolidateStrokes = false;
+            SvgPreviewDocumentParser.ImportThickness = 0;
             var document = await new DxfOutputPreviewService().LoadPreviewDocumentAsync(path);
 
             Assert.NotNull(document);
@@ -44,6 +47,7 @@ public sealed class SvgPreviewDocumentTests
         finally
         {
             SvgPreviewDocumentParser.ConsolidateStrokes = false;
+            SvgPreviewDocumentParser.ImportThickness = 0;
             File.Delete(path);
         }
     }
@@ -56,6 +60,7 @@ public sealed class SvgPreviewDocumentTests
         {
             await File.WriteAllTextAsync(path, "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"10\" height=\"5\" fill=\"#123456\" /><circle cx=\"4\" cy=\"4\" r=\"2\" style=\"fill:none\" /></svg>");
             SvgPreviewDocumentParser.FillMode = "preserve";
+            SvgPreviewDocumentParser.ImportThickness = 0;
             var document = await new DxfOutputPreviewService().LoadPreviewDocumentAsync(path);
             Assert.True(document!.Paths.Single(path => path.EntityType == "RECTANGLE").IsFilled);
             Assert.False(document.Paths.Single(path => path.EntityType == "CIRCLE").IsFilled);
@@ -63,6 +68,28 @@ public sealed class SvgPreviewDocumentTests
         finally
         {
             SvgPreviewDocumentParser.FillMode = "strokes";
+            SvgPreviewDocumentParser.ImportThickness = 0;
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task LoadPreviewDocumentAsync_ThickensOpenSvgStrokes()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-{Guid.NewGuid():N}.svg");
+        try
+        {
+            await File.WriteAllTextAsync(path, "<svg xmlns=\"http://www.w3.org/2000/svg\"><line x1=\"0\" y1=\"0\" x2=\"10\" y2=\"0\" /></svg>");
+            SvgPreviewDocumentParser.ImportThickness = 4.0;
+            var document = await new DxfOutputPreviewService().LoadPreviewDocumentAsync(path);
+            var outline = Assert.Single(document!.Paths);
+            Assert.True(outline.IsClosed);
+            Assert.Equal("LWPOLYLINE", outline.EntityType);
+            Assert.Equal(4.0, outline.Points.Max(point => point.Y) - outline.Points.Min(point => point.Y), 6);
+        }
+        finally
+        {
+            SvgPreviewDocumentParser.ImportThickness = 0;
             File.Delete(path);
         }
     }

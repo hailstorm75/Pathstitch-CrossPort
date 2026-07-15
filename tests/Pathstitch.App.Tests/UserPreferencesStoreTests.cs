@@ -21,6 +21,7 @@ public sealed class UserPreferencesStoreTests
             Assert.True(loaded.SupportCardDismissed);
             Assert.True(loaded.ConsolidateSvgStrokes);
             Assert.Equal("strokes", loaded.SvgFillMode);
+            Assert.Equal(3.0, loaded.SvgImportThickness);
         }
         finally
         {
