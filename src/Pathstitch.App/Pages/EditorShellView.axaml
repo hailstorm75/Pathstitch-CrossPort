@@ -130,6 +130,14 @@
           Header="_Close Document"
           HotKey="Ctrl+W" />
       </MenuItem>
+      <MenuItem
+        AutomationProperties.AutomationId="editor.menu.help"
+        Header="_Help">
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.help.about"
+          Header="_About Pathstitch"
+          Click="OnAboutClicked" />
+      </MenuItem>
     </Menu>
     <Border
       Grid.Row="1"

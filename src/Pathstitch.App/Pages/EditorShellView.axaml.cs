@@ -3,6 +3,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Domain.App.Models;
 using Domain.App.ViewModels;
+using Pathstitch.App.Dialogs;
 
 namespace Pathstitch.App.Pages;
 
@@ -32,6 +33,15 @@ public partial class EditorShellView : EditorInteractionControlBase
     {
         if (DataContext is EditorPageViewModel viewModel)
             viewModel.ToggleTwoDSnapping();
+    }
+
+    private async void OnAboutClicked(object? sender, RoutedEventArgs e)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+            return;
+
+        var dialog = new AboutDialog();
+        await dialog.ShowDialog(owner);
     }
 
     private async void OnShowBatchWorkspaceClicked(object? sender, RoutedEventArgs e)

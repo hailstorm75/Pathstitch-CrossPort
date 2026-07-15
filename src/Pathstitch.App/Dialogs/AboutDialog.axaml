@@ -1,0 +1,53 @@
+<Window
+  x:Class="Pathstitch.App.Dialogs.AboutDialog"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  Title="About Pathstitch"
+  Width="460"
+  Height="260"
+  CanResize="False"
+  ShowInTaskbar="False"
+  WindowStartupLocation="CenterOwner"
+  AutomationProperties.AutomationId="dialog.about">
+  <Grid Margin="24" RowDefinitions="Auto,Auto,*,Auto">
+    <StackPanel Spacing="4">
+      <TextBlock
+        FontSize="20"
+        FontWeight="SemiBold"
+        Text="Pathstitch" />
+      <TextBlock
+        FontSize="12"
+        Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+        Text="Avalonia cross-port for leathercraft and sewing pattern workflows." />
+    </StackPanel>
+
+    <TextBlock
+      Grid.Row="1"
+      Margin="0,14,0,0"
+      FontSize="11"
+      Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+      Text="The desktop app keeps the original macOS project experience available on Windows and macOS." />
+
+    <Border
+      Grid.Row="2"
+      Margin="0,18,0,18"
+      Padding="12"
+      Background="#0F000000"
+      BorderBrush="#22FFFFFF"
+      BorderThickness="1"
+      CornerRadius="8">
+      <TextBlock
+        TextWrapping="Wrap"
+        Text="Use the shell to switch between 2D, 3D, and Batch workspaces, then export or save projects from the File menu." />
+    </Border>
+
+    <Button
+      Grid.Row="3"
+      AutomationProperties.AutomationId="dialog.about.close"
+      HorizontalAlignment="Right"
+      MinWidth="88"
+      Content="Close"
+      IsDefault="True"
+      Click="OnCloseClicked" />
+  </Grid>
+</Window>

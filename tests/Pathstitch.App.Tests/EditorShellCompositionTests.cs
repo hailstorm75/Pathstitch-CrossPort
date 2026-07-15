@@ -47,6 +47,20 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void HelpMenu_ExposesAnAboutDialogForAppParity()
+    {
+        var shell = ReadPage("EditorShellView.axaml");
+        var aboutDialog = ReadRepositoryFile("src", "Pathstitch.App", "Dialogs", "AboutDialog.axaml");
+
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.menu.help\"", shell, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.menu.help.about\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Click=\"OnAboutClicked\"", shell, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"dialog.about\"", aboutDialog, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"dialog.about.close\"", aboutDialog, StringComparison.Ordinal);
+        Assert.Contains("About Pathstitch", aboutDialog, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WorkspaceViews_ContainOnlyTheirOwnViewportTechnology()
     {
         var twoD = ReadPage("Editor2DView.axaml");

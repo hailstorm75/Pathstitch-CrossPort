@@ -22,6 +22,8 @@ public sealed class UiAutomationIdentifierTests
             "editor.menu.file.save",
             "editor.menu.file.save-and-close",
             "editor.menu.file.close-document",
+            "editor.menu.help",
+            "editor.menu.help.about",
             "editor.header",
             "editor.tool-rail",
             "editor.context-panel",
@@ -50,6 +52,15 @@ public sealed class UiAutomationIdentifierTests
         _ui.FindXamlElementByAutomationId(dialog, "dialog.unsaved-changes.save");
         _ui.FindXamlElementByAutomationId(dialog, "dialog.unsaved-changes.discard");
         _ui.FindXamlElementByAutomationId(dialog, "dialog.unsaved-changes.cancel");
+    }
+
+    [Fact]
+    public void AboutDialog_ExposesStableNavigationAndDismissIdentifiers()
+    {
+        var dialog = _ui.LoadXaml("src", "Pathstitch.App", "Dialogs", "AboutDialog.axaml");
+
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.about");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.about.close");
     }
 
     [Fact]
