@@ -45,11 +45,12 @@ internal static class EditorDxfDocument
     public static void SavePreviewDocument(
         string outputPath,
         Editor2DPreviewDocument document,
-        string layerName = "EDITED_OUTPUT")
+        string layerName = "EDITED_OUTPUT",
+        Editor2DExportOptions? options = null)
     {
         if (Path.GetExtension(outputPath).Equals(".svg", StringComparison.OrdinalIgnoreCase))
         {
-            SvgOutputDocumentWriter.Save(outputPath, document);
+            SvgOutputDocumentWriter.Save(outputPath, document, options);
             return;
         }
 

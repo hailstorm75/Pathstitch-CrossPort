@@ -11,5 +11,12 @@ public interface IEditorOutputPreviewService
 
     Task SavePreviewDocumentAsync(Editor2DPreviewDocument document, string outputPath, CancellationToken cancellationToken = default);
 
+    Task SavePreviewDocumentAsync(
+        Editor2DPreviewDocument document,
+        string outputPath,
+        Editor2DExportOptions options,
+        CancellationToken cancellationToken = default)
+        => SavePreviewDocumentAsync(document, outputPath, cancellationToken);
+
     Task<EditorGeneratedOutputSummary?> InspectOutputAsync(string outputPath, CancellationToken cancellationToken = default);
 }

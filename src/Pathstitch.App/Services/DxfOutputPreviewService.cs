@@ -78,6 +78,17 @@ public sealed class DxfOutputPreviewService : IEditorOutputPreviewService
         return Task.CompletedTask;
     }
 
+    public Task SavePreviewDocumentAsync(
+        Editor2DPreviewDocument document,
+        string outputPath,
+        Editor2DExportOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        EditorDxfDocument.SavePreviewDocument(outputPath, document, options: options);
+        return Task.CompletedTask;
+    }
+
     public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(string outputPath, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

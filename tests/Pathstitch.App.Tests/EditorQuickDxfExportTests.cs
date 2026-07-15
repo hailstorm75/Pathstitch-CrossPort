@@ -140,6 +140,32 @@ public sealed class EditorQuickDxfExportTests
         }
     }
 
+    [Fact]
+    public async Task SvgWriter_AppliesPrecisionAndStrokeWidthOptions()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-export-options-{Guid.NewGuid():N}.svg");
+        try
+        {
+            var document = new Editor2DPreviewDocument(
+                [new Editor2DPreviewPath("line", "LINE", [new(1.2345, 2.3456), new(3.4567, 4.5678)], false)],
+                new Editor2DBounds(1.2345, 2.3456, 3.4567, 4.5678),
+                new Dictionary<string, int> { ["LINE"] = 1 },
+                []);
+            await new DxfOutputPreviewService().SavePreviewDocumentAsync(
+                document,
+                outputPath,
+                new Editor2DExportOptions(2, 1.25));
+
+            var svg = await File.ReadAllTextAsync(outputPath);
+            Assert.Contains("1.23,2.35", svg, StringComparison.Ordinal);
+            Assert.Contains("stroke-width=\"1.25\"", svg, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(outputPath);
+        }
+    }
+
     private static Editor2DPreviewDocument CreateDocument()
         => new(
             [new Editor2DPreviewPath("line-1", "LINE", [new(1, 2), new(3, 4)], false)],
