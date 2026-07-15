@@ -13,7 +13,8 @@ public sealed record UserPreferences(
     bool ThreeDIntroDismissed = false,
     bool BatchIntroDismissed = false,
     bool TutorialCompleted = false,
-    bool ConsolidateSvgStrokes = true);
+    bool ConsolidateSvgStrokes = true,
+    string SvgFillMode = "strokes");
 
 public sealed class UserPreferencesStore
 {

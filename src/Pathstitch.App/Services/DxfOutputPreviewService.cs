@@ -57,7 +57,8 @@ public sealed class DxfOutputPreviewService : IEditorOutputPreviewService
                     Center: path.Center is DxfPoint center ? new Editor2DPoint(center.X, center.Y) : null,
                     Radius: path.Radius,
                     StartAngleDegrees: path.StartAngleDegrees,
-                    EndAngleDegrees: path.EndAngleDegrees))
+                    EndAngleDegrees: path.EndAngleDegrees,
+                    IsFilled: path.IsFilled))
                 .ToArray(),
             hasBounds
                 ? new Editor2DBounds(minX, minY, maxX, maxY)

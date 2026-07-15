@@ -12,6 +12,7 @@ namespace Pathstitch.App.Services;
 internal static class SvgPreviewDocumentParser
 {
     public static bool ConsolidateStrokes { get; set; }
+    public static string FillMode { get; set; } = "strokes";
     private static readonly Regex NumberPattern = new(@"[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?", RegexOptions.Compiled);
 
     public static DxfPreviewDocument Load(string path)
@@ -47,6 +48,8 @@ internal static class SvgPreviewDocumentParser
                     unsupported.Add(type);
                 else
                 {
+                    if (parsed.IsClosed)
+                        parsed = parsed with { IsFilled = PreserveFill(element) };
                     parsed = ConsolidateStrokes ? ConsolidateStroke(parsed) : parsed;
                     paths.Add(parsed);
                 }
@@ -135,6 +138,30 @@ internal static class SvgPreviewDocumentParser
             : new[] { new DxfPoint((minX + maxX) / 2.0, minY), new DxfPoint((minX + maxX) / 2.0, maxY) };
         return path with { EntityType = "POLYLINE", Points = centerline, IsClosed = false, IsAxisAlignedRectangle = false };
     }
+
+    private static bool PreserveFill(XElement element)
+    {
+        if (!string.Equals(FillMode, "preserve", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var fill = (string?)element.Attribute("fill")
+            ?? ParseStyle((string?)element.Attribute("style"), "fill");
+        if (string.Equals(fill?.Trim(), "none", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fill?.Trim(), "transparent", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var opacity = (string?)element.Attribute("fill-opacity")
+            ?? ParseStyle((string?)element.Attribute("style"), "fill-opacity");
+        return !double.TryParse(opacity, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            || value > 0;
+    }
+
+    private static string? ParseStyle(string? style, string property)
+        => style?.Split(';', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Split(':', 2))
+            .Where(parts => parts.Length == 2 && string.Equals(parts[0].Trim(), property, StringComparison.OrdinalIgnoreCase))
+            .Select(parts => parts[1].Trim())
+            .FirstOrDefault();
 
     private static (double ScaleX, double ScaleY, double OffsetX, double OffsetY)? ResolveRootTransform(XElement root)
     {

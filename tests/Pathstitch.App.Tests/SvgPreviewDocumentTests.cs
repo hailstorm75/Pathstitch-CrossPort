@@ -49,6 +49,25 @@ public sealed class SvgPreviewDocumentTests
     }
 
     [Fact]
+    public async Task LoadPreviewDocumentAsync_CanPreserveExplicitSvgFills()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-{Guid.NewGuid():N}.svg");
+        try
+        {
+            await File.WriteAllTextAsync(path, "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"10\" height=\"5\" fill=\"#123456\" /><circle cx=\"4\" cy=\"4\" r=\"2\" style=\"fill:none\" /></svg>");
+            SvgPreviewDocumentParser.FillMode = "preserve";
+            var document = await new DxfOutputPreviewService().LoadPreviewDocumentAsync(path);
+            Assert.True(document!.Paths.Single(path => path.EntityType == "RECTANGLE").IsFilled);
+            Assert.False(document.Paths.Single(path => path.EntityType == "CIRCLE").IsFilled);
+        }
+        finally
+        {
+            SvgPreviewDocumentParser.FillMode = "strokes";
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task LoadPreviewDocumentAsync_PreservesPhysicalSizeFromViewBox()
     {
         var path = Path.Combine(Path.GetTempPath(), $"pathstitch-{Guid.NewGuid():N}.svg");

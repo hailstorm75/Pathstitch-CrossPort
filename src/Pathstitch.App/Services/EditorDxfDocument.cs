@@ -28,7 +28,8 @@ internal sealed record DxfPreviewPath(
     DxfPoint? Center = null,
     double? Radius = null,
     double? StartAngleDegrees = null,
-    double? EndAngleDegrees = null);
+    double? EndAngleDegrees = null,
+    bool IsFilled = false);
 
 internal sealed record DxfPreviewDocument(
     IReadOnlyList<DxfPreviewPath> Paths,

@@ -20,6 +20,7 @@ public sealed class UserPreferencesStoreTests
             Assert.True(loaded.GettingStartedDismissed);
             Assert.True(loaded.SupportCardDismissed);
             Assert.True(loaded.ConsolidateSvgStrokes);
+            Assert.Equal("strokes", loaded.SvgFillMode);
         }
         finally
         {

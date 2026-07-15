@@ -58,8 +58,10 @@ public sealed partial class PreferencesDialog : Window
         AppearanceSelector.SelectionChanged += OnAppearanceChanged;
         ReversePanDirection.IsChecked = DxfPreviewCanvas.ReversePanDirection;
         ConsolidateSvgStrokes.IsChecked = _preferencesStore.Load().ConsolidateSvgStrokes;
+        SvgFillModeSelector.SelectedIndex = string.Equals(_preferencesStore.Load().SvgFillMode, "preserve", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
         ReversePanDirection.IsCheckedChanged += OnReversePanDirectionChanged;
         ConsolidateSvgStrokes.IsCheckedChanged += OnConsolidateSvgStrokesChanged;
+        SvgFillModeSelector.SelectionChanged += OnSvgFillModeChanged;
     }
 
     private void OnReversePanDirectionChanged(object? sender, RoutedEventArgs e)
@@ -88,6 +90,12 @@ public sealed partial class PreferencesDialog : Window
         SavePreferences();
     }
 
+    private void OnSvgFillModeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        SvgPreviewDocumentParser.FillMode = SvgFillModeSelector.SelectedIndex == 1 ? "preserve" : "strokes";
+        SavePreferences();
+    }
+
     private void SavePreferences()
     {
         var appearance = AppearanceSelector.SelectedIndex switch
@@ -101,6 +109,7 @@ public sealed partial class PreferencesDialog : Window
             Appearance = appearance,
             ReversePanDirection = DxfPreviewCanvas.ReversePanDirection,
             ConsolidateSvgStrokes = ConsolidateSvgStrokes.IsChecked == true,
+            SvgFillMode = SvgFillModeSelector.SelectedIndex == 1 ? "preserve" : "strokes",
         });
     }
 
