@@ -64,8 +64,10 @@
         IsEnabled="{Binding HasTwoDMeasurements}"
         IsChecked="{Binding TwoDExportMeasurementLines, Mode=TwoWay}" />
       <StackPanel Spacing="4">
-        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="SVG export options" />
+        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Export options" />
         <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock VerticalAlignment="Center" FontSize="10" Text="DXF" />
+          <ComboBox Width="70" ItemsSource="{Binding TwoDDxfVersionOptions}" SelectedItem="{Binding TwoDDxfVersion, Mode=TwoWay}" />
           <TextBlock VerticalAlignment="Center" FontSize="10" Text="Precision" />
           <TextBox Width="48" Text="{Binding TwoDSvgPrecisionText, Mode=TwoWay}" />
           <TextBlock VerticalAlignment="Center" FontSize="10" Text="Stroke" />

@@ -222,6 +222,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("TwoDExportMeasurementLines, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDSvgPrecisionText, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDSvgStrokeWidthText, Mode=TwoWay", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDDxfVersionOptions", inspector, StringComparison.Ordinal);
     }
 
     [Fact]
