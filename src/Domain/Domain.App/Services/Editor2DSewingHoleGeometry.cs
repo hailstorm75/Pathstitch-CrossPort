@@ -4,6 +4,8 @@ namespace Domain.App.Services;
 
 public static class Editor2DSewingHoleGeometry
 {
+    private const int MaxPitchPlacementsPerPath = 12_000;
+
     public static IReadOnlyList<Editor2DPreviewPath> BuildPreview(
         Editor2DPreviewDocument document,
         IReadOnlyList<string> sourcePathIds,
@@ -94,6 +96,7 @@ public static class Editor2DSewingHoleGeometry
                 else if (clampedPitch > maximum)
                     intervals = Math.Max(1, (int)Math.Ceiling(length / maximum));
             }
+            intervals = Math.Min(MaxPitchPlacementsPerPath, intervals);
             var count = closed ? intervals : intervals + 1;
             var actualPitch = length / intervals;
             for (var index = 0; index < count; index++)
@@ -101,8 +104,13 @@ public static class Editor2DSewingHoleGeometry
         }
         else
         {
-            for (var distance = 0.0; distance < length - 1e-9; distance += pitch)
+            for (var index = 0; index < MaxPitchPlacementsPerPath; index++)
+            {
+                var distance = index * pitch;
+                if (distance >= length - 1e-9)
+                    break;
                 distances.Add(distance);
+            }
             if (!closed && (distances.Count == 0 || length - distances[^1] > pitch * 0.5))
                 distances.Add(length);
         }
