@@ -26,7 +26,7 @@
         <ComboBoxItem Content="Dark" />
       </ComboBox>
     </Grid>
-    <Grid Grid.Row="3" Margin="0,0,0,14" ColumnDefinitions="*,Auto">
+    <Grid Grid.Row="3" Margin="0,0,0,14" ColumnDefinitions="*,Auto,Auto">
       <CheckBox
                 x:Name="ReversePanDirection"
                 Content="Reverse pan direction"
@@ -36,6 +36,12 @@
               Content="Show Getting Started Again"
               Click="OnShowGettingStartedClicked"
               AutomationProperties.AutomationId="dialog.preferences.show-getting-started" />
+      <Button Grid.Column="2"
+              Margin="0,0,0,0"
+              Padding="8,4"
+              Content="Show Mode Intros Again"
+              Click="OnShowModeIntrosClicked"
+              AutomationProperties.AutomationId="dialog.preferences.show-mode-intros" />
     </Grid>
     <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto">
       <StackPanel x:Name="ToolRows" Spacing="6" />

@@ -68,6 +68,35 @@ public sealed class EditorPreferencesTests
     }
 
     [Fact]
+    public async Task PreferencesDialog_CanRestoreModeIntroCards()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-ui-intros-{Guid.NewGuid():N}.json");
+        try
+        {
+            var store = new UserPreferencesStore(path);
+            store.Save(new UserPreferences(TwoDIntroDismissed: true, ThreeDIntroDismissed: true, BatchIntroDismissed: true));
+            var dialog = await _ui.RunAsync(() => new PreferencesDialog(null, store));
+            await _ui.RunAsync(() =>
+            {
+                dialog.Show();
+                dialog.UpdateLayout();
+                _ui.FindByAutomationId<Button>(dialog, "dialog.preferences.show-mode-intros")
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            });
+
+            var restored = store.Load();
+            Assert.False(restored.TwoDIntroDismissed);
+            Assert.False(restored.ThreeDIntroDismissed);
+            Assert.False(restored.BatchIntroDismissed);
+            await _ui.RunAsync(dialog.Close);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task PreferencesDialog_AppliesShortcutAndResetRestoresActiveModeDefaults()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();

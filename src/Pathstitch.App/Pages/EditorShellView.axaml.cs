@@ -1,9 +1,12 @@
+using System.ComponentModel;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Domain.App.Models;
 using Domain.App.ViewModels;
 using Pathstitch.App.Dialogs;
+using Pathstitch.App.Services;
 
 namespace Pathstitch.App.Pages;
 
@@ -16,7 +19,42 @@ public partial class EditorShellView : EditorInteractionControlBase
         KeyDown += OnEditorKeyDown;
     }
 
-    private void OnLoaded(object? sender, RoutedEventArgs e) => Focus();
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Focus();
+        if (DataContext is EditorPageViewModel viewModel)
+        {
+            viewModel.PropertyChanged += OnViewModelPropertyChanged;
+            _ = ShowModeIntroIfNeededAsync(viewModel);
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(EditorPageViewModel.ActiveEditorMode)
+            && sender is EditorPageViewModel viewModel)
+            _ = ShowModeIntroIfNeededAsync(viewModel);
+    }
+
+    private async Task ShowModeIntroIfNeededAsync(EditorPageViewModel viewModel)
+    {
+        var owner = TopLevel.GetTopLevel(this) as Window;
+        if (owner is null)
+            return;
+
+        var store = new UserPreferencesStore();
+        var preferences = store.Load();
+        var dismissed = viewModel.ActiveEditorMode switch
+        {
+            EditorMode.TwoD => preferences.TwoDIntroDismissed,
+            EditorMode.ThreeD => preferences.ThreeDIntroDismissed,
+            _ => preferences.BatchIntroDismissed,
+        };
+        if (dismissed)
+            return;
+
+        await new ModeIntroDialog(viewModel.ActiveEditorMode, store).ShowDialog(owner);
+    }
 
     private void OnHomeFrameClicked(object? sender, RoutedEventArgs e)
     {

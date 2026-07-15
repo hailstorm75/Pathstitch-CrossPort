@@ -88,13 +88,28 @@ public sealed partial class PreferencesDialog : Window
             2 => "Dark",
             _ => "System",
         };
-        _preferencesStore.Save(new UserPreferences(appearance, DxfPreviewCanvas.ReversePanDirection));
+        _preferencesStore.Save(_preferencesStore.Load() with
+        {
+            Appearance = appearance,
+            ReversePanDirection = DxfPreviewCanvas.ReversePanDirection,
+        });
     }
 
     private void OnShowGettingStartedClicked(object? sender, RoutedEventArgs e)
     {
         _preferencesStore.Save(_preferencesStore.Load() with { GettingStartedDismissed = false });
         StatusText.Text = "Getting Started will show again on the Home page.";
+    }
+
+    private void OnShowModeIntrosClicked(object? sender, RoutedEventArgs e)
+    {
+        _preferencesStore.Save(_preferencesStore.Load() with
+        {
+            TwoDIntroDismissed = false,
+            ThreeDIntroDismissed = false,
+            BatchIntroDismissed = false,
+        });
+        StatusText.Text = "Mode intro cards will show again when each workspace opens.";
     }
 
     private void BuildShortcutEditors()
