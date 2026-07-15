@@ -89,6 +89,12 @@ public partial class Editor2DLayersPanel : UserControl
 
     private void OnReferenceBrightenClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.AdjustTwoDReferenceImageOpacity(id, 0.1));
 
+    private void OnReferenceOpacity10Clicked(object? sender, RoutedEventArgs e) => SetReferenceOpacity(sender, 0.1);
+    private void OnReferenceOpacity25Clicked(object? sender, RoutedEventArgs e) => SetReferenceOpacity(sender, 0.25);
+    private void OnReferenceOpacity50Clicked(object? sender, RoutedEventArgs e) => SetReferenceOpacity(sender, 0.5);
+    private void OnReferenceOpacity75Clicked(object? sender, RoutedEventArgs e) => SetReferenceOpacity(sender, 0.75);
+    private void OnReferenceOpacity100Clicked(object? sender, RoutedEventArgs e) => SetReferenceOpacity(sender, 1.0);
+
     private void OnReferenceThresholdDownClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.AdjustTwoDReferenceTraceThreshold(id, -0.05));
 
     private void OnReferenceThresholdUpClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.AdjustTwoDReferenceTraceThreshold(id, 0.05));
@@ -114,6 +120,9 @@ public partial class Editor2DLayersPanel : UserControl
         if (sender is Button { Tag: string layerId })
             action?.Invoke(layerId);
     }
+
+    private void SetReferenceOpacity(object? sender, double opacity)
+        => WithLayer(sender, id => ViewModel?.SetTwoDReferenceImageOpacity(id, opacity));
 
     private static void WithFolder(object? sender, Action<string>? action)
     {

@@ -119,6 +119,11 @@
                     <StackPanel Orientation="Horizontal" Spacing="4">
                       <Button Padding="5,2" Content="Fade" Tag="{Binding Id}" Click="OnReferenceFadeClicked" />
                       <Button Padding="5,2" Content="Brighten" Tag="{Binding Id}" Click="OnReferenceBrightenClicked" />
+                      <Button Padding="5,2" Content="10%" Tag="{Binding Id}" Click="OnReferenceOpacity10Clicked" />
+                      <Button Padding="5,2" Content="25%" Tag="{Binding Id}" Click="OnReferenceOpacity25Clicked" />
+                      <Button Padding="5,2" Content="50%" Tag="{Binding Id}" Click="OnReferenceOpacity50Clicked" />
+                      <Button Padding="5,2" Content="75%" Tag="{Binding Id}" Click="OnReferenceOpacity75Clicked" />
+                      <Button Padding="5,2" Content="100%" Tag="{Binding Id}" Click="OnReferenceOpacity100Clicked" />
                       <Button Padding="5,2" Content="Trace −" Tag="{Binding Id}" Click="OnReferenceThresholdDownClicked" />
                       <Button Padding="5,2" Content="Trace +" Tag="{Binding Id}" Click="OnReferenceThresholdUpClicked" />
                     </StackPanel>

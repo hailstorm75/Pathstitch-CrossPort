@@ -165,6 +165,12 @@ public sealed partial class EditorPageViewModel
             RefreshTwoDLayerFacade();
     }
 
+    public void SetTwoDReferenceImageOpacity(string layerId, double opacity)
+    {
+        if (_twoDWorkspace.SetReferenceImageOpacity(layerId, opacity))
+            RefreshTwoDLayerFacade();
+    }
+
     public void AdjustTwoDReferenceTraceThreshold(string layerId, double delta)
     {
         var image = GetReferenceImage(layerId);

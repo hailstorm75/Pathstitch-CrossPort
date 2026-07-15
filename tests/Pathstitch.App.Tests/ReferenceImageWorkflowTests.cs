@@ -263,6 +263,11 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Contains("OnReferenceScaleUpClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceRotateClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceFadeClicked", panel, StringComparison.Ordinal);
+        Assert.Contains("OnReferenceOpacity10Clicked", panel, StringComparison.Ordinal);
+        Assert.Contains("OnReferenceOpacity25Clicked", panel, StringComparison.Ordinal);
+        Assert.Contains("OnReferenceOpacity50Clicked", panel, StringComparison.Ordinal);
+        Assert.Contains("OnReferenceOpacity75Clicked", panel, StringComparison.Ordinal);
+        Assert.Contains("OnReferenceOpacity100Clicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnToggleLockClicked", panel, StringComparison.Ordinal);
         Assert.Contains("TwoDReferenceCalibrationWidthText", panel, StringComparison.Ordinal);
         Assert.Contains("OnCalibrateReferenceImageClicked", panel, StringComparison.Ordinal);
