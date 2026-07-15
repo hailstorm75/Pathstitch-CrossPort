@@ -55,7 +55,6 @@ function booleanPaths(request) {
   try {
     const ordered = polygons;
     let serialized = ordered[0].get_brep_serialized();
-    let outline = null;
     for (let index = 1; index < ordered.length; index += 1) {
       const result = operation === "union"
         ? booleanUnion(serialized, ordered[index].get_brep_serialized())
@@ -66,13 +65,32 @@ function booleanPaths(request) {
             : null;
       if (result === null) throw new Error(`Unsupported boolean operation: ${operation}`);
       serialized = result.brepSerialized;
-      outline = result.outlineGeometrySerialized;
       result.free();
     }
-    return { paths: [ { points: mapFlatKernelPoints(JSON.parse(outline ?? "[]")), isClosed: true } ] };
+    return { paths: mapBrepLoops(serialized).map((points) => ({ points, isClosed: true })) };
   } finally {
     for (const polygon of polygons) polygon.free();
   }
+}
+
+function mapBrepLoops(serialized) {
+  const brep = JSON.parse(serialized);
+  const vertices = Array.isArray(brep.vertices) ? brep.vertices : [];
+  const halfedges = Array.isArray(brep.halfedges) ? brep.halfedges : [];
+  const loops = Array.isArray(brep.loops) ? brep.loops : [];
+  return loops.map((loop) => {
+    const points = [];
+    const start = Number(loop.halfedge);
+    let current = start;
+    do {
+      const halfedge = halfedges[current];
+      const vertex = vertices[Number(halfedge?.from)];
+      if (!vertex?.position) break;
+      points.push({ x: Number(vertex.position.x), y: Number(vertex.position.z) });
+      current = Number(halfedge.next);
+    } while (Number.isInteger(current) && current !== start && points.length <= halfedges.length);
+    return points;
+  }).filter((points) => points.length >= 3);
 }
 
 function offsetCurves(request) {

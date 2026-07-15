@@ -1,4 +1,5 @@
 using Domain.App.Models;
+using Domain.App.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Pathstitch.App.Services;
 
@@ -180,6 +181,47 @@ public sealed class OpenGeometryEditor2DGeometryKernelServiceTests
         Assert.Contains(outline.Points, point => Math.Abs(point.X - 9) < 1e-6 && Math.Abs(point.Y - 10) < 1e-6);
         Assert.Contains(outline.Points, point => Math.Abs(point.X - 11) < 1e-6 && Math.Abs(point.Y - 10) < 1e-6);
     }
+
+    [Fact]
+    public async Task BuildBooleanPathsAsync_UnionPreservesOpenGeometryLoop()
+    {
+        var result = await CreateService().BuildBooleanPathsAsync(
+            [Square("left", 0, 10), Square("right", 5, 10)],
+            Editor2DBooleanOperation.Union);
+
+        Assert.True(result.IsSuccess, result.Error);
+        var path = Assert.Single(result.Paths);
+        Assert.True(path.IsClosed);
+        Assert.Equal(4, path.Points.Count);
+        Assert.InRange(Math.Abs(SignedArea(path.Points)), 149.99, 150.01);
+    }
+
+    [Fact]
+    public async Task BuildBooleanPathsAsync_SubtractUsesLargestSelectedPathAsBase()
+    {
+        var result = await CreateService().BuildBooleanPathsAsync(
+            [Square("small", 3, 4), Square("large", 0, 10)],
+            Editor2DBooleanOperation.Subtract);
+
+        Assert.True(result.IsSuccess, result.Error);
+        var path = Assert.Single(result.Paths);
+        Assert.InRange(Math.Abs(SignedArea(path.Points)), 83.99, 84.01);
+    }
+
+    private static OpenGeometryEditor2DGeometryKernelService CreateService()
+        => new(
+            NullLogger<OpenGeometryEditor2DGeometryKernelService>.Instance,
+            new OpenGeometryKernelBridge(NullLogger<OpenGeometryKernelBridge>.Instance));
+
+    private static Editor2DPreviewPath Square(string id, double x, double size)
+        => new(id, "LWPOLYLINE", [
+            new Editor2DPoint(x, 0), new Editor2DPoint(x + size, 0),
+            new Editor2DPoint(x + size, size), new Editor2DPoint(x, size)], true);
+
+    private static double SignedArea(IReadOnlyList<Editor2DPoint> points)
+        => Enumerable.Range(0, points.Count).Sum(index =>
+            (points[index].X * points[(index + 1) % points.Count].Y)
+            - (points[(index + 1) % points.Count].X * points[index].Y)) / 2.0;
 
     private static void AssertPoint(Editor2DPoint actual, double expectedX, double expectedY)
     {

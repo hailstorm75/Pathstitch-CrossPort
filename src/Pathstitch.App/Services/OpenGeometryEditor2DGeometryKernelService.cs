@@ -24,8 +24,13 @@ public sealed class OpenGeometryEditor2DGeometryKernelService(
         Editor2DBooleanOperation operation,
         CancellationToken cancellationToken = default)
     {
-        var candidates = sourcePaths
+        var orderedSourcePaths = sourcePaths
             .Where(static path => path.IsClosed && path.Points.Count >= 3)
+            .OrderByDescending(path => operation == Editor2DBooleanOperation.Subtract
+                ? Math.Abs(CalculateSignedArea(path.Points))
+                : 0.0)
+            .ToArray();
+        var candidates = orderedSourcePaths
             .Select(static path => new DxfPolyline(
                 path.Points.Select(static point => new DxfPoint(point.X, point.Y)).ToArray(), true))
             .ToArray();
