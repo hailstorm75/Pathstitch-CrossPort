@@ -211,6 +211,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("TwoDPolygonSides", inspector, StringComparison.Ordinal);
         Assert.Contains("SewingHoleMargin=\"{Binding TwoDSewingHoleMargin, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
         Assert.Contains("Explode Compound", canvas, StringComparison.Ordinal);
+        Assert.Contains("Stroke to Fill", canvas, StringComparison.Ordinal);
+        Assert.Contains("Fill to Stroke", canvas, StringComparison.Ordinal);
     }
 
     [Fact]

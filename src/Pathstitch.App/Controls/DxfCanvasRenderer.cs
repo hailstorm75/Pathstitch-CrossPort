@@ -22,6 +22,7 @@ internal sealed class DxfCanvasRenderer
         string? hoveredPathId,
         Func<Editor2DPoint, Point> worldToScreen,
         Func<DxfCanvasPathVisualRole, Pen> resolvePen,
+        Func<Editor2DPreviewPath, IBrush?> resolveFill,
         Func<Editor2DPreviewPath, Pen, bool> tryDrawSemanticPrimitive)
     {
         var selected = selectedPathIds.Count == 0
@@ -46,7 +47,7 @@ internal sealed class DxfCanvasRenderer
                 if (path.IsClosed)
                     geometryContext.EndFigure(true);
             }
-            context.DrawGeometry(null, pen, geometry);
+            context.DrawGeometry(resolveFill(path), pen, geometry);
         }
     }
 

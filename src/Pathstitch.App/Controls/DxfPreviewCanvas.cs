@@ -173,6 +173,7 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly Pen MarqueePen = new(new SolidColorBrush(Color.Parse("#6F96FF")), 1.2, dashStyle: new DashStyle([4, 4], 0));
     private static readonly Typeface MeasurementLabelTypeface = new("Inter, Segoe UI, Arial", FontStyle.Normal, FontWeight.Medium, FontStretch.Normal);
     private static readonly IBrush PaperFillBrush = new SolidColorBrush(Color.Parse("#11161F"));
+    private static readonly IBrush FilledPathBrush = new SolidColorBrush(Color.Parse("#334D7FFF"));
     private static readonly IBrush AutoDimensionTextBrush = new SolidColorBrush(Color.Parse("#D8F5FF"));
     private static readonly IBrush AutoDimensionLabelFillBrush = new SolidColorBrush(Color.Parse("#C0121F2B"));
     private static readonly IBrush ConstrainedRectangleHandleFillBrush = new SolidColorBrush(Color.Parse("#CC10151F"));
@@ -197,6 +198,8 @@ public sealed class DxfPreviewCanvas : Control
     private readonly Dictionary<string, Bitmap> _referenceImageBitmaps = new(StringComparer.Ordinal);
     private readonly MenuItem _expandRectanglesMenuItem;
     private readonly MenuItem _explodeCompoundMenuItem;
+    private readonly MenuItem _strokeToFillMenuItem;
+    private readonly MenuItem _fillToStrokeMenuItem;
     private readonly MenuItem _deleteSelectionMenuItem;
     private ref bool _isMovingSelection => ref _interaction.IsMovingSelection;
     private ref bool _isScalingSelection => ref _interaction.IsScalingSelection;
@@ -311,6 +314,17 @@ public sealed class DxfPreviewCanvas : Control
             Command = new RelayCommand(ExecuteExplodeCompoundCommand),
         };
 
+        _strokeToFillMenuItem = new MenuItem
+        {
+            Header = "Stroke to Fill",
+            Command = new RelayCommand(() => ExecuteFillConversion(toFill: true)),
+        };
+        _fillToStrokeMenuItem = new MenuItem
+        {
+            Header = "Fill to Stroke",
+            Command = new RelayCommand(() => ExecuteFillConversion(toFill: false)),
+        };
+
         _deleteSelectionMenuItem = new MenuItem
         {
             Header = "Delete",
@@ -324,6 +338,8 @@ public sealed class DxfPreviewCanvas : Control
             {
                 _expandRectanglesMenuItem,
                 _explodeCompoundMenuItem,
+                _strokeToFillMenuItem,
+                _fillToStrokeMenuItem,
                 _deleteSelectionMenuItem,
             },
         };
@@ -373,6 +389,32 @@ public sealed class DxfPreviewCanvas : Control
             SetCurrentValue(DocumentProperty, CreateUpdatedDocument(Document, nextPaths));
             SetCurrentValue(SelectedPathIdsProperty, nextSelection);
             SetCurrentValue(SelectedMeasurementIdProperty, null);
+            InvalidateVisual();
+        }
+
+        _contextMenu.Close();
+    }
+
+    private void ExecuteFillConversion(bool toFill)
+    {
+        if (Document is null || SelectedPathIds.Count == 0)
+        {
+            _contextMenu.Close();
+            return;
+        }
+
+        var selectedIds = SelectedPathIds.ToHashSet(StringComparer.Ordinal);
+        var eligible = Document.Paths
+            .Where(path => selectedIds.Contains(path.Id)
+                && path.IsClosed
+                && path.IsFilled != toFill)
+            .ToArray();
+        if (eligible.Length > 0)
+        {
+            var eligibleIds = eligible.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
+            SetCurrentValue(DocumentProperty, CreateUpdatedDocument(Document, Document.Paths
+                .Select(path => eligibleIds.Contains(path.Id) ? path with { IsFilled = toFill } : path)
+                .ToArray()));
             InvalidateVisual();
         }
 
@@ -1462,6 +1504,7 @@ Selection:
                 DxfCanvasPathVisualRole.Closed => ClosedPathPen,
                 _ => OpenPathPen,
             },
+            path => path.IsFilled ? FilledPathBrush : null,
             (path, pen) => TryDrawSemanticPrimitive(context, size, path, pen));
 
     private void DrawPreviewPaths(DrawingContext context, Size size)
@@ -4065,9 +4108,17 @@ Selection:
                 && path.IsClosed
                 && (path.EntityType.Equals("LWPOLYLINE", StringComparison.OrdinalIgnoreCase)
                     || path.EntityType.Equals("POLYLINE", StringComparison.OrdinalIgnoreCase)));
+        var canStrokeToFill = Document is not null
+            && selectedIds is not null
+            && Document.Paths.Any(path => selectedIds.Contains(path.Id) && path.IsClosed && !path.IsFilled);
+        var canFillToStroke = Document is not null
+            && selectedIds is not null
+            && Document.Paths.Any(path => selectedIds.Contains(path.Id) && path.IsClosed && path.IsFilled);
 
         _expandRectanglesMenuItem.IsVisible = !hasMeasurementSelection && canExpandRectangles;
         _explodeCompoundMenuItem.IsVisible = !hasMeasurementSelection && canExplodeCompound;
+        _strokeToFillMenuItem.IsVisible = !hasMeasurementSelection && canStrokeToFill;
+        _fillToStrokeMenuItem.IsVisible = !hasMeasurementSelection && canFillToStroke;
         _deleteSelectionMenuItem.IsVisible = hasMeasurementSelection || hasSelection;
     }
 
