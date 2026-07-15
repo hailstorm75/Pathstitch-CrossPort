@@ -98,7 +98,7 @@ public sealed partial class Editor2DWorkspaceViewModel
             : $"Created {additions.Count} rectangular pattern duplicates");
     }
 
-    public Editor2DWorkspaceOperationResult ApplyCircularPattern(int totalCount, double totalAngle)
+    public Editor2DWorkspaceOperationResult ApplyCircularPattern(int totalCount, double totalAngle, Editor2DPoint? pivot = null)
     {
         var selected = SelectedPaths();
         if (selected.Count == 0)
@@ -108,7 +108,7 @@ public sealed partial class Editor2DWorkspaceViewModel
         var points = selected.SelectMany(path => path.Points).ToArray();
         if (points.Length == 0)
             return Editor2DWorkspaceOperationResult.Failure("The current selection does not have enough geometry to compute a circular pattern pivot");
-        var pivot = new Editor2DPoint((points.Min(p => p.X) + points.Max(p => p.X)) / 2,
+        pivot ??= new Editor2DPoint((points.Min(p => p.X) + points.Max(p => p.X)) / 2,
             (points.Min(p => p.Y) + points.Max(p => p.Y)) / 2);
         var fullCircle = Math.Abs(Math.Abs(totalAngle) - 360) <= 1e-6;
         var step = fullCircle ? totalAngle / totalCount : totalAngle / Math.Max(totalCount - 1, 1);

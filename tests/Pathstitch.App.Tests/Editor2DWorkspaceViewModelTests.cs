@@ -83,6 +83,22 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void CircularPattern_UsesExplicitPivotWhenProvided()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var source = new Editor2DPreviewPath("source", "LINE", [new(10, 0), new(11, 0)], false);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [source] });
+        workspace.SetSelection([source.Id]);
+
+        var result = workspace.ApplyCircularPattern(2, 90, new Editor2DPoint(0, 0));
+
+        Assert.True(result.IsSuccess);
+        var copy = Assert.Single(workspace.Document.Paths, path => path.Id.StartsWith("source:pattern:circular:", StringComparison.Ordinal));
+        Assert.Equal(0, copy.Points[0].X, 6);
+        Assert.Equal(10, copy.Points[0].Y, 6);
+    }
+
+    [Fact]
     public void ParametricMeasurement_StoresExpressionAndDrivesEndpoint()
     {
         var workspace = new Editor2DWorkspaceViewModel();

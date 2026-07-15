@@ -411,6 +411,10 @@
             Width="88"
             Text="{Binding TwoDPatternCircularAngleText, Mode=TwoWay}" />
         </StackPanel>
+        <StackPanel IsVisible="{Binding IsTwoDCircularPatternMode}" Spacing="4">
+          <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDPatternPivotSummary}" />
+          <Button Classes="chip-button" Content="Pick Pivot" Click="OnPickTwoDPatternPivotClicked" />
+        </StackPanel>
         <StackPanel
           Orientation="Horizontal"
           Spacing="8"

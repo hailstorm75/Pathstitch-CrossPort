@@ -280,6 +280,12 @@ public abstract class EditorInteractionControlBase : UserControl
             viewModel.ApplyTwoDPattern();
     }
 
+    protected void OnPickTwoDPatternPivotClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.PickTwoDCircularPatternPivot();
+    }
+
     protected void OnApplyTwoDPaperFoldingCreasesClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

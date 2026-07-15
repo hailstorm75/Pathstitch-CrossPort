@@ -227,6 +227,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             _twoDWorkspace.SetActiveTool(value);
+            ClearTwoDCircularPatternPivot();
             OnPropertyChanged();
 
             SyncSidebarToolStates();
@@ -828,6 +829,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(IsTwoDCircularPatternMode));
             OnPropertyChanged(nameof(IsTwoDPathPatternMode));
             OnPropertyChanged(nameof(TwoDPatternSummary));
+            ClearTwoDCircularPatternPivot();
         }
     }
 
@@ -836,6 +838,44 @@ public sealed partial class EditorPageViewModel
     public bool IsTwoDCircularPatternMode => string.Equals(TwoDPatternMode, "Circular", StringComparison.Ordinal);
 
     public bool IsTwoDPathPatternMode => string.Equals(TwoDPatternMode, "Path", StringComparison.Ordinal);
+
+    public Editor2DPoint? TwoDPatternPivot
+    {
+        get => _twoDPatternPivot;
+        set
+        {
+            if (Equals(_twoDPatternPivot, value))
+                return;
+            _twoDPatternPivot = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TwoDPatternPivotSummary));
+            OnPropertyChanged(nameof(TwoDPatternSummary));
+        }
+    }
+
+    public bool TwoDPatternPivotPicking
+    {
+        get => _twoDPatternPivotPicking;
+        set => SetWorkspaceFacadeValue(_twoDPatternPivotPicking, value, updated => _twoDPatternPivotPicking = updated);
+    }
+
+    public string TwoDPatternPivotSummary => TwoDPatternPivot is { } pivot
+        ? $"pivot ({pivot.X:0.###}, {pivot.Y:0.###})"
+        : "the selection center";
+
+    public void PickTwoDCircularPatternPivot()
+    {
+        if (!IsTwoDCircularPatternMode)
+            return;
+        TwoDPatternPivotPicking = true;
+        StatusText = "Click a point on the canvas for the circular pattern pivot";
+    }
+
+    private void ClearTwoDCircularPatternPivot()
+    {
+        TwoDPatternPivot = null;
+        TwoDPatternPivotPicking = false;
+    }
 
     public string? TwoDPatternGuidePathId
     {
@@ -958,7 +998,7 @@ public sealed partial class EditorPageViewModel
 
             if (IsTwoDCircularPatternMode)
             {
-                return $"Circular pattern will create {TwoDPatternCircularCountText} total instance(s) across {TwoDPatternCircularAngleText} deg around the current selection center. Count includes the source selection.";
+                return $"Circular pattern will create {TwoDPatternCircularCountText} total instance(s) across {TwoDPatternCircularAngleText} deg around {TwoDPatternPivotSummary}. Count includes the source selection.";
             }
 
             if (IsTwoDPathPatternMode)
@@ -2292,7 +2332,10 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        return CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyCircularPattern(totalCount, totalAngle));
+        var completed = CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyCircularPattern(totalCount, totalAngle, TwoDPatternPivot));
+        if (completed)
+            ClearTwoDCircularPatternPivot();
+        return completed;
     }
 
     private bool ApplyTwoDPathPattern()

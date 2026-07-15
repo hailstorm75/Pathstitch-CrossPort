@@ -60,6 +60,12 @@ public sealed class DxfPreviewCanvas : Control
     public static readonly StyledProperty<string?> PatternGuidePathIdProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, string?>(nameof(PatternGuidePathId), defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<Editor2DPoint?> PatternPivotProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DPoint?>(nameof(PatternPivot), defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<bool> PatternPivotPickingProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(PatternPivotPicking), defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<IReadOnlyList<string>> SelectedPathIdsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<string>>(
             nameof(SelectedPathIds),
@@ -407,6 +413,18 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(PatternGuidePathIdProperty, value);
     }
 
+    public Editor2DPoint? PatternPivot
+    {
+        get => GetValue(PatternPivotProperty);
+        set => SetValue(PatternPivotProperty, value);
+    }
+
+    public bool PatternPivotPicking
+    {
+        get => GetValue(PatternPivotPickingProperty);
+        set => SetValue(PatternPivotPickingProperty, value);
+    }
+
     public IReadOnlyList<string> SelectedPathIds
     {
         get => GetValue(SelectedPathIdsProperty);
@@ -683,6 +701,7 @@ public sealed class DxfPreviewCanvas : Control
         if (visiblePaths.Count > 0)
             DrawPaperBounds(context, size, Document.Bounds);
         DrawPaths(context, size, visiblePaths);
+        DrawPatternPivot(context, size);
         DrawPreviewPaths(context, size);
         DrawEditableVertexHandles(context, size, visiblePaths);
         DrawConstrainedRectangleHandles(context, size, visiblePaths);
@@ -743,6 +762,16 @@ public sealed class DxfPreviewCanvas : Control
             SetCurrentValue(SelectedMeasurementIdProperty, measurementId);
             SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
             e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
+
+        if (ActiveTool == Editor2DTool.Patterning
+            && string.Equals(PatternMode, "Circular", StringComparison.Ordinal)
+            && PatternPivotPicking)
+        {
+            SetCurrentValue(PatternPivotProperty, ScreenToWorld(point.Position));
+            SetCurrentValue(PatternPivotPickingProperty, false);
             e.Handled = true;
             return;
         }
@@ -1329,6 +1358,19 @@ Selection:
                 geometryContext.EndFigure(true);
             context.DrawGeometry(null, PreviewPathPen, geometry);
         }
+    }
+
+    private void DrawPatternPivot(DrawingContext context, Size size)
+    {
+        if (!string.Equals(PatternMode, "Circular", StringComparison.Ordinal)
+            || PatternPivot is not { } pivot)
+            return;
+
+        var point = WorldToScreen(pivot, size);
+        var pen = new Pen(new SolidColorBrush(Color.Parse("#FFB84D")), 1.5);
+        context.DrawEllipse(null, pen, point, 6, 6);
+        context.DrawLine(pen, new Point(point.X - 9, point.Y), new Point(point.X + 9, point.Y));
+        context.DrawLine(pen, new Point(point.X, point.Y - 9), new Point(point.X, point.Y + 9));
     }
 
     private void DrawMeasurements(DrawingContext context, Size size)

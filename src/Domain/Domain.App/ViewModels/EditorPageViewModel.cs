@@ -120,6 +120,8 @@ public sealed partial class EditorPageViewModel(
     private IReadOnlyList<string> _pendingTwoDFilePaths = [];
     private IReadOnlyList<string> _pendingReferenceImagePaths = [];
     private string? _twoDPatternGuidePathId;
+    private Editor2DPoint? _twoDPatternPivot;
+    private bool _twoDPatternPivotPicking;
 
     private bool SetWorkspaceFacadeValue<T>(T current, T value, Action<T> assign, [CallerMemberName] string? propertyName = null)
     {
