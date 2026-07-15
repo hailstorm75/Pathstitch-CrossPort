@@ -53,6 +53,11 @@
         IsEnabled="{Binding CanExportTwoDSvg}"
         Content="Export SVG"
         Click="OnExportTwoDSvgClicked" />
+      <CheckBox
+        AutomationProperties.AutomationId="editor.2d.export-selected-only"
+        Content="Export selected paths only"
+        IsEnabled="{Binding HasTwoDSelection}"
+        IsChecked="{Binding TwoDExportSelectedOnly, Mode=TwoWay}" />
       <StackPanel Orientation="Horizontal" Spacing="8">
         <Button
           Classes="chip-button"
