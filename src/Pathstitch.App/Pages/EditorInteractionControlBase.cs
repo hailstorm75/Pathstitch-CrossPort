@@ -238,6 +238,12 @@ public abstract class EditorInteractionControlBase : UserControl
             viewModel.ClearTwoDSelection();
     }
 
+    protected async void OnExportTwoDDxfClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            await viewModel.ExportTwoDDxfAsync();
+    }
+
     protected void OnExpandTwoDRectanglesClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

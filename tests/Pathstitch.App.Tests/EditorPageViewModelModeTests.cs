@@ -419,16 +419,21 @@ public sealed class EditorPageViewModelModeTests
         Assert.Equal(Editor2DTool.SketchCircle, restored.TwoDActiveTool);
     }
 
-    public static EditorPageViewModel CreateViewModelForTests() => CreateViewModel();
+    public static EditorPageViewModel CreateViewModelForTests(
+        IProjectFileDialogService? projectFileDialogService = null,
+        IEditorOutputPreviewService? outputPreviewService = null)
+        => CreateViewModel(projectFileDialogService, outputPreviewService);
 
-    private static EditorPageViewModel CreateViewModel()
+    private static EditorPageViewModel CreateViewModel(
+        IProjectFileDialogService? projectFileDialogService = null,
+        IEditorOutputPreviewService? outputPreviewService = null)
         => new(
             NullLogger<EditorPageViewModel>.Instance,
             new StubViewportAssetLocator(),
             new Project3DStateService(),
-            new StubProjectFileDialogService(),
+            projectFileDialogService ?? new StubProjectFileDialogService(),
             new StubOutputLauncherService(),
-            new StubOutputPreviewService(),
+            outputPreviewService ?? new StubOutputPreviewService(),
             new Stub2DGeometryKernelService(),
             new Stub3DOperationService(),
             new StubGeometryKernelDescriptorProvider());

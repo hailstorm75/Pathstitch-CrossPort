@@ -32,6 +32,11 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
         Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"],
     };
 
+    private static readonly FilePickerFileType DxfFileType = new("DXF Drawing")
+    {
+        Patterns = ["*.dxf"],
+    };
+
     public async Task<string?> PickExistingProjectFileAsync(CancellationToken cancellationToken = default)
     {
         var topLevel = GetTopLevel();
@@ -130,6 +135,27 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
 
         cancellationToken.ThrowIfCancellationRequested();
         return result.Count > 0 ? result[0].TryGetLocalPath() : null;
+    }
+
+    public async Task<string?> PickDxfExportFileAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default)
+    {
+        var topLevel = GetTopLevel();
+        if (topLevel?.StorageProvider is null)
+            return null;
+
+        var result = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export 2D Workspace as DXF",
+            SuggestedFileName = suggestedFileName,
+            DefaultExtension = "dxf",
+            FileTypeChoices = [DxfFileType],
+            ShowOverwritePrompt = true,
+        }).ConfigureAwait(true);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return result?.TryGetLocalPath();
     }
 
     private static TopLevel? GetTopLevel()

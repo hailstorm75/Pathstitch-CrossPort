@@ -1,0 +1,135 @@
+using Domain.App.Models;
+using Domain.App.Services;
+using Pathstitch.App.Services;
+
+namespace Pathstitch.App.Tests;
+
+public sealed class EditorQuickDxfExportTests
+{
+    [Fact]
+    public async Task Export_IsDisabledAndDoesNotOpenPickerWithoutDocument()
+    {
+        var dialogs = new RecordingFileDialogService("ignored.dxf");
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(dialogs);
+
+        Assert.False(viewModel.CanExportTwoDDxf);
+
+        await viewModel.ExportTwoDDxfAsync();
+
+        Assert.Equal(0, dialogs.ExportPickerCallCount);
+    }
+
+    [Fact]
+    public async Task Export_CancelDoesNotWriteDocument()
+    {
+        var dialogs = new RecordingFileDialogService(null);
+        var output = new RecordingOutputPreviewService();
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(dialogs, output);
+        viewModel.TwoDDocument = CreateDocument();
+
+        Assert.True(viewModel.CanExportTwoDDxf);
+
+        await viewModel.ExportTwoDDxfAsync();
+
+        Assert.Null(output.SavedDocument);
+    }
+
+    [Fact]
+    public async Task Export_WritesExactCurrentDocumentToPickedPath()
+    {
+        const string outputPath = "export.dxf";
+        var document = CreateDocument();
+        var output = new RecordingOutputPreviewService();
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+            new RecordingFileDialogService(outputPath),
+            output);
+        viewModel.TwoDDocument = document;
+
+        await viewModel.ExportTwoDDxfAsync();
+
+        Assert.Same(document, output.SavedDocument);
+        Assert.Equal(outputPath, output.SavedPath);
+    }
+
+    [Fact]
+    public async Task Export_WriteFailureSetsErrorMessage()
+    {
+        var output = new RecordingOutputPreviewService(new IOException("disk full"));
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+            new RecordingFileDialogService("export.dxf"),
+            output);
+        viewModel.TwoDDocument = CreateDocument();
+
+        await viewModel.ExportTwoDDxfAsync();
+
+        Assert.Equal("Could not export DXF: disk full", viewModel.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task Export_RealWriterRoundTripsGeometry()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-export-{Guid.NewGuid():N}.dxf");
+        try
+        {
+            var document = CreateDocument();
+            var service = new DxfOutputPreviewService();
+
+            await service.SavePreviewDocumentAsync(document, outputPath);
+            var loaded = await service.LoadPreviewDocumentAsync(outputPath);
+
+            Assert.NotNull(loaded);
+            Assert.Single(loaded.Paths);
+            Assert.Equal("LWPOLYLINE", loaded.Paths[0].EntityType);
+            Assert.Equal(document.Paths[0].Points, loaded.Paths[0].Points);
+        }
+        finally
+        {
+            File.Delete(outputPath);
+        }
+    }
+
+    private static Editor2DPreviewDocument CreateDocument()
+        => new(
+            [new Editor2DPreviewPath("line-1", "LINE", [new(1, 2), new(3, 4)], false)],
+            new Editor2DBounds(1, 2, 3, 4),
+            new Dictionary<string, int> { ["LINE"] = 1 },
+            []);
+
+    private sealed class RecordingFileDialogService(string? exportPath) : IProjectFileDialogService
+    {
+        public int ExportPickerCallCount { get; private set; }
+
+        public Task<string?> PickDxfExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+        {
+            ExportPickerCallCount++;
+            return Task.FromResult(exportPath);
+        }
+
+        public Task<string?> PickExistingProjectFileAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+        public Task<string?> PickNewProjectFileAsync(string suggestedFileName, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+        public Task<IReadOnlyList<string>> PickWorkspaceFilesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<IReadOnlyList<string>> PickSourceModelFilesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<string?> PickSourceModelFileAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+    }
+
+    private sealed class RecordingOutputPreviewService(Exception? saveException = null) : IEditorOutputPreviewService
+    {
+        public Editor2DPreviewDocument? SavedDocument { get; private set; }
+        public string? SavedPath { get; private set; }
+
+        public Task SavePreviewDocumentAsync(Editor2DPreviewDocument document, string outputPath, CancellationToken cancellationToken = default)
+        {
+            if (saveException is not null)
+                throw saveException;
+            SavedDocument = document;
+            SavedPath = outputPath;
+            return Task.CompletedTask;
+        }
+
+        public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
+            => Task.FromResult<Editor2DPreviewDocument?>(null);
+
+        public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(string outputPath, CancellationToken cancellationToken = default)
+            => Task.FromResult<EditorGeneratedOutputSummary?>(null);
+    }
+}
