@@ -92,6 +92,28 @@ public sealed class EditorShellHeadlessTests
     }
 
     [Fact]
+    public async Task LiveShell_SnapToggleIsVisibleInTwoDAndUpdatesPersistedWorkspaceState()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            var snap = _ui.FindByAutomationId<Button>(shell, "editor.workspace.snap");
+            Assert.True(_ui.IsEffectivelyVisible(snap));
+            Assert.Contains("active", snap.Classes);
+            snap.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            session.Window.UpdateLayout();
+            Assert.DoesNotContain("active", snap.Classes);
+        });
+
+        Assert.False(viewModel.TwoDSnapEnabled);
+        Assert.False(viewModel.TwoDWorkspace.State.SnapEnabled);
+    }
+
+    [Fact]
     public async Task LiveShell_NarrowWindowKeepsEveryTwoDToolInVerticalScrollableRailWithoutHorizontalOverflow()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();

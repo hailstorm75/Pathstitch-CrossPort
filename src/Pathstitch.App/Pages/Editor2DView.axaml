@@ -12,6 +12,7 @@
     IsVisible="{Binding IsShowingTwoDWorkspace}"
     Document="{Binding TwoDDocument, Mode=TwoWay}"
     ActiveTool="{Binding TwoDActiveTool, Mode=TwoWay}"
+    SnapEnabled="{Binding TwoDSnapEnabled, Mode=TwoWay}"
     SelectedPathIds="{Binding TwoDSelectedPathIds, Mode=TwoWay}"
     HiddenPathIds="{Binding TwoDHiddenPathIds}"
     PreviewPaths="{Binding TwoDWorkspace.SewingHolePreviewPaths}"

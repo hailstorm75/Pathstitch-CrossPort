@@ -110,6 +110,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public Editor2DTool ActiveTool => _state.ActiveTool;
 
+    public bool SnapEnabled => _state.SnapEnabled;
+
     public bool IsSewingHoleToolActive => ActiveTool == Editor2DTool.AddSewingHoles;
 
     public IReadOnlyList<string> SelectedPathIds => _state.SelectedPathIds ?? [];
@@ -201,6 +203,11 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         if (tool != Editor2DTool.AddSewingHoles)
             ClearSewingHolePreview();
         Apply(_state with { ActiveTool = tool }, recordHistory: false);
+    }
+
+    public void SetSnapEnabled(bool enabled)
+    {
+        Apply(_state with { SnapEnabled = enabled }, recordHistory: false);
     }
 
     public void SetSelection(IReadOnlyList<string> selectedPathIds)
@@ -873,6 +880,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(Document));
         OnPropertyChanged(nameof(IsInitialized));
         OnPropertyChanged(nameof(ActiveTool));
+        OnPropertyChanged(nameof(SnapEnabled));
         OnPropertyChanged(nameof(IsSewingHoleToolActive));
         OnPropertyChanged(nameof(SelectedPathIds));
         OnPropertyChanged(nameof(Measurements));

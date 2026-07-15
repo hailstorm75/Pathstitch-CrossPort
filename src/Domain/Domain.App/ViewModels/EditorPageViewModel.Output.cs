@@ -274,6 +274,26 @@ public sealed partial class EditorPageViewModel
         }
     }
 
+    public bool TwoDSnapEnabled
+    {
+        get => _twoDWorkspace.SnapEnabled;
+        set
+        {
+            if (_twoDWorkspace.SnapEnabled == value)
+                return;
+
+            _twoDWorkspace.SetSnapEnabled(value);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TwoDSnappingSummary));
+            SyncTwoDWorkspaceState(recordHistory: false);
+            Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        }
+    }
+
+    public string TwoDSnappingSummary => TwoDSnapEnabled ? "Snapping: On (N)" : "Snapping: Off (N)";
+
+    public void ToggleTwoDSnapping() => TwoDSnapEnabled = !TwoDSnapEnabled;
+
     public IReadOnlyList<string> TwoDSelectedPathIds
     {
         get => _twoDWorkspace.SelectedPathIds;

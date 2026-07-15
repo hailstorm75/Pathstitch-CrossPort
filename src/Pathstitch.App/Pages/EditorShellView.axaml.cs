@@ -28,6 +28,12 @@ public partial class EditorShellView : EditorInteractionControlBase
             ThreeDWorkspace.FrameHome();
     }
 
+    private void OnToggleSnappingClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ToggleTwoDSnapping();
+    }
+
     private async void OnShowBatchWorkspaceClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)
@@ -45,6 +51,14 @@ public partial class EditorShellView : EditorInteractionControlBase
 
         if (shortcutToken is null)
             return;
+
+        if (shortcutToken.Equals("N", System.StringComparison.OrdinalIgnoreCase)
+            && viewModel.ActiveEditorMode == EditorMode.TwoD)
+        {
+            viewModel.ToggleTwoDSnapping();
+            e.Handled = true;
+            return;
+        }
 
         if (shortcutToken == "escape" && viewModel.ActiveEditorMode == EditorMode.TwoD)
             TwoDWorkspace.CancelActiveInteraction();

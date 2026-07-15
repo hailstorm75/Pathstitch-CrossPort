@@ -164,7 +164,8 @@ public sealed partial class EditorPageViewModel
                 _twoDWorkspace.ActiveLayerId,
                 _twoDWorkspace.CornerParameters,
                 _twoDWorkspace.SewingHoleParameters,
-                _twoDWorkspace.SewingHoleOperations),
+                _twoDWorkspace.SewingHoleOperations,
+                _twoDWorkspace.SnapEnabled),
             recordHistory);
     }
 
@@ -211,6 +212,8 @@ public sealed partial class EditorPageViewModel
         SyncSidebarToolStates();
         OnPropertyChanged(nameof(TwoDDocument));
         OnPropertyChanged(nameof(TwoDActiveTool));
+        OnPropertyChanged(nameof(TwoDSnapEnabled));
+        OnPropertyChanged(nameof(TwoDSnappingSummary));
         OnPropertyChanged(nameof(TwoDSelectedPathIds));
         OnPropertyChanged(nameof(TwoDMeasurements));
         OnPropertyChanged(nameof(TwoDSelectedMeasurementId));

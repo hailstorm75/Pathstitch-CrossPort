@@ -234,8 +234,8 @@ public static class EditorToolCatalog
             TwoD(Editor2DTool.SketchRectangle, "rectangle", "Rectangle", "Create constrained rectangles.", "R", "rectangle", "2d.rectangle", "create"),
             TwoD(Editor2DTool.SketchCircle, "circle", "Circle", "Create circles from a center and radius.", "C", "circle", "2d.circle", "create"),
             TwoD(Editor2DTool.SketchText, "text", "Text", "Create editable text entities.", "T", "text", "2d.text", "create"),
-            TwoD(Editor2DTool.Pen, "pen", "Pen", "Create open or closed polyline paths.", "N", "pen", "2d.pen", "create"),
-            TwoD(Editor2DTool.SketchPolygon, "polygon", "Polygon", "Create regular polygons.", "P", "polygon", "2d.polygon", "create"),
+            TwoD(Editor2DTool.Pen, "pen", "Pen", "Create open or closed polyline paths.", "P", "pen", "2d.pen", "create"),
+            TwoD(Editor2DTool.SketchPolygon, "polygon", "Polygon", "Create regular polygons.", null, "polygon", "2d.polygon", "create"),
         ]);
 
     private static IReadOnlyList<EditorToolDescriptor> AssignOrder(IReadOnlyList<EditorToolDescriptor> descriptors)

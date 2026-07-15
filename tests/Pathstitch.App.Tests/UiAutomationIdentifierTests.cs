@@ -26,6 +26,7 @@ public sealed class UiAutomationIdentifierTests
             "editor.workspace-host",
             "editor.workspace.3d",
             "editor.workspace.2d",
+            "editor.workspace.snap",
             "editor.mode-switcher",
             "editor.inspector-host",
         };

@@ -1,10 +1,34 @@
 using Domain.App.Models;
 using Domain.App.ViewModels;
+using System.Text.Json;
 
 namespace Pathstitch.App.Tests;
 
 public sealed class Editor2DWorkspaceViewModelTests
 {
+    [Fact]
+    public void Snapping_DefaultsOnAndPersistsWithoutPollutingUndoHistory()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+
+        Assert.True(workspace.SnapEnabled);
+        workspace.SetSnapEnabled(false);
+
+        Assert.False(workspace.SnapEnabled);
+        Assert.False(workspace.State.SnapEnabled);
+        Assert.False(workspace.CanUndo);
+
+        var reopened = new Editor2DWorkspaceViewModel();
+        var serialized = JsonSerializer.Serialize(workspace.State);
+        var restored = JsonSerializer.Deserialize<Editor2DWorkspaceState>(serialized);
+        reopened.Apply(Assert.IsType<Editor2DWorkspaceState>(restored), recordHistory: false);
+        Assert.False(reopened.SnapEnabled);
+
+        var legacyJson = JsonSerializer.Serialize(Editor2DWorkspaceState.Empty)
+            .Replace(",\"snapEnabled\":true", string.Empty, StringComparison.Ordinal);
+        Assert.True(JsonSerializer.Deserialize<Editor2DWorkspaceState>(legacyJson)!.SnapEnabled);
+    }
+
     [Fact]
     public void BlankWorkspace_IsImmediatelyEditableWithoutTwoD()
     {

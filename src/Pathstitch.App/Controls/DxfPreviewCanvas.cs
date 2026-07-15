@@ -35,6 +35,12 @@ public sealed class DxfPreviewCanvas : Control
             defaultValue: Editor2DTool.Select,
             defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<bool> SnapEnabledProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(
+            nameof(SnapEnabled),
+            defaultValue: true,
+            defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<IReadOnlyList<string>> SelectedPathIdsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<string>>(
             nameof(SelectedPathIds),
@@ -130,12 +136,16 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly IBrush LiveMeasurementPointBrush = new SolidColorBrush(Color.Parse("#B0F5DA"));
     private static readonly IBrush CornerToolHandleBrush = new SolidColorBrush(Color.Parse("#F5B35C"));
     private static readonly IBrush MarqueeFillBrush = new SolidColorBrush(Color.Parse("#224D7FFF"));
+    private static readonly Pen SnapIndicatorPen = new(new SolidColorBrush(Color.Parse("#FF9F43")), 1.5);
+    private static readonly IBrush SnapIndicatorBrush = new SolidColorBrush(Color.Parse("#FF9F43"));
+    private static readonly IBrush SnapLabelFillBrush = new SolidColorBrush(Color.Parse("#DD17120C"));
 
     private readonly ContextMenu _contextMenu;
     private readonly DxfCanvasRenderer _renderer = new();
     private readonly DxfCanvasInteractionSession _interaction = new();
     private readonly DxfCanvasInteractionController _interactionController;
     private readonly DxfCanvasToolCommitter _toolCommitter = new();
+    private readonly DxfCanvasSnapResolver _snapResolver = new();
     private readonly Dictionary<string, Bitmap> _referenceImageBitmaps = new(StringComparer.Ordinal);
     private readonly MenuItem _expandRectanglesMenuItem;
     private readonly MenuItem _deleteSelectionMenuItem;
@@ -174,12 +184,15 @@ public sealed class DxfPreviewCanvas : Control
     private ref Editor2DPoint? _pendingDimensionEnd => ref _interaction.PendingDimensionEnd;
     private ref bool _pendingFrameToDocument => ref _interaction.PendingFrameToDocument;
     private ref double? _cornerToolSessionValue => ref _interaction.CornerToolSessionValue;
+    private DxfCanvasSnapResult? _activeSnapResult;
+    private bool _shiftSnapHeld;
 
     static DxfPreviewCanvas()
     {
         AffectsRender<DxfPreviewCanvas>(
             DocumentProperty,
             ActiveToolProperty,
+            SnapEnabledProperty,
             SelectedPathIdsProperty,
             HiddenPathIdsProperty,
             PreviewPathsProperty,
@@ -256,6 +269,12 @@ public sealed class DxfPreviewCanvas : Control
     {
         get => GetValue(ActiveToolProperty);
         set => SetValue(ActiveToolProperty, value);
+    }
+
+    public bool SnapEnabled
+    {
+        get => GetValue(SnapEnabledProperty);
+        set => SetValue(SnapEnabledProperty, value);
     }
 
     public IReadOnlyList<string> SelectedPathIds
@@ -423,6 +442,7 @@ public sealed class DxfPreviewCanvas : Control
 
         if (change.Property == DocumentProperty)
         {
+            _activeSnapResult = null;
             _hoveredPathId = null;
             _pressedPathId = null;
             CancelMarqueeSelection();
@@ -481,6 +501,12 @@ public sealed class DxfPreviewCanvas : Control
 
         if (change.Property == FrameRequestTokenProperty)
             FrameToDocument();
+
+        if (change.Property == SnapEnabledProperty)
+        {
+            _activeSnapResult = null;
+            InvalidateVisual();
+        }
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)
@@ -522,6 +548,7 @@ public sealed class DxfPreviewCanvas : Control
         DrawTrimPreview(context, size, Document with { Paths = visiblePaths });
         DrawMeasurements(context, size);
         DrawLiveMeasurement(context, size);
+        DrawSnapIndicator(context);
         DrawMarquee(context);
     }
 
@@ -531,6 +558,7 @@ public sealed class DxfPreviewCanvas : Control
         Focus();
 
         var point = e.GetCurrentPoint(this);
+        UpdateShiftSnapModifier(e.KeyModifiers);
         _lastPointerPosition = point.Position;
         _pointerPressPosition = point.Position;
 
@@ -634,6 +662,7 @@ public sealed class DxfPreviewCanvas : Control
         base.OnPointerMoved(e);
 
         var position = e.GetPosition(this);
+        UpdateShiftSnapModifier(e.KeyModifiers);
         _hoverPointerPosition = position;
         _hasHoverPointerPosition = true;
         if (_isAwaitingSecondaryContextClick)
@@ -656,15 +685,15 @@ public sealed class DxfPreviewCanvas : Control
             case DxfCanvasMoveRoute.ScaleSelection: ApplyScaleSelection(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.EditVertex:
                 if (!_editingVertexIsConstrainedRectangle) ApplyVertexEdit(position); e.Handled = true; return;
-            case DxfCanvasMoveRoute.LineDraft: _pendingLineEnd = ScreenToWorld(position, Zoom); break;
-            case DxfCanvasMoveRoute.RectangleDraft: _pendingRectangleEnd = ScreenToWorld(position, Zoom); break;
-            case DxfCanvasMoveRoute.CircleDraft: _pendingCircleEdge = ScreenToWorld(position, Zoom); break;
-            case DxfCanvasMoveRoute.PolygonDraft: _pendingPolygonEdge = ScreenToWorld(position, Zoom); break;
-            case DxfCanvasMoveRoute.TextDraft: _pendingTextEnd = ScreenToWorld(position, Zoom); break;
-            case DxfCanvasMoveRoute.PenDraft: _pendingPenHoverPoint = ScreenToWorld(position, Zoom); break;
-            case DxfCanvasMoveRoute.MirrorDraft: _pendingMirrorAxisEnd = ScreenToWorld(position, Zoom); break;
-            case DxfCanvasMoveRoute.MeasurementDraft: _pendingMeasurementEnd = ScreenToWorld(position, Zoom); break;
-            case DxfCanvasMoveRoute.DimensionDraft: _pendingDimensionEnd = ScreenToWorld(position, Zoom); break;
+            case DxfCanvasMoveRoute.LineDraft: _pendingLineEnd = ResolvePlacementPoint(position, _pendingLineStart, allowOrthogonal: true); break;
+            case DxfCanvasMoveRoute.RectangleDraft: _pendingRectangleEnd = ResolvePlacementPoint(position); break;
+            case DxfCanvasMoveRoute.CircleDraft: _pendingCircleEdge = ResolvePlacementPoint(position); break;
+            case DxfCanvasMoveRoute.PolygonDraft: _pendingPolygonEdge = ResolvePlacementPoint(position); break;
+            case DxfCanvasMoveRoute.TextDraft: _pendingTextEnd = ResolvePlacementPoint(position); break;
+            case DxfCanvasMoveRoute.PenDraft: _pendingPenHoverPoint = ResolvePlacementPoint(position, _pendingPenPoints.LastOrDefault(), allowOrthogonal: _pendingPenPoints.Count > 0); break;
+            case DxfCanvasMoveRoute.MirrorDraft: _pendingMirrorAxisEnd = ResolvePlacementPoint(position); break;
+            case DxfCanvasMoveRoute.MeasurementDraft: _pendingMeasurementEnd = ResolvePlacementPoint(position, _pendingMeasurementStart, allowOrthogonal: true); break;
+            case DxfCanvasMoveRoute.DimensionDraft: _pendingDimensionEnd = ResolvePlacementPoint(position, _pendingDimensionStart, allowOrthogonal: true); break;
             case DxfCanvasMoveRoute.ToolPreview: InvalidateVisual(); return;
             case DxfCanvasMoveRoute.Marquee:
                 var drag = position - _pointerPressPosition;
@@ -680,6 +709,7 @@ public sealed class DxfPreviewCanvas : Control
         return;
 
 Hover:
+        UpdateSnapHover(position);
         var hoveredPathId = HitTestPathId(position);
         if (!string.Equals(_hoveredPathId, hoveredPathId, StringComparison.Ordinal))
         {
@@ -734,20 +764,12 @@ Selection:
         base.OnPointerExited(e);
 
         _hasHoverPointerPosition = false;
+        _activeSnapResult = null;
 
         if (_hoveredPathId is not null)
-        {
             _hoveredPathId = null;
-            InvalidateVisual();
-        }
-        else if (ActiveTool == Editor2DTool.Trim)
-        {
-            InvalidateVisual();
-        }
-        else if (ActiveTool == Editor2DTool.Fillet || ActiveTool == Editor2DTool.Chamfer)
-        {
-            InvalidateVisual();
-        }
+
+        InvalidateVisual();
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -771,6 +793,21 @@ Selection:
     {
         base.OnKeyDown(e);
 
+        if (e.Key is Key.LeftShift or Key.RightShift)
+        {
+            _shiftSnapHeld = true;
+            UpdateSnapHover(_hoverPointerPosition);
+            InvalidateVisual();
+            return;
+        }
+
+        if (e.Key == Key.N && e.KeyModifiers is KeyModifiers.None)
+        {
+            SetCurrentValue(SnapEnabledProperty, !SnapEnabled);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape)
         {
             CancelActiveInteraction();
@@ -783,6 +820,17 @@ Selection:
             CommitPendingPenPath(isClosed: false);
             e.Handled = true;
         }
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        base.OnKeyUp(e);
+        if (e.Key is not (Key.LeftShift or Key.RightShift))
+            return;
+
+        _shiftSnapHeld = false;
+        UpdateSnapHover(_hoverPointerPosition);
+        InvalidateVisual();
     }
 
     private void DrawGrid(DrawingContext context, Size size)
@@ -805,6 +853,33 @@ Selection:
             var y = WorldToScreen(new Editor2DPoint(0, 0), size).Y;
             context.DrawLine(AxisPen, new Point(0, y), new Point(size.Width, y));
         }
+    }
+
+    private void DrawSnapIndicator(DrawingContext context)
+    {
+        if (_activeSnapResult is not { } snap || !IsSnappingActive)
+            return;
+
+        const double markerSize = 8.0;
+        var marker = new Rect(
+            snap.ScreenPoint.X - (markerSize / 2.0),
+            snap.ScreenPoint.Y - (markerSize / 2.0),
+            markerSize,
+            markerSize);
+        context.DrawRectangle(null, SnapIndicatorPen, marker);
+
+        var text = new FormattedText(
+            snap.Label,
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            MeasurementLabelTypeface,
+            10.0,
+            SnapIndicatorBrush);
+        var labelPosition = new Point(snap.ScreenPoint.X + 9.0, snap.ScreenPoint.Y - text.Height - 5.0);
+        context.FillRectangle(
+            SnapLabelFillBrush,
+            new Rect(labelPosition.X - 3.0, labelPosition.Y - 2.0, text.Width + 6.0, text.Height + 4.0));
+        context.DrawText(text, labelPosition);
     }
 
     private void DrawPaperBounds(DrawingContext context, Size size, Editor2DBounds bounds)
@@ -1295,7 +1370,7 @@ Selection:
 
     private void HandleMeasurementClick(Point screenPoint)
     {
-        var worldPoint = ScreenToWorld(screenPoint, Zoom);
+        var worldPoint = ResolvePlacementPoint(screenPoint, _pendingMeasurementStart, allowOrthogonal: _pendingMeasurementStart is not null);
         if (_pendingMeasurementStart is null)
         {
             _pendingMeasurementStart = worldPoint;
@@ -1319,7 +1394,7 @@ Selection:
         if (Document is null)
             return;
 
-        var worldPoint = ScreenToWorld(screenPoint, Zoom);
+        var worldPoint = ResolvePlacementPoint(screenPoint, _pendingDimensionStart, allowOrthogonal: _pendingDimensionStart is not null);
         if (_pendingDimensionStart is not null)
         {
             if (DistanceBetween(_pendingDimensionStart, worldPoint) <= 1e-6)
@@ -2117,7 +2192,7 @@ Selection:
 
     private void HandleSketchLineClick(Point screenPoint)
     {
-        var worldPoint = ScreenToWorld(screenPoint, Zoom);
+        var worldPoint = ResolvePlacementPoint(screenPoint, _pendingLineStart, allowOrthogonal: _pendingLineStart is not null);
         if (_pendingLineStart is null)
         {
             _pendingLineStart = worldPoint;
@@ -2141,7 +2216,7 @@ Selection:
 
     private void HandleSketchRectangleClick(Point screenPoint)
     {
-        var worldPoint = ScreenToWorld(screenPoint, Zoom);
+        var worldPoint = ResolvePlacementPoint(screenPoint);
         if (_pendingRectangleStart is null)
         {
             _pendingRectangleStart = worldPoint;
@@ -2165,7 +2240,7 @@ Selection:
 
     private void HandleSketchCircleClick(Point screenPoint)
     {
-        var worldPoint = ScreenToWorld(screenPoint, Zoom);
+        var worldPoint = ResolvePlacementPoint(screenPoint);
         if (_pendingCircleCenter is null)
         {
             _pendingCircleCenter = worldPoint;
@@ -2189,7 +2264,7 @@ Selection:
 
     private void HandleSketchPolygonClick(Point screenPoint)
     {
-        var worldPoint = ScreenToWorld(screenPoint, Zoom);
+        var worldPoint = ResolvePlacementPoint(screenPoint);
         if (_pendingPolygonCenter is null)
         {
             _pendingPolygonCenter = worldPoint;
@@ -2213,7 +2288,7 @@ Selection:
 
     private void HandleSketchTextClick(Point screenPoint)
     {
-        var worldPoint = ScreenToWorld(screenPoint, Zoom);
+        var worldPoint = ResolvePlacementPoint(screenPoint);
         if (_pendingTextStart is null)
         {
             _pendingTextStart = worldPoint;
@@ -2237,7 +2312,10 @@ Selection:
 
     private void HandlePenClick(Point screenPoint)
     {
-        var worldPoint = ScreenToWorld(screenPoint, Zoom);
+        var worldPoint = ResolvePlacementPoint(
+            screenPoint,
+            _pendingPenPoints.LastOrDefault(),
+            allowOrthogonal: _pendingPenPoints.Count > 0);
         if (_pendingPenPoints.Count >= 2 && IsNearFirstPendingPenPoint(screenPoint))
         {
             CommitPendingPenPath(isClosed: true);
@@ -2259,7 +2337,7 @@ Selection:
 
         if (_pendingMirrorAxisStart is not null)
         {
-            var axisEnd = ScreenToWorld(screenPoint, Zoom);
+            var axisEnd = ResolvePlacementPoint(screenPoint);
             if (DistanceBetween(_pendingMirrorAxisStart, axisEnd) <= 1e-6)
             {
                 _pendingMirrorAxisEnd = axisEnd;
@@ -2284,7 +2362,7 @@ Selection:
             return;
         }
 
-        var axisStart = ScreenToWorld(screenPoint, Zoom);
+        var axisStart = ResolvePlacementPoint(screenPoint);
         _pendingMirrorAxisStart = axisStart;
         _pendingMirrorAxisEnd = axisStart;
         SetCurrentValue(SelectedMeasurementIdProperty, null);
@@ -2446,7 +2524,7 @@ Selection:
         if (Document is null || string.IsNullOrWhiteSpace(_editingVertexPathId))
             return;
 
-        var nextPoint = ScreenToWorld(pointerPosition, Zoom);
+        var nextPoint = ResolvePlacementPoint(pointerPosition);
         var nextPaths = Document.Paths
             .Select(path =>
             {
@@ -2583,6 +2661,58 @@ Selection:
 
     private Editor2DPoint ScreenToWorld(Point point, double zoom)
         => DxfCanvasViewportTransform.ScreenToWorld(point, Bounds.Size, zoom, OffsetX, OffsetY);
+
+    private bool IsSnappingActive => SnapEnabled != _shiftSnapHeld;
+
+    private Editor2DPoint ResolvePlacementPoint(
+        Point screenPoint,
+        Editor2DPoint? orthogonalReference = null,
+        bool allowOrthogonal = false)
+    {
+        var worldPoint = ScreenToWorld(screenPoint, Zoom);
+        if (!IsSnappingActive)
+        {
+            _activeSnapResult = null;
+            return worldPoint;
+        }
+
+        _activeSnapResult = _snapResolver.Resolve(
+            Document,
+            HiddenPathIds,
+            worldPoint,
+            screenPoint,
+            point => WorldToScreen(point, Bounds.Size),
+            cornerParameters: CornerParameters);
+        if (_activeSnapResult is { } snap)
+            return snap.ModelPoint;
+
+        return allowOrthogonal && orthogonalReference is not null
+            ? DxfCanvasSnapResolver.ApplyOrthogonalConstraint(orthogonalReference, worldPoint)
+            : worldPoint;
+    }
+
+    private void UpdateSnapHover(Point screenPoint)
+    {
+        if (!_hasHoverPointerPosition || Document is null || Zoom <= 0.0)
+        {
+            _activeSnapResult = null;
+            InvalidateVisual();
+            return;
+        }
+
+        _ = ResolvePlacementPoint(screenPoint);
+        InvalidateVisual();
+    }
+
+    private void UpdateShiftSnapModifier(KeyModifiers modifiers)
+    {
+        var shiftHeld = modifiers.HasFlag(KeyModifiers.Shift);
+        if (_shiftSnapHeld == shiftHeld)
+            return;
+
+        _shiftSnapHeld = shiftHeld;
+        _activeSnapResult = null;
+    }
 
     private string? HitTestPathId(Point pointerPosition)
     {
