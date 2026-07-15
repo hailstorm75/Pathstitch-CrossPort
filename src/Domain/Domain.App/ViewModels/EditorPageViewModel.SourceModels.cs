@@ -177,7 +177,7 @@ public sealed partial class EditorPageViewModel
         await ApplyLoadedSourceModelsAsync(result, isAppendingToWorkspace, result.Message, cancellationToken).ConfigureAwait(true);
     }
 
-    private async Task ApplyLoadedSourceModelsAsync(
+    private Task ApplyLoadedSourceModelsAsync(
         EditorModelLoadResult result,
         bool isAppendingToWorkspace,
         string successStatusText,
@@ -224,24 +224,8 @@ public sealed partial class EditorPageViewModel
         RequestBodyMoveStateSync();
         OnPropertyChanged(nameof(ProjectionToolHint));
 
-        if (ProjectSession is not null)
-        {
-            await _project3DStateService.SaveAsync(
-                ProjectSession.ProjectFilePath,
-                new Project3DState(
-                    ViewportJson: result.ViewportJson,
-                    Bodies: bodies,
-                    BodyOffsets: BodyOffsets,
-                    SourceModelPath: result.SourceModelPath,
-                    GeneratedOutputPath: null,
-                    GeneratedOutputContext: null,
-                    UnfoldWorkspaceState: BuildPersistedUnfoldWorkspaceState(),
-                    ProjectionWorkspaceState: BuildPersistedProjectionWorkspaceState(),
-                    WorkspaceState: BuildPersistedEditorWorkspaceState(),
-                    ThreeDWorkspaceState: _threeDWorkspace.CaptureState(),
-                    StepTopology: result.StepTopology),
-                cancellationToken).ConfigureAwait(true);
-        }
+        Request3DStatePersistence();
+        return Task.CompletedTask;
     }
 
     private static IReadOnlyList<string> NormalizeSourceModelPaths(IReadOnlyList<string> sourceModelPaths)

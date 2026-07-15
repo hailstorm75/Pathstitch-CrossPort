@@ -18,7 +18,8 @@ public sealed partial class EditorPageViewModel(
     IEditor2DGeometryKernelService editor2DGeometryKernelService,
     IEditor3DOperationService editor3DOperationService,
     IGeometryKernelDescriptorProvider geometryKernelDescriptorProvider,
-    IReferenceImageTraceService? referenceImageTraceService = null) : BasePageViewModel(logger)
+    IReferenceImageTraceService? referenceImageTraceService = null,
+    IUnsavedChangesPromptService? unsavedChangesPromptService = null) : BasePageViewModel(logger)
 {
     private static readonly HashSet<string> SupportedSourceModelExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -39,11 +40,10 @@ public sealed partial class EditorPageViewModel(
     private readonly IEditorOutputPreviewService _editorOutputPreviewService = editorOutputPreviewService;
     private readonly IProjectFileDialogService _projectFileDialogService = projectFileDialogService;
     private readonly Project3DStateService _project3DStateService = project3DStateService;
+    private readonly IUnsavedChangesPromptService _unsavedChangesPromptService =
+        unsavedChangesPromptService ?? CancelUnsavedChangesPromptService.Instance;
     private readonly Editor2DWorkspaceViewModel _twoDWorkspace = new(referenceImageTraceService);
     private readonly EditorBatchWorkspaceViewModel _batchWorkspace = new();
-    private CancellationTokenSource? _persist3DStateCancellationTokenSource;
-    private CancellationTokenSource? _persistTwoDDocumentCancellationTokenSource;
-
     private ProjectSession? _projectSession;
     private string _projectName = string.Empty;
     private string _projectTitle = "Editor";
@@ -62,6 +62,16 @@ public sealed partial class EditorPageViewModel(
     private ProjectTemplateDefinition? _template;
     private ProjectSessionOrigin? _sessionOrigin;
     private bool _isLoading;
+
+    private sealed class CancelUnsavedChangesPromptService : IUnsavedChangesPromptService
+    {
+        public static CancelUnsavedChangesPromptService Instance { get; } = new();
+
+        public Task<UnsavedChangesPromptResult> PromptToSaveAsync(
+            string documentName,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(UnsavedChangesPromptResult.Cancel);
+    }
     public event Action<string>? ViewportScriptRequested
     {
         add => _threeDWorkspace.ViewportScriptRequested += value;

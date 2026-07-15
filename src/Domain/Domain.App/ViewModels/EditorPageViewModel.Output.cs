@@ -1858,61 +1858,7 @@ public sealed partial class EditorPageViewModel
                 .ToArray();
 
     private void RequestTwoDDocumentPersistence(TimeSpan? delay = null)
-    {
-        if (string.IsNullOrWhiteSpace(LastGeneratedOutputPath)
-            || TwoDDocument is null)
-        {
-            return;
-        }
-
-        var nextCancellationTokenSource = new CancellationTokenSource();
-        var previousCancellationTokenSource = _persistTwoDDocumentCancellationTokenSource;
-        _persistTwoDDocumentCancellationTokenSource = nextCancellationTokenSource;
-        previousCancellationTokenSource?.Cancel();
-        previousCancellationTokenSource?.Dispose();
-
-        _ = PersistTwoDDocumentAsync(nextCancellationTokenSource, delay ?? TimeSpan.Zero);
-    }
-
-    private async Task PersistTwoDDocumentAsync(CancellationTokenSource cancellationTokenSource, TimeSpan delay)
-    {
-        try
-        {
-            if (delay > TimeSpan.Zero)
-                await Task.Delay(delay, cancellationTokenSource.Token).ConfigureAwait(true);
-
-            if (TwoDDocument is null || string.IsNullOrWhiteSpace(LastGeneratedOutputPath))
-                return;
-
-            await _editorOutputPreviewService
-                .SavePreviewDocumentAsync(TwoDDocument, LastGeneratedOutputPath, cancellationTokenSource.Token)
-                .ConfigureAwait(true);
-
-            _generatedOutputDataBase64 = await TryReadGeneratedOutputDataBase64Async(LastGeneratedOutputPath, cancellationTokenSource.Token)
-                .ConfigureAwait(true);
-
-            GeneratedOutputSummary = await _editorOutputPreviewService
-                .InspectOutputAsync(LastGeneratedOutputPath, cancellationTokenSource.Token)
-                .ConfigureAwait(true);
-
-            Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
-        }
-        catch (OperationCanceledException)
-        {
-            // A newer 2D document edit superseded this write.
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to persist editable 2D output for {OutputPath}", LastGeneratedOutputPath);
-        }
-        finally
-        {
-            if (ReferenceEquals(_persistTwoDDocumentCancellationTokenSource, cancellationTokenSource))
-                _persistTwoDDocumentCancellationTokenSource = null;
-
-            cancellationTokenSource.Dispose();
-        }
-    }
+        => MarkDocumentDirty();
 
     private static Dictionary<string, string> CreateTwoDConvertLineParameterText()
     {

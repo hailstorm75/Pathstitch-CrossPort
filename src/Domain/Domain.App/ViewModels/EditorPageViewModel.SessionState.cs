@@ -1,6 +1,7 @@
 using Domain.App.Models;
 using Domain.App.Navigation;
 using Domain.MVVM.Navigation;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 
 namespace Domain.App.ViewModels;
@@ -15,6 +16,7 @@ public sealed partial class EditorPageViewModel
             if (!SetProperty(ref _projectSession, value))
                 return;
 
+            using var dirtyTrackingSuppression = SuppressDocumentDirtyTracking();
             ProjectName = value?.ProjectName ?? string.Empty;
             Template = value?.Template;
             SessionOrigin = value?.Origin;
@@ -62,6 +64,9 @@ public sealed partial class EditorPageViewModel
             SelectedBodyOffsetYText = "0";
             SelectedBodyOffsetZText = "0";
             BodyMoveStepText = "1";
+            SaveDocumentCommand.NotifyCanExecuteChanged();
+            SaveAndCloseDocumentCommand.NotifyCanExecuteChanged();
+            CloseDocumentCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -117,6 +122,7 @@ public sealed partial class EditorPageViewModel
                 _ => [],
             }
             : [];
+        WeakReferenceMessenger.Default.Register<PreviewApplicationClosingMessage>(this, OnPreviewApplicationClosing);
         return ValueTask.FromResult(true);
     }
 
@@ -125,67 +131,74 @@ public sealed partial class EditorPageViewModel
         if (ProjectSession is null)
             return;
 
-        var state = await _project3DStateService.LoadAsync(ProjectSession.ProjectFilePath, token).ConfigureAwait(true);
-        ViewportJsonContent = state.ViewportJson;
-        SetSourceModelPath(state.SourceModelPath);
-        _stepTopology = state.StepTopology;
-        SetDistortionData(string.Empty);
-        Bodies = state.Bodies;
-        BodyOffsets = state.BodyOffsets;
-        BodyOffsetCount = state.BodyOffsets.Count;
-        if (state.HasGeneratedOutput)
+        Project3DState state;
+        using (SuppressDocumentDirtyTracking())
         {
-            GeneratedOutputContext = state.GeneratedOutputContext;
-            await UpdateGeneratedOutputPreviewAsync(
-                state.GeneratedOutputPath,
-                activatePreviewWorkspace: false,
-                token,
-                persistState: false).ConfigureAwait(true);
-        }
-        else
-        {
-            ClearTwoDState();
-        }
-        ApplyPersistedUnfoldWorkspaceState(state.UnfoldWorkspaceState);
-        RefreshSelectionState();
-        RequestBodyMoveStateSync();
+            state = await _project3DStateService.LoadAsync(ProjectSession.ProjectFilePath, token).ConfigureAwait(true);
+            ViewportJsonContent = state.ViewportJson;
+            SetSourceModelPath(state.SourceModelPath);
+            _stepTopology = state.StepTopology;
+            SetDistortionData(string.Empty);
+            Bodies = state.Bodies;
+            BodyOffsets = state.BodyOffsets;
+            BodyOffsetCount = state.BodyOffsets.Count;
+            if (state.HasGeneratedOutput)
+            {
+                GeneratedOutputContext = state.GeneratedOutputContext;
+                await UpdateGeneratedOutputPreviewAsync(
+                    state.GeneratedOutputPath,
+                    activatePreviewWorkspace: false,
+                    token,
+                    persistState: false).ConfigureAwait(true);
+            }
+            else
+            {
+                ClearTwoDState();
+            }
+            ApplyPersistedUnfoldWorkspaceState(state.UnfoldWorkspaceState);
+            RefreshSelectionState();
+            RequestBodyMoveStateSync();
 
-        StatusText = state.HasModel switch
-        {
-            true when state.HasGeneratedOutput => $"3D model restored ({Bodies.Count} bodies) with generated output",
-            true => $"3D model restored ({Bodies.Count} bodies)",
-            _ when state.HasGeneratedOutput => "Generated output restored",
-            _ => "No persisted 3D model found",
-        };
+            StatusText = state.HasModel switch
+            {
+                true when state.HasGeneratedOutput => $"3D model restored ({Bodies.Count} bodies) with generated output",
+                true => $"3D model restored ({Bodies.Count} bodies)",
+                _ when state.HasGeneratedOutput => "Generated output restored",
+                _ => "No persisted 3D model found",
+            };
 
-        ViewportStateText = state.HasModel
-            ? "Waiting for viewport ready event"
-            : state.HasGeneratedOutput
-                ? "Generated output preview restored"
-                : "Viewport loaded without saved model";
+            ViewportStateText = state.HasModel
+                ? "Waiting for viewport ready event"
+                : state.HasGeneratedOutput
+                    ? "Generated output preview restored"
+                    : "Viewport loaded without saved model";
 
-        if (state.HasModel)
-        {
-            RequestViewportScript(BuildLoadModelScript(state.ViewportJson!));
-            RequestBodyVisibilityStateSync();
-            ApplyPersistedProjectionWorkspaceState(state.ProjectionWorkspaceState);
+            if (state.HasModel)
+            {
+                RequestViewportScript(BuildLoadModelScript(state.ViewportJson!));
+                RequestBodyVisibilityStateSync();
+                ApplyPersistedProjectionWorkspaceState(state.ProjectionWorkspaceState);
+            }
+
+            ApplyPersistedTwoDWorkspaceState(state.TwoDWorkspaceState);
+            ApplyPersistedEditorWorkspaceState(state.WorkspaceState);
+            if (state.ThreeDWorkspaceState is { } threeDState)
+            {
+                _threeDWorkspace.RestoreState(threeDState);
+                SelectedFaces = HydrateStableFaceReferences(SelectedFaces);
+                ApplyPersistedProjectionWorkspaceState(threeDState.Projection);
+                ApplyPersistedUnfoldWorkspaceState(threeDState.Unfold);
+                NotifyThreeDWorkspaceFacadeProperties();
+            }
         }
 
-        ApplyPersistedTwoDWorkspaceState(state.TwoDWorkspaceState);
-        ApplyPersistedEditorWorkspaceState(state.WorkspaceState);
-        if (state.ThreeDWorkspaceState is { } threeDState)
-        {
-            _threeDWorkspace.RestoreState(threeDState);
-            SelectedFaces = HydrateStableFaceReferences(SelectedFaces);
-            ApplyPersistedProjectionWorkspaceState(threeDState.Projection);
-            ApplyPersistedUnfoldWorkspaceState(threeDState.Unfold);
-            NotifyThreeDWorkspaceFacadeProperties();
-        }
+        EstablishCleanDocumentBaseline();
 
         if (_pendingSourceModelPaths.Count > 0)
         {
             await LoadPendingSourceModelsAsync(state, token).ConfigureAwait(true);
             _pendingSourceModelPaths = [];
+            MarkDocumentDirty();
         }
     }
 }

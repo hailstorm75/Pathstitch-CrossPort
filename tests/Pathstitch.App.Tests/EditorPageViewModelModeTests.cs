@@ -421,12 +421,14 @@ public sealed class EditorPageViewModelModeTests
 
     public static EditorPageViewModel CreateViewModelForTests(
         IProjectFileDialogService? projectFileDialogService = null,
-        IEditorOutputPreviewService? outputPreviewService = null)
-        => CreateViewModel(projectFileDialogService, outputPreviewService);
+        IEditorOutputPreviewService? outputPreviewService = null,
+        IUnsavedChangesPromptService? unsavedChangesPromptService = null)
+        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService);
 
     private static EditorPageViewModel CreateViewModel(
         IProjectFileDialogService? projectFileDialogService = null,
-        IEditorOutputPreviewService? outputPreviewService = null)
+        IEditorOutputPreviewService? outputPreviewService = null,
+        IUnsavedChangesPromptService? unsavedChangesPromptService = null)
         => new(
             NullLogger<EditorPageViewModel>.Instance,
             new StubViewportAssetLocator(),
@@ -436,7 +438,8 @@ public sealed class EditorPageViewModelModeTests
             outputPreviewService ?? new StubOutputPreviewService(),
             new Stub2DGeometryKernelService(),
             new Stub3DOperationService(),
-            new StubGeometryKernelDescriptorProvider());
+            new StubGeometryKernelDescriptorProvider(),
+            unsavedChangesPromptService: unsavedChangesPromptService);
 
     private sealed class StubViewportAssetLocator : IEditorViewportAssetLocator
     {

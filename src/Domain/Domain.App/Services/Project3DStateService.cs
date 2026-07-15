@@ -170,8 +170,7 @@ public sealed class Project3DStateService
             throw;
         }
 
-        TryDeleteFile(projectFilePath);
-        File.Move(tempArchivePath, projectFilePath);
+        File.Move(tempArchivePath, projectFilePath, overwrite: true);
     }
 
     private static async Task<Project3DStatePayload?> ReadProjectPayloadAsync(string projectFilePath, CancellationToken cancellationToken)
