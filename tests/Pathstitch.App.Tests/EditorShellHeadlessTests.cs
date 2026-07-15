@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Domain.App.Models;
+using Pathstitch.App.Controls;
 using Pathstitch.App.Pages;
 using Pathstitch.App.Tests.Fixtures;
 
@@ -111,6 +112,43 @@ public sealed class EditorShellHeadlessTests
 
         Assert.False(viewModel.TwoDSnapEnabled);
         Assert.False(viewModel.TwoDWorkspace.State.SnapEnabled);
+    }
+
+    [Fact]
+    public async Task LiveShell_SewingInspectorHasReadableNumericFieldsAndResizableRightPanel()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+        await _ui.RunAsync(() =>
+        {
+            viewModel.ActivateSidebarItem("add-sewing-holes");
+            session.Window.UpdateLayout();
+
+            var splitter = _ui.FindByAutomationId<GridSplitter>(shell, "editor.inspector.resize");
+            Assert.True(_ui.IsEffectivelyVisible(splitter));
+            Assert.Equal(GridResizeDirection.Columns, splitter.ResizeDirection);
+            Assert.Equal(GridResizeBehavior.PreviousAndNext, splitter.ResizeBehavior);
+
+            foreach (var automationId in new[]
+                     {
+                         "editor.sewing.diameter",
+                         "editor.sewing.pitch",
+                         "editor.sewing.margin",
+                         "editor.sewing.corner-clearance",
+                     })
+            {
+                var field = _ui.FindByAutomationId<AutomationSafeNumericUpDown>(shell, automationId);
+                Assert.True(field.Bounds.Width >= 120, $"{automationId} width was {field.Bounds.Width}.");
+            }
+
+            var regions = _ui.FindByAutomationId<Grid>(shell, "editor.regions");
+            var inspector = _ui.FindByAutomationId<EditorInspectorHost>(shell, "editor.inspector-host");
+            regions.ColumnDefinitions[5].Width = new GridLength(400);
+            session.Window.UpdateLayout();
+            Assert.True(inspector.Bounds.Width >= 399);
+        });
     }
 
     [Fact]

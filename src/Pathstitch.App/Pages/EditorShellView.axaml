@@ -170,7 +170,8 @@
         <ColumnDefinition Width="4" />
         <ColumnDefinition Width="220" />
         <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="280" />
+        <ColumnDefinition Width="4" />
+        <ColumnDefinition Width="280" MinWidth="240" MaxWidth="520" />
       </Grid.ColumnDefinitions>
       <pages:EditorToolRail Grid.Column="0" AutomationProperties.AutomationId="editor.tool-rail" />
       <GridSplitter
@@ -290,7 +291,14 @@
           </StackPanel>
         </Border>
       </Grid>
-      <pages:EditorInspectorHost Grid.Column="4" AutomationProperties.AutomationId="editor.inspector-host" />
+      <GridSplitter
+        Grid.Column="4"
+        AutomationProperties.AutomationId="editor.inspector.resize"
+        Background="{StaticResource BorderBrush}"
+        Cursor="SizeWestEast"
+        ResizeBehavior="PreviousAndNext"
+        ResizeDirection="Columns" />
+      <pages:EditorInspectorHost Grid.Column="5" AutomationProperties.AutomationId="editor.inspector-host" />
     </Grid>
   </Grid>
 </UserControl>

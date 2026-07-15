@@ -29,6 +29,7 @@ public sealed class UiAutomationIdentifierTests
             "editor.workspace.snap",
             "editor.mode-switcher",
             "editor.inspector-host",
+            "editor.inspector.resize",
         };
 
         foreach (var automationId in expectedIds)
