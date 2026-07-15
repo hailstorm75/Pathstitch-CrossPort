@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia;
 using Domain.App.Models;
 
@@ -17,6 +18,36 @@ internal enum DxfCanvasMoveRoute
     ToolPreview, Marquee, Hover,
 }
 internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, EditVertex, Selection, None }
+internal enum DxfPenCompletion { Open, Closed }
+
+internal static class DxfCanvasPenInteraction
+{
+    public static DxfPenCompletion? GetCompletionForClick(
+        IReadOnlyList<Editor2DPoint> points,
+        Point screenPoint,
+        Func<Editor2DPoint, Point> worldToScreen,
+        double hitTolerance)
+    {
+        if (points.Count < 2)
+            return null;
+
+        if (Distance(screenPoint, worldToScreen(points[0])) <= hitTolerance)
+            return points.Count >= 3 ? DxfPenCompletion.Closed : DxfPenCompletion.Open;
+
+        return Distance(screenPoint, worldToScreen(points[^1])) <= hitTolerance
+            ? DxfPenCompletion.Open
+            : null;
+    }
+
+    private static double Distance(Point left, Point right)
+        => Math.Sqrt(Math.Pow(right.X - left.X, 2) + Math.Pow(right.Y - left.Y, 2));
+}
+
+internal static class DxfCanvasSelectionInteraction
+{
+    public static bool ShouldDrawHandles(Editor2DTool activeTool)
+        => activeTool is Editor2DTool.Select or Editor2DTool.Scale;
+}
 
 /// <summary>Owns pointer-driven viewport and gesture transitions independently of the control.</summary>
 internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession session)

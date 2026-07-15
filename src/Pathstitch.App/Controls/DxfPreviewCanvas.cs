@@ -23,9 +23,6 @@ public sealed class DxfPreviewCanvas : Control
     private const double DefaultTextHeight = 10.0;
     private const string DefaultTextValue = "Label";
 
-    internal static bool ShouldDrawSelectionHandles(Editor2DTool activeTool) =>
-        activeTool is Editor2DTool.Select or Editor2DTool.Scale;
-
     public static readonly StyledProperty<Editor2DPreviewDocument?> DocumentProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DPreviewDocument?>(nameof(Document));
 
@@ -1053,7 +1050,7 @@ Selection:
 
     private void DrawEditableVertexHandles(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
     {
-        if (!ShouldDrawSelectionHandles(ActiveTool) || SelectedPathIds.Count == 0)
+        if (!DxfCanvasSelectionInteraction.ShouldDrawHandles(ActiveTool) || SelectedPathIds.Count == 0)
             return;
 
         var selectedIds = new HashSet<string>(SelectedPathIds, StringComparer.Ordinal);
@@ -1073,7 +1070,7 @@ Selection:
 
     private void DrawConstrainedRectangleHandles(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
     {
-        if (!ShouldDrawSelectionHandles(ActiveTool) || SelectedPathIds.Count == 0)
+        if (!DxfCanvasSelectionInteraction.ShouldDrawHandles(ActiveTool) || SelectedPathIds.Count == 0)
             return;
 
         var selectedIds = new HashSet<string>(SelectedPathIds, StringComparer.Ordinal);
@@ -1247,7 +1244,9 @@ Selection:
         {
             var point = _pendingPenPoints[pointIndex];
             var screenPoint = WorldToScreen(point, size);
-            var radius = pointIndex == 0 && _pendingPenPoints.Count >= 2 ? 4.0 : 3.0;
+            var isTerminalAnchor = _pendingPenPoints.Count >= 2
+                && (pointIndex == 0 || pointIndex == _pendingPenPoints.Count - 1);
+            var radius = isTerminalAnchor ? 4.0 : 3.0;
             context.DrawEllipse(
                 pointIndex == 0 && _pendingPenPoints.Count >= 2 ? EditableVertexHandleFillBrush : LiveMeasurementPointBrush,
                 null,
@@ -2312,15 +2311,21 @@ Selection:
 
     private void HandlePenClick(Point screenPoint)
     {
+        var completion = DxfCanvasPenInteraction.GetCompletionForClick(
+            _pendingPenPoints,
+            screenPoint,
+            point => WorldToScreen(point, Bounds.Size),
+            PenCloseHitTolerance);
+        if (completion is not null)
+        {
+            CommitPendingPenPath(isClosed: completion == DxfPenCompletion.Closed);
+            return;
+        }
+
         var worldPoint = ResolvePlacementPoint(
             screenPoint,
             _pendingPenPoints.LastOrDefault(),
             allowOrthogonal: _pendingPenPoints.Count > 0);
-        if (_pendingPenPoints.Count >= 2 && IsNearFirstPendingPenPoint(screenPoint))
-        {
-            CommitPendingPenPath(isClosed: true);
-            return;
-        }
 
         if (_pendingPenPoints.Count > 0 && DistanceBetween(_pendingPenPoints[^1], worldPoint) <= 1e-6)
             return;
@@ -2583,15 +2588,6 @@ Selection:
 
         CancelPendingPen();
         InvalidateVisual();
-    }
-
-    private bool IsNearFirstPendingPenPoint(Point screenPoint)
-    {
-        if (_pendingPenPoints.Count == 0)
-            return false;
-
-        var firstPoint = WorldToScreen(_pendingPenPoints[0], Bounds.Size);
-        return Math.Sqrt(Math.Pow(screenPoint.X - firstPoint.X, 2) + Math.Pow(screenPoint.Y - firstPoint.Y, 2)) <= PenCloseHitTolerance;
     }
 
     private void ApplyClickSelection(string? pathId, bool isShiftSelection)
