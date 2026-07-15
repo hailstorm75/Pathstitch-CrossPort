@@ -98,9 +98,11 @@
             Foreground="{StaticResource PrimaryTextBrush}"
             Text="Pathstitch" />
           <TextBlock
+            x:Name="VersionText"
+            AutomationProperties.AutomationId="home.version"
             FontSize="10"
             Foreground="{StaticResource SecondaryTextBrush}"
-            Text="vNext Home" />
+            Text="Version" />
         </StackPanel>
 
         <Border

@@ -99,6 +99,7 @@ public sealed class UiAutomationIdentifierTests
         _ui.FindXamlElementByAutomationId(threeD, "editor.canvas.3d.webview");
         _ui.FindXamlElementByAutomationId(threeD, "editor.dialog.open-3d-model");
         _ui.FindXamlElementByAutomationId(home, "home.dialog.open-file");
+        _ui.FindXamlElementByAutomationId(home, "home.version");
         _ui.FindXamlElementByAutomationId(home, "home.dialog.open-files");
         _ui.FindXamlElementByAutomationId(home, "home.dialog.new-project");
         _ui.FindXamlElementByAutomationId(home, "home.dialog.open-project");

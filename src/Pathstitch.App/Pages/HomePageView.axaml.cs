@@ -30,6 +30,7 @@ public partial class HomePageView : BasePageView
     {
         _fileIntegrationService = serviceProvider.GetRequiredService<IFileIntegrationService>();
         InitializeComponent();
+        VersionText.Text = AppVersionInfo.HomeLabel;
         GettingStartedCard.IsVisible = !_preferencesStore.Load().GettingStartedDismissed;
         SupportCard.IsVisible = !_preferencesStore.Load().SupportCardDismissed;
         Focusable = true;
