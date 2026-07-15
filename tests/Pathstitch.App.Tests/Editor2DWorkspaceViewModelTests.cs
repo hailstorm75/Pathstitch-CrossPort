@@ -66,6 +66,23 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void PathPattern_ClonesSelectedGeometryAlongGuidePath()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var source = new Editor2DPreviewPath("source", "LINE", [new(0, 0), new(2, 0)], false);
+        var guide = new Editor2DPreviewPath("guide", "LWPOLYLINE", [new(0, 10), new(10, 10)], false);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [source, guide] });
+        workspace.SetSelection([source.Id]);
+
+        var result = workspace.ApplyPathPattern(guide.Id, copyCount: 3, spacing: 4);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(4, workspace.Document.Paths.Count);
+        Assert.Equal(2, workspace.Document.Paths.Count(path => path.Id.StartsWith("source:pattern:path:", StringComparison.Ordinal)));
+        Assert.Equal(new Editor2DPoint(3, 10), workspace.Document.Paths[2].Points[0]);
+    }
+
+    [Fact]
     public void BlankWorkspace_IsImmediatelyEditableWithoutTwoD()
     {
         var workspace = new Editor2DWorkspaceViewModel();

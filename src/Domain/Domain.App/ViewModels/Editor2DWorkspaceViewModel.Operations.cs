@@ -122,6 +122,85 @@ public sealed partial class Editor2DWorkspaceViewModel
             : $"Created {additions.Length} circular pattern duplicates");
     }
 
+    public Editor2DWorkspaceOperationResult ApplyPathPattern(string guidePathId, int copyCount, double spacing)
+    {
+        var guide = Document.Paths.FirstOrDefault(path => path.Id == guidePathId);
+        var selected = SelectedPaths().Where(path => path.Id != guidePathId).ToArray();
+        if (guide is null || guide.Points.Count < 2)
+            return Editor2DWorkspaceOperationResult.Failure("Select a LINE or polyline guide path before applying a path pattern");
+        if (selected.Length == 0)
+            return Editor2DWorkspaceOperationResult.Failure("Select source geometry separately from the path-pattern guide");
+        if (copyCount <= 1 || spacing <= 0)
+            return Editor2DWorkspaceOperationResult.Failure("Increase path pattern copies and spacing to create duplicates");
+
+        var segments = guide.Points.Zip(guide.Points.Skip(1), (start, end) => (start, end, length: Distance(start, end)))
+            .Where(segment => segment.length > 1e-8)
+            .ToArray();
+        var totalLength = segments.Sum(segment => segment.length);
+        var availableCopies = Math.Min(copyCount - 1, (int)Math.Floor(totalLength / spacing));
+        if (availableCopies < 1)
+            return Editor2DWorkspaceOperationResult.Failure("Guide path is too short for requested path-pattern spacing");
+
+        var sourcePoints = selected.SelectMany(path => path.Points).ToArray();
+        var pivot = new Editor2DPoint(
+            (sourcePoints.Min(point => point.X) + sourcePoints.Max(point => point.X)) / 2.0,
+            (sourcePoints.Min(point => point.Y) + sourcePoints.Max(point => point.Y)) / 2.0);
+        var additions = new List<Editor2DPreviewPath>();
+        for (var copyIndex = 1; copyIndex <= availableCopies; copyIndex++)
+        {
+            if (!TrySamplePath(segments, copyIndex * spacing, out var target, out var tangentDegrees))
+                break;
+
+            foreach (var path in selected)
+            {
+                var rotated = Editor2DGeometry.RotatePath(path, pivot, tangentDegrees);
+                var translated = Editor2DGeometry.TranslatePath(
+                    rotated,
+                    target.X - pivot.X,
+                    target.Y - pivot.Y,
+                    $"{path.Id}:pattern:path:{copyIndex}:{Guid.NewGuid():N}");
+                additions.Add(translated);
+            }
+        }
+
+        if (additions.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("The selected geometry could not be patterned along guide path");
+        AppendAndSelect(additions);
+        return Editor2DWorkspaceOperationResult.Success(additions.Count == 1
+            ? "Created 1 path pattern duplicate"
+            : $"Created {additions.Count} path pattern duplicates");
+    }
+
+    private static bool TrySamplePath(
+        IReadOnlyList<(Editor2DPoint start, Editor2DPoint end, double length)> segments,
+        double distance,
+        out Editor2DPoint point,
+        out double tangentDegrees)
+    {
+        var remaining = distance;
+        foreach (var segment in segments)
+        {
+            if (remaining <= segment.length)
+            {
+                var factor = remaining / segment.length;
+                point = new Editor2DPoint(
+                    segment.start.X + ((segment.end.X - segment.start.X) * factor),
+                    segment.start.Y + ((segment.end.Y - segment.start.Y) * factor));
+                tangentDegrees = Math.Atan2(segment.end.Y - segment.start.Y, segment.end.X - segment.start.X) * 180.0 / Math.PI;
+                return true;
+            }
+
+            remaining -= segment.length;
+        }
+
+        point = new Editor2DPoint(0, 0);
+        tangentDegrees = 0;
+        return false;
+    }
+
+    private static double Distance(Editor2DPoint left, Editor2DPoint right)
+        => Math.Sqrt(Math.Pow(left.X - right.X, 2) + Math.Pow(left.Y - right.Y, 2));
+
     public Editor2DWorkspaceOperationResult ApplyCreases()
         => ReplaceSelectedConvertibleLines("dashed", new Dictionary<string, double> { ["dash_length"] = 2, ["gap"] = 1 },
             "Select line or polyline geometry before applying dashed creases",
