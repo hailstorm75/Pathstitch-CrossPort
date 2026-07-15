@@ -222,6 +222,7 @@ public sealed class DxfPreviewCanvas : Control
     private readonly MenuItem _subtractMenuItem;
     private readonly MenuItem _intersectMenuItem;
     private readonly MenuItem _convertLinesMenuItem;
+    private readonly MenuItem _reloadFromDiskMenuItem;
     private readonly MenuItem _strokeToFillMenuItem;
     private readonly MenuItem _fillToStrokeMenuItem;
     private readonly MenuItem _deleteSelectionMenuItem;
@@ -360,6 +361,11 @@ public sealed class DxfPreviewCanvas : Control
             Header = "Convert to Dashed",
             Command = new RelayCommand(ExecuteConvertToDashedCommand),
         };
+        _reloadFromDiskMenuItem = new MenuItem
+        {
+            Header = "Reload from Disk",
+            Command = new AsyncRelayCommand(ExecuteReloadFromDiskCommandAsync),
+        };
 
         _explodeCompoundMenuItem = new MenuItem
         {
@@ -396,6 +402,7 @@ public sealed class DxfPreviewCanvas : Control
                 _subtractMenuItem,
                 _intersectMenuItem,
                 _convertLinesMenuItem,
+                _reloadFromDiskMenuItem,
                 _expandRectanglesMenuItem,
                 _explodeCompoundMenuItem,
                 _strokeToFillMenuItem,
@@ -440,6 +447,13 @@ public sealed class DxfPreviewCanvas : Control
             viewModel.TwoDConvertLineStyle = "dashed";
             viewModel.ApplyTwoDConvertLines();
         }
+        _contextMenu.Close();
+    }
+
+    private async Task ExecuteReloadFromDiskCommandAsync()
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            await viewModel.RefreshGeneratedOutputAsync().ConfigureAwait(true);
         _contextMenu.Close();
     }
 
@@ -4451,6 +4465,10 @@ Selection:
         var canConvertLines = !hasMeasurementSelection
             && DataContext is EditorPageViewModel { CanApplyTwoDConvertLines: true };
         _convertLinesMenuItem.IsVisible = canConvertLines;
+        _reloadFromDiskMenuItem.IsVisible = DataContext is EditorPageViewModel
+            {
+                HasGeneratedOutputFileOnDisk: true,
+            };
         _explodeCompoundMenuItem.IsVisible = !hasMeasurementSelection && canExplodeCompound;
         _strokeToFillMenuItem.IsVisible = !hasMeasurementSelection && canStrokeToFill;
         _fillToStrokeMenuItem.IsVisible = !hasMeasurementSelection && canFillToStroke;

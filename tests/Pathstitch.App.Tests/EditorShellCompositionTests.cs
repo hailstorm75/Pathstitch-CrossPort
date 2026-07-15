@@ -373,6 +373,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Header = \"Convert to Dashed\"", canvas, StringComparison.Ordinal);
         Assert.Contains("TwoDConvertLineStyle = \"dashed\"", canvas, StringComparison.Ordinal);
         Assert.Contains("ApplyTwoDConvertLines", canvas, StringComparison.Ordinal);
+        Assert.Contains("Header = \"Reload from Disk\"", canvas, StringComparison.Ordinal);
+        Assert.Contains("RefreshGeneratedOutputAsync", canvas, StringComparison.Ordinal);
     }
 
     [Fact]
