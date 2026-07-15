@@ -25,6 +25,15 @@ internal static class PdfOutputDocumentWriter
 
         foreach (var path in document.Paths)
         {
+            if (path.EntityType.Equals("CIRCLE", StringComparison.OrdinalIgnoreCase)
+                && path.Center is not null
+                && path.Radius is > 0)
+            {
+                AppendCircle(content, path.Center, path.Radius.Value, bounds, scale);
+                content.Append(path.IsFilled ? "B\n" : "S\n");
+                continue;
+            }
+
             if (path.Points.Count == 0)
                 continue;
 
@@ -72,6 +81,36 @@ internal static class PdfOutputDocumentWriter
 
     private static (double X, double Y) ToPagePoint(Editor2DPoint point, Editor2DBounds bounds, double scale)
         => (Margin + ((point.X - bounds.MinX) * scale), Margin + ((point.Y - bounds.MinY) * scale));
+
+    private static void AppendCircle(
+        StringBuilder content,
+        Editor2DPoint center,
+        double radius,
+        Editor2DBounds bounds,
+        double scale)
+    {
+        var kappa = 0.5522847498307936;
+        var centerPoint = ToPagePoint(center, bounds, scale);
+        var r = radius * scale;
+        content.Append(Number(centerPoint.X + r)).Append(' ').Append(Number(centerPoint.Y)).Append(" m\n");
+        AppendCurve(content, centerPoint.X + r, centerPoint.Y + (kappa * r), centerPoint.X + (kappa * r), centerPoint.Y + r, centerPoint.X, centerPoint.Y + r);
+        AppendCurve(content, centerPoint.X - (kappa * r), centerPoint.Y + r, centerPoint.X - r, centerPoint.Y + (kappa * r), centerPoint.X - r, centerPoint.Y);
+        AppendCurve(content, centerPoint.X - r, centerPoint.Y - (kappa * r), centerPoint.X - (kappa * r), centerPoint.Y - r, centerPoint.X, centerPoint.Y - r);
+        AppendCurve(content, centerPoint.X + (kappa * r), centerPoint.Y - r, centerPoint.X + r, centerPoint.Y - (kappa * r), centerPoint.X + r, centerPoint.Y);
+        content.Append("h\n");
+    }
+
+    private static void AppendCurve(
+        StringBuilder content,
+        double control1X,
+        double control1Y,
+        double control2X,
+        double control2Y,
+        double endX,
+        double endY)
+        => content.Append(Number(control1X)).Append(' ').Append(Number(control1Y)).Append(' ')
+            .Append(Number(control2X)).Append(' ').Append(Number(control2Y)).Append(' ')
+            .Append(Number(endX)).Append(' ').Append(Number(endY)).Append(" c\n");
 
     private static string Number(double value)
         => value.ToString("0.###", CultureInfo.InvariantCulture);

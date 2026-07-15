@@ -239,13 +239,14 @@ public sealed class EditorQuickDxfExportTests
         try
         {
             await new DxfOutputPreviewService().SavePreviewDocumentAsync(
-                CreateDocument(), outputPath, Editor2DExportOptions.Defaults);
+                CreatePdfDocument(), outputPath, Editor2DExportOptions.Defaults);
 
             var pdf = await File.ReadAllTextAsync(outputPath);
             Assert.StartsWith("%PDF-1.4", pdf, StringComparison.Ordinal);
             Assert.Contains("/Type /Page", pdf, StringComparison.Ordinal);
             Assert.Contains(" m\n", pdf, StringComparison.Ordinal);
             Assert.Contains(" l\n", pdf, StringComparison.Ordinal);
+            Assert.Contains(" c\n", pdf, StringComparison.Ordinal);
             Assert.Contains("xref", pdf, StringComparison.Ordinal);
         }
         finally
@@ -259,6 +260,16 @@ public sealed class EditorQuickDxfExportTests
             [new Editor2DPreviewPath("line-1", "LINE", [new(1, 2), new(3, 4)], false)],
             new Editor2DBounds(1, 2, 3, 4),
             new Dictionary<string, int> { ["LINE"] = 1 },
+            []);
+
+    private static Editor2DPreviewDocument CreatePdfDocument()
+        => new(
+            [
+                new Editor2DPreviewPath("line-1", "LINE", [new(1, 2), new(3, 4)], false),
+                new Editor2DPreviewPath("circle-1", "CIRCLE", [], true, Center: new(2, 3), Radius: 0.5),
+            ],
+            new Editor2DBounds(1, 2, 3, 4),
+            new Dictionary<string, int> { ["LINE"] = 1, ["CIRCLE"] = 1 },
             []);
 
     private sealed class RecordingFileDialogService(string? exportPath) : IProjectFileDialogService
