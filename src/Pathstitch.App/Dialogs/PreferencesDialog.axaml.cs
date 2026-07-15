@@ -91,6 +91,12 @@ public sealed partial class PreferencesDialog : Window
         _preferencesStore.Save(new UserPreferences(appearance, DxfPreviewCanvas.ReversePanDirection));
     }
 
+    private void OnShowGettingStartedClicked(object? sender, RoutedEventArgs e)
+    {
+        _preferencesStore.Save(_preferencesStore.Load() with { GettingStartedDismissed = false });
+        StatusText.Text = "Getting Started will show again on the Home page.";
+    }
+
     private void BuildShortcutEditors()
     {
         if (_viewModel is null)
