@@ -2,6 +2,7 @@
   x:Class="Pathstitch.App.Pages.Editor2DInspector"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:controls="using:Pathstitch.App.Controls"
   xmlns:models="using:Domain.App.Models"
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:EditorPageViewModel"
@@ -97,13 +98,13 @@
         </ComboBox>
         <Grid ColumnDefinitions="*,88" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
           <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Diameter (mm)" />
-          <NumericUpDown Grid.Row="0" Grid.Column="1" Minimum="0.02" Increment="0.1" Value="{Binding SewingHoleDiameter, Mode=TwoWay}" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="0" Grid.Column="1" Minimum="0.02" Increment="0.1" Value="{Binding SewingHoleDiameter, Mode=TwoWay}" />
           <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Pitch (mm)" />
-          <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="0.1" Increment="0.5" Value="{Binding SewingHolePitch, Mode=TwoWay}" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="1" Grid.Column="1" Minimum="0.1" Increment="0.5" Value="{Binding SewingHolePitch, Mode=TwoWay}" />
           <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Margin (mm)" />
-          <NumericUpDown Grid.Row="2" Grid.Column="1" Increment="0.5" Value="{Binding SewingHoleMargin, Mode=TwoWay}" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="2" Grid.Column="1" Increment="0.5" Value="{Binding SewingHoleMargin, Mode=TwoWay}" />
           <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Corner clearance" />
-          <NumericUpDown Grid.Row="3" Grid.Column="1" Minimum="0" Increment="0.5" Value="{Binding SewingCornerClearance, Mode=TwoWay}" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="3" Grid.Column="1" Minimum="0" Increment="0.5" Value="{Binding SewingCornerClearance, Mode=TwoWay}" />
         </Grid>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock VerticalAlignment="Center" Text="Corners" />
@@ -116,7 +117,7 @@
         <CheckBox Content="Avoid tagged geometry" IsChecked="{Binding SewingAvoidanceEnabled, Mode=TwoWay}" />
         <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding SewingAvoidanceEnabled}">
           <TextBlock VerticalAlignment="Center" Text="Clearance" />
-          <NumericUpDown Width="80" Minimum="0" Increment="0.5" Value="{Binding SewingAvoidanceClearance, Mode=TwoWay}" />
+          <controls:AutomationSafeNumericUpDown Width="80" Minimum="0" Increment="0.5" Value="{Binding SewingAvoidanceClearance, Mode=TwoWay}" />
           <TextBlock VerticalAlignment="Center" Text="{Binding SewingAvoidPathCount, StringFormat='Tagged: {0}'}" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
