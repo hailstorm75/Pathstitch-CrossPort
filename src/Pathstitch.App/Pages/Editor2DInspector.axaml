@@ -184,6 +184,13 @@
             SelectedItem="{Binding SewingCornerMode, Mode=TwoWay}" />
         </StackPanel>
         <CheckBox Content="Symmetric distribution" IsChecked="{Binding SewingSymmetricDistribution, Mode=TwoWay}" />
+        <CheckBox Content="Keep pitch within range" IsChecked="{Binding SewingVariableSpacingEnabled, Mode=TwoWay}" />
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4" IsVisible="{Binding SewingVariableSpacingEnabled}">
+          <TextBlock VerticalAlignment="Center" Text="Min pitch (mm)" />
+          <controls:AutomationSafeNumericUpDown Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.variable-min" MinWidth="160" Minimum="0.1" Increment="0.5" Value="{Binding SewingVariableSpacingMin, Mode=TwoWay}" />
+          <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Max pitch (mm)" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="1" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.variable-max" MinWidth="160" Minimum="0.1" Increment="0.5" Value="{Binding SewingVariableSpacingMax, Mode=TwoWay}" />
+        </Grid>
         <CheckBox Content="Avoid tagged geometry" IsChecked="{Binding SewingAvoidanceEnabled, Mode=TwoWay}" />
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4" IsVisible="{Binding SewingAvoidanceEnabled}">
           <TextBlock VerticalAlignment="Center" Text="Clearance" />

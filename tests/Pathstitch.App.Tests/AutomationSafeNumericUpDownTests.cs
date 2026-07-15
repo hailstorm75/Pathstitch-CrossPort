@@ -33,7 +33,7 @@ public sealed class AutomationSafeNumericUpDownTests
             FindRepositoryRoot(), "src", "Pathstitch.App", "Pages", "Editor2DInspector.axaml"));
 
         Assert.DoesNotContain("<NumericUpDown", inspector, StringComparison.Ordinal);
-        Assert.Equal(6, inspector.Split("<controls:AutomationSafeNumericUpDown", StringSplitOptions.None).Length - 1);
+        Assert.Equal(8, inspector.Split("<controls:AutomationSafeNumericUpDown", StringSplitOptions.None).Length - 1);
     }
 
     private static string FindRepositoryRoot()
