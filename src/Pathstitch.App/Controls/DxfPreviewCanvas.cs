@@ -30,6 +30,9 @@ public sealed class DxfPreviewCanvas : Control
     public static readonly StyledProperty<Editor2DPreviewDocument?> DocumentProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DPreviewDocument?>(nameof(Document));
 
+    public static readonly StyledProperty<string?> TextFontPreviewProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, string?>(nameof(TextFontPreview));
+
     public static readonly StyledProperty<Editor2DTool> ActiveToolProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DTool>(
             nameof(ActiveTool),
@@ -274,6 +277,7 @@ public sealed class DxfPreviewCanvas : Control
     {
         AffectsRender<DxfPreviewCanvas>(
             DocumentProperty,
+            TextFontPreviewProperty,
             ActiveToolProperty,
             SnapEnabledProperty,
             GridVisibleProperty,
@@ -501,6 +505,12 @@ public sealed class DxfPreviewCanvas : Control
     {
         get => GetValue(DocumentProperty);
         set => SetValue(DocumentProperty, value);
+    }
+
+    public string? TextFontPreview
+    {
+        get => GetValue(TextFontPreviewProperty);
+        set => SetValue(TextFontPreviewProperty, value);
     }
 
     public Editor2DTool ActiveTool
@@ -3956,7 +3966,10 @@ Selection:
             var screenStart = WorldToScreen(textStart, size);
             var fontSize = Math.Max(textHeight * Zoom, 8.0);
             var typeface = new Typeface(
-                string.IsNullOrWhiteSpace(path.FontFamily) ? "Inter, Segoe UI, Arial" : path.FontFamily,
+                SelectedPathIds.Contains(path.Id, StringComparer.Ordinal)
+                    && !string.IsNullOrWhiteSpace(TextFontPreview)
+                    ? TextFontPreview!
+                    : string.IsNullOrWhiteSpace(path.FontFamily) ? "Inter, Segoe UI, Arial" : path.FontFamily,
                 path.IsItalic ? FontStyle.Italic : FontStyle.Normal,
                 path.IsBold ? FontWeight.Bold : FontWeight.Normal,
                 FontStretch.Normal);

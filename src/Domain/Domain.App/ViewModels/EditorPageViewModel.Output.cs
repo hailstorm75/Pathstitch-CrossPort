@@ -11,6 +11,8 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class EditorPageViewModel
 {
+    private string? _twoDTextFontPreview;
+
     private sealed record TwoDConvertLineParameterDefinition(
         string Key,
         string Label,
@@ -1253,6 +1255,12 @@ public sealed partial class EditorPageViewModel
         set => SetWorkspaceFacadeValue(_twoDSelectedTextFontFamily, string.IsNullOrWhiteSpace(value) ? "Inter" : value.Trim(), updated => _twoDSelectedTextFontFamily = updated);
     }
 
+    public string? TwoDTextFontPreview
+    {
+        get => _twoDTextFontPreview;
+        set => SetProperty(ref _twoDTextFontPreview, string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+    }
+
     public string TwoDSelectedTextCharacterSpacingText
     {
         get => _twoDSelectedTextCharacterSpacingText;
@@ -1851,6 +1859,7 @@ public sealed partial class EditorPageViewModel
         SetTwoDSelectedTextHeightValidity(true);
         TwoDSelectedTextHeightText = normalizedHeight.ToString("0.###", CultureInfo.InvariantCulture);
         TwoDSelectedTextDraft = normalizedText;
+        TwoDTextFontPreview = null;
         return true;
     }
 

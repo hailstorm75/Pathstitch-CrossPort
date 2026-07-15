@@ -11,6 +11,7 @@
     AutomationProperties.AutomationId="editor.canvas.2d"
     IsVisible="{Binding IsShowingTwoDWorkspace}"
     Document="{Binding TwoDDocument, Mode=TwoWay}"
+    TextFontPreview="{Binding TwoDTextFontPreview}"
     ActiveTool="{Binding TwoDActiveTool, Mode=TwoWay}"
     SnapEnabled="{Binding TwoDSnapEnabled, Mode=TwoWay}"
     GridVisible="{Binding TwoDGridVisible, Mode=TwoWay}"
