@@ -71,6 +71,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("dialog.preferences", preferences, StringComparison.Ordinal);
         Assert.Contains("dialog.preferences.apply", preferences, StringComparison.Ordinal);
         Assert.Contains("dialog.preferences.reset", preferences, StringComparison.Ordinal);
+        Assert.Contains("dialog.preferences.appearance", preferences, StringComparison.Ordinal);
+        Assert.Contains("ThemeVariant.Light", ReadRepositoryFile("src", "Pathstitch.App", "Dialogs", "PreferencesDialog.axaml.cs"), StringComparison.Ordinal);
     }
 
     [Fact]

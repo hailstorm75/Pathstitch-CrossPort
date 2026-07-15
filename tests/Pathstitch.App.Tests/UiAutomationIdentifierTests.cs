@@ -74,6 +74,7 @@ public sealed class UiAutomationIdentifierTests
         _ui.FindXamlElementByAutomationId(dialog, "dialog.preferences.reset");
         _ui.FindXamlElementByAutomationId(dialog, "dialog.preferences.cancel");
         _ui.FindXamlElementByAutomationId(dialog, "dialog.preferences.apply");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.preferences.appearance");
     }
 
     [Fact]

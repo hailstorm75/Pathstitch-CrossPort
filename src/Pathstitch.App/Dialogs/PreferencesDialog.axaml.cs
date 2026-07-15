@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Styling;
 using Domain.App.Models;
 using Domain.App.ViewModels;
 
@@ -20,6 +22,7 @@ public sealed partial class PreferencesDialog : Window
     {
         InitializeComponent();
         _mode = EditorMode.TwoD;
+        InitializeAppearanceSelector();
     }
 
     public PreferencesDialog(EditorPageViewModel viewModel)
@@ -27,7 +30,30 @@ public sealed partial class PreferencesDialog : Window
         InitializeComponent();
         _viewModel = viewModel;
         _mode = viewModel.ActiveEditorMode;
+        InitializeAppearanceSelector();
         BuildShortcutEditors();
+    }
+
+    private void InitializeAppearanceSelector()
+    {
+        var themeKey = Application.Current?.RequestedThemeVariant?.Key;
+        AppearanceSelector.SelectedIndex = Equals(themeKey, ThemeVariant.Light.Key)
+            ? 1
+            : Equals(themeKey, ThemeVariant.Dark.Key) ? 2 : 0;
+        AppearanceSelector.SelectionChanged += OnAppearanceChanged;
+    }
+
+    private void OnAppearanceChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (Application.Current is null || AppearanceSelector.SelectedIndex < 0)
+            return;
+
+        Application.Current.RequestedThemeVariant = AppearanceSelector.SelectedIndex switch
+        {
+            1 => ThemeVariant.Light,
+            2 => ThemeVariant.Dark,
+            _ => ThemeVariant.Default,
+        };
     }
 
     private void BuildShortcutEditors()

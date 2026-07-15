@@ -10,17 +10,28 @@
   ShowInTaskbar="False"
   WindowStartupLocation="CenterOwner"
   AutomationProperties.AutomationId="dialog.preferences">
-  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
     <TextBlock FontSize="20" FontWeight="SemiBold" Text="Preferences" />
     <TextBlock Grid.Row="1" Margin="0,6,0,14"
                Foreground="Gray"
                Text="Customize shortcuts for the active editor mode." />
-    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*" Margin="0,0,0,14">
+      <TextBlock VerticalAlignment="Center" Text="Appearance" />
+      <ComboBox x:Name="AppearanceSelector"
+                Grid.Column="1"
+                Margin="12,0,0,0"
+                AutomationProperties.AutomationId="dialog.preferences.appearance">
+        <ComboBoxItem Content="System" />
+        <ComboBoxItem Content="Light" />
+        <ComboBoxItem Content="Dark" />
+      </ComboBox>
+    </Grid>
+    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
       <StackPanel x:Name="ToolRows" Spacing="6" />
     </ScrollViewer>
-    <TextBlock Grid.Row="3" x:Name="StatusText" Margin="0,10,0,0"
+    <TextBlock Grid.Row="4" x:Name="StatusText" Margin="0,10,0,0"
                Foreground="IndianRed" TextWrapping="Wrap" />
-    <StackPanel Grid.Row="4" Margin="0,16,0,0" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+    <StackPanel Grid.Row="5" Margin="0,16,0,0" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button AutomationProperties.AutomationId="dialog.preferences.reset"
               Content="Reset Toolbar" Click="OnResetClicked" />
       <Button AutomationProperties.AutomationId="dialog.preferences.cancel"
