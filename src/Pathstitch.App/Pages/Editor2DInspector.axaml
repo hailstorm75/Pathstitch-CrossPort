@@ -53,6 +53,12 @@
         IsEnabled="{Binding CanExportTwoDSvg}"
         Content="Export SVG"
         Click="OnExportTwoDSvgClicked" />
+      <Button
+        AutomationProperties.AutomationId="editor.2d.export-png"
+        Classes="chip-button"
+        IsEnabled="{Binding CanExportTwoDPng}"
+        Content="Export PNG"
+        Click="OnExportTwoDPngClicked" />
       <CheckBox
         AutomationProperties.AutomationId="editor.2d.export-selected-only"
         Content="Export selected paths only"
@@ -72,6 +78,11 @@
           <TextBox Width="48" Text="{Binding TwoDSvgPrecisionText, Mode=TwoWay}" />
           <TextBlock VerticalAlignment="Center" FontSize="10" Text="Stroke" />
           <TextBox Width="60" Text="{Binding TwoDSvgStrokeWidthText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock VerticalAlignment="Center" FontSize="10" Text="PNG edge" />
+          <TextBox Width="64" Text="{Binding TwoDPngLongestEdgeText, Mode=TwoWay}" />
+          <CheckBox Content="Transparent" IsChecked="{Binding TwoDPngTransparent, Mode=TwoWay}" />
         </StackPanel>
       </StackPanel>
       <StackPanel Orientation="Horizontal" Spacing="8">

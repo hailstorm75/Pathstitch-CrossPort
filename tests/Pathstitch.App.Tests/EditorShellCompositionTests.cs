@@ -223,6 +223,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("TwoDSvgPrecisionText, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDSvgStrokeWidthText, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDDxfVersionOptions", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.export-png\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDPngLongestEdgeText, Mode=TwoWay", inspector, StringComparison.Ordinal);
     }
 
     [Fact]
