@@ -169,6 +169,63 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task LoadingPendingTwoDDocuments_ImportsAllDrawingsSideBySide()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-2d-import-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var projectPath = Path.Combine(directory, "imported.stch");
+        var firstPath = Path.Combine(directory, "first.dxf");
+        var secondPath = Path.Combine(directory, "second.svg");
+        try
+        {
+            await new Project3DStateService().SaveAsync(projectPath, new Project3DState(null, [], []));
+            File.WriteAllText(firstPath, "first");
+            File.WriteAllText(secondPath, "second");
+            var session = new ProjectSession(
+                Guid.NewGuid(),
+                "Imported drawings",
+                projectPath,
+                new ProjectTemplateDefinition("blank", "Blank", "Untitled"),
+                ProjectSessionOrigin.Imported,
+                DateTimeOffset.UtcNow);
+            var previewService = new MappingOutputPreviewService(new Dictionary<string, Editor2DPreviewDocument>
+            {
+                [Path.GetFullPath(firstPath)] = Document("first", 0),
+                [Path.GetFullPath(secondPath)] = Document("second", 100),
+            });
+            var viewModel = CreateViewModel(outputPreviewService: previewService);
+
+            Assert.True(await viewModel.ConfigureParametersAsync(
+                new Dictionary<string, object>
+                {
+                    [EditorNavigationParameterKeys.ProjectSession] = session,
+                    [EditorNavigationParameterKeys.PendingTwoDFilePaths] = new[] { firstPath, secondPath },
+                },
+                CancellationToken.None));
+            await ((INavigablePageViewModel)viewModel).LoadAsync(CancellationToken.None);
+
+            Assert.Equal(2, viewModel.TwoDDocument!.Paths.Count);
+            Assert.Equal("import-1-1-first", viewModel.TwoDDocument.Paths[0].Id);
+            Assert.Equal("import-2-1-second", viewModel.TwoDDocument.Paths[1].Id);
+            Assert.True(viewModel.TwoDDocument.Paths[1].Points[0].X > viewModel.TwoDDocument.Paths[0].Points[0].X);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+
+        static Editor2DPreviewDocument Document(string id, double x)
+        {
+            var path = new Editor2DPreviewPath(id, "LINE", [new Editor2DPoint(x, 0), new Editor2DPoint(x + 10, 0)], false);
+            return new Editor2DPreviewDocument(
+                [path],
+                new Editor2DBounds(x, 0, x + 10, 0),
+                new Dictionary<string, int> { ["LINE"] = 1 },
+                []);
+        }
+    }
+
+    [Fact]
     public async Task BatchMode_PreservesBothToolsAndRejectsEditorShortcuts()
     {
         var viewModel = CreateViewModel();
@@ -493,6 +550,23 @@ public sealed class EditorPageViewModelModeTests
     {
         public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
             => Task.FromResult<Editor2DPreviewDocument?>(null);
+
+        public Task SavePreviewDocumentAsync(Editor2DPreviewDocument document, string outputPath, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(string outputPath, CancellationToken cancellationToken = default)
+            => Task.FromResult<EditorGeneratedOutputSummary?>(null);
+    }
+
+    private sealed class MappingOutputPreviewService(
+        IReadOnlyDictionary<string, Editor2DPreviewDocument> documents) : IEditorOutputPreviewService
+    {
+        public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            documents.TryGetValue(Path.GetFullPath(outputPath), out var document);
+            return Task.FromResult(document);
+        }
 
         public Task SavePreviewDocumentAsync(Editor2DPreviewDocument document, string outputPath, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
