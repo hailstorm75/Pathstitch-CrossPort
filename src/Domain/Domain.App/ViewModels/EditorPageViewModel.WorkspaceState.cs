@@ -101,7 +101,7 @@ public sealed partial class EditorPageViewModel
     public string ViewportEmptyStateTitle => "DRAG & DROP 3D MODELS";
 
     public string ViewportEmptyStateDescription
-        => "Open one or more .obj or .stl mesh files to start the 3D workspace, or switch to the 2D workspace to sketch directly.";
+        => "Open one or more .obj, .stl, .step, or .stp files to start the 3D workspace, or switch to the 2D workspace to sketch directly.";
 
     private EditorWorkspaceState BuildPersistedEditorWorkspaceState()
         => new(

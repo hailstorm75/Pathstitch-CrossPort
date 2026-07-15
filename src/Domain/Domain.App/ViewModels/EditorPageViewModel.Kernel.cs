@@ -23,9 +23,9 @@ public sealed partial class EditorPageViewModel
            && IsOpenGeometrySourceAsset(_sourceModelPath);
 
     public string SourceModelAssetStatusSummary => !HasLoadedModel
-        ? $"{GeometryKernelDisplayName}: ready. Import an OpenGeometry mesh source asset to start the 3D workspace."
+        ? $"{GeometryKernelDisplayName}: ready. Import a 3D source asset to start the 3D workspace."
         : HasUsableSourceModelAsset
-            ? $"{GeometryKernelDisplayName} has an OpenGeometry mesh source asset ready for projection, flattening, and distortion analysis."
+            ? $"{GeometryKernelDisplayName} has a 3D source asset ready for projection, flattening, and distortion analysis."
             : $"{GeometryKernelDisplayName} is available, but the source asset for this restored workspace is missing. Re-import the model or reopen a .stch with embedded 3D data.";
 
     private void SetSourceModelPath(string? sourceModelPath)

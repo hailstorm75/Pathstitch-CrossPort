@@ -272,7 +272,7 @@ public sealed partial class EditorPageViewModel
         get
         {
             if (!IsProjectionFaceMode)
-                return "Face-based projection uses a selected OpenGeometry mesh face.";
+                return "Face-based projection uses a selected 3D source face.";
 
             if (SelectedProjectionFaceIndex is null || SelectedProjectionBodyIndex is null)
                 return "No face selected yet. Choose one mesh face to enable projection.";
@@ -286,7 +286,7 @@ public sealed partial class EditorPageViewModel
     public string ProjectionOffsetHint => !CanEditProjectionOffset
         ? HasUsableSourceModelAsset
             ? "Select a usable origin plane or mesh face before adjusting the offset."
-            : "Projection requires an OpenGeometry mesh source asset. Re-import the model or reopen a .stch with embedded 3D data."
+            : "Projection requires a 3D source asset. Re-import the model or reopen a .stch with embedded 3D data."
         : !IsPlaneOffsetTextValid
             ? "Enter a valid numeric offset in millimeters."
             : "Positive values move along the projection normal; negative values move opposite.";

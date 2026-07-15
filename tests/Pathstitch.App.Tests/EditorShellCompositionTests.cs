@@ -134,6 +134,17 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void ThreeDWorkspace_HintsIncludeStepSources()
+    {
+        var workspaceState = ReadRepositoryFile("src", "Domain", "Domain.App", "ViewModels", "EditorPageViewModel.WorkspaceState.cs");
+        var sourceModels = ReadRepositoryFile("src", "Domain", "Domain.App", "ViewModels", "EditorPageViewModel.SourceModels.cs");
+
+        Assert.Contains(".step", workspaceState, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(".stp", workspaceState, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("STEP/STP", sourceModels, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void TwoDView_BindsScalePivotStateToCanvas()
     {
         var twoD = ReadPage("Editor2DView.axaml");

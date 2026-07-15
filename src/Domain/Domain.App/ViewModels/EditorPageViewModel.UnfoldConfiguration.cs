@@ -26,8 +26,8 @@ public sealed partial class EditorPageViewModel
         => "Separate Pieces flattens each selected face independently and lays the results out side by side in the 2D output.";
 
     public string UnfoldEngineSummary => HasUsableSourceModelAsset
-            ? "Separate Pieces runs through the OpenGeometry mesh bridge."
-            : "Separate Pieces requires an OpenGeometry mesh source asset. Re-import the model or reopen a .stch with embedded 3D data.";
+            ? "Separate Pieces runs through the active 3D geometry worker."
+            : "Separate Pieces requires a 3D source asset. Re-import the model or reopen a .stch with embedded 3D data.";
 
     public string SeparateFlattenSelectionSummary
     {
@@ -39,7 +39,7 @@ public sealed partial class EditorPageViewModel
             if (SelectedFaceDetails.Count == 0)
                 return "Select one or more faces to see whether the current flatten action can run through OpenGeometry.";
 
-            return $"{SelectedFaceDetails.Count} selected face(s) will flatten through the OpenGeometry mesh bridge as separate pieces.";
+            return $"{SelectedFaceDetails.Count} selected face(s) will flatten through the active 3D geometry worker as separate pieces.";
         }
     }
 
@@ -77,7 +77,7 @@ public sealed partial class EditorPageViewModel
             if (SelectedFaces.Count == 0)
                 return "Select one or more faces to enable this action.";
 
-            return "Flatten Selected will run through the OpenGeometry mesh bridge.";
+        return "Flatten Selected will run through the active 3D geometry worker.";
         }
     }
 
@@ -95,11 +95,11 @@ public sealed partial class EditorPageViewModel
                     ? "Load a model to enable this action."
                     : "Make at least one body visible to enable this action.";
 
-            return "Flatten Entire Body will run through the OpenGeometry mesh bridge.";
+        return "Flatten Entire Body will run through the active 3D geometry worker.";
         }
     }
 
-    public string UnfoldConfigurationSummary => $"OpenGeometry mesh pieces / {GetDistortionModeLabel()}";
+    public string UnfoldConfigurationSummary => $"3D geometry pieces / {GetDistortionModeLabel()}";
 
     public string UnfoldPreviewModeSummary => LiveRecomputeEnabled
         ? _wholeBodyRecompute
@@ -118,7 +118,7 @@ public sealed partial class EditorPageViewModel
             if (_wholeBodyRecompute)
             {
                 if (!HasUsableSourceModelAsset)
-                    return "Whole-body preview requires an OpenGeometry mesh source asset.";
+                    return "Whole-body preview requires a 3D source asset.";
 
                 return VisibleBodyCount == 0
                     ? "Make at least one body visible to preview whole-body flattening."
@@ -126,7 +126,7 @@ public sealed partial class EditorPageViewModel
             }
 
             if (!HasUsableSourceModelAsset)
-                return "Selected-face preview requires an OpenGeometry mesh source asset.";
+                    return "Selected-face preview requires a 3D source asset.";
 
             return SelectedFaces.Count == 0
                 ? "Select one or more faces to preview selected-face flattening."

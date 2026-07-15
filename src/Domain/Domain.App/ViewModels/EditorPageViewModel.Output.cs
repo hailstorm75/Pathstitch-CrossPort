@@ -1486,7 +1486,7 @@ public sealed partial class EditorPageViewModel
                 ? "A dedicated 2D workspace is ready. Load a model any time if you also want to project or unfold 3D geometry."
                 : "Load a model to begin the 3D workspace, or switch to the 2D workspace to sketch directly."
             : !HasUsableSourceModelAsset
-                ? "Viewing a restored 3D workspace. OpenGeometry mesh operations stay disabled until the source asset is restored."
+                ? "Viewing a restored 3D workspace. 3D operations stay disabled until the source asset is restored."
                 : "Viewing the interactive 3D workspace.",
     };
 
