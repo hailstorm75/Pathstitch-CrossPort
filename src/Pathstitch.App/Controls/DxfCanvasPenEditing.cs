@@ -13,6 +13,16 @@ internal static class DxfCanvasPenEditing
             Translate(anchor.HandleIn, delta),
             Translate(anchor.HandleOut, delta));
 
+    public static Editor2DBezierAnchor MoveHandleIn(Editor2DBezierAnchor anchor, Editor2DPoint handle)
+        => anchor with
+        {
+            HandleIn = handle,
+            HandleOut = ReflectHandle(anchor.Point, handle),
+        };
+
+    public static Editor2DBezierAnchor MoveHandleOut(Editor2DBezierAnchor anchor, Editor2DPoint handle)
+        => anchor with { HandleOut = handle };
+
     public static Editor2DPreviewDocument ReplacePath(
         Editor2DPreviewDocument document,
         string pathId,
@@ -37,4 +47,7 @@ internal static class DxfCanvasPenEditing
         => point is Editor2DPoint resolved
             ? new Editor2DPoint(resolved.X + delta.X, resolved.Y + delta.Y)
             : null;
+
+    private static Editor2DPoint ReflectHandle(Editor2DPoint anchor, Editor2DPoint handle)
+        => new((2.0 * anchor.X) - handle.X, (2.0 * anchor.Y) - handle.Y);
 }

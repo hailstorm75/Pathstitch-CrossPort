@@ -186,6 +186,7 @@ public sealed class DxfPreviewCanvas : Control
     private ref IReadOnlyList<Editor2DBezierAnchor> _pendingPenAnchors => ref _interaction.PendingPenAnchors;
     private ref Editor2DPoint? _pendingPenHoverPoint => ref _interaction.PendingPenHoverPoint;
     private ref int? _pendingPenDragAnchorIndex => ref _interaction.PendingPenDragAnchorIndex;
+    private ref DxfCanvasInteractionSession.PenDragControl _pendingPenDragControl => ref _interaction.PendingPenDragControl;
     private ref Editor2DPoint? _pendingMirrorAxisStart => ref _interaction.PendingMirrorAxisStart;
     private ref Editor2DPoint? _pendingMirrorAxisEnd => ref _interaction.PendingMirrorAxisEnd;
     private ref Editor2DPoint? _pendingMeasurementStart => ref _interaction.PendingMeasurementStart;
@@ -2572,9 +2573,10 @@ Selection:
         }
 
         if (_editingPenPathId is not null
-            && TryFindPendingPenAnchor(screenPoint, out var anchorIndex))
+            && TryFindPendingPenControl(screenPoint, out var anchorIndex, out var dragControl))
         {
             _pendingPenDragAnchorIndex = anchorIndex;
+            _pendingPenDragControl = dragControl;
             _pointerPressPosition = screenPoint;
             pointer.Capture(this);
             return;
@@ -2590,6 +2592,7 @@ Selection:
 
         _pendingPenAnchors = [.. _pendingPenAnchors, new Editor2DBezierAnchor(worldPoint)];
         _pendingPenDragAnchorIndex = _pendingPenAnchors.Count - 1;
+        _pendingPenDragControl = DxfCanvasInteractionSession.PenDragControl.Anchor;
         _pendingPenHoverPoint = worldPoint;
         pointer.Capture(this);
         InvalidateVisual();
@@ -2607,8 +2610,14 @@ Selection:
         if (_editingPenPathId is not null)
         {
             var previous = anchors[index];
-            var delta = new Editor2DPoint(nextPoint.X - previous.Point.X, nextPoint.Y - previous.Point.Y);
-            anchors[index] = DxfCanvasPenEditing.MoveAnchor(previous, delta);
+            anchors[index] = _pendingPenDragControl switch
+            {
+                DxfCanvasInteractionSession.PenDragControl.HandleIn => DxfCanvasPenEditing.MoveHandleIn(previous, nextPoint),
+                DxfCanvasInteractionSession.PenDragControl.HandleOut => DxfCanvasPenEditing.MoveHandleOut(previous, nextPoint),
+                _ => DxfCanvasPenEditing.MoveAnchor(
+                    previous,
+                    new Editor2DPoint(nextPoint.X - previous.Point.X, nextPoint.Y - previous.Point.Y)),
+            };
         }
         else
         {
@@ -2897,20 +2906,48 @@ Selection:
         return true;
     }
 
-    private bool TryFindPendingPenAnchor(Point screenPoint, out int index)
+    private bool TryFindPendingPenControl(
+        Point screenPoint,
+        out int index,
+        out DxfCanvasInteractionSession.PenDragControl control)
     {
         index = -1;
+        control = DxfCanvasInteractionSession.PenDragControl.Anchor;
         var nearestDistance = PenCloseHitTolerance;
         for (var candidate = 0; candidate < _pendingPenAnchors.Count; candidate++)
         {
+            var anchor = _pendingPenAnchors[candidate];
+            foreach (var handle in new[]
+            {
+                (Point: anchor.HandleIn, Control: DxfCanvasInteractionSession.PenDragControl.HandleIn),
+                (Point: anchor.HandleOut, Control: DxfCanvasInteractionSession.PenDragControl.HandleOut),
+            })
+            {
+                if (handle.Point is not Editor2DPoint handlePoint)
+                    continue;
+                var handleScreen = WorldToScreen(handlePoint, Bounds.Size);
+                var handleDistance = ScreenDistance(screenPoint, handleScreen);
+                if (handleDistance <= nearestDistance)
+                {
+                    nearestDistance = handleDistance;
+                    index = candidate;
+                    control = handle.Control;
+                }
+            }
+        }
+
+        if (index >= 0)
+            return true;
+
+        for (var candidate = 0; candidate < _pendingPenAnchors.Count; candidate++)
+        {
             var anchorScreen = WorldToScreen(_pendingPenAnchors[candidate].Point, Bounds.Size);
-            var distance = Math.Sqrt(
-                Math.Pow(screenPoint.X - anchorScreen.X, 2)
-                + Math.Pow(screenPoint.Y - anchorScreen.Y, 2));
+            var distance = ScreenDistance(screenPoint, anchorScreen);
             if (distance <= nearestDistance)
             {
                 nearestDistance = distance;
                 index = candidate;
+                control = DxfCanvasInteractionSession.PenDragControl.Anchor;
             }
         }
 
@@ -3750,6 +3787,9 @@ Selection:
 
     private static double DistanceBetween(Editor2DPoint left, Editor2DPoint right)
         => DxfCanvasGeometryEditor.Distance(left, right);
+
+    private static double ScreenDistance(Point left, Point right)
+        => Math.Sqrt(Math.Pow(left.X - right.X, 2) + Math.Pow(left.Y - right.Y, 2));
 
     private bool TryGetSelectedPathBounds(
         IReadOnlyList<Editor2DPreviewPath> paths,

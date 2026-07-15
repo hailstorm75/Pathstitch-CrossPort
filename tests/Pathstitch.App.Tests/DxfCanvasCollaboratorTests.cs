@@ -201,6 +201,20 @@ public sealed class DxfCanvasCollaboratorTests
     }
 
     [Fact]
+    public void PenEditing_HandleDragUpdatesHandleWithoutMovingAnchor()
+    {
+        var anchor = new Editor2DBezierAnchor(new(10, 10), new(7, 10), new(13, 10));
+
+        var movedOut = DxfCanvasPenEditing.MoveHandleOut(anchor, new(18, 14));
+        var movedIn = DxfCanvasPenEditing.MoveHandleIn(anchor, new(4, 6));
+
+        Assert.Equal(anchor.Point, movedOut.Point);
+        Assert.Equal(new Editor2DPoint(18, 14), movedOut.HandleOut);
+        Assert.Equal(new Editor2DPoint(4, 6), movedIn.HandleIn);
+        Assert.Equal(new Editor2DPoint(16, 14), movedIn.HandleOut);
+    }
+
+    [Fact]
     public void GeometryEditor_TransformsOnlySelectedPathsAndRecalculatesDocumentMetadata()
     {
         var selected = Path("selected", false, new(0, 0), new(10, 0));

@@ -7,6 +7,13 @@ namespace Pathstitch.App.Controls;
 
 internal sealed class DxfCanvasInteractionSession
 {
+    internal enum PenDragControl
+    {
+        Anchor,
+        HandleIn,
+        HandleOut,
+    }
+
     internal bool IsPanning;
     internal bool IsMarqueeSelecting;
     internal Point LastPointerPosition;
@@ -48,6 +55,7 @@ internal sealed class DxfCanvasInteractionSession
     internal IReadOnlyList<Editor2DBezierAnchor> PendingPenAnchors = Array.Empty<Editor2DBezierAnchor>();
     internal Editor2DPoint? PendingPenHoverPoint;
     internal int? PendingPenDragAnchorIndex;
+    internal PenDragControl PendingPenDragControl = PenDragControl.Anchor;
     internal Editor2DPoint? PendingMirrorAxisStart;
     internal Editor2DPoint? PendingMirrorAxisEnd;
     internal Editor2DPoint? PendingMeasurementStart;
@@ -98,6 +106,7 @@ internal sealed class DxfCanvasInteractionSession
         PendingPenAnchors = Array.Empty<Editor2DBezierAnchor>();
         PendingPenHoverPoint = null;
         PendingPenDragAnchorIndex = null;
+        PendingPenDragControl = PenDragControl.Anchor;
         PendingMirrorAxisStart = null;
         PendingMirrorAxisEnd = null;
         PendingMeasurementStart = null;
