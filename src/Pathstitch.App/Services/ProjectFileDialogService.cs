@@ -24,7 +24,7 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
 
     private static readonly FilePickerFileType WorkspaceFileType = new("Pathstitch Workspace")
     {
-        Patterns = ["*.stch", "*.dxf", "*.step", "*.stp", "*.obj", "*.stl"],
+        Patterns = ["*.stch", "*.dxf", "*.svg", "*.step", "*.stp", "*.obj", "*.stl"],
     };
 
     private static readonly FilePickerFileType ReferenceImageFileType = new("Reference Image")

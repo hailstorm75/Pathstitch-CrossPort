@@ -139,6 +139,9 @@ internal static class EditorDxfDocument
         if (string.IsNullOrWhiteSpace(dxfPath) || !File.Exists(dxfPath))
             return new DxfPreviewDocument([], new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase), []);
 
+        if (Path.GetExtension(dxfPath).Equals(".svg", StringComparison.OrdinalIgnoreCase))
+            return SvgPreviewDocumentParser.Load(dxfPath);
+
         var lines = File.ReadAllLines(dxfPath);
         var previewPaths = new List<DxfPreviewPath>();
         var entityCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);

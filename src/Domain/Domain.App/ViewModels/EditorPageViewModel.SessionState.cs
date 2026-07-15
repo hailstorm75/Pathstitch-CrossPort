@@ -216,7 +216,7 @@ public sealed partial class EditorPageViewModel
             if (importedDocument is not null)
             {
                 SetTwoDDocument(importedDocument);
-                StatusText = $"Imported DXF drawing: {Path.GetFileName(_pendingTwoDFilePaths[0])}";
+                StatusText = $"Imported drawing: {Path.GetFileName(_pendingTwoDFilePaths[0])}";
                 MarkDocumentDirty();
             }
             _pendingTwoDFilePaths = [];

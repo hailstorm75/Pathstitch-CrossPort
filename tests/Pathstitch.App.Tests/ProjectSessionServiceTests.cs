@@ -54,6 +54,20 @@ public sealed class ProjectSessionServiceTests
         File.Delete(request.Session.ProjectFilePath);
     }
 
+    [Fact]
+    public async Task OpenWorkspaceFilesAsync_QueuesSvgForTwoDWorkspace()
+    {
+        using var workspace = TestWorkspace.Create();
+        var svgPath = workspace.WriteText("drawing.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"1\" y=\"2\" width=\"10\" height=\"5\" /></svg>");
+        var service = CreateService();
+
+        var request = await service.OpenWorkspaceFilesAsync([svgPath]);
+
+        Assert.NotNull(request);
+        Assert.Equal([Path.GetFullPath(svgPath)], request.PendingTwoDFilePaths);
+        File.Delete(request.Session.ProjectFilePath);
+    }
+
     private static ProjectSessionService CreateService()
         => new(new FakeProjectFileDialogService(), new RecentProjectsService());
 

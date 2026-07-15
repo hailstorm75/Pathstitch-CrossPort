@@ -20,6 +20,7 @@ public sealed class ProjectSessionService(
     private static readonly HashSet<string> SupportedTwoDFileExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".dxf",
+        ".svg",
     };
 
     private static readonly ProjectTemplateDefinition[] Templates =
