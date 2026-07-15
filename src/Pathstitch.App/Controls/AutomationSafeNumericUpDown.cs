@@ -14,6 +14,8 @@ namespace Pathstitch.App.Controls;
 /// </summary>
 public sealed class AutomationSafeNumericUpDown : NumericUpDown
 {
+    protected override Type StyleKeyOverride => typeof(NumericUpDown);
+
     protected override AutomationPeer OnCreateAutomationPeer()
         => new AutomationSafeNumericUpDownAutomationPeer(this);
 }

@@ -98,13 +98,13 @@
         </ComboBox>
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="6">
           <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Diameter (mm)" />
-          <controls:AutomationSafeNumericUpDown Grid.Row="0" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.diameter" MinWidth="120" Minimum="0.02" Increment="0.1" Value="{Binding SewingHoleDiameter, Mode=TwoWay}" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="0" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.diameter" MinWidth="160" Minimum="0.02" Increment="0.1" Value="{Binding SewingHoleDiameter, Mode=TwoWay}" />
           <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Pitch (mm)" />
-          <controls:AutomationSafeNumericUpDown Grid.Row="1" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.pitch" MinWidth="120" Minimum="0.1" Increment="0.5" Value="{Binding SewingHolePitch, Mode=TwoWay}" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="1" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.pitch" MinWidth="160" Minimum="0.1" Increment="0.5" Value="{Binding SewingHolePitch, Mode=TwoWay}" />
           <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Margin (mm)" />
-          <controls:AutomationSafeNumericUpDown Grid.Row="2" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.margin" MinWidth="120" Increment="0.5" Value="{Binding SewingHoleMargin, Mode=TwoWay}" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="2" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.margin" MinWidth="160" Increment="0.5" Value="{Binding SewingHoleMargin, Mode=TwoWay}" />
           <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Corner clearance" />
-          <controls:AutomationSafeNumericUpDown Grid.Row="3" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.corner-clearance" MinWidth="120" Minimum="0" Increment="0.5" Value="{Binding SewingCornerClearance, Mode=TwoWay}" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="3" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.corner-clearance" MinWidth="160" Minimum="0" Increment="0.5" Value="{Binding SewingCornerClearance, Mode=TwoWay}" />
         </Grid>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock VerticalAlignment="Center" Text="Corners" />
@@ -117,7 +117,7 @@
         <CheckBox Content="Avoid tagged geometry" IsChecked="{Binding SewingAvoidanceEnabled, Mode=TwoWay}" />
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4" IsVisible="{Binding SewingAvoidanceEnabled}">
           <TextBlock VerticalAlignment="Center" Text="Clearance" />
-          <controls:AutomationSafeNumericUpDown Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.avoidance-clearance" MinWidth="120" Minimum="0" Increment="0.5" Value="{Binding SewingAvoidanceClearance, Mode=TwoWay}" />
+          <controls:AutomationSafeNumericUpDown Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.avoidance-clearance" MinWidth="160" Minimum="0" Increment="0.5" Value="{Binding SewingAvoidanceClearance, Mode=TwoWay}" />
           <TextBlock Grid.Row="1" Grid.ColumnSpan="2" VerticalAlignment="Center" Text="{Binding SewingAvoidPathCount, StringFormat='Tagged: {0}'}" />
         </Grid>
         <StackPanel Orientation="Horizontal" Spacing="8">

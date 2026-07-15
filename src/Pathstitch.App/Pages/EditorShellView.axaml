@@ -171,7 +171,7 @@
         <ColumnDefinition Width="220" />
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="4" />
-        <ColumnDefinition Width="280" MinWidth="240" MaxWidth="520" />
+        <ColumnDefinition Width="360" MinWidth="300" MaxWidth="640" />
       </Grid.ColumnDefinitions>
       <pages:EditorToolRail Grid.Column="0" AutomationProperties.AutomationId="editor.tool-rail" />
       <GridSplitter

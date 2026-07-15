@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.VisualTree;
 using Domain.App.Models;
 using Pathstitch.App.Controls;
 using Pathstitch.App.Pages;
@@ -140,11 +141,14 @@ public sealed class EditorShellHeadlessTests
                      })
             {
                 var field = _ui.FindByAutomationId<AutomationSafeNumericUpDown>(shell, automationId);
-                Assert.True(field.Bounds.Width >= 120, $"{automationId} width was {field.Bounds.Width}.");
+                Assert.True(field.Bounds.Width >= 160, $"{automationId} width was {field.Bounds.Width}.");
+                var textBox = Assert.Single(field.GetVisualDescendants().OfType<TextBox>());
+                Assert.True(textBox.Bounds.Width >= 80, $"{automationId} editor width was {textBox.Bounds.Width}.");
             }
 
             var regions = _ui.FindByAutomationId<Grid>(shell, "editor.regions");
             var inspector = _ui.FindByAutomationId<EditorInspectorHost>(shell, "editor.inspector-host");
+            Assert.True(inspector.Bounds.Width >= 359);
             regions.ColumnDefinitions[5].Width = new GridLength(400);
             session.Window.UpdateLayout();
             Assert.True(inspector.Bounds.Width >= 399);
