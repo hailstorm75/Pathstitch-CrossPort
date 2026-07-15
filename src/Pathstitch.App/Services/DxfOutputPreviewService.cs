@@ -85,7 +85,10 @@ public sealed class DxfOutputPreviewService : IEditorOutputPreviewService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        EditorDxfDocument.SavePreviewDocument(outputPath, document, options: options);
+        if (Path.GetExtension(outputPath).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+            PdfOutputDocumentWriter.Save(outputPath, document);
+        else
+            EditorDxfDocument.SavePreviewDocument(outputPath, document, options: options);
         return Task.CompletedTask;
     }
 

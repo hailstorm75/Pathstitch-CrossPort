@@ -47,6 +47,11 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
         Patterns = ["*.png"],
     };
 
+    private static readonly FilePickerFileType PdfFileType = new("PDF Document")
+    {
+        Patterns = ["*.pdf"],
+    };
+
     public async Task<string?> PickExistingProjectFileAsync(CancellationToken cancellationToken = default)
     {
         var topLevel = GetTopLevel();
@@ -203,6 +208,27 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
             SuggestedFileName = suggestedFileName,
             DefaultExtension = "png",
             FileTypeChoices = [PngFileType],
+            ShowOverwritePrompt = true,
+        }).ConfigureAwait(true);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return result?.TryGetLocalPath();
+    }
+
+    public async Task<string?> PickPdfExportFileAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default)
+    {
+        var topLevel = GetTopLevel();
+        if (topLevel?.StorageProvider is null)
+            return null;
+
+        var result = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export 2D Workspace as PDF",
+            SuggestedFileName = suggestedFileName,
+            DefaultExtension = "pdf",
+            FileTypeChoices = [PdfFileType],
             ShowOverwritePrompt = true,
         }).ConfigureAwait(true);
 

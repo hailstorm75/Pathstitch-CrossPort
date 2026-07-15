@@ -23,4 +23,7 @@ public interface IProjectFileDialogService
 
     Task<string?> PickPngExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
         => Task.FromResult<string?>(null);
+
+    Task<string?> PickPdfExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
 }
