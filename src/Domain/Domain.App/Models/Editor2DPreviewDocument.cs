@@ -67,7 +67,11 @@ public sealed record Editor2DMeasurement(
     Editor2DPoint? RectP2 = null,
     double FilletRadius = 0.0,
     double OffsetDistance = 0.0,
-    double? PlacementAngleDegrees = null)
+    double? PlacementAngleDegrees = null,
+    string? VarName = null,
+    string? Expression = null,
+    bool Driven = false,
+    bool IsParametric = false)
 {
     public double Distance
         => Math.Sqrt(Math.Pow(End.X - Start.X, 2) + Math.Pow(End.Y - Start.Y, 2));

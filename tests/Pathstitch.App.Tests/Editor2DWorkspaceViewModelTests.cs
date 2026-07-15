@@ -83,6 +83,24 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void ParametricMeasurement_StoresExpressionAndDrivesEndpoint()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetMeasurements([new Editor2DMeasurement("m", new(0, 0), new(10, 0))]);
+
+        Assert.True(workspace.TrySetMeasurementExpression("m", "5 * 2", out var error), error);
+
+        var measurement = Assert.Single(workspace.Measurements);
+        Assert.Equal("d1", measurement.VarName);
+        Assert.Equal("5 * 2", measurement.Expression);
+        Assert.True(measurement.IsParametric);
+        Assert.Equal(new Editor2DPoint(10, 0), measurement.End);
+
+        Assert.True(workspace.SetMeasurementDriven("m", true));
+        Assert.True(Assert.Single(workspace.Measurements).Driven);
+    }
+
+    [Fact]
     public void BlankWorkspace_IsImmediatelyEditableWithoutTwoD()
     {
         var workspace = new Editor2DWorkspaceViewModel();

@@ -261,6 +261,83 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public void SetSelectedMeasurement(string? selectedMeasurementId)
         => Apply(_state with { SelectedMeasurementId = selectedMeasurementId }, recordHistory: false);
 
+    public bool TrySetMeasurementExpression(string measurementId, string expression, out string error)
+    {
+        error = string.Empty;
+        var measurement = Measurements.FirstOrDefault(item => item.Id == measurementId && !item.IsAutoDimension);
+        if (measurement is null)
+        {
+            error = "Select a manual measurement first";
+            return false;
+        }
+
+        var normalized = expression.Trim();
+        var variables = Measurements
+            .Where(item => !string.IsNullOrWhiteSpace(item.VarName))
+            .ToDictionary(item => item.VarName!, item => item.Distance, StringComparer.OrdinalIgnoreCase);
+        if (!Editor2DDimensionExpression.TryEvaluate(normalized, variables, out var value) || value <= 0)
+        {
+            error = "Enter a positive number or arithmetic expression";
+            return false;
+        }
+
+        var varName = measurement.VarName;
+        if (string.IsNullOrWhiteSpace(varName))
+            varName = NextDimensionVariableName();
+        var updated = measurement with
+        {
+            VarName = varName,
+            Expression = normalized,
+            IsParametric = true,
+        };
+        if (!measurement.Driven)
+        {
+            var dx = measurement.End.X - measurement.Start.X;
+            var dy = measurement.End.Y - measurement.Start.Y;
+            var length = Math.Sqrt((dx * dx) + (dy * dy));
+            var unitX = length > 1e-9 ? dx / length : 1.0;
+            var unitY = length > 1e-9 ? dy / length : 0.0;
+            updated = updated with
+            {
+                End = new Editor2DPoint(
+                    measurement.Start.X + (unitX * value),
+                    measurement.Start.Y + (unitY * value)),
+            };
+        }
+
+        SetMeasurements(
+            Measurements.Select(item => item.Id == measurementId ? updated : item).ToArray(),
+            measurementId);
+        return true;
+    }
+
+    public bool SetMeasurementDriven(string measurementId, bool driven)
+    {
+        var measurement = Measurements.FirstOrDefault(item => item.Id == measurementId && !item.IsAutoDimension);
+        if (measurement is null)
+            return false;
+        SetMeasurements(
+            Measurements.Select(item => item.Id == measurementId
+                ? item with { Driven = driven, IsParametric = true }
+                : item).ToArray(),
+            measurementId);
+        return true;
+    }
+
+    private string NextDimensionVariableName()
+    {
+        var used = Measurements
+            .Select(item => item.VarName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        for (var index = 1; ; index++)
+        {
+            var candidate = $"d{index}";
+            if (!used.Contains(candidate))
+                return candidate;
+        }
+    }
+
     public void CommitDocumentEdit(
         Editor2DPreviewDocument document,
         IReadOnlyList<string> selectedPathIds,
