@@ -273,6 +273,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Shift", canvas, StringComparison.Ordinal);
         Assert.Contains("ApplyTwoDSelectedText", canvas, StringComparison.Ordinal);
         Assert.Contains("_isTextEntryActive", canvas, StringComparison.Ordinal);
+        Assert.Contains("TryBeginTextEditing", canvas, StringComparison.Ordinal);
     }
 
     [Fact]

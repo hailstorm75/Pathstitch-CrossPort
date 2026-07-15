@@ -1333,6 +1333,13 @@ Selection:
             return;
         }
 
+        if (ActiveTool == Editor2DTool.Select
+            && TryBeginTextEditing(e.GetPosition(this)))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (ActiveTool != Editor2DTool.Select
             || !TryBeginPenEdit(e.GetPosition(this)))
             return;
@@ -3281,6 +3288,25 @@ Selection:
         _pendingTextStart = null;
         _pendingTextEnd = null;
         InvalidateVisual();
+    }
+
+    private bool TryBeginTextEditing(Point screenPoint)
+    {
+        if (Document is null)
+            return false;
+
+        var hitPathId = HitTestPathId(screenPoint);
+        var path = Document.Paths.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, hitPathId, StringComparison.Ordinal)
+            && candidate.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase));
+        if (path is null)
+            return false;
+
+        SetCurrentValue(SelectedPathIdsProperty, new[] { path.Id });
+        SetCurrentValue(TextEntryProperty, path.Text ?? string.Empty);
+        _isTextEntryActive = true;
+        Focus();
+        return true;
     }
 
     private void HandlePenPress(Point screenPoint, IPointer pointer)
