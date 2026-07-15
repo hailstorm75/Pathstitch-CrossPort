@@ -183,6 +183,27 @@ public sealed class EditorQuickDxfExportTests
         Assert.Contains(output.SavedDocument!.Paths, path => path.Id == "measurement-export-measure-1");
     }
 
+    [Fact]
+    public async Task DxfWriter_UsesRequestedReleaseVersion()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-dxf-version-{Guid.NewGuid():N}.dxf");
+        try
+        {
+            await new DxfOutputPreviewService().SavePreviewDocumentAsync(
+                CreateDocument(),
+                outputPath,
+                new Editor2DExportOptions(DxfVersion: "R2018"));
+
+            var dxf = await File.ReadAllTextAsync(outputPath);
+            Assert.Contains("$ACADVER", dxf, StringComparison.Ordinal);
+            Assert.Contains("AC1032", dxf, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(outputPath);
+        }
+    }
+
     private static Editor2DPreviewDocument CreateDocument()
         => new(
             [new Editor2DPreviewPath("line-1", "LINE", [new(1, 2), new(3, 4)], false)],

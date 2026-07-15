@@ -61,6 +61,8 @@ internal static class EditorDxfDocument
         var builder = new StringBuilder();
         AppendPair(builder, 0, "SECTION");
         AppendPair(builder, 2, "HEADER");
+        AppendPair(builder, 9, "$ACADVER");
+        AppendPair(builder, 1, AcadVersionCode(options?.NormalizedDxfVersion ?? Editor2DExportOptions.Defaults.DxfVersion));
         AppendPair(builder, 0, "ENDSEC");
         AppendPair(builder, 0, "SECTION");
         AppendPair(builder, 2, "ENTITIES");
@@ -114,6 +116,17 @@ internal static class EditorDxfDocument
         AppendPair(builder, 0, "EOF");
         File.WriteAllText(outputPath, builder.ToString(), Encoding.ASCII);
     }
+
+    private static string AcadVersionCode(string version)
+        => version switch
+        {
+            "R2018" => "AC1032",
+            "R2013" => "AC1027",
+            "R2010" => "AC1024",
+            "R2007" => "AC1021",
+            "R2000" => "AC1015",
+            _ => "AC1024",
+        };
 
     public static void SaveLwPolylines(
         string outputPath,

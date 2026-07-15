@@ -9,6 +9,7 @@ public sealed partial class EditorPageViewModel
     private bool _twoDExportMeasurementLines;
     private string _twoDSvgPrecisionText = "3";
     private string _twoDSvgStrokeWidthText = "0.5";
+    private string _twoDDxfVersion = "R2010";
 
     public bool CanExportTwoDDxf => TwoDDocument is not null;
 
@@ -52,6 +53,14 @@ public sealed partial class EditorPageViewModel
            && double.IsFinite(width)
            && width >= 0;
 
+    public IReadOnlyList<string> TwoDDxfVersionOptions => Editor2DExportOptions.DxfVersionOptions;
+
+    public string TwoDDxfVersion
+    {
+        get => _twoDDxfVersion;
+        set => SetProperty(ref _twoDDxfVersion, value is null ? "R2010" : new Editor2DExportOptions(DxfVersion: value).NormalizedDxfVersion);
+    }
+
     public async Task ExportTwoDDxfAsync(CancellationToken cancellationToken = default)
     {
         var document = TwoDDocument;
@@ -71,7 +80,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             await _editorOutputPreviewService
-                .SavePreviewDocumentAsync(BuildExportDocument(document), outputPath, cancellationToken)
+                .SavePreviewDocumentAsync(BuildExportDocument(document), outputPath, ParseDxfOptions(), cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported DXF to {Path.GetFileName(outputPath)}";
         }
@@ -152,6 +161,9 @@ public sealed partial class EditorPageViewModel
             out var parsedStrokeWidth)
             ? parsedStrokeWidth
             : 0.5;
-        return new Editor2DExportOptions(precision, strokeWidth, TwoDExportMeasurementLines);
+        return new Editor2DExportOptions(precision, strokeWidth, TwoDExportMeasurementLines, TwoDDxfVersion);
     }
+
+    private Editor2DExportOptions ParseDxfOptions()
+        => new(IncludeMeasurementLines: TwoDExportMeasurementLines, DxfVersion: TwoDDxfVersion);
 }
