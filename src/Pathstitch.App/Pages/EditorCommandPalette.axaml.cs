@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -27,7 +28,7 @@ public partial class EditorCommandPalette : UserControl
         {
             case Key.Escape:
                 viewModel.CommandSearchQuery = string.Empty;
-                _selectedIndex = -1;
+                ClearSelection(viewModel);
                 e.Handled = true;
                 break;
 
@@ -48,6 +49,15 @@ public partial class EditorCommandPalette : UserControl
         }
     }
 
+    private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (DataContext is not EditorPageViewModel viewModel)
+            return;
+
+        _selectedIndex = -1;
+        ClearSelection(viewModel);
+    }
+
     private void MoveSelection(EditorPageViewModel viewModel, int direction)
     {
         var count = viewModel.CommandSearchResults.Count;
@@ -60,6 +70,8 @@ public partial class EditorCommandPalette : UserControl
         _selectedIndex = _selectedIndex < 0
             ? direction > 0 ? 0 : count - 1
             : Math.Clamp(_selectedIndex + direction, 0, count - 1);
+        ClearSelection(viewModel);
+        viewModel.CommandSearchResults[_selectedIndex].IsCommandSearchSelected = true;
     }
 
     private void ActivateSelected(EditorPageViewModel viewModel)
@@ -71,6 +83,7 @@ public partial class EditorCommandPalette : UserControl
         if (_selectedIndex >= 0)
             viewModel.ActivateCommandSearchItem(results[_selectedIndex].Identifier);
 
+        ClearSelection(viewModel);
         _selectedIndex = -1;
     }
 
@@ -83,6 +96,13 @@ public partial class EditorCommandPalette : UserControl
         }
 
         viewModel.ActivateCommandSearchItem(identifier);
+        ClearSelection(viewModel);
         _selectedIndex = -1;
+    }
+
+    private static void ClearSelection(EditorPageViewModel viewModel)
+    {
+        foreach (var item in viewModel.CommandSearchResults.Where(item => item.IsCommandSearchSelected))
+            item.IsCommandSearchSelected = false;
     }
 }

@@ -73,6 +73,7 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
 
     private bool _isEnabled;
     private bool _isCustomizationMode;
+    private bool _isCommandSearchSelected;
 
     public bool IsActive
     {
@@ -90,5 +91,11 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
     {
         get => _isCustomizationMode;
         set => SetProperty(ref _isCustomizationMode, value);
+    }
+
+    public bool IsCommandSearchSelected
+    {
+        get => _isCommandSearchSelected;
+        set => SetProperty(ref _isCommandSearchSelected, value);
     }
 }

@@ -5,6 +5,13 @@
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:EditorPageViewModel"
   AutomationProperties.AutomationId="editor.command-search">
+  <UserControl.Styles>
+    <Style Selector="Button.command-result.selected">
+      <Setter Property="Background" Value="{DynamicResource AccentDimBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+  </UserControl.Styles>
   <Grid Width="240">
     <TextBox
       x:Name="CommandSearchInput"
@@ -14,6 +21,7 @@
       Foreground="{StaticResource PrimaryTextBrush}"
       PlaceholderText="Search tools and commands…"
       Text="{Binding CommandSearchQuery, Mode=TwoWay}"
+      TextChanged="OnSearchTextChanged"
       KeyDown="OnSearchKeyDown" />
     <Popup
       IsOpen="{Binding IsCommandSearchOpen}"
@@ -34,6 +42,8 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="viewModels:EditorSidebarToolItemViewModel">
                   <Button
+                    Classes="command-result"
+                    Classes.selected="{Binding IsCommandSearchSelected}"
                     AutomationProperties.AutomationId="{Binding Identifier, StringFormat=command.{0}}"
                     Margin="0,2"
                     Padding="8,6"
