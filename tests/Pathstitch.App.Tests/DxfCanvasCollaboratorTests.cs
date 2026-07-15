@@ -215,6 +215,20 @@ public sealed class DxfCanvasCollaboratorTests
     }
 
     [Fact]
+    public void MeasurementEditing_MovesOnlyRequestedEndpoint()
+    {
+        var measurement = new Editor2DMeasurement("m", new(0, 0), new(10, 0));
+
+        var movedStart = DxfCanvasMeasurementEditing.MoveEndpoint(measurement, new(2, 3), start: true);
+        var movedEnd = DxfCanvasMeasurementEditing.MoveEndpoint(measurement, new(12, 4), start: false);
+
+        Assert.Equal(new Editor2DPoint(2, 3), movedStart.Start);
+        Assert.Equal(measurement.End, movedStart.End);
+        Assert.Equal(measurement.Start, movedEnd.Start);
+        Assert.Equal(new Editor2DPoint(12, 4), movedEnd.End);
+    }
+
+    [Fact]
     public void GeometryEditor_TransformsOnlySelectedPathsAndRecalculatesDocumentMetadata()
     {
         var selected = Path("selected", false, new(0, 0), new(10, 0));

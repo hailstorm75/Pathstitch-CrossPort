@@ -205,6 +205,8 @@ public sealed class DxfPreviewCanvas : Control
     private ref Editor2DPoint? _pendingPenHoverPoint => ref _interaction.PendingPenHoverPoint;
     private ref int? _pendingPenDragAnchorIndex => ref _interaction.PendingPenDragAnchorIndex;
     private ref DxfCanvasInteractionSession.PenDragControl _pendingPenDragControl => ref _interaction.PendingPenDragControl;
+    private ref string? _editingMeasurementId => ref _interaction.EditingMeasurementId;
+    private ref bool _editingMeasurementStart => ref _interaction.EditingMeasurementStart;
     private ref Editor2DPoint? _pendingMirrorAxisStart => ref _interaction.PendingMirrorAxisStart;
     private ref Editor2DPoint? _pendingMirrorAxisEnd => ref _interaction.PendingMirrorAxisEnd;
     private ref Editor2DPoint? _pendingMeasurementStart => ref _interaction.PendingMeasurementStart;
@@ -565,6 +567,8 @@ public sealed class DxfPreviewCanvas : Control
         _editingVertexIsConstrainedRectangle = false;
         _referenceImageDragStart = null;
         _referenceImageDragMode = default;
+        _editingMeasurementId = null;
+        _editingMeasurementStart = false;
         _pressedPathId = null;
         SetCurrentValue(SelectedMeasurementIdProperty, null);
         CancelMarqueeSelection();
@@ -731,6 +735,18 @@ public sealed class DxfPreviewCanvas : Control
         if (!point.Properties.IsLeftButtonPressed || Document is null)
             return;
 
+        if (ActiveTool == Editor2DTool.Select
+            && TryHitManualMeasurementEndpoint(point.Position, out var measurementId, out var editingStart))
+        {
+            _editingMeasurementId = measurementId;
+            _editingMeasurementStart = editingStart;
+            SetCurrentValue(SelectedMeasurementIdProperty, measurementId);
+            SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
+
         if (ActiveTool == Editor2DTool.Patterning
             && string.Equals(PatternMode, "Path", StringComparison.Ordinal)
             && PatternGuidePathId is null
@@ -839,6 +855,23 @@ public sealed class DxfPreviewCanvas : Control
         UpdateShiftSnapModifier(e.KeyModifiers);
         _hoverPointerPosition = position;
         _hasHoverPointerPosition = true;
+        if (_editingMeasurementId is { } editingMeasurementId)
+        {
+            var measurement = Measurements.FirstOrDefault(item => item.Id == editingMeasurementId && !item.IsAutoDimension);
+            if (measurement is not null)
+            {
+                var next = DxfCanvasMeasurementEditing.MoveEndpoint(
+                    measurement,
+                    ScreenToWorld(position),
+                    _editingMeasurementStart);
+                SetCurrentValue(
+                    MeasurementsProperty,
+                    Measurements.Select(item => item.Id == editingMeasurementId ? next : item).ToArray());
+                InvalidateVisual();
+                e.Handled = true;
+                return;
+            }
+        }
         if (_referenceImageDragStart is { } image)
         {
             var currentWorld = ScreenToWorld(position);
@@ -947,6 +980,16 @@ Hover:
         {
             _referenceImageDragStart = null;
             _referenceImageDragMode = default;
+            e.Pointer.Capture(null);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
+        if (_editingMeasurementId is not null)
+        {
+            _editingMeasurementId = null;
+            _editingMeasurementStart = false;
             e.Pointer.Capture(null);
             InvalidateVisual();
             e.Handled = true;
@@ -3663,6 +3706,38 @@ Selection:
         }
 
         return bestMeasurementId;
+    }
+
+    private bool TryHitManualMeasurementEndpoint(Point screenPoint, out string measurementId, out bool start)
+    {
+        const double hitTolerance = 10.0;
+        var bestDistance = double.PositiveInfinity;
+        measurementId = string.Empty;
+        start = false;
+        foreach (var measurement in Measurements)
+        {
+            if (measurement.IsAutoDimension)
+                continue;
+
+            var startScreen = WorldToScreen(measurement.Start, Bounds.Size);
+            var endScreen = WorldToScreen(measurement.End, Bounds.Size);
+            var startDistance = ScreenDistance(screenPoint, startScreen);
+            var endDistance = ScreenDistance(screenPoint, endScreen);
+            if (startDistance <= hitTolerance && startDistance < bestDistance)
+            {
+                bestDistance = startDistance;
+                measurementId = measurement.Id;
+                start = true;
+            }
+            if (endDistance <= hitTolerance && endDistance < bestDistance)
+            {
+                bestDistance = endDistance;
+                measurementId = measurement.Id;
+                start = false;
+            }
+        }
+
+        return measurementId.Length > 0;
     }
 
     private int? HitTestVertexIndex(Editor2DPreviewPath path, Point screenPoint)
