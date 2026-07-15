@@ -86,6 +86,7 @@ public sealed partial class EditorPageViewModel
     [
         "Rectangular",
         "Circular",
+        "Path",
     ];
 
     private static readonly IReadOnlyList<string> TwoDGlueTabTypeOptions =
@@ -784,6 +785,7 @@ public sealed partial class EditorPageViewModel
 
             OnPropertyChanged(nameof(IsTwoDRectangularPatternMode));
             OnPropertyChanged(nameof(IsTwoDCircularPatternMode));
+            OnPropertyChanged(nameof(IsTwoDPathPatternMode));
             OnPropertyChanged(nameof(TwoDPatternSummary));
         }
     }
@@ -791,6 +793,24 @@ public sealed partial class EditorPageViewModel
     public bool IsTwoDRectangularPatternMode => string.Equals(TwoDPatternMode, "Rectangular", StringComparison.Ordinal);
 
     public bool IsTwoDCircularPatternMode => string.Equals(TwoDPatternMode, "Circular", StringComparison.Ordinal);
+
+    public bool IsTwoDPathPatternMode => string.Equals(TwoDPatternMode, "Path", StringComparison.Ordinal);
+
+    public string? TwoDPatternGuidePathId
+    {
+        get => _twoDPatternGuidePathId;
+        set
+        {
+            var normalized = string.IsNullOrWhiteSpace(value) ? null : value;
+            if (!SetWorkspaceFacadeValue(_twoDPatternGuidePathId, normalized, updated => _twoDPatternGuidePathId = updated))
+                return;
+            OnPropertyChanged(nameof(TwoDPatternSummary));
+        }
+    }
+
+    public string TwoDPatternGuideSummary => TwoDPatternGuidePathId is null
+        ? "Click guide path on canvas"
+        : "Guide path selected";
 
     public string TwoDPatternCopiesXText
     {
@@ -864,6 +884,28 @@ public sealed partial class EditorPageViewModel
         }
     }
 
+    public string TwoDPatternPathCopiesText
+    {
+        get => _twoDPatternPathCopiesText;
+        set
+        {
+            if (!SetWorkspaceFacadeValue(_twoDPatternPathCopiesText, value ?? string.Empty, updated => _twoDPatternPathCopiesText = updated))
+                return;
+            OnPropertyChanged(nameof(TwoDPatternSummary));
+        }
+    }
+
+    public string TwoDPatternPathSpacingText
+    {
+        get => _twoDPatternPathSpacingText;
+        set
+        {
+            if (!SetWorkspaceFacadeValue(_twoDPatternPathSpacingText, value ?? string.Empty, updated => _twoDPatternPathSpacingText = updated))
+                return;
+            OnPropertyChanged(nameof(TwoDPatternSummary));
+        }
+    }
+
     public bool CanApplyTwoDPattern => TwoDDocument is not null && HasTwoDSelection;
 
     public string TwoDPatternSummary
@@ -871,12 +913,15 @@ public sealed partial class EditorPageViewModel
         get
         {
             if (!HasTwoDSelection)
-                return "Select one or more 2D entities before applying Pattern. This local 2D pass supports rectangular and circular duplication only.";
+                return "Select source geometry before applying Pattern.";
 
             if (IsTwoDCircularPatternMode)
             {
                 return $"Circular pattern will create {TwoDPatternCircularCountText} total instance(s) across {TwoDPatternCircularAngleText} deg around the current selection center. Count includes the source selection.";
             }
+
+            if (IsTwoDPathPatternMode)
+                return $"Path pattern will create {TwoDPatternPathCopiesText} copies at {TwoDPatternPathSpacingText} mm spacing. {TwoDPatternGuideSummary}.";
 
             return $"Rectangular pattern will create a {TwoDPatternCopiesXText} x {TwoDPatternCopiesYText} layout using {TwoDPatternSpacingXText} mm / {TwoDPatternSpacingYText} mm spacing. Counts include the source selection.";
         }
@@ -1442,7 +1487,11 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        return IsTwoDCircularPatternMode ? ApplyTwoDCircularPattern() : ApplyTwoDRectangularPattern();
+        if (IsTwoDCircularPatternMode)
+            return ApplyTwoDCircularPattern();
+        if (IsTwoDPathPatternMode)
+            return ApplyTwoDPathPattern();
+        return ApplyTwoDRectangularPattern();
     }
 
     public bool ApplyTwoDPaperFoldingCreases()
@@ -1924,9 +1973,12 @@ public sealed partial class EditorPageViewModel
             : "Curve";
 
     private static string NormalizeTwoDPatternMode(string? mode)
-        => string.Equals(mode, "Circular", StringComparison.OrdinalIgnoreCase)
-            ? "Circular"
-            : "Rectangular";
+        => mode switch
+        {
+            _ when string.Equals(mode, "Circular", StringComparison.OrdinalIgnoreCase) => "Circular",
+            _ when string.Equals(mode, "Path", StringComparison.OrdinalIgnoreCase) => "Path",
+            _ => "Rectangular",
+        };
 
     private static string NormalizeTwoDGlueTabType(string? tabType)
         => string.Equals(tabType, "Triangle", StringComparison.OrdinalIgnoreCase)
@@ -2200,6 +2252,30 @@ public sealed partial class EditorPageViewModel
         }
 
         return CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyCircularPattern(totalCount, totalAngle));
+    }
+
+    private bool ApplyTwoDPathPattern()
+    {
+        if (TwoDPatternGuidePathId is null)
+        {
+            StatusText = "Click a guide path on canvas before applying path Pattern";
+            return false;
+        }
+        if (!TryParseTwoDPatternCount(TwoDPatternPathCopiesText, "path pattern copies", 2, out var copyCount, out var countErrorMessage))
+        {
+            StatusText = countErrorMessage;
+            return false;
+        }
+        if (!TryParseTwoDOffsetDistance(TwoDPatternPathSpacingText, "path pattern spacing", 0.01, out var spacing, out var spacingErrorMessage))
+        {
+            StatusText = spacingErrorMessage;
+            return false;
+        }
+
+        var completed = CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyPathPattern(TwoDPatternGuidePathId, copyCount, spacing));
+        if (completed)
+            TwoDPatternGuidePathId = null;
+        return completed;
     }
 
     private void SyncTwoDSelectedTextEditorState()

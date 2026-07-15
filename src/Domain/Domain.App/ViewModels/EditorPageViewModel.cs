@@ -119,6 +119,7 @@ public sealed partial class EditorPageViewModel(
     private IReadOnlyList<string> _pendingSourceModelPaths { get => _threeDWorkspace.PendingSourceModelPaths; set => _threeDWorkspace.SetPendingSourceModelPaths(value); }
     private IReadOnlyList<string> _pendingTwoDFilePaths = [];
     private IReadOnlyList<string> _pendingReferenceImagePaths = [];
+    private string? _twoDPatternGuidePathId;
 
     private bool SetWorkspaceFacadeValue<T>(T current, T value, Action<T> assign, [CallerMemberName] string? propertyName = null)
     {

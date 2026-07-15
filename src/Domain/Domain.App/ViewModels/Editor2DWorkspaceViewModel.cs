@@ -44,6 +44,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private string _patternSpacingYText = "10";
     private string _patternCircularCountText = "6";
     private string _patternCircularAngleText = "360";
+    private string _patternPathCopiesText = "4";
+    private string _patternPathSpacingText = "20";
     private string _glueTabHeightText = "5";
     private string _glueTabType = "Trapezoid";
     private string _glueTabSide = "Left";
@@ -98,6 +100,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     internal string PatternSpacingYText { get => _patternSpacingYText; set => SetProperty(ref _patternSpacingYText, value); }
     internal string PatternCircularCountText { get => _patternCircularCountText; set => SetProperty(ref _patternCircularCountText, value); }
     internal string PatternCircularAngleText { get => _patternCircularAngleText; set => SetProperty(ref _patternCircularAngleText, value); }
+    internal string PatternPathCopiesText { get => _patternPathCopiesText; set => SetProperty(ref _patternPathCopiesText, value); }
+    internal string PatternPathSpacingText { get => _patternPathSpacingText; set => SetProperty(ref _patternPathSpacingText, value); }
     internal string GlueTabHeightText { get => _glueTabHeightText; set => SetProperty(ref _glueTabHeightText, value); }
     internal string GlueTabType { get => _glueTabType; set => SetProperty(ref _glueTabType, value); }
     internal string GlueTabSide { get => _glueTabSide; set => SetProperty(ref _glueTabSide, value); }

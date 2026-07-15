@@ -53,6 +53,8 @@ public sealed partial class EditorPageViewModel
     private string _twoDPatternSpacingYText { get => _twoDWorkspace.PatternSpacingYText; set => _twoDWorkspace.PatternSpacingYText = value; }
     private string _twoDPatternCircularCountText { get => _twoDWorkspace.PatternCircularCountText; set => _twoDWorkspace.PatternCircularCountText = value; }
     private string _twoDPatternCircularAngleText { get => _twoDWorkspace.PatternCircularAngleText; set => _twoDWorkspace.PatternCircularAngleText = value; }
+    private string _twoDPatternPathCopiesText { get => _twoDWorkspace.PatternPathCopiesText; set => _twoDWorkspace.PatternPathCopiesText = value; }
+    private string _twoDPatternPathSpacingText { get => _twoDWorkspace.PatternPathSpacingText; set => _twoDWorkspace.PatternPathSpacingText = value; }
     private string _twoDGlueTabHeightText { get => _twoDWorkspace.GlueTabHeightText; set => _twoDWorkspace.GlueTabHeightText = value; }
     private string _twoDGlueTabType { get => _twoDWorkspace.GlueTabType; set => _twoDWorkspace.GlueTabType = value; }
     private string _twoDGlueTabSide { get => _twoDWorkspace.GlueTabSide; set => _twoDWorkspace.GlueTabSide = value; }

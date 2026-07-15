@@ -54,6 +54,12 @@ public sealed class DxfPreviewCanvas : Control
             defaultValue: false,
             defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<string> PatternModeProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, string>(nameof(PatternMode), defaultValue: "Rectangular");
+
+    public static readonly StyledProperty<string?> PatternGuidePathIdProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, string?>(nameof(PatternGuidePathId), defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<IReadOnlyList<string>> SelectedPathIdsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<string>>(
             nameof(SelectedPathIds),
@@ -387,6 +393,18 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(ChainSelectionEnabledProperty, value);
     }
 
+    public string PatternMode
+    {
+        get => GetValue(PatternModeProperty);
+        set => SetValue(PatternModeProperty, value);
+    }
+
+    public string? PatternGuidePathId
+    {
+        get => GetValue(PatternGuidePathIdProperty);
+        set => SetValue(PatternGuidePathIdProperty, value);
+    }
+
     public IReadOnlyList<string> SelectedPathIds
     {
         get => GetValue(SelectedPathIdsProperty);
@@ -712,6 +730,21 @@ public sealed class DxfPreviewCanvas : Control
 
         if (!point.Properties.IsLeftButtonPressed || Document is null)
             return;
+
+        if (ActiveTool == Editor2DTool.Patterning
+            && string.Equals(PatternMode, "Path", StringComparison.Ordinal)
+            && PatternGuidePathId is null
+            && SelectedPathIds.Count > 0)
+        {
+            var guidePathId = HitTestPathId(point.Position);
+            if (guidePathId is not null && !SelectedPathIds.Contains(guidePathId, StringComparer.Ordinal))
+            {
+                SetCurrentValue(PatternGuidePathIdProperty, guidePathId);
+                SetCurrentValue(SelectedMeasurementIdProperty, null);
+                e.Handled = true;
+                return;
+            }
+        }
 
         if (ActiveTool == Editor2DTool.Select
             && !ActiveReferenceImageLocked
