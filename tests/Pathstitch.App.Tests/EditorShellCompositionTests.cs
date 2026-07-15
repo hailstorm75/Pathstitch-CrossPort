@@ -263,6 +263,19 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void TwoDTextTool_UsesCanvasEntryAndExistingTextApplyPipeline()
+    {
+        var twoD = ReadPage("Editor2DView.axaml");
+        var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+
+        Assert.Contains("TextEntry=\"{Binding TwoDSelectedTextDraft, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
+        Assert.Contains("OnTextInput", canvas, StringComparison.Ordinal);
+        Assert.Contains("Shift", canvas, StringComparison.Ordinal);
+        Assert.Contains("ApplyTwoDSelectedText", canvas, StringComparison.Ordinal);
+        Assert.Contains("_isTextEntryActive", canvas, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TwoDLayersPanel_ExposesMergeWithBelow()
     {
         var layers = ReadPage("Editor2DLayersPanel.axaml");

@@ -12,6 +12,7 @@
     IsVisible="{Binding IsShowingTwoDWorkspace}"
     Document="{Binding TwoDDocument, Mode=TwoWay}"
     TextFontPreview="{Binding TwoDTextFontPreview}"
+    TextEntry="{Binding TwoDSelectedTextDraft, Mode=TwoWay}"
     ActiveTool="{Binding TwoDActiveTool, Mode=TwoWay}"
     SnapEnabled="{Binding TwoDSnapEnabled, Mode=TwoWay}"
     GridVisible="{Binding TwoDGridVisible, Mode=TwoWay}"

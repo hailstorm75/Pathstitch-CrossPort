@@ -12,6 +12,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using Domain.App.Models;
+using Domain.App.ViewModels;
 
 namespace Pathstitch.App.Controls;
 
@@ -32,6 +33,12 @@ public sealed class DxfPreviewCanvas : Control
 
     public static readonly StyledProperty<string?> TextFontPreviewProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, string?>(nameof(TextFontPreview));
+
+    public static readonly StyledProperty<string> TextEntryProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, string>(
+            nameof(TextEntry),
+            defaultValue: string.Empty,
+            defaultBindingMode: BindingMode.TwoWay);
 
     public static readonly StyledProperty<Editor2DTool> ActiveToolProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DTool>(
@@ -243,6 +250,7 @@ public sealed class DxfPreviewCanvas : Control
     private ref Editor2DPoint? _pendingPolygonEdge => ref _interaction.PendingPolygonEdge;
     private ref Editor2DPoint? _pendingTextStart => ref _interaction.PendingTextStart;
     private ref Editor2DPoint? _pendingTextEnd => ref _interaction.PendingTextEnd;
+    private bool _isTextEntryActive;
     private ref IReadOnlyList<Editor2DBezierAnchor> _pendingPenAnchors => ref _interaction.PendingPenAnchors;
     private ref Editor2DPoint? _pendingPenHoverPoint => ref _interaction.PendingPenHoverPoint;
     private ref int? _pendingPenDragAnchorIndex => ref _interaction.PendingPenDragAnchorIndex;
@@ -511,6 +519,12 @@ public sealed class DxfPreviewCanvas : Control
     {
         get => GetValue(TextFontPreviewProperty);
         set => SetValue(TextFontPreviewProperty, value);
+    }
+
+    public string TextEntry
+    {
+        get => GetValue(TextEntryProperty);
+        set => SetValue(TextEntryProperty, value ?? string.Empty);
     }
 
     public Editor2DTool ActiveTool
@@ -1347,7 +1361,38 @@ Selection:
 
         if (e.Key == Key.Escape)
         {
+            if (_isTextEntryActive)
+            {
+                _isTextEntryActive = false;
+                e.Handled = true;
+                return;
+            }
+
             CancelActiveInteraction();
+            e.Handled = true;
+            return;
+        }
+
+        if (_isTextEntryActive && e.Key == Key.Enter)
+        {
+            if ((e.KeyModifiers & KeyModifiers.Shift) != 0)
+            {
+                TextEntry += Environment.NewLine;
+                e.Handled = true;
+                return;
+            }
+
+            if (DataContext is EditorPageViewModel viewModel)
+                viewModel.ApplyTwoDSelectedText();
+            _isTextEntryActive = false;
+            e.Handled = true;
+            return;
+        }
+
+        if (_isTextEntryActive && e.Key == Key.Back)
+        {
+            if (TextEntry.Length > 0)
+                TextEntry = TextEntry[..^1];
             e.Handled = true;
             return;
         }
@@ -1357,6 +1402,16 @@ Selection:
             CommitPendingPenPath(isClosed: false);
             e.Handled = true;
         }
+    }
+
+    protected override void OnTextInput(TextInputEventArgs e)
+    {
+        base.OnTextInput(e);
+        if (!_isTextEntryActive || string.IsNullOrEmpty(e.Text))
+            return;
+
+        TextEntry += e.Text;
+        e.Handled = true;
     }
 
     protected override void OnKeyUp(KeyEventArgs e)
@@ -3218,9 +3273,13 @@ Selection:
             var newPathId = nextDocument.Paths[^1].Id;
             SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
             SetCurrentValue(SelectedMeasurementIdProperty, null);
+            SetCurrentValue(TextEntryProperty, DefaultTextValue);
+            _isTextEntryActive = true;
+            Focus();
         }
 
-        CancelPendingText();
+        _pendingTextStart = null;
+        _pendingTextEnd = null;
         InvalidateVisual();
     }
 
@@ -4227,6 +4286,7 @@ Selection:
     {
         _pendingTextStart = null;
         _pendingTextEnd = null;
+        _isTextEntryActive = false;
     }
 
     private void CancelPendingPen()
