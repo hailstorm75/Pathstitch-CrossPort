@@ -6,6 +6,7 @@ namespace Domain.App.ViewModels;
 public sealed partial class EditorPageViewModel
 {
     private bool _twoDExportSelectedOnly;
+    private bool _twoDExportMeasurementLines;
     private string _twoDSvgPrecisionText = "3";
     private string _twoDSvgStrokeWidthText = "0.5";
 
@@ -24,6 +25,12 @@ public sealed partial class EditorPageViewModel
             _twoDExportSelectedOnly = value;
             OnPropertyChanged();
         }
+    }
+
+    public bool TwoDExportMeasurementLines
+    {
+        get => _twoDExportMeasurementLines;
+        set => SetProperty(ref _twoDExportMeasurementLines, value);
     }
 
     public string TwoDSvgPrecisionText
@@ -119,10 +126,20 @@ public sealed partial class EditorPageViewModel
 
     private Editor2DPreviewDocument BuildExportDocument(Editor2DPreviewDocument document)
     {
-        if (!TwoDExportSelectedOnly || TwoDSelectedPathIds.Count == 0)
-            return document;
+        var exportDocument = TwoDExportSelectedOnly && TwoDSelectedPathIds.Count > 0
+            ? CreateUpdatedTwoDDocument(document, GetSelectedTwoDPaths())
+            : document;
+        if (!TwoDExportMeasurementLines || TwoDMeasurements.Count == 0)
+            return exportDocument;
 
-        return CreateUpdatedTwoDDocument(document, GetSelectedTwoDPaths());
+        var measurementPaths = TwoDMeasurements
+            .Select(measurement => new Editor2DPreviewPath(
+                $"measurement-export-{measurement.Id}",
+                "LINE",
+                [measurement.Start, measurement.End],
+                IsClosed: false))
+            .ToArray();
+        return CreateUpdatedTwoDDocument(exportDocument, exportDocument.Paths.Concat(measurementPaths).ToArray());
     }
 
     private Editor2DExportOptions ParseSvgOptions()
@@ -135,6 +152,6 @@ public sealed partial class EditorPageViewModel
             out var parsedStrokeWidth)
             ? parsedStrokeWidth
             : 0.5;
-        return new Editor2DExportOptions(precision, strokeWidth);
+        return new Editor2DExportOptions(precision, strokeWidth, TwoDExportMeasurementLines);
     }
 }

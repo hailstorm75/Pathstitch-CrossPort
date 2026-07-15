@@ -166,6 +166,23 @@ public sealed class EditorQuickDxfExportTests
         }
     }
 
+    [Fact]
+    public async Task Export_IncludesMeasurementLinesWhenRequested()
+    {
+        var output = new RecordingOutputPreviewService();
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+            new RecordingFileDialogService("measurements.dxf"),
+            output);
+        viewModel.TwoDDocument = CreateDocument();
+        viewModel.TwoDMeasurements = [new Editor2DMeasurement("measure-1", new(10, 20), new(30, 40))];
+        viewModel.TwoDExportMeasurementLines = true;
+
+        await viewModel.ExportTwoDDxfAsync();
+
+        Assert.NotNull(output.SavedDocument);
+        Assert.Contains(output.SavedDocument!.Paths, path => path.Id == "measurement-export-measure-1");
+    }
+
     private static Editor2DPreviewDocument CreateDocument()
         => new(
             [new Editor2DPreviewPath("line-1", "LINE", [new(1, 2), new(3, 4)], false)],

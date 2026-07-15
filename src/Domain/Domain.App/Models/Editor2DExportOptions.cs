@@ -2,7 +2,8 @@ namespace Domain.App.Models;
 
 public sealed record Editor2DExportOptions(
     int SvgPrecision = 3,
-    double SvgStrokeWidth = 0.5)
+    double SvgStrokeWidth = 0.5,
+    bool IncludeMeasurementLines = false)
 {
     public static Editor2DExportOptions Defaults { get; } = new();
 
