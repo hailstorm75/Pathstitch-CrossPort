@@ -280,6 +280,12 @@ public abstract class EditorInteractionControlBase : UserControl
             viewModel.ApplyTwoDPattern();
     }
 
+    protected void OnApplyTwoDPreciseTransformClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ApplyTwoDPreciseTransform();
+    }
+
     protected void OnPickTwoDPatternPivotClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

@@ -122,6 +122,39 @@ public sealed partial class Editor2DWorkspaceViewModel
             : $"Created {additions.Length} circular pattern duplicates");
     }
 
+    public Editor2DWorkspaceOperationResult ApplyPreciseTransform(double deltaX, double deltaY, double rotationDegrees)
+    {
+        var selected = SelectedPaths();
+        if (selected.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("Select one or more 2D entities before applying a precise transform");
+        if (!double.IsFinite(deltaX) || !double.IsFinite(deltaY) || !double.IsFinite(rotationDegrees))
+            return Editor2DWorkspaceOperationResult.Failure("Enter finite transform values");
+        if (Math.Abs(deltaX) < 1e-12 && Math.Abs(deltaY) < 1e-12 && Math.Abs(rotationDegrees) < 1e-12)
+            return Editor2DWorkspaceOperationResult.Failure("Enter a non-zero transform");
+
+        var points = selected.SelectMany(path => path.Points).ToArray();
+        if (points.Length == 0)
+            return Editor2DWorkspaceOperationResult.Failure("The selected geometry has no editable points");
+        var pivot = new Editor2DPoint(
+            (points.Min(point => point.X) + points.Max(point => point.X)) / 2.0,
+            (points.Min(point => point.Y) + points.Max(point => point.Y)) / 2.0);
+        var transformed = Document.Paths
+            .Select(path => selected.Any(candidate => candidate.Id == path.Id)
+                ? Editor2DGeometry.TranslatePath(
+                    Editor2DGeometry.RotatePath(path, pivot, rotationDegrees, path.Id),
+                    deltaX,
+                    deltaY,
+                    path.Id)
+                : path)
+            .ToArray();
+        Edit(state => state with
+        {
+            Document = state.Document with { Paths = transformed },
+            SelectedPathIds = SelectedPathIds.ToArray(),
+        });
+        return Editor2DWorkspaceOperationResult.Success("Applied precise 2D transform");
+    }
+
     public Editor2DWorkspaceOperationResult ApplyPathPattern(string guidePathId, int copyCount, double spacing)
     {
         var guide = Document.Paths.FirstOrDefault(path => path.Id == guidePathId);

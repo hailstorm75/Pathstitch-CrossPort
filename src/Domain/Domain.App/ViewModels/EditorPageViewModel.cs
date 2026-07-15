@@ -122,6 +122,9 @@ public sealed partial class EditorPageViewModel(
     private string? _twoDPatternGuidePathId;
     private Editor2DPoint? _twoDPatternPivot;
     private bool _twoDPatternPivotPicking;
+    private string _twoDPrecisionDeltaXText = "0";
+    private string _twoDPrecisionDeltaYText = "0";
+    private string _twoDPrecisionRotationText = "0";
 
     private bool SetWorkspaceFacadeValue<T>(T current, T value, Action<T> assign, [CallerMemberName] string? propertyName = null)
     {

@@ -562,6 +562,41 @@ public sealed partial class EditorPageViewModel
 
     public bool IsTwoDMoveToolActive => TwoDActiveTool == Editor2DTool.Move;
 
+    public string TwoDPrecisionDeltaXText
+    {
+        get => _twoDPrecisionDeltaXText;
+        set => SetWorkspaceFacadeValue(_twoDPrecisionDeltaXText, value ?? string.Empty, updated => _twoDPrecisionDeltaXText = updated);
+    }
+
+    public string TwoDPrecisionDeltaYText
+    {
+        get => _twoDPrecisionDeltaYText;
+        set => SetWorkspaceFacadeValue(_twoDPrecisionDeltaYText, value ?? string.Empty, updated => _twoDPrecisionDeltaYText = updated);
+    }
+
+    public string TwoDPrecisionRotationText
+    {
+        get => _twoDPrecisionRotationText;
+        set => SetWorkspaceFacadeValue(_twoDPrecisionRotationText, value ?? string.Empty, updated => _twoDPrecisionRotationText = updated);
+    }
+
+    public bool ApplyTwoDPreciseTransform()
+    {
+        if (!TryParseTwoDPrecisionValue(TwoDPrecisionDeltaXText, out var deltaX)
+            || !TryParseTwoDPrecisionValue(TwoDPrecisionDeltaYText, out var deltaY)
+            || !TryParseTwoDPrecisionValue(TwoDPrecisionRotationText, out var rotation))
+        {
+            StatusText = "Enter valid ΔX, ΔY, and rotation values";
+            return false;
+        }
+
+        return CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyPreciseTransform(deltaX, deltaY, rotation));
+    }
+
+    private static bool TryParseTwoDPrecisionValue(string? text, out double value)
+        => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+            || double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value);
+
     public bool IsTwoDPanToolActive => TwoDActiveTool == Editor2DTool.Pan;
 
     public bool IsTwoDMeasureToolActive => TwoDActiveTool == Editor2DTool.Measure;

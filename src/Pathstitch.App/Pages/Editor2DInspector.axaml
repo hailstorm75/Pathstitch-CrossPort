@@ -454,6 +454,19 @@
           Content="Apply Pattern"
           Click="OnApplyTwoDPatternClicked" />
       </StackPanel>
+      <StackPanel Spacing="8" IsVisible="{Binding IsTwoDMoveToolActive}">
+        <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Precision transform" />
+        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Apply exact translation and rotation to the selected geometry." TextWrapping="Wrap" />
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="6">
+          <TextBlock VerticalAlignment="Center" Text="ΔX (mm)" />
+          <TextBox Grid.Column="1" Text="{Binding TwoDPrecisionDeltaXText, Mode=TwoWay}" />
+          <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="ΔY (mm)" />
+          <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding TwoDPrecisionDeltaYText, Mode=TwoWay}" />
+          <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Rotation (deg)" />
+          <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TwoDPrecisionRotationText, Mode=TwoWay}" />
+        </Grid>
+        <Button Classes="chip-button" Content="Apply Exact Transform" Click="OnApplyTwoDPreciseTransformClicked" />
+      </StackPanel>
       <StackPanel
         Spacing="8"
         IsVisible="{Binding IsTwoDPaperFoldingToolActive}">
