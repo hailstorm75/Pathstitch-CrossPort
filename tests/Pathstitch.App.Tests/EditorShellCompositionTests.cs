@@ -252,6 +252,16 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void CommandPalette_HoverSelectsAndScrollsCommandResult()
+    {
+        var palette = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorCommandPalette.axaml");
+        var codeBehind = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorCommandPalette.axaml.cs");
+
+        Assert.Contains("PointerEntered=\"OnCommandPointerEntered\"", palette, StringComparison.Ordinal);
+        Assert.Contains("CommandSearchResults.ScrollIntoView(index)", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InspectorHost_ScopesWorkspaceSpecificPanels()
     {
         var host = ReadPage("EditorInspectorHost.axaml");

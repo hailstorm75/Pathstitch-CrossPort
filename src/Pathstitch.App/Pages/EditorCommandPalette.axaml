@@ -53,6 +53,7 @@
                     Background="Transparent"
                     BorderThickness="0"
                     Tag="{Binding Identifier}"
+                    PointerEntered="OnCommandPointerEntered"
                     Click="OnCommandClicked">
                     <Grid ColumnDefinitions="*,Auto">
                       <StackPanel Spacing="2">

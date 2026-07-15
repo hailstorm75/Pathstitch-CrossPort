@@ -101,6 +101,24 @@ public partial class EditorCommandPalette : UserControl
         _selectedIndex = -1;
     }
 
+    private void OnCommandPointerEntered(object? sender, PointerEventArgs e)
+    {
+        if (DataContext is not EditorPageViewModel viewModel
+            || sender is not Button { DataContext: EditorSidebarToolItemViewModel item })
+            return;
+
+        var index = viewModel.CommandSearchResults
+            .ToList()
+            .FindIndex(candidate => ReferenceEquals(candidate, item));
+        if (index < 0)
+            return;
+
+        _selectedIndex = index;
+        ClearSelection(viewModel);
+        item.IsCommandSearchSelected = true;
+        CommandSearchResults.ScrollIntoView(index);
+    }
+
     private static void ClearSelection(EditorPageViewModel viewModel)
     {
         foreach (var item in viewModel.CommandSearchResults.Where(item => item.IsCommandSearchSelected))
