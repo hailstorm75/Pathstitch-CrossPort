@@ -114,4 +114,66 @@ public sealed class SvgPreviewDocumentTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public async Task LoadPreviewDocumentAsync_ParsesRelativeLinePath()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-{Guid.NewGuid():N}.svg");
+        try
+        {
+            await File.WriteAllTextAsync(path, "<svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M 1 2 l 3 4 h 2 v -1\" /></svg>");
+            SvgPreviewDocumentParser.ImportThickness = 0;
+            var document = await new DxfOutputPreviewService().LoadPreviewDocumentAsync(path);
+
+            var previewPath = Assert.Single(document!.Paths);
+            Assert.Equal("PATH", previewPath.EntityType);
+            Assert.False(previewPath.IsClosed);
+            Assert.Equal(4, previewPath.Points.Count);
+            Assert.Equal(1, previewPath.Points[0].X, 6);
+            Assert.Equal(2, previewPath.Points[0].Y, 6);
+            Assert.Equal(4, previewPath.Points[1].X, 6);
+            Assert.Equal(6, previewPath.Points[1].Y, 6);
+            Assert.Equal(6, previewPath.Points[2].X, 6);
+            Assert.Equal(6, previewPath.Points[2].Y, 6);
+            Assert.Equal(6, previewPath.Points[3].X, 6);
+            Assert.Equal(5, previewPath.Points[3].Y, 6);
+        }
+        finally
+        {
+            SvgPreviewDocumentParser.ImportThickness = 0;
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task LoadPreviewDocumentAsync_ParsesClosedFilledPath()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-{Guid.NewGuid():N}.svg");
+        try
+        {
+            await File.WriteAllTextAsync(path, "<svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M 0 0 L 10 0 L 10 10 Z\" fill=\"#ff0000\" /></svg>");
+            SvgPreviewDocumentParser.FillMode = "preserve";
+            SvgPreviewDocumentParser.ImportThickness = 0;
+            var document = await new DxfOutputPreviewService().LoadPreviewDocumentAsync(path);
+
+            var previewPath = Assert.Single(document!.Paths);
+            Assert.True(previewPath.IsClosed);
+            Assert.True(previewPath.IsFilled);
+            Assert.Equal(4, previewPath.Points.Count);
+            Assert.Equal(0, previewPath.Points[0].X, 6);
+            Assert.Equal(0, previewPath.Points[0].Y, 6);
+            Assert.Equal(10, previewPath.Points[1].X, 6);
+            Assert.Equal(0, previewPath.Points[1].Y, 6);
+            Assert.Equal(10, previewPath.Points[2].X, 6);
+            Assert.Equal(10, previewPath.Points[2].Y, 6);
+            Assert.Equal(0, previewPath.Points[3].X, 6);
+            Assert.Equal(0, previewPath.Points[3].Y, 6);
+        }
+        finally
+        {
+            SvgPreviewDocumentParser.FillMode = "strokes";
+            SvgPreviewDocumentParser.ImportThickness = 0;
+            File.Delete(path);
+        }
+    }
 }

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Globalization;
 using System.Xml;
 using System.Xml.Linq;
 using Domain.App.Models;
@@ -36,32 +36,51 @@ internal static class SvgPreviewDocumentParser
                     continue;
 
                 counts[type] = counts.TryGetValue(type, out var count) ? count + 1 : 1;
-                var parsed = type switch
+                if (type == "PATH")
                 {
-                    "LINE" => ParseLine(element, index),
-                    "POLYLINE" => ParsePoints(element, index, false),
-                    "POLYGON" => ParsePoints(element, index, true),
-                    "RECT" => ParseRect(element, index),
-                    "CIRCLE" => ParseCircle(element, index, false),
-                    "ELLIPSE" => ParseCircle(element, index, true),
-                    _ => null,
-                };
-                if (parsed is null)
-                    unsupported.Add(type);
+                    var parsedPaths = ParsePath(element, index);
+                    if (parsedPaths.Count == 0)
+                        unsupported.Add(type);
+                    else
+                    {
+                        foreach (var parsedPath in parsedPaths)
+                        {
+                            var parsed = parsedPath.IsClosed ? parsedPath with { IsFilled = PreserveFill(element) } : parsedPath;
+                            parsed = ConsolidateStrokes ? ConsolidateStroke(parsed) : parsed;
+                            parsed = ThickenStroke(parsed);
+                            paths.Add(parsed);
+                        }
+                    }
+                }
                 else
                 {
-                    if (parsed.IsClosed)
-                        parsed = parsed with { IsFilled = PreserveFill(element) };
-                    parsed = ConsolidateStrokes ? ConsolidateStroke(parsed) : parsed;
-                    parsed = ThickenStroke(parsed);
-                    paths.Add(parsed);
+                    var parsed = type switch
+                    {
+                        "LINE" => ParseLine(element, index),
+                        "POLYLINE" => ParsePoints(element, index, false),
+                        "POLYGON" => ParsePoints(element, index, true),
+                        "RECT" => ParseRect(element, index),
+                        "CIRCLE" => ParseCircle(element, index, false),
+                        "ELLIPSE" => ParseCircle(element, index, true),
+                        _ => null,
+                    };
+                    if (parsed is null)
+                        unsupported.Add(type);
+                    else
+                    {
+                        if (parsed.IsClosed)
+                            parsed = parsed with { IsFilled = PreserveFill(element) };
+                        parsed = ConsolidateStrokes ? ConsolidateStroke(parsed) : parsed;
+                        parsed = ThickenStroke(parsed);
+                        paths.Add(parsed);
+                    }
                 }
-                    index++;
+                index++;
             }
 
             var transform = ResolveRootTransform(root);
             if (transform is not null)
-                paths = paths.Select(path => TransformPath(path, transform.Value)).ToList();
+                paths = paths.Select(svgPath => TransformPath(svgPath, transform.Value)).ToList();
 
             return new DxfPreviewDocument(paths, counts, unsupported.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray());
         }
@@ -118,6 +137,362 @@ internal static class SvgPreviewDocumentParser
             .ToArray();
         return new DxfPreviewPath($"svg-{(ellipse ? "ellipse" : "circle")}-{index}", ellipse ? "ELLIPSE" : "CIRCLE", points, true,
             Center: new DxfPoint(cx, cy), Radius: ellipse ? null : rx);
+    }
+
+    private static IReadOnlyList<DxfPreviewPath> ParsePath(XElement element, int index)
+    {
+        var d = (string?)element.Attribute("d");
+        if (string.IsNullOrWhiteSpace(d))
+            return [];
+
+        var subpaths = ParsePathData(d).ToList();
+        if (subpaths.Count == 0)
+            return [];
+
+        return subpaths
+            .Where(subpath => subpath.Points.Count >= 2)
+            .Select((subpath, subpathIndex) => new DxfPreviewPath(
+                subpaths.Count == 1 ? $"svg-path-{index}" : $"svg-path-{index}-{subpathIndex}",
+                "PATH",
+                subpath.Points,
+                subpath.IsClosed))
+            .ToArray();
+    }
+
+    private static IEnumerable<(IReadOnlyList<DxfPoint> Points, bool IsClosed)> ParsePathData(string d)
+    {
+        var tokens = Regex.Matches(d, @"[AaCcHhLlMmQqSsTtVvZz]|[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?")
+            .Select(match => match.Value)
+            .ToList();
+
+        var i = 0;
+        var current = new DxfPoint(0, 0);
+        var subpathStart = new DxfPoint(0, 0);
+        List<DxfPoint>? points = null;
+        char command = '\0';
+        DxfPoint? previousCubicControl = null;
+        DxfPoint? previousQuadraticControl = null;
+
+        void AddPoint(DxfPoint point)
+        {
+            points ??= [];
+            if (points.Count == 0 || !AreSamePoint(points[^1], point))
+                points.Add(point);
+            current = point;
+        }
+
+        while (i < tokens.Count)
+        {
+            var token = tokens[i];
+            if (token.Length == 1 && char.IsLetter(token[0]))
+            {
+                command = token[0];
+                i++;
+            }
+            else if (command == '\0')
+            {
+                i++;
+                continue;
+            }
+
+            switch (command)
+            {
+                case 'M':
+                case 'm':
+                {
+                    if (i + 1 >= tokens.Count || !TryParseDouble(tokens[i], out var x) || !TryParseDouble(tokens[i + 1], out var y))
+                    {
+                        i = tokens.Count;
+                        break;
+                    }
+
+                    if (points is { Count: > 0 })
+                    {
+                        yield return (points, false);
+                        points = null;
+                    }
+
+                    current = command == 'm' ? new DxfPoint(current.X + x, current.Y + y) : new DxfPoint(x, y);
+                    subpathStart = current;
+                    points = [current];
+                    previousCubicControl = null;
+                    previousQuadraticControl = null;
+                    i += 2;
+
+                    while (i + 1 < tokens.Count && !IsCommandToken(tokens[i]))
+                    {
+                        if (!TryParseDouble(tokens[i], out x) || !TryParseDouble(tokens[i + 1], out y))
+                            break;
+                        current = command == 'm' ? new DxfPoint(current.X + x, current.Y + y) : new DxfPoint(x, y);
+                        AddPoint(current);
+                        i += 2;
+                    }
+
+                    command = command == 'm' ? 'l' : 'L';
+                    break;
+                }
+                case 'L':
+                case 'l':
+                    while (i + 1 < tokens.Count && !IsCommandToken(tokens[i]))
+                    {
+                        if (!TryParseDouble(tokens[i], out var x) || !TryParseDouble(tokens[i + 1], out var y))
+                            break;
+                        current = command == 'l' ? new DxfPoint(current.X + x, current.Y + y) : new DxfPoint(x, y);
+                        AddPoint(current);
+                        i += 2;
+                    }
+                    previousCubicControl = null;
+                    previousQuadraticControl = null;
+                    break;
+                case 'H':
+                case 'h':
+                    while (i < tokens.Count && !IsCommandToken(tokens[i]))
+                    {
+                        if (!TryParseDouble(tokens[i], out var x))
+                            break;
+                        current = command == 'h' ? new DxfPoint(current.X + x, current.Y) : new DxfPoint(x, current.Y);
+                        AddPoint(current);
+                        i++;
+                    }
+                    previousCubicControl = null;
+                    previousQuadraticControl = null;
+                    break;
+                case 'V':
+                case 'v':
+                    while (i < tokens.Count && !IsCommandToken(tokens[i]))
+                    {
+                        if (!TryParseDouble(tokens[i], out var y))
+                            break;
+                        current = command == 'v' ? new DxfPoint(current.X, current.Y + y) : new DxfPoint(current.X, y);
+                        AddPoint(current);
+                        i++;
+                    }
+                    previousCubicControl = null;
+                    previousQuadraticControl = null;
+                    break;
+                case 'C':
+                case 'c':
+                    while (i + 5 < tokens.Count && !IsCommandToken(tokens[i]))
+                    {
+                        if (!TryParseDouble(tokens[i], out var x1) || !TryParseDouble(tokens[i + 1], out var y1)
+                            || !TryParseDouble(tokens[i + 2], out var x2) || !TryParseDouble(tokens[i + 3], out var y2)
+                            || !TryParseDouble(tokens[i + 4], out var x) || !TryParseDouble(tokens[i + 5], out var y))
+                            break;
+                        var control1 = command == 'c' ? new DxfPoint(current.X + x1, current.Y + y1) : new DxfPoint(x1, y1);
+                        var control2 = command == 'c' ? new DxfPoint(current.X + x2, current.Y + y2) : new DxfPoint(x2, y2);
+                        var end = command == 'c' ? new DxfPoint(current.X + x, current.Y + y) : new DxfPoint(x, y);
+                        AppendCubic(points ??= [current], current, control1, control2, end);
+                        current = end;
+                        previousCubicControl = control2;
+                        previousQuadraticControl = null;
+                        i += 6;
+                    }
+                    break;
+                case 'S':
+                case 's':
+                    while (i + 3 < tokens.Count && !IsCommandToken(tokens[i]))
+                    {
+                        if (!TryParseDouble(tokens[i], out var x2) || !TryParseDouble(tokens[i + 1], out var y2)
+                            || !TryParseDouble(tokens[i + 2], out var x) || !TryParseDouble(tokens[i + 3], out var y))
+                            break;
+                        var control1 = previousCubicControl is { } prevCubic ? ReflectPoint(prevCubic, current) : current;
+                        var control2 = command == 's' ? new DxfPoint(current.X + x2, current.Y + y2) : new DxfPoint(x2, y2);
+                        var end = command == 's' ? new DxfPoint(current.X + x, current.Y + y) : new DxfPoint(x, y);
+                        AppendCubic(points ??= [current], current, control1, control2, end);
+                        current = end;
+                        previousCubicControl = control2;
+                        previousQuadraticControl = null;
+                        i += 4;
+                    }
+                    break;
+                case 'Q':
+                case 'q':
+                    while (i + 3 < tokens.Count && !IsCommandToken(tokens[i]))
+                    {
+                        if (!TryParseDouble(tokens[i], out var x1) || !TryParseDouble(tokens[i + 1], out var y1)
+                            || !TryParseDouble(tokens[i + 2], out var x) || !TryParseDouble(tokens[i + 3], out var y))
+                            break;
+                        var control = command == 'q' ? new DxfPoint(current.X + x1, current.Y + y1) : new DxfPoint(x1, y1);
+                        var end = command == 'q' ? new DxfPoint(current.X + x, current.Y + y) : new DxfPoint(x, y);
+                        AppendQuadratic(points ??= [current], current, control, end);
+                        current = end;
+                        previousQuadraticControl = control;
+                        previousCubicControl = null;
+                        i += 4;
+                    }
+                    break;
+                case 'T':
+                case 't':
+                    while (i + 1 < tokens.Count && !IsCommandToken(tokens[i]))
+                    {
+                        if (!TryParseDouble(tokens[i], out var x) || !TryParseDouble(tokens[i + 1], out var y))
+                            break;
+                        var control = previousQuadraticControl is { } prevQuadratic ? ReflectPoint(prevQuadratic, current) : current;
+                        var end = command == 't' ? new DxfPoint(current.X + x, current.Y + y) : new DxfPoint(x, y);
+                        AppendQuadratic(points ??= [current], current, control, end);
+                        current = end;
+                        previousQuadraticControl = control;
+                        previousCubicControl = null;
+                        i += 2;
+                    }
+                    break;
+                case 'A':
+                case 'a':
+                    while (i + 6 < tokens.Count && !IsCommandToken(tokens[i]))
+                    {
+                        if (!TryParseDouble(tokens[i], out var rx) || !TryParseDouble(tokens[i + 1], out var ry)
+                            || !TryParseDouble(tokens[i + 2], out var angle) || !TryParseDouble(tokens[i + 3], out var largeArcFlag)
+                            || !TryParseDouble(tokens[i + 4], out var sweepFlag) || !TryParseDouble(tokens[i + 5], out var x)
+                            || !TryParseDouble(tokens[i + 6], out var y))
+                            break;
+                        var end = command == 'a' ? new DxfPoint(current.X + x, current.Y + y) : new DxfPoint(x, y);
+                        points ??= [current];
+                        AppendArc(points, current, rx, ry, angle, largeArcFlag != 0, sweepFlag != 0, end);
+                        current = end;
+                        previousCubicControl = null;
+                        previousQuadraticControl = null;
+                        i += 7;
+                    }
+                    break;
+                case 'Z':
+                case 'z':
+                    if (points is { Count: > 0 })
+                    {
+                        if (!AreSamePoint(points[0], current))
+                            points.Add(points[0]);
+                        yield return (points, true);
+                    }
+                    points = null;
+                    current = subpathStart;
+                    previousCubicControl = null;
+                    previousQuadraticControl = null;
+                    i++;
+                    break;
+                default:
+                    i++;
+                    break;
+            }
+        }
+
+        if (points is { Count: > 0 })
+            yield return (points, false);
+    }
+
+    private static bool IsCommandToken(string token)
+        => token.Length == 1 && char.IsLetter(token[0]);
+
+    private static DxfPoint ReflectPoint(DxfPoint point, DxfPoint across)
+        => new((across.X * 2.0) - point.X, (across.Y * 2.0) - point.Y);
+
+    private static void AppendQuadratic(List<DxfPoint> points, DxfPoint start, DxfPoint control, DxfPoint end)
+    {
+        const int segments = 12;
+        for (var segment = 1; segment <= segments; segment++)
+        {
+            var t = (double)segment / segments;
+            var oneMinusT = 1.0 - t;
+            points.Add(new DxfPoint(
+                oneMinusT * oneMinusT * start.X + 2.0 * oneMinusT * t * control.X + t * t * end.X,
+                oneMinusT * oneMinusT * start.Y + 2.0 * oneMinusT * t * control.Y + t * t * end.Y));
+        }
+    }
+
+    private static void AppendCubic(List<DxfPoint> points, DxfPoint start, DxfPoint control1, DxfPoint control2, DxfPoint end)
+    {
+        const int segments = 16;
+        for (var segment = 1; segment <= segments; segment++)
+        {
+            var t = (double)segment / segments;
+            var oneMinusT = 1.0 - t;
+            points.Add(new DxfPoint(
+                (oneMinusT * oneMinusT * oneMinusT * start.X)
+                + (3.0 * oneMinusT * oneMinusT * t * control1.X)
+                + (3.0 * oneMinusT * t * t * control2.X)
+                + (t * t * t * end.X),
+                (oneMinusT * oneMinusT * oneMinusT * start.Y)
+                + (3.0 * oneMinusT * oneMinusT * t * control1.Y)
+                + (3.0 * oneMinusT * t * t * control2.Y)
+                + (t * t * t * end.Y)));
+        }
+    }
+
+    private static void AppendArc(
+        List<DxfPoint> points,
+        DxfPoint start,
+        double rx,
+        double ry,
+        double angleDegrees,
+        bool largeArc,
+        bool sweep,
+        DxfPoint end)
+    {
+        rx = Math.Abs(rx);
+        ry = Math.Abs(ry);
+        if (rx <= 1e-9 || ry <= 1e-9)
+        {
+            points.Add(end);
+            return;
+        }
+
+        var phi = angleDegrees * Math.PI / 180.0;
+        var cosPhi = Math.Cos(phi);
+        var sinPhi = Math.Sin(phi);
+        var dx = (start.X - end.X) / 2.0;
+        var dy = (start.Y - end.Y) / 2.0;
+        var x1p = (cosPhi * dx) + (sinPhi * dy);
+        var y1p = (-sinPhi * dx) + (cosPhi * dy);
+
+        var rxSq = rx * rx;
+        var rySq = ry * ry;
+        var x1pSq = x1p * x1p;
+        var y1pSq = y1p * y1p;
+        var lambda = (x1pSq / rxSq) + (y1pSq / rySq);
+        if (lambda > 1.0)
+        {
+            var scale = Math.Sqrt(lambda);
+            rx *= scale;
+            ry *= scale;
+            rxSq = rx * rx;
+            rySq = ry * ry;
+        }
+
+        var sign = largeArc == sweep ? -1.0 : 1.0;
+        var numerator = (rxSq * rySq) - (rxSq * y1pSq) - (rySq * x1pSq);
+        var denominator = (rxSq * y1pSq) + (rySq * x1pSq);
+        var coef = denominator <= 1e-9 ? 0.0 : sign * Math.Sqrt(Math.Max(0.0, numerator / denominator));
+        var cxp = coef * ((rx * y1p) / ry);
+        var cyp = coef * (-(ry * x1p) / rx);
+        var cx = (cosPhi * cxp) - (sinPhi * cyp) + ((start.X + end.X) / 2.0);
+        var cy = (sinPhi * cxp) + (cosPhi * cyp) + ((start.Y + end.Y) / 2.0);
+
+        double Angle(double ux, double uy, double vx, double vy)
+        {
+            var dot = (ux * vx) + (uy * vy);
+            var det = (ux * vy) - (uy * vx);
+            return Math.Atan2(det, dot);
+        }
+
+        var theta1 = Angle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry);
+        var deltaTheta = Angle(
+            (x1p - cxp) / rx,
+            (y1p - cyp) / ry,
+            (-x1p - cxp) / rx,
+            (-y1p - cyp) / ry);
+
+        if (!sweep && deltaTheta > 0)
+            deltaTheta -= Math.PI * 2.0;
+        else if (sweep && deltaTheta < 0)
+            deltaTheta += Math.PI * 2.0;
+
+        var segments = Math.Clamp((int)Math.Ceiling(Math.Abs(deltaTheta) / (Math.PI / 18.0)), 6, 64);
+        for (var segment = 1; segment <= segments; segment++)
+        {
+            var t = (double)segment / segments;
+            var theta = theta1 + (deltaTheta * t);
+            var x = (cosPhi * rx * Math.Cos(theta)) - (sinPhi * ry * Math.Sin(theta)) + cx;
+            var y = (sinPhi * rx * Math.Cos(theta)) + (cosPhi * ry * Math.Sin(theta)) + cy;
+            points.Add(new DxfPoint(x, y));
+        }
     }
 
     private static DxfPreviewPath ConsolidateStroke(DxfPreviewPath path)
@@ -272,6 +647,13 @@ internal static class SvgPreviewDocumentParser
 
     private static bool TryDouble(XElement element, string name, out double value)
         => double.TryParse((string?)element.Attribute(name), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+
+    private static bool AreSamePoint(DxfPoint left, DxfPoint right)
+        => Math.Abs(left.X - right.X) <= 1e-6
+           && Math.Abs(left.Y - right.Y) <= 1e-6;
+
+    private static bool TryParseDouble(string raw, out double value)
+        => double.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
 
     private static DxfPreviewDocument Empty()
         => new([], new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase), ["SVG"]);
