@@ -15,6 +15,8 @@ public sealed partial class MainWindowShell : Window
   private readonly INavigationManager _navigationManager;
   private readonly ILogger<MainWindowShell> _logger;
   private CancellationTokenSource _navigationCancellationTokenSource = new();
+  private bool _applicationCloseApproved;
+  private bool _applicationClosePreviewRunning;
 
 
 	public MainWindowShell(IServiceProvider serviceProvider)
@@ -25,6 +27,51 @@ public sealed partial class MainWindowShell : Window
 		InitializeComponent();
 
 		WeakReferenceMessenger.Default.Register<NavigationChangeRequestMessage>(this, OnNavigationChanged);
+		Closing += OnClosing;
+		Closed += OnClosed;
+	}
+
+	private async void OnClosing(object? sender, WindowClosingEventArgs e)
+	{
+		if (_applicationCloseApproved)
+			return;
+
+		e.Cancel = true;
+		if (_applicationClosePreviewRunning)
+			return;
+
+		_applicationClosePreviewRunning = true;
+		try
+		{
+			var message = new PreviewApplicationClosingMessage();
+			var cancelSource = await WeakReferenceMessenger.Default.Send(message);
+			if (await cancelSource.Task.ConfigureAwait(true))
+				return;
+
+			_applicationCloseApproved = true;
+			Close();
+		}
+		catch (InvalidOperationException)
+		{
+			// No active document owns the preview message. Nothing needs guarding.
+			_applicationCloseApproved = true;
+			Close();
+		}
+		catch (Exception exception)
+		{
+			_logger.LogError(exception, "Application close preview failed");
+		}
+		finally
+		{
+			_applicationClosePreviewRunning = false;
+		}
+	}
+
+	private void OnClosed(object? sender, EventArgs e)
+	{
+		WeakReferenceMessenger.Default.UnregisterAll(this);
+		_navigationCancellationTokenSource.Cancel();
+		_navigationCancellationTokenSource.Dispose();
 	}
 
 	private async void OnNavigationChanged(object recipient, NavigationChangeRequestMessage message)

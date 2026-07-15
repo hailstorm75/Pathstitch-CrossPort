@@ -17,6 +17,11 @@ public sealed class UiAutomationIdentifierTests
         var expectedIds = new[]
         {
             "editor.shell",
+            "editor.menu-strip",
+            "editor.menu.file",
+            "editor.menu.file.save",
+            "editor.menu.file.save-and-close",
+            "editor.menu.file.close-document",
             "editor.header",
             "editor.tool-rail",
             "editor.context-panel",
@@ -34,6 +39,17 @@ public sealed class UiAutomationIdentifierTests
 
         foreach (var automationId in expectedIds)
             _ui.FindXamlElementByAutomationId(shell, automationId);
+    }
+
+    [Fact]
+    public void UnsavedChangesDialog_ExposesStableChoiceIdentifiers()
+    {
+        var dialog = _ui.LoadXaml("src", "Pathstitch.App", "Dialogs", "UnsavedChangesDialog.axaml");
+
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.unsaved-changes");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.unsaved-changes.save");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.unsaved-changes.discard");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.unsaved-changes.cancel");
     }
 
     [Fact]

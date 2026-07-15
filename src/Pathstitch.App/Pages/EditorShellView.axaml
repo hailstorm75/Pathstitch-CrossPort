@@ -105,8 +105,34 @@
       <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
     </Style>
   </UserControl.Styles>
-  <Grid Background="{StaticResource BaseBackgroundBrush}" RowDefinitions="Auto,*">
+  <Grid Background="{StaticResource BaseBackgroundBrush}" RowDefinitions="Auto,Auto,*">
+    <Menu
+      AutomationProperties.AutomationId="editor.menu-strip"
+      Background="{StaticResource PanelBackgroundBrush}"
+      Foreground="{StaticResource PrimaryTextBrush}">
+      <MenuItem
+        AutomationProperties.AutomationId="editor.menu.file"
+        Header="_File">
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.file.save"
+          Command="{Binding SaveDocumentCommand}"
+          Header="_Save"
+          HotKey="Ctrl+S" />
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.file.save-and-close"
+          Command="{Binding SaveAndCloseDocumentCommand}"
+          Header="Save and _Close"
+          HotKey="Ctrl+Shift+W" />
+        <Separator />
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.file.close-document"
+          Command="{Binding CloseDocumentCommand}"
+          Header="_Close Document"
+          HotKey="Ctrl+W" />
+      </MenuItem>
+    </Menu>
     <Border
+      Grid.Row="1"
       AutomationProperties.AutomationId="editor.header"
       Background="{StaticResource PanelBackgroundBrush}"
       BorderBrush="{StaticResource BorderBrush}"
@@ -164,7 +190,7 @@
         </StackPanel>
       </DockPanel>
     </Border>
-    <Grid Grid.Row="1" AutomationProperties.AutomationId="editor.regions">
+    <Grid Grid.Row="2" AutomationProperties.AutomationId="editor.regions">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="56" MinWidth="56" MaxWidth="180" />
         <ColumnDefinition Width="4" />

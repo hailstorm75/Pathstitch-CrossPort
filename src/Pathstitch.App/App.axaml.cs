@@ -29,6 +29,7 @@ public partial class App : Application
             .AddSingleton<ProjectSessionService>()
             .AddSingleton<Project3DStateService>()
             .AddSingleton<IProjectFileDialogService, ProjectFileDialogService>()
+            .AddSingleton<IUnsavedChangesPromptService, AvaloniaUnsavedChangesPromptService>()
             .AddSingleton<IProcessLauncher, SystemProcessLauncher>()
             .AddSingleton<IFileIntegrationService>(services =>
                 DesktopFileIntegrationServiceFactory.CreateForCurrentPlatform(

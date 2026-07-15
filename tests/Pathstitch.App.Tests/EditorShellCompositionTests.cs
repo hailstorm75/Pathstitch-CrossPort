@@ -34,6 +34,19 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void FileMenu_OffersDocumentLifecycleCommandsAndShortcuts()
+    {
+        var shell = ReadPage("EditorShellView.axaml");
+
+        Assert.Contains("Command=\"{Binding SaveDocumentCommand}\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding SaveAndCloseDocumentCommand}\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding CloseDocumentCommand}\"", shell, StringComparison.Ordinal);
+        Assert.Contains("HotKey=\"Ctrl+S\"", shell, StringComparison.Ordinal);
+        Assert.Contains("HotKey=\"Ctrl+Shift+W\"", shell, StringComparison.Ordinal);
+        Assert.Contains("HotKey=\"Ctrl+W\"", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WorkspaceViews_ContainOnlyTheirOwnViewportTechnology()
     {
         var twoD = ReadPage("Editor2DView.axaml");
