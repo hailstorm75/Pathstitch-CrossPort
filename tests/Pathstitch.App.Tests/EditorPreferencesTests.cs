@@ -5,6 +5,7 @@ using Avalonia.VisualTree;
 using Domain.App.Models;
 using Pathstitch.App.Dialogs;
 using Pathstitch.App.Controls;
+using Pathstitch.App.Services;
 using Pathstitch.App.Tests.Fixtures;
 
 namespace Pathstitch.App.Tests;
@@ -17,18 +18,27 @@ public sealed class EditorPreferencesTests
     public async Task PreferencesDialog_TogglesReversePanDirection()
     {
         DxfPreviewCanvas.ReversePanDirection = false;
-        var dialog = await _ui.RunAsync(() => new PreferencesDialog());
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-ui-preferences-{Guid.NewGuid():N}.json");
+        var dialog = await _ui.RunAsync(() => new PreferencesDialog(null, new UserPreferencesStore(path)));
         await _ui.RunAsync(() =>
         {
             dialog.Show();
             dialog.UpdateLayout();
             var toggle = _ui.FindByAutomationId<CheckBox>(dialog, "dialog.preferences.reverse-pan");
             toggle.IsChecked = true;
+            var appearance = _ui.FindByAutomationId<ComboBox>(dialog, "dialog.preferences.appearance");
+            appearance.SelectedIndex = 2;
         });
 
         Assert.True(DxfPreviewCanvas.ReversePanDirection);
+        var persisted = new UserPreferencesStore(path).Load();
+        Assert.Equal("Dark", persisted.Appearance);
+        Assert.True(persisted.ReversePanDirection);
+        await _ui.RunAsync(() =>
+            _ui.FindByAutomationId<ComboBox>(dialog, "dialog.preferences.appearance").SelectedIndex = 0);
         await _ui.RunAsync(dialog.Close);
         DxfPreviewCanvas.ReversePanDirection = false;
+        File.Delete(path);
     }
 
     [Fact]

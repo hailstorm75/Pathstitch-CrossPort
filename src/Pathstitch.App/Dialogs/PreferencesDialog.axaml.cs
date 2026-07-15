@@ -10,6 +10,7 @@ using Avalonia.Styling;
 using Domain.App.Models;
 using Domain.App.ViewModels;
 using Pathstitch.App.Controls;
+using Pathstitch.App.Services;
 
 namespace Pathstitch.App.Dialogs;
 
@@ -17,10 +18,12 @@ public sealed partial class PreferencesDialog : Window
 {
     private readonly EditorPageViewModel? _viewModel;
     private readonly EditorMode _mode;
+    private readonly UserPreferencesStore _preferencesStore;
     private readonly List<(string Identifier, TextBox Shortcut)> _shortcutEditors = [];
 
     public PreferencesDialog()
     {
+        _preferencesStore = new UserPreferencesStore();
         InitializeComponent();
         _mode = EditorMode.TwoD;
         InitializeAppearanceSelector();
@@ -28,9 +31,20 @@ public sealed partial class PreferencesDialog : Window
 
     public PreferencesDialog(EditorPageViewModel viewModel)
     {
+        _preferencesStore = new UserPreferencesStore();
         InitializeComponent();
         _viewModel = viewModel;
         _mode = viewModel.ActiveEditorMode;
+        InitializeAppearanceSelector();
+        BuildShortcutEditors();
+    }
+
+    public PreferencesDialog(EditorPageViewModel? viewModel, UserPreferencesStore preferencesStore)
+    {
+        _preferencesStore = preferencesStore;
+        InitializeComponent();
+        _viewModel = viewModel;
+        _mode = viewModel?.ActiveEditorMode ?? EditorMode.TwoD;
         InitializeAppearanceSelector();
         BuildShortcutEditors();
     }
@@ -47,7 +61,10 @@ public sealed partial class PreferencesDialog : Window
     }
 
     private void OnReversePanDirectionChanged(object? sender, RoutedEventArgs e)
-        => DxfPreviewCanvas.ReversePanDirection = ReversePanDirection.IsChecked == true;
+    {
+        DxfPreviewCanvas.ReversePanDirection = ReversePanDirection.IsChecked == true;
+        SavePreferences();
+    }
 
     private void OnAppearanceChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -60,6 +77,18 @@ public sealed partial class PreferencesDialog : Window
             2 => ThemeVariant.Dark,
             _ => ThemeVariant.Default,
         };
+        SavePreferences();
+    }
+
+    private void SavePreferences()
+    {
+        var appearance = AppearanceSelector.SelectedIndex switch
+        {
+            1 => "Light",
+            2 => "Dark",
+            _ => "System",
+        };
+        _preferencesStore.Save(new UserPreferences(appearance, DxfPreviewCanvas.ReversePanDirection));
     }
 
     private void BuildShortcutEditors()

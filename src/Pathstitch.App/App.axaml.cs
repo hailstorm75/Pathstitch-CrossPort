@@ -8,6 +8,7 @@ using Domain.App.Services;
 using Domain.MVVM.Navigation;
 using Microsoft.Extensions.DependencyInjection;
 using Pathstitch.App.AppExtensions;
+using Pathstitch.App.Controls;
 using Pathstitch.App.Services;
 using UI.Navigation;
 
@@ -52,6 +53,8 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        ApplyUserPreferences();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.MainWindow = new MainWindowShell(Ioc.Default);
@@ -73,5 +76,20 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static void ApplyUserPreferences()
+    {
+        var preferences = new UserPreferencesStore().Load();
+        DxfPreviewCanvas.ReversePanDirection = preferences.ReversePanDirection;
+        if (Current is not null)
+        {
+            Current.RequestedThemeVariant = preferences.Appearance.ToLowerInvariant() switch
+            {
+                "light" => Avalonia.Styling.ThemeVariant.Light,
+                "dark" => Avalonia.Styling.ThemeVariant.Dark,
+                _ => Avalonia.Styling.ThemeVariant.Default,
+            };
+        }
     }
 }
