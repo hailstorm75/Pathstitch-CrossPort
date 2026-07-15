@@ -85,10 +85,21 @@ public sealed class DxfOutputPreviewService : IEditorOutputPreviewService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (Path.GetExtension(outputPath).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
-            PdfOutputDocumentWriter.Save(outputPath, document);
-        else
-            EditorDxfDocument.SavePreviewDocument(outputPath, document, options: options);
+        switch (Path.GetExtension(outputPath).ToLowerInvariant())
+        {
+            case ".svg":
+                SvgOutputDocumentWriter.Save(outputPath, document, options);
+                break;
+            case ".pdf":
+                PdfOutputDocumentWriter.Save(outputPath, document);
+                break;
+            case ".png":
+                PngOutputDocumentWriter.Save(outputPath, document, options);
+                break;
+            default:
+                EditorDxfDocument.SavePreviewDocument(outputPath, document, options: options);
+                break;
+        }
         return Task.CompletedTask;
     }
 

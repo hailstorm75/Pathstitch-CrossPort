@@ -2,6 +2,14 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Domain.App.Models;
 
+public enum EditorBatchExportFormat
+{
+    Dxf,
+    Svg,
+    Pdf,
+    Png,
+}
+
 public enum EditorBatchAction
 {
     ValidateProjects = 0,

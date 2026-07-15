@@ -47,6 +47,10 @@
         AutomationProperties.AutomationId="editor.batch.export-selected-only"
         Content="Export selected only"
         IsChecked="{Binding ExportSelectedOnly, Mode=TwoWay}" />
+      <ComboBox
+        AutomationProperties.AutomationId="editor.batch.export-format"
+        ItemsSource="{Binding ExportFormats}"
+        SelectedItem="{Binding SelectedExportFormat, Mode=TwoWay}" />
       <TextBox
         x:Name="OffsetDistanceText"
         AutomationProperties.AutomationId="editor.batch.offset-distance"
@@ -65,7 +69,7 @@
       <Button
         AutomationProperties.AutomationId="editor.batch.export-dxf"
         Classes="panel-button"
-        Content="Export DXF outputs"
+        Content="Export batch outputs"
         IsEnabled="{Binding CanExport}"
         Click="OnExportDxfClicked" />
       <Button

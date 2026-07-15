@@ -178,6 +178,66 @@ public sealed class EditorBatchWorkspaceViewModelTests
         }
     }
 
+    [Fact]
+    public async Task ExportBatchAsync_CanWritePdfOutputs()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchPdf", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var input = Path.Combine(directory, "drawing.dxf");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel
+            {
+                OutputDirectory = Path.Combine(directory, "out"),
+                SelectedExportFormat = EditorBatchExportFormat.Pdf,
+            };
+            Assert.True(workspace.AddFile(input));
+            await workspace.ExportDxfAsync(new DxfOutputPreviewService());
+            Assert.EndsWith("-batch.pdf", workspace.Items[0].OutputPath, StringComparison.OrdinalIgnoreCase);
+            Assert.StartsWith("%PDF", await File.ReadAllTextAsync(workspace.Items[0].OutputPath!));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(EditorBatchExportFormat.Svg, ".svg", "<svg")]
+    [InlineData(EditorBatchExportFormat.Png, ".png", null)]
+    public async Task ExportBatchAsync_CanWriteVectorAndRasterOutputs(
+        EditorBatchExportFormat format,
+        string extension,
+        string? expectedText)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchFormats", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var input = Path.Combine(directory, "drawing.dxf");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel
+            {
+                OutputDirectory = Path.Combine(directory, "out"),
+                SelectedExportFormat = format,
+            };
+            Assert.True(workspace.AddFile(input));
+            await workspace.ExportDxfAsync(new DxfOutputPreviewService());
+
+            Assert.EndsWith($"-batch{extension}", workspace.Items[0].OutputPath, StringComparison.OrdinalIgnoreCase);
+            Assert.True(File.Exists(workspace.Items[0].OutputPath));
+            if (expectedText is not null)
+                Assert.Contains(expectedText, await File.ReadAllTextAsync(workspace.Items[0].OutputPath!));
+            else
+                Assert.Equal(new byte[] { 0x89, 0x50, 0x4E, 0x47 }, (await File.ReadAllBytesAsync(workspace.Items[0].OutputPath!))[..4]);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private sealed class StubOffsetGeometryKernel : IEditor2DGeometryKernelService
     {
         public Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(

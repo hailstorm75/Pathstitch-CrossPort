@@ -14,6 +14,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     private string _summary = "No files queued.";
     private string _outputDirectory = string.Empty;
     private bool _exportSelectedOnly;
+    private EditorBatchExportFormat _selectedExportFormat = EditorBatchExportFormat.Dxf;
 
     public ObservableCollection<EditorBatchItem> Items { get; } = [];
 
@@ -43,6 +44,14 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     {
         get => _exportSelectedOnly;
         set => SetProperty(ref _exportSelectedOnly, value);
+    }
+
+    public IReadOnlyList<EditorBatchExportFormat> ExportFormats { get; } = Enum.GetValues<EditorBatchExportFormat>();
+
+    public EditorBatchExportFormat SelectedExportFormat
+    {
+        get => _selectedExportFormat;
+        set => SetProperty(ref _selectedExportFormat, value);
     }
 
     public bool IsRunning
@@ -194,17 +203,28 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 item.Status = EditorBatchItemStatus.Running;
-                item.Message = "Exporting DXF";
+                    item.Message = $"Exporting {SelectedExportFormat}";
                 try
                 {
                     var document = item.Document
                         ?? await outputPreviewService.LoadPreviewDocumentAsync(item.FilePath, cancellationToken).ConfigureAwait(false)
                         ?? throw new InvalidDataException("DXF preview could not be loaded.");
-                    var outputPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(item.FilePath)}-batch.dxf");
-                    await outputPreviewService.SavePreviewDocumentAsync(document, outputPath, cancellationToken).ConfigureAwait(false);
+                    var extension = SelectedExportFormat switch
+                    {
+                        EditorBatchExportFormat.Svg => ".svg",
+                        EditorBatchExportFormat.Pdf => ".pdf",
+                        EditorBatchExportFormat.Png => ".png",
+                        _ => ".dxf",
+                    };
+                    var outputPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(item.FilePath)}-batch{extension}");
+                    await outputPreviewService.SavePreviewDocumentAsync(
+                        document,
+                        outputPath,
+                        Editor2DExportOptions.Defaults,
+                        cancellationToken).ConfigureAwait(false);
                     item.OutputPath = outputPath;
                     item.Status = EditorBatchItemStatus.Succeeded;
-                    item.Message = "DXF exported";
+                    item.Message = $"{SelectedExportFormat} exported";
                     succeeded++;
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
@@ -220,7 +240,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         finally
         {
             IsRunning = false;
-            Summary = $"DXF export complete: {succeeded} succeeded, {failed} failed.";
+            Summary = $"Batch export complete: {succeeded} succeeded, {failed} failed.";
         }
     }
 

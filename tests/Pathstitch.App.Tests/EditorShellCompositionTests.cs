@@ -162,6 +162,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Select all", panel, StringComparison.Ordinal);
         Assert.Contains("SelectedItemCount", panel, StringComparison.Ordinal);
         Assert.Contains("editor.batch.export-selected-only", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.batch.export-format", panel, StringComparison.Ordinal);
     }
 
     [Fact]
