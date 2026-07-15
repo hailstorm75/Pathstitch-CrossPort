@@ -112,9 +112,22 @@ public static class Editor2DReferenceImageMetadata
             }
         }
 
+        if (data.Length >= 30
+            && data[0] == (byte)'R' && data[1] == (byte)'I' && data[2] == (byte)'F' && data[3] == (byte)'F'
+            && data[8] == (byte)'W' && data[9] == (byte)'E' && data[10] == (byte)'B' && data[11] == (byte)'P'
+            && data[12] == (byte)'V' && data[13] == (byte)'P' && data[14] == (byte)'8' && data[15] == (byte)'X')
+        {
+            width = 1 + ReadLittleEndianUInt24(data[24..27]);
+            height = 1 + ReadLittleEndianUInt24(data[27..30]);
+            return width > 0 && height > 0;
+        }
+
         return false;
     }
 
     private static int ReadBigEndianInt32(ReadOnlySpan<byte> bytes)
         => bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3];
+
+    private static int ReadLittleEndianUInt24(ReadOnlySpan<byte> bytes)
+        => bytes[0] | bytes[1] << 8 | bytes[2] << 16;
 }

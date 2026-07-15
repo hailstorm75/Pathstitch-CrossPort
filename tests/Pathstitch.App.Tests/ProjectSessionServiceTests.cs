@@ -85,6 +85,20 @@ public sealed class ProjectSessionServiceTests
     }
 
     [Fact]
+    public async Task OpenWorkspaceFilesAsync_QueuesWebpReferenceImageForTwoDWorkspace()
+    {
+        using var workspace = TestWorkspace.Create();
+        var imagePath = workspace.WriteText("reference.webp", "not decoded here");
+        var service = CreateService();
+
+        var request = await service.OpenWorkspaceFilesAsync([imagePath]);
+
+        Assert.NotNull(request);
+        Assert.Equal([Path.GetFullPath(imagePath)], request.PendingReferenceImagePaths);
+        File.Delete(request.Session.ProjectFilePath);
+    }
+
+    [Fact]
     public async Task OpenWorkspaceFilesAsync_PreservesAllTwoDDrawings()
     {
         using var workspace = TestWorkspace.Create();

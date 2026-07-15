@@ -29,6 +29,7 @@ public sealed class ProjectSessionService(
         ".jpeg",
         ".bmp",
         ".gif",
+        ".webp",
     };
 
     private static readonly ProjectTemplateDefinition[] Templates =
@@ -130,7 +131,7 @@ public sealed class ProjectSessionService(
             .ToArray();
 
         if (unsupportedFiles.Length > 0)
-            throw new InvalidOperationException("The home screen supports .stch projects, DXF/SVG drawings, PNG/JPG/BMP/GIF reference images, STEP/STP B-rep models, and OBJ/STL meshes.");
+            throw new InvalidOperationException("The home screen supports .stch projects, DXF/SVG drawings, PNG/JPG/BMP/GIF/WebP reference images, STEP/STP B-rep models, and OBJ/STL meshes.");
 
         if (projectFiles.Length > 1)
         {

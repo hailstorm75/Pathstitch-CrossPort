@@ -90,6 +90,25 @@ public sealed class ReferenceImageWorkflowTests
     }
 
     [Fact]
+    public void ImageMetadata_ReadsWebpExtendedHeaderDimensions()
+    {
+        var header = new byte[30];
+        "RIFF"u8.CopyTo(header);
+        "WEBP"u8.CopyTo(header.AsSpan(8));
+        "VP8X"u8.CopyTo(header.AsSpan(12));
+        header[24] = 127;
+        header[25] = 2;
+        header[26] = 0;
+        header[27] = 239;
+        header[28] = 1;
+        header[29] = 0;
+
+        Assert.True(Editor2DReferenceImageMetadata.TryReadPixelSize(header, out var width, out var height));
+        Assert.Equal(640, width);
+        Assert.Equal(496, height);
+    }
+
+    [Fact]
     public void ReferenceImageBackgroundRemoval_IsReversibleAndPersistsOriginal()
     {
         var remover = new RecordingReferenceImageBackgroundRemovalService("removed");
