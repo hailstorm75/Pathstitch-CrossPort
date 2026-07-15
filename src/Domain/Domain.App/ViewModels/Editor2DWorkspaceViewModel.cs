@@ -133,9 +133,60 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public IReadOnlyList<Editor2DLayer> Layers => _state.Layers ?? [];
 
+    public IReadOnlyList<Editor2DLayerFolder> Folders => _state.Folders ?? [];
+
     public string? ActiveLayerId => _state.ActiveLayerId;
 
     public Editor2DLayer? ActiveLayer => Layers.FirstOrDefault(layer => layer.Id == ActiveLayerId);
+
+    public Editor2DLayerFolder CreateFolder(string? name = null, string? parentFolderId = null)
+    {
+        var folders = Folders.ToList();
+        var parent = folders.Any(folder => folder.Id == parentFolderId) ? parentFolderId : null;
+        var folder = new Editor2DLayerFolder(
+            Guid.NewGuid().ToString("N"),
+            string.IsNullOrWhiteSpace(name) ? $"Folder {folders.Count + 1}" : name.Trim(),
+            parent);
+        Apply(_state with { Folders = folders.Append(folder).ToArray() });
+        return folder;
+    }
+
+    public bool RenameFolder(string folderId, string name)
+    {
+        var normalized = name.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+            return false;
+        var folder = Folders.FirstOrDefault(item => item.Id == folderId);
+        if (folder is null || string.Equals(folder.Name, normalized, StringComparison.Ordinal))
+            return false;
+        Apply(_state with { Folders = Folders.Select(item => item.Id == folderId ? item with { Name = normalized } : item).ToArray() });
+        return true;
+    }
+
+    public bool DeleteFolder(string folderId)
+    {
+        if (!Folders.Any(folder => folder.Id == folderId))
+            return false;
+        Apply(_state with
+        {
+            Folders = Folders.Where(folder => folder.Id != folderId)
+                .Select(folder => folder.ParentFolderId == folderId ? folder with { ParentFolderId = null } : folder).ToArray(),
+            Layers = Layers.Select(layer => layer.ParentFolderId == folderId ? layer with { ParentFolderId = null } : layer).ToArray(),
+        });
+        return true;
+    }
+
+    public bool MoveLayerToFolder(string layerId, string? folderId)
+    {
+        if (!Layers.Any(layer => layer.Id == layerId)
+            || (folderId is not null && !Folders.Any(folder => folder.Id == folderId)))
+            return false;
+        Apply(_state with
+        {
+            Layers = Layers.Select(layer => layer.Id == layerId ? layer with { ParentFolderId = folderId } : layer).ToArray(),
+        });
+        return true;
+    }
 
     public IReadOnlyList<Editor2DCornerParameter> CornerParameters => _state.CornerParameters ?? [];
 
@@ -970,7 +1021,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             ? state.SelectedMeasurementId
             : null;
 
-        var layers = NormalizeLayers(state, pathIds);
+        var folders = NormalizeFolders(state.Folders);
+        var layers = NormalizeLayers(state with { Folders = folders }, pathIds);
         var activeLayerId = layers.Any(layer => layer.Id == state.ActiveLayerId)
             ? state.ActiveLayerId
             : layers.FirstOrDefault()?.Id;
@@ -986,6 +1038,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                 .Distinct(StringComparer.Ordinal)
                 .ToArray(),
             Layers = layers,
+            Folders = folders,
             ActiveLayerId = activeLayerId,
             CornerParameters = (state.CornerParameters ?? [])
                 .Where(parameter => pathIds.Contains(parameter.PathId)
@@ -1064,6 +1117,9 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                     ? []
                     : layer.PathIds.Where(documentPathIds.Contains).Distinct(StringComparer.Ordinal).ToArray(),
                 ReferenceImage = NormalizeReferenceImage(layer.ReferenceImage),
+                ParentFolderId = state.Folders?.Any(folder => folder.Id == layer.ParentFolderId) == true
+                    ? layer.ParentFolderId
+                    : null,
                 Order = order,
             })
             .Where(layer => layer.Kind != Editor2DLayerKind.ReferenceImage || layer.ReferenceImage is not null)
@@ -1092,6 +1148,35 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         }
 
         return layers;
+    }
+
+    private static IReadOnlyList<Editor2DLayerFolder> NormalizeFolders(IReadOnlyList<Editor2DLayerFolder>? source)
+    {
+        var folders = (source ?? [])
+            .Where(folder => !string.IsNullOrWhiteSpace(folder.Id))
+            .DistinctBy(folder => folder.Id, StringComparer.Ordinal)
+            .Select((folder, index) => folder with
+            {
+                Name = string.IsNullOrWhiteSpace(folder.Name) ? $"Folder {index + 1}" : folder.Name.Trim(),
+            })
+            .ToDictionary(folder => folder.Id, StringComparer.Ordinal);
+        foreach (var folder in folders.Values.ToArray())
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal) { folder.Id };
+            var parent = folder.ParentFolderId;
+            while (parent is not null && folders.TryGetValue(parent, out var parentFolder))
+            {
+                if (!seen.Add(parent))
+                {
+                    folders[folder.Id] = folder with { ParentFolderId = null };
+                    break;
+                }
+                parent = parentFolder.ParentFolderId;
+            }
+            if (parent is not null && !folders.ContainsKey(parent))
+                folders[folder.Id] = folders[folder.Id] with { ParentFolderId = null };
+        }
+        return folders.Values.ToArray();
     }
 
     private static Editor2DReferenceImage? NormalizeReferenceImage(Editor2DReferenceImage? image)
@@ -1192,6 +1277,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(Measurements));
         OnPropertyChanged(nameof(SelectedMeasurementId));
         OnPropertyChanged(nameof(Layers));
+        OnPropertyChanged(nameof(Folders));
         OnPropertyChanged(nameof(ActiveLayerId));
         OnPropertyChanged(nameof(ActiveLayer));
         OnPropertyChanged(nameof(CornerParameters));

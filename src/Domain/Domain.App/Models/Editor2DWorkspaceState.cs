@@ -25,7 +25,8 @@ public sealed record Editor2DWorkspaceState(
     [property: JsonPropertyName("sewingHoleOperations")] IReadOnlyList<Editor2DSewingHoleOperation>? SewingHoleOperations = null,
     [property: JsonPropertyName("snapEnabled")] bool SnapEnabled = true,
     [property: JsonPropertyName("gridVisible")] bool GridVisible = true,
-    [property: JsonPropertyName("chainSelectionEnabled")] bool ChainSelectionEnabled = false)
+    [property: JsonPropertyName("chainSelectionEnabled")] bool ChainSelectionEnabled = false,
+    [property: JsonPropertyName("folders")] IReadOnlyList<Editor2DLayerFolder>? Folders = null)
 {
     public static Editor2DWorkspaceState Empty { get; } = new(
         new Editor2DPreviewDocument(

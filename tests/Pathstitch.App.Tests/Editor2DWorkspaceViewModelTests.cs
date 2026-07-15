@@ -463,6 +463,36 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void Folders_CreateMoveDeleteAndDetachChildren()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var layer = workspace.CreateLayer("Sketch");
+        var parent = workspace.CreateFolder("Production");
+        var child = workspace.CreateFolder("Cut", parent.Id);
+
+        Assert.True(workspace.MoveLayerToFolder(layer.Id, child.Id));
+        Assert.Equal(child.Id, workspace.Layers.Single(item => item.Id == layer.Id).ParentFolderId);
+        Assert.True(workspace.DeleteFolder(parent.Id));
+        Assert.Single(workspace.Folders);
+        Assert.Equal(child.Id, workspace.Layers.Single(item => item.Id == layer.Id).ParentFolderId);
+        Assert.True(workspace.DeleteFolder(child.Id));
+        Assert.Empty(workspace.Folders);
+        Assert.Null(workspace.Layers.Single(item => item.Id == layer.Id).ParentFolderId);
+        Assert.True(workspace.CanUndo);
+    }
+
+    [Fact]
+    public void Folders_NormalizeInvalidParentAndCycleToRoot()
+    {
+        var first = new Editor2DLayerFolder("first", "First", "second");
+        var second = new Editor2DLayerFolder("second", "Second", "first");
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.Apply(Editor2DWorkspaceState.Empty with { Folders = [first, second] });
+
+        Assert.All(workspace.Folders, folder => Assert.NotEqual(folder.Id, folder.ParentFolderId));
+    }
+
+    [Fact]
     public void Layers_DeleteGeometryLayer_ReassignsPathsAndKeepsOneGeometryLayer()
     {
         var workspace = new Editor2DWorkspaceViewModel();

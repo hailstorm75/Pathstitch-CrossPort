@@ -35,7 +35,8 @@ public sealed record Editor2DLayer(
     [property: JsonPropertyName("order")] int Order = 0,
     [property: JsonPropertyName("kind")] Editor2DLayerKind Kind = Editor2DLayerKind.Geometry,
     [property: JsonPropertyName("referenceImage")] Editor2DReferenceImage? ReferenceImage = null,
-    [property: JsonPropertyName("colorHex")] string ColorHex = "#4D7FFF")
+    [property: JsonPropertyName("colorHex")] string ColorHex = "#4D7FFF",
+    [property: JsonPropertyName("parentFolderId")] string? ParentFolderId = null)
 {
     public bool IsReferenceImage => Kind == Editor2DLayerKind.ReferenceImage && ReferenceImage is not null;
 
@@ -43,6 +44,11 @@ public sealed record Editor2DLayer(
         ? ReferenceImage!.SizeSummary
         : $"{PathIds.Count} entities";
 }
+
+public sealed record Editor2DLayerFolder(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("parentFolderId")] string? ParentFolderId = null);
 
 public static class Editor2DReferenceImageMetadata
 {
