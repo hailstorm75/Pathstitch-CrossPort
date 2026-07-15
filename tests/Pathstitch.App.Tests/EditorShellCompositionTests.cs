@@ -225,6 +225,8 @@ public sealed class EditorShellCompositionTests
 
         Assert.Contains("Content=\"Merge ↓\"", layers, StringComparison.Ordinal);
         Assert.Contains("OnMergeLayerWithBelowClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("Merge selected", layers, StringComparison.Ordinal);
+        Assert.Contains("OnMergeSelectedLayersClicked", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]

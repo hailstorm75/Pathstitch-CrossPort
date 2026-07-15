@@ -26,6 +26,12 @@
           Click="OnCreateLayerClicked" />
         <Button
           DockPanel.Dock="Right"
+          Margin="0,0,6,0"
+          Padding="8,2"
+          Content="Merge selected"
+          Click="OnMergeSelectedLayersClicked" />
+        <Button
+          DockPanel.Dock="Right"
           AutomationProperties.AutomationId="editor.layers.import-reference"
           Margin="0,0,6,0"
           Padding="8,2"

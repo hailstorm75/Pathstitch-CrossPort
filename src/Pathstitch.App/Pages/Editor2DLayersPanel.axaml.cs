@@ -11,6 +11,8 @@ public partial class Editor2DLayersPanel : UserControl
 
     private void OnCreateLayerClicked(object? sender, RoutedEventArgs e) => ViewModel?.CreateTwoDLayer();
 
+    private void OnMergeSelectedLayersClicked(object? sender, RoutedEventArgs e) => ViewModel?.MergeTwoDSelectedLayers();
+
     private async void OnImportReferenceImageClicked(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is not null)
