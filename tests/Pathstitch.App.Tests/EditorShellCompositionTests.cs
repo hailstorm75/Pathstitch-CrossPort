@@ -158,6 +158,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("editor.batch.export-dxf", panel, StringComparison.Ordinal);
         Assert.Contains("OutputDirectory", panel, StringComparison.Ordinal);
         Assert.Contains("editor.batch.apply-offset", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.batch.apply-sewing-holes", panel, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -255,6 +255,64 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         }
     }
 
+    public async Task ApplySewingHolesAsync(
+        IEditorOutputPreviewService outputPreviewService,
+        Editor2DSewingHoleParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsRunning)
+            return;
+
+        IsRunning = true;
+        var succeeded = 0;
+        var failed = 0;
+        try
+        {
+            foreach (var item in Items.Where(item => Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                item.Status = EditorBatchItemStatus.Running;
+                item.Message = "Applying sewing holes";
+                try
+                {
+                    var source = item.Document
+                        ?? await outputPreviewService.LoadPreviewDocumentAsync(item.FilePath, cancellationToken).ConfigureAwait(false)
+                        ?? throw new InvalidDataException("DXF preview could not be loaded.");
+                    var holes = Editor2DSewingHoleGeometry.BuildPreview(
+                        source,
+                        source.Paths.Select(path => path.Id).ToArray(),
+                        parameters,
+                        $"batch-{Guid.NewGuid():N}");
+                    if (holes.Count == 0)
+                        throw new InvalidDataException("No sewing-hole placements were generated.");
+
+                    var paths = source.Paths.Concat(holes).ToArray();
+                    item.Document = source with
+                    {
+                        Paths = paths,
+                        EntityCounts = CountEntities(paths),
+                    };
+                    item.Status = EditorBatchItemStatus.Succeeded;
+                    item.Message = $"{holes.Count} sewing holes applied";
+                    succeeded++;
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    item.Status = EditorBatchItemStatus.Failed;
+                    item.Message = exception.Message;
+                    failed++;
+                    if (!ContinueOnError)
+                        break;
+                }
+            }
+        }
+        finally
+        {
+            IsRunning = false;
+            Summary = $"Batch sewing holes complete: {succeeded} succeeded, {failed} failed.";
+        }
+    }
+
     private static IReadOnlyDictionary<string, int> CountEntities(IReadOnlyList<Editor2DPreviewPath> paths)
         => paths.GroupBy(path => path.EntityType, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);

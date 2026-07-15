@@ -65,6 +65,27 @@
         Content="Apply offset to DXFs"
         IsEnabled="{Binding CanExport}"
         Click="OnApplyOffsetClicked" />
+      <TextBox
+        x:Name="SewingDiameterText"
+        AutomationProperties.AutomationId="editor.batch.sewing-diameter"
+        PlaceholderText="Hole diameter"
+        Text="1" />
+      <TextBox
+        x:Name="SewingPitchText"
+        AutomationProperties.AutomationId="editor.batch.sewing-pitch"
+        PlaceholderText="Hole pitch"
+        Text="4" />
+      <TextBox
+        x:Name="SewingMarginText"
+        AutomationProperties.AutomationId="editor.batch.sewing-margin"
+        PlaceholderText="Hole margin"
+        Text="2" />
+      <Button
+        AutomationProperties.AutomationId="editor.batch.apply-sewing-holes"
+        Classes="panel-button"
+        Content="Apply sewing holes to DXFs"
+        IsEnabled="{Binding CanExport}"
+        Click="OnApplySewingHolesClicked" />
     </StackPanel>
   </Border>
 </UserControl>

@@ -128,6 +128,30 @@ public sealed class EditorBatchWorkspaceViewModelTests
         }
     }
 
+    [Fact]
+    public async Task ApplySewingHolesAsync_AppendsGeneratedCircles()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchSewing", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var input = Path.Combine(directory, "drawing.dxf");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n8\n0\n90\n4\n70\n1\n10\n0\n20\n0\n10\n20\n20\n0\n10\n20\n20\n10\n10\n0\n20\n10\n0\nENDSEC\n0\nEOF\n");
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel();
+            Assert.True(workspace.AddFile(input));
+            await workspace.ApplySewingHolesAsync(
+                new DxfOutputPreviewService(),
+                new Editor2DSewingHoleParameters(Diameter: 1, Pitch: 5, Margin: 1));
+            Assert.Equal(EditorBatchItemStatus.Succeeded, workspace.Items[0].Status);
+            Assert.Contains(workspace.Items[0].Document!.Paths, path => path.EntityType == "CIRCLE");
+            Assert.Contains("sewing holes applied", workspace.Items[0].Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private sealed class StubOffsetGeometryKernel : IEditor2DGeometryKernelService
     {
         public Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(
