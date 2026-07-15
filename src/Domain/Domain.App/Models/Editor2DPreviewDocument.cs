@@ -29,6 +29,11 @@ public enum Editor2DTool
 
 public sealed record Editor2DPoint(double X, double Y);
 
+public sealed record Editor2DBezierAnchor(
+    Editor2DPoint Point,
+    Editor2DPoint? HandleIn = null,
+    Editor2DPoint? HandleOut = null);
+
 public sealed record Editor2DPreviewPath(
     string Id,
     string EntityType,
@@ -48,7 +53,8 @@ public sealed record Editor2DPreviewPath(
     double CharacterSpacing = 0.0,
     bool IsBold = false,
     bool IsItalic = false,
-    bool IsUnderline = false);
+    bool IsUnderline = false,
+    IReadOnlyList<Editor2DBezierAnchor>? BezierAnchors = null);
 
 public sealed record Editor2DMeasurement(
     string Id,

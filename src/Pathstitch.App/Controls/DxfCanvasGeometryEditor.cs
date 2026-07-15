@@ -46,11 +46,13 @@ internal static class DxfCanvasGeometryEditor
         double deltaY)
     {
         var selected = selectedIds.ToHashSet(StringComparer.Ordinal);
+        Editor2DPoint Transform(Editor2DPoint point) => new(point.X + deltaX, point.Y + deltaY);
         return Update(document, document.Paths.Select(path => !selected.Contains(path.Id) ? path : path with
         {
-            Start = path.Start is { } start ? new(start.X + deltaX, start.Y + deltaY) : null,
-            Center = path.Center is { } center ? new(center.X + deltaX, center.Y + deltaY) : null,
-            Points = path.Points.Select(point => new Editor2DPoint(point.X + deltaX, point.Y + deltaY)).ToArray(),
+            Start = path.Start is { } start ? Transform(start) : null,
+            Center = path.Center is { } center ? Transform(center) : null,
+            Points = path.Points.Select(Transform).ToArray(),
+            BezierAnchors = TransformBezierAnchors(path.BezierAnchors, Transform),
         }).ToArray());
     }
 
@@ -62,13 +64,15 @@ internal static class DxfCanvasGeometryEditor
     {
         var selected = selectedIds.ToHashSet(StringComparer.Ordinal);
         var normalized = Math.Max(factor, 0.05);
+        Editor2DPoint Transform(Editor2DPoint point) => ScalePoint(point, center, normalized);
         return Update(document, document.Paths.Select(path => !selected.Contains(path.Id) ? path : path with
         {
             Start = path.Start is { } start ? ScalePoint(start, center, normalized) : null,
             Center = path.Center is { } pathCenter ? ScalePoint(pathCenter, center, normalized) : null,
             Radius = path.Radius is { } radius ? radius * normalized : null,
             TextHeight = path.TextHeight is { } textHeight ? textHeight * normalized : null,
-            Points = path.Points.Select(point => ScalePoint(point, center, normalized)).ToArray(),
+            Points = path.Points.Select(Transform).ToArray(),
+            BezierAnchors = TransformBezierAnchors(path.BezierAnchors, Transform),
         }).ToArray());
     }
 
@@ -102,4 +106,9 @@ internal static class DxfCanvasGeometryEditor
         => new(
             center.X + ((point.X - center.X) * factor),
             center.Y + ((point.Y - center.Y) * factor));
+
+    private static IReadOnlyList<Editor2DBezierAnchor>? TransformBezierAnchors(
+        IReadOnlyList<Editor2DBezierAnchor>? anchors,
+        Func<Editor2DPoint, Editor2DPoint> transform)
+        => anchors?.Select(anchor => Editor2DBezierGeometry.Transform(anchor, transform)).ToArray();
 }

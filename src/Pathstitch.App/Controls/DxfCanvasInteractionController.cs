@@ -14,10 +14,10 @@ internal enum DxfCanvasPressRoute
 internal enum DxfCanvasMoveRoute
 {
     Pan, MoveSelection, ScaleSelection, EditVertex, LineDraft, RectangleDraft, CircleDraft,
-    PolygonDraft, TextDraft, PenDraft, MirrorDraft, MeasurementDraft, DimensionDraft,
+    PolygonDraft, TextDraft, PenHandleDrag, PenDraft, MirrorDraft, MeasurementDraft, DimensionDraft,
     ToolPreview, Marquee, Hover,
 }
-internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, EditVertex, Selection, None }
+internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, EditVertex, PenHandleDrag, Selection, None }
 internal enum DxfPenCompletion { Open, Closed }
 
 internal static class DxfCanvasPenInteraction
@@ -123,7 +123,8 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (tool == Editor2DTool.SketchCircle && session.PendingCircleCenter is not null) return DxfCanvasMoveRoute.CircleDraft;
         if (tool == Editor2DTool.SketchPolygon && session.PendingPolygonCenter is not null) return DxfCanvasMoveRoute.PolygonDraft;
         if (tool == Editor2DTool.SketchText && session.PendingTextStart is not null) return DxfCanvasMoveRoute.TextDraft;
-        if (tool == Editor2DTool.Pen && session.PendingPenPoints.Count > 0) return DxfCanvasMoveRoute.PenDraft;
+        if (tool == Editor2DTool.Pen && capturedByCanvas && session.PendingPenDragAnchorIndex is not null) return DxfCanvasMoveRoute.PenHandleDrag;
+        if (tool == Editor2DTool.Pen && session.PendingPenAnchors.Count > 0) return DxfCanvasMoveRoute.PenDraft;
         if (tool == Editor2DTool.Mirror && session.PendingMirrorAxisStart is not null) return DxfCanvasMoveRoute.MirrorDraft;
         if (tool == Editor2DTool.Measure && session.PendingMeasurementStart is not null) return DxfCanvasMoveRoute.MeasurementDraft;
         if (tool == Editor2DTool.Dimension && session.PendingDimensionStart is not null) return DxfCanvasMoveRoute.DimensionDraft;
@@ -143,6 +144,7 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (session.IsMovingSelection) return DxfCanvasReleaseRoute.MoveSelection;
         if (session.IsScalingSelection) return DxfCanvasReleaseRoute.ScaleSelection;
         if (session.IsEditingVertex) return DxfCanvasReleaseRoute.EditVertex;
+        if (capturedByCanvas && tool == Editor2DTool.Pen && session.PendingPenDragAnchorIndex is not null) return DxfCanvasReleaseRoute.PenHandleDrag;
         return capturedByCanvas && RoutePrimaryPress(tool) == DxfCanvasPressRoute.Selection
             ? DxfCanvasReleaseRoute.Selection : DxfCanvasReleaseRoute.None;
     }

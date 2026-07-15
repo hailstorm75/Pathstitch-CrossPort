@@ -499,7 +499,9 @@ public static class Editor2DGeometry
     }
 
     public static Editor2DPreviewPath TranslatePath(Editor2DPreviewPath path, double deltaX, double deltaY, string? id = null)
-        => path with
+    {
+        Editor2DPoint Transform(Editor2DPoint point) => new(point.X + deltaX, point.Y + deltaY);
+        return path with
         {
             Id = id ?? path.Id,
             Start = path.Start is Editor2DPoint start
@@ -509,9 +511,11 @@ public static class Editor2DGeometry
                 ? new Editor2DPoint(center.X + deltaX, center.Y + deltaY)
                 : null,
             Points = path.Points
-                .Select(point => new Editor2DPoint(point.X + deltaX, point.Y + deltaY))
+                .Select(Transform)
                 .ToArray(),
+            BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(anchor, Transform)).ToArray(),
         };
+    }
 
     public static Editor2DPreviewPath RotatePath(Editor2DPreviewPath path, Editor2DPoint pivot, double angleDegrees, string? id = null)
     {
@@ -545,6 +549,8 @@ public static class Editor2DGeometry
             StartAngleDegrees = rotatedStartAngle,
             EndAngleDegrees = rotatedEndAngle,
             Points = rotatedPoints,
+            BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(
+                anchor, point => RotatePoint(point, pivot, angleDegrees))).ToArray(),
             IsAxisAlignedRectangle = IsAxisAlignedRectangle(rotatedPoints, path.IsClosed),
         };
     }

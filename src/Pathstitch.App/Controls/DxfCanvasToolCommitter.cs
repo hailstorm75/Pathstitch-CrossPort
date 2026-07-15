@@ -56,9 +56,14 @@ internal sealed class DxfCanvasToolCommitter(Func<string> idFactory)
             Start: insertion, Text: value, TextHeight: height, RotationDegrees: 0, WidthFactor: widthFactor));
     }
 
-    public Editor2DPreviewDocument? Pen(Editor2DPreviewDocument? document, IReadOnlyList<Editor2DPoint> points, bool closed)
-        => points.Count < 2 ? null : Append(document, new($"pen-{idFactory()}", "LWPOLYLINE", points.ToArray(), closed,
-            Editor2DGeometry.IsAxisAlignedRectangle(points, closed)));
+    public Editor2DPreviewDocument? Pen(Editor2DPreviewDocument? document, IReadOnlyList<Editor2DBezierAnchor> anchors, bool closed)
+    {
+        if (anchors.Count < 2)
+            return null;
+        var points = Editor2DBezierGeometry.Flatten(anchors, closed);
+        return Append(document, new($"pen-{idFactory()}", "LWPOLYLINE", points, closed,
+            Editor2DGeometry.IsAxisAlignedRectangle(points, closed), BezierAnchors: anchors.ToArray()));
+    }
 
     private static Editor2DPreviewDocument? Append(Editor2DPreviewDocument? document, Editor2DPreviewPath? path)
     {

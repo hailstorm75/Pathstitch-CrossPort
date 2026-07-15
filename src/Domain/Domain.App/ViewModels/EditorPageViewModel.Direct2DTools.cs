@@ -78,6 +78,7 @@ public sealed partial class EditorPageViewModel
             Points = path.Points.Select(transform).ToArray(),
             Start = path.Start is null ? null : transform(path.Start),
             Center = path.Center is null ? null : transform(path.Center),
+            BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(anchor, transform)).ToArray(),
             RotationDegrees = horizontalFlip switch
             {
                 true when path.RotationDegrees is { } rotation => 180.0 - rotation,

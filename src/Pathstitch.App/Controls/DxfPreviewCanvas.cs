@@ -171,8 +171,9 @@ public sealed class DxfPreviewCanvas : Control
     private ref Editor2DPoint? _pendingPolygonEdge => ref _interaction.PendingPolygonEdge;
     private ref Editor2DPoint? _pendingTextStart => ref _interaction.PendingTextStart;
     private ref Editor2DPoint? _pendingTextEnd => ref _interaction.PendingTextEnd;
-    private ref IReadOnlyList<Editor2DPoint> _pendingPenPoints => ref _interaction.PendingPenPoints;
+    private ref IReadOnlyList<Editor2DBezierAnchor> _pendingPenAnchors => ref _interaction.PendingPenAnchors;
     private ref Editor2DPoint? _pendingPenHoverPoint => ref _interaction.PendingPenHoverPoint;
+    private ref int? _pendingPenDragAnchorIndex => ref _interaction.PendingPenDragAnchorIndex;
     private ref Editor2DPoint? _pendingMirrorAxisStart => ref _interaction.PendingMirrorAxisStart;
     private ref Editor2DPoint? _pendingMirrorAxisEnd => ref _interaction.PendingMirrorAxisEnd;
     private ref Editor2DPoint? _pendingMeasurementStart => ref _interaction.PendingMeasurementStart;
@@ -639,7 +640,7 @@ public sealed class DxfPreviewCanvas : Control
                 case DxfCanvasPressRoute.SketchCircle: HandleSketchCircleClick(point.Position); break;
                 case DxfCanvasPressRoute.SketchPolygon: HandleSketchPolygonClick(point.Position); break;
                 case DxfCanvasPressRoute.SketchText: HandleSketchTextClick(point.Position); break;
-                case DxfCanvasPressRoute.Pen: HandlePenClick(point.Position); break;
+                case DxfCanvasPressRoute.Pen: HandlePenPress(point.Position, e.Pointer); break;
             }
             e.Handled = pressRoute is not DxfCanvasPressRoute.None;
             return;
@@ -687,7 +688,8 @@ public sealed class DxfPreviewCanvas : Control
             case DxfCanvasMoveRoute.CircleDraft: _pendingCircleEdge = ResolvePlacementPoint(position); break;
             case DxfCanvasMoveRoute.PolygonDraft: _pendingPolygonEdge = ResolvePlacementPoint(position); break;
             case DxfCanvasMoveRoute.TextDraft: _pendingTextEnd = ResolvePlacementPoint(position); break;
-            case DxfCanvasMoveRoute.PenDraft: _pendingPenHoverPoint = ResolvePlacementPoint(position, _pendingPenPoints.LastOrDefault(), allowOrthogonal: _pendingPenPoints.Count > 0); break;
+            case DxfCanvasMoveRoute.PenHandleDrag: UpdatePendingPenHandle(position); e.Handled = true; break;
+            case DxfCanvasMoveRoute.PenDraft: _pendingPenHoverPoint = ResolvePlacementPoint(position, _pendingPenAnchors.LastOrDefault()?.Point, allowOrthogonal: _pendingPenAnchors.Count > 0); break;
             case DxfCanvasMoveRoute.MirrorDraft: _pendingMirrorAxisEnd = ResolvePlacementPoint(position); break;
             case DxfCanvasMoveRoute.MeasurementDraft: _pendingMeasurementEnd = ResolvePlacementPoint(position, _pendingMeasurementStart, allowOrthogonal: true); break;
             case DxfCanvasMoveRoute.DimensionDraft: _pendingDimensionEnd = ResolvePlacementPoint(position, _pendingDimensionStart, allowOrthogonal: true); break;
@@ -733,6 +735,8 @@ Hover:
                 _isScalingSelection = false; _scaleDocumentSnapshot = null; _scaleSelectionIds = Array.Empty<string>(); _scaleCenterPoint = null; _scaleStartDistance = 0; _scalePreviewFactor = 1; break;
             case DxfCanvasReleaseRoute.EditVertex:
                 _isEditingVertex = false; _editingVertexPathId = null; _editingVertexIndex = 0; _editingVertexIsConstrainedRectangle = false; break;
+            case DxfCanvasReleaseRoute.PenHandleDrag:
+                _pendingPenDragAnchorIndex = null; break;
             case DxfCanvasReleaseRoute.None: return;
             case DxfCanvasReleaseRoute.Selection: goto Selection;
         }
@@ -1225,30 +1229,47 @@ Selection:
 
     private void DrawLivePenPath(DrawingContext context, Size size)
     {
-        if (_pendingPenPoints.Count == 0)
+        if (_pendingPenAnchors.Count == 0)
             return;
 
+        var previewAnchors = _pendingPenAnchors;
+        if (_pendingPenHoverPoint is Editor2DPoint hoverPoint
+            && DistanceBetween(previewAnchors[^1].Point, hoverPoint) > 1e-7)
+            previewAnchors = [.. previewAnchors, new Editor2DBezierAnchor(hoverPoint)];
+        var previewPoints = previewAnchors.Count >= 2
+            ? Editor2DBezierGeometry.Flatten(previewAnchors, closed: false)
+            : [previewAnchors[0].Point];
         var geometry = new StreamGeometry();
         using (var geometryContext = geometry.Open())
         {
-            geometryContext.BeginFigure(WorldToScreen(_pendingPenPoints[0], size), false);
-            for (var pointIndex = 1; pointIndex < _pendingPenPoints.Count; pointIndex++)
-                geometryContext.LineTo(WorldToScreen(_pendingPenPoints[pointIndex], size));
-
-            if (_pendingPenHoverPoint is Editor2DPoint hoverPoint)
-                geometryContext.LineTo(WorldToScreen(hoverPoint, size));
+            geometryContext.BeginFigure(WorldToScreen(previewPoints[0], size), false);
+            for (var pointIndex = 1; pointIndex < previewPoints.Count; pointIndex++)
+                geometryContext.LineTo(WorldToScreen(previewPoints[pointIndex], size));
         }
 
         context.DrawGeometry(null, HoverPathPen, geometry);
-        for (var pointIndex = 0; pointIndex < _pendingPenPoints.Count; pointIndex++)
+        for (var pointIndex = 0; pointIndex < _pendingPenAnchors.Count; pointIndex++)
         {
-            var point = _pendingPenPoints[pointIndex];
+            var anchor = _pendingPenAnchors[pointIndex];
+            var point = anchor.Point;
             var screenPoint = WorldToScreen(point, size);
-            var isTerminalAnchor = _pendingPenPoints.Count >= 2
-                && (pointIndex == 0 || pointIndex == _pendingPenPoints.Count - 1);
+            if (anchor.HandleIn is Editor2DPoint handleIn)
+            {
+                var handleScreen = WorldToScreen(handleIn, size);
+                context.DrawLine(LiveMeasurementPen, screenPoint, handleScreen);
+                context.DrawEllipse(LiveMeasurementPointBrush, null, handleScreen, 3.0, 3.0);
+            }
+            if (anchor.HandleOut is Editor2DPoint handleOut)
+            {
+                var handleScreen = WorldToScreen(handleOut, size);
+                context.DrawLine(LiveMeasurementPen, screenPoint, handleScreen);
+                context.DrawEllipse(LiveMeasurementPointBrush, null, handleScreen, 3.0, 3.0);
+            }
+            var isTerminalAnchor = _pendingPenAnchors.Count >= 2
+                && (pointIndex == 0 || pointIndex == _pendingPenAnchors.Count - 1);
             var radius = isTerminalAnchor ? 4.0 : 3.0;
             context.DrawEllipse(
-                pointIndex == 0 && _pendingPenPoints.Count >= 2 ? EditableVertexHandleFillBrush : LiveMeasurementPointBrush,
+                pointIndex == 0 && _pendingPenAnchors.Count >= 2 ? EditableVertexHandleFillBrush : LiveMeasurementPointBrush,
                 null,
                 screenPoint,
                 radius,
@@ -2309,10 +2330,10 @@ Selection:
         InvalidateVisual();
     }
 
-    private void HandlePenClick(Point screenPoint)
+    private void HandlePenPress(Point screenPoint, IPointer pointer)
     {
         var completion = DxfCanvasPenInteraction.GetCompletionForClick(
-            _pendingPenPoints,
+            _pendingPenAnchors.Select(static anchor => anchor.Point).ToArray(),
             screenPoint,
             point => WorldToScreen(point, Bounds.Size),
             PenCloseHitTolerance);
@@ -2324,15 +2345,31 @@ Selection:
 
         var worldPoint = ResolvePlacementPoint(
             screenPoint,
-            _pendingPenPoints.LastOrDefault(),
-            allowOrthogonal: _pendingPenPoints.Count > 0);
+            _pendingPenAnchors.LastOrDefault()?.Point,
+            allowOrthogonal: _pendingPenAnchors.Count > 0);
 
-        if (_pendingPenPoints.Count > 0 && DistanceBetween(_pendingPenPoints[^1], worldPoint) <= 1e-6)
+        if (_pendingPenAnchors.Count > 0 && DistanceBetween(_pendingPenAnchors[^1].Point, worldPoint) <= 1e-6)
             return;
 
-        _pendingPenPoints = _pendingPenPoints.Append(worldPoint).ToArray();
+        _pendingPenAnchors = [.. _pendingPenAnchors, new Editor2DBezierAnchor(worldPoint)];
+        _pendingPenDragAnchorIndex = _pendingPenAnchors.Count - 1;
         _pendingPenHoverPoint = worldPoint;
+        pointer.Capture(this);
         InvalidateVisual();
+    }
+
+    private void UpdatePendingPenHandle(Point screenPoint)
+    {
+        if (_pendingPenDragAnchorIndex is not int index || index < 0 || index >= _pendingPenAnchors.Count)
+            return;
+        var screenDelta = screenPoint - _pointerPressPosition;
+        if (Math.Abs(screenDelta.X) <= PointerDragThreshold && Math.Abs(screenDelta.Y) <= PointerDragThreshold)
+            return;
+        var handleOut = ScreenToWorld(screenPoint, Zoom);
+        var anchors = _pendingPenAnchors.ToArray();
+        anchors[index] = Editor2DBezierGeometry.CreateSmoothAnchor(anchors[index].Point, handleOut);
+        _pendingPenAnchors = anchors;
+        _pendingPenHoverPoint = anchors[^1].Point;
     }
 
     private void HandleMirrorClick(Point screenPoint, KeyModifiers keyModifiers)
@@ -2564,20 +2601,20 @@ Selection:
     private Editor2DPreviewDocument? AddTextToDocument(Editor2DPoint startPoint, Editor2DPoint endPoint)
         => _toolCommitter.Text(Document, startPoint, endPoint, DefaultTextValue);
 
-    private Editor2DPreviewDocument? AddPenPathToDocument(IReadOnlyList<Editor2DPoint> points, bool isClosed)
-        => _toolCommitter.Pen(Document, points, isClosed);
+    private Editor2DPreviewDocument? AddPenPathToDocument(IReadOnlyList<Editor2DBezierAnchor> anchors, bool isClosed)
+        => _toolCommitter.Pen(Document, anchors, isClosed);
 
     private void CommitPendingPenPath(bool isClosed)
     {
-        if (_pendingPenPoints.Count < 2)
+        if (_pendingPenAnchors.Count < 2)
         {
             CancelPendingPen();
             InvalidateVisual();
             return;
         }
 
-        var resolvedClosed = isClosed && _pendingPenPoints.Count >= 3;
-        var nextDocument = AddPenPathToDocument(_pendingPenPoints, resolvedClosed);
+        var resolvedClosed = isClosed && _pendingPenAnchors.Count >= 3;
+        var nextDocument = AddPenPathToDocument(_pendingPenAnchors, resolvedClosed);
         if (nextDocument is not null)
         {
             SetCurrentValue(DocumentProperty, nextDocument);
@@ -3072,8 +3109,9 @@ Selection:
 
     private void CancelPendingPen()
     {
-        _pendingPenPoints = Array.Empty<Editor2DPoint>();
+        _pendingPenAnchors = Array.Empty<Editor2DBezierAnchor>();
         _pendingPenHoverPoint = null;
+        _pendingPenDragAnchorIndex = null;
     }
 
     private void CancelPendingMirror()
@@ -3315,6 +3353,8 @@ Selection:
                     StartAngleDegrees = mirroredStartAngle,
                     EndAngleDegrees = mirroredEndAngle,
                     Points = mirroredPoints,
+                    BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(
+                        anchor, point => ReflectPoint(point, axisStart, axisEnd))).ToArray(),
                     IsAxisAlignedRectangle = Editor2DGeometry.IsAxisAlignedRectangle(mirroredPoints, path.IsClosed),
                 };
             })

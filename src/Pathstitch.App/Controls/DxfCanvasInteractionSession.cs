@@ -43,8 +43,9 @@ internal sealed class DxfCanvasInteractionSession
     internal Editor2DPoint? PendingPolygonEdge;
     internal Editor2DPoint? PendingTextStart;
     internal Editor2DPoint? PendingTextEnd;
-    internal IReadOnlyList<Editor2DPoint> PendingPenPoints = Array.Empty<Editor2DPoint>();
+    internal IReadOnlyList<Editor2DBezierAnchor> PendingPenAnchors = Array.Empty<Editor2DBezierAnchor>();
     internal Editor2DPoint? PendingPenHoverPoint;
+    internal int? PendingPenDragAnchorIndex;
     internal Editor2DPoint? PendingMirrorAxisStart;
     internal Editor2DPoint? PendingMirrorAxisEnd;
     internal Editor2DPoint? PendingMeasurementStart;
@@ -90,8 +91,9 @@ internal sealed class DxfCanvasInteractionSession
         PendingPolygonEdge = null;
         PendingTextStart = null;
         PendingTextEnd = null;
-        PendingPenPoints = Array.Empty<Editor2DPoint>();
+        PendingPenAnchors = Array.Empty<Editor2DBezierAnchor>();
         PendingPenHoverPoint = null;
+        PendingPenDragAnchorIndex = null;
         PendingMirrorAxisStart = null;
         PendingMirrorAxisEnd = null;
         PendingMeasurementStart = null;
