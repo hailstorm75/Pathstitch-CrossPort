@@ -350,6 +350,10 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("GlobalSeamDecorationIndex", unfold, StringComparison.Ordinal);
         Assert.Contains("AnchorFaceSummary", unfold, StringComparison.Ordinal);
         Assert.Contains("SelectedSeamDecoration", unfold, StringComparison.Ordinal);
+        Assert.Contains("NetLayoutIndex", unfold, StringComparison.Ordinal);
+        Assert.Contains("Connected Net", unfold, StringComparison.Ordinal);
+        Assert.Contains("UnrollModeIndex", unfold, StringComparison.Ordinal);
+        Assert.Contains("Spanning Tree", unfold, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -101,6 +101,42 @@ public sealed partial class EditorPageViewModel
 
     public string UnfoldConfigurationSummary => $"3D geometry pieces / {GetDistortionModeLabel()}";
 
+    public int NetLayoutIndex
+    {
+        get => _threeDWorkspace.NetLayoutIndex;
+        set
+        {
+            if (!SetWorkspaceFacadeValue(_threeDWorkspace.NetLayoutIndex, Math.Clamp(value, 0, 1), updated => _threeDWorkspace.SetNetLayoutIndex(updated)))
+                return;
+            OnPropertyChanged(nameof(NetLayoutLabel));
+            Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+            if (LiveRecomputeEnabled)
+                RequestLiveRecompute(TimeSpan.FromMilliseconds(150));
+        }
+    }
+
+    public int UnrollModeIndex
+    {
+        get => _threeDWorkspace.UnrollModeIndex;
+        set
+        {
+            if (!SetWorkspaceFacadeValue(_threeDWorkspace.UnrollModeIndex, Math.Clamp(value, 0, 2), updated => _threeDWorkspace.SetUnrollModeIndex(updated)))
+                return;
+            OnPropertyChanged(nameof(UnrollModeLabel));
+            Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+            if (LiveRecomputeEnabled)
+                RequestLiveRecompute(TimeSpan.FromMilliseconds(150));
+        }
+    }
+
+    public string NetLayoutLabel => NetLayoutIndex == 0 ? "Connected Net" : "Separate Pieces";
+    public string UnrollModeLabel => UnrollModeIndex switch
+    {
+        1 => "Strip",
+        2 => "Spanning Tree",
+        _ => "Radial",
+    };
+
     public int SeamControlModeIndex
     {
         get => _threeDWorkspace.SeamControlModeIndex;
@@ -286,9 +322,9 @@ public sealed partial class EditorPageViewModel
 
     private EditorUnfoldWorkspaceState BuildPersistedUnfoldWorkspaceState()
         => new(
-            NetLayoutIndex: 1,
+            NetLayoutIndex,
             DistortionModeIndex,
-            UnrollModeIndex: 0,
+            UnrollModeIndex,
             GlobalSeamDecorationIndex,
             SeamControlModeIndex,
             LiveRecomputeEnabled,
@@ -309,6 +345,8 @@ public sealed partial class EditorPageViewModel
 
         var openGeometryState = state.NormalizeForOpenGeometryEditor();
         DistortionModeIndex = openGeometryState.DistortionModeIndex;
+        NetLayoutIndex = openGeometryState.NetLayoutIndex;
+        UnrollModeIndex = openGeometryState.UnrollModeIndex;
         SeamControlModeIndex = openGeometryState.SeamControlModeIndex;
         _threeDWorkspace.SetForcedSeams(openGeometryState.ForcedSeams ?? []);
         _threeDWorkspace.SetForbiddenSeams(openGeometryState.ForbiddenSeams ?? []);
@@ -361,7 +399,14 @@ public sealed partial class EditorPageViewModel
             ForbiddenSeams: ForbiddenSeams,
             AnchorFace: AnchorFace,
             SeamDecoration: SeamDecorationValue,
-            SeamDecorations: SeamDecorations);
+            SeamDecorations: SeamDecorations,
+            NetLayout: NetLayoutIndex == 0 ? "connected" : "separate",
+            UnrollMode: UnrollModeIndex switch
+            {
+                1 => "strip",
+                2 => "spanning",
+                _ => "radial",
+            });
 
     private string GetSeamControlModeValue() => SeamControlModeIndex switch
     {

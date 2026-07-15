@@ -13,4 +13,6 @@ public sealed record EditorUnfoldRequest(
     IReadOnlyList<EditorSeamEdge3D>? ForbiddenSeams = null,
     SelectedFace3D? AnchorFace = null,
     string SeamDecoration = "none",
-    IReadOnlyList<EditorSeamDecoration3D>? SeamDecorations = null);
+    IReadOnlyList<EditorSeamDecoration3D>? SeamDecorations = null,
+    string NetLayout = "connected",
+    string UnrollMode = "radial");

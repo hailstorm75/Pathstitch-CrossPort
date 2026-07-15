@@ -126,6 +126,8 @@ public sealed partial class EditorPageViewModel(
     private bool _isSelectedBodyOffsetYTextValid { get => _threeDWorkspace.IsSelectedBodyOffsetYTextValid; set => _threeDWorkspace.SetBodyOffsetTextValid('Y', value); }
     private bool _isSelectedBodyOffsetZTextValid { get => _threeDWorkspace.IsSelectedBodyOffsetZTextValid; set => _threeDWorkspace.SetBodyOffsetTextValid('Z', value); }
     private int _distortionModeIndex { get => _threeDWorkspace.DistortionModeIndex; set => _threeDWorkspace.SetDistortionModeIndex(value); }
+    private int _netLayoutIndex { get => _threeDWorkspace.NetLayoutIndex; set => _threeDWorkspace.SetNetLayoutIndex(value); }
+    private int _unrollModeIndex { get => _threeDWorkspace.UnrollModeIndex; set => _threeDWorkspace.SetUnrollModeIndex(value); }
     private bool _liveRecomputeEnabled { get => _threeDWorkspace.LiveRecomputeEnabled; set => _threeDWorkspace.SetLiveRecomputeEnabled(value); }
     private bool _wholeBodyRecompute { get => _threeDWorkspace.WholeBodyRecompute; set => _threeDWorkspace.SetWholeBodyRecompute(value); }
     private string _selectedBodyOffsetXText { get => _threeDWorkspace.SelectedBodyOffsetXText; set => _threeDWorkspace.SetSelectedBodyOffsetText('X', value); }

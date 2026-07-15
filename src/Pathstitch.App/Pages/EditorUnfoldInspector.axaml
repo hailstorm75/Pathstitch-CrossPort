@@ -36,6 +36,20 @@
           </ComboBox>
         </Grid>
 
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+          <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Layout" />
+          <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding NetLayoutIndex}">
+            <ComboBoxItem Content="Connected Net" />
+            <ComboBoxItem Content="Separate Pieces" />
+          </ComboBox>
+          <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Unroll" />
+          <ComboBox Grid.Row="1" Grid.Column="1" SelectedIndex="{Binding UnrollModeIndex}">
+            <ComboBoxItem Content="Radial" />
+            <ComboBoxItem Content="Strip" />
+            <ComboBoxItem Content="Spanning Tree" />
+          </ComboBox>
+        </Grid>
+
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
           <TextBlock
             Grid.Row="0"

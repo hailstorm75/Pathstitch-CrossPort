@@ -22,8 +22,8 @@ public sealed record EditorUnfoldWorkspaceState(
     public EditorUnfoldWorkspaceState NormalizeForOpenGeometryEditor()
         => this with
         {
-            NetLayoutIndex = 1,
-            UnrollModeIndex = 0,
+            NetLayoutIndex = Math.Clamp(NetLayoutIndex, 0, 1),
+            UnrollModeIndex = Math.Clamp(UnrollModeIndex, 0, 2),
             GlueTabHeightText = "5",
             HoleDiameterText = "1",
             HoleSpacingText = "4",

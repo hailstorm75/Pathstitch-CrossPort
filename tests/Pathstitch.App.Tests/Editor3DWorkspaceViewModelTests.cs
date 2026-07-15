@@ -79,7 +79,7 @@ public sealed class Editor3DWorkspaceViewModelTests
             [new SelectedFace3D(0, 0)],
             [new SelectedFaceDetails(0, "Body 1", 0, "PLANAR", 12)]);
         var projection = new EditorProjectionWorkspaceState("face", "face", 0, 0, 2.5);
-        var unfold = new EditorUnfoldWorkspaceState(1, 2, 0, 0, 0, true, false, "5", "1", "4", "2");
+        var unfold = new EditorUnfoldWorkspaceState(0, 2, 2, 0, 0, true, false, "5", "1", "4", "2");
 
         original.RestoreState(original.CaptureState() with { Projection = projection, Unfold = unfold });
         var json = JsonSerializer.Serialize(original.CaptureState());

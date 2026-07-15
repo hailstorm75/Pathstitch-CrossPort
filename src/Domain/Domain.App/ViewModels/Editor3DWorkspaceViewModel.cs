@@ -43,6 +43,8 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     private bool _isSelectedBodyOffsetYTextValid = true;
     private bool _isSelectedBodyOffsetZTextValid = true;
     private int _distortionModeIndex;
+    private int _netLayoutIndex = 1;
+    private int _unrollModeIndex;
     private bool _liveRecomputeEnabled;
     private bool _wholeBodyRecompute;
     private int _seamControlModeIndex;
@@ -108,6 +110,8 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     public bool IsSelectedBodyOffsetYTextValid => _isSelectedBodyOffsetYTextValid;
     public bool IsSelectedBodyOffsetZTextValid => _isSelectedBodyOffsetZTextValid;
     public int DistortionModeIndex => _distortionModeIndex;
+    public int NetLayoutIndex => _netLayoutIndex;
+    public int UnrollModeIndex => _unrollModeIndex;
     public bool LiveRecomputeEnabled => _liveRecomputeEnabled;
     public bool WholeBodyRecompute => _wholeBodyRecompute;
     public int SeamControlModeIndex => _seamControlModeIndex;
@@ -201,6 +205,8 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
         _ => SetProperty(ref _isSelectedBodyOffsetZTextValid, value, nameof(IsSelectedBodyOffsetZTextValid)),
     };
     internal bool SetDistortionModeIndex(int value) => SetProperty(ref _distortionModeIndex, value, nameof(DistortionModeIndex));
+    internal bool SetNetLayoutIndex(int value) => SetProperty(ref _netLayoutIndex, Math.Clamp(value, 0, 1), nameof(NetLayoutIndex));
+    internal bool SetUnrollModeIndex(int value) => SetProperty(ref _unrollModeIndex, Math.Clamp(value, 0, 2), nameof(UnrollModeIndex));
     internal bool SetLiveRecomputeEnabled(bool value) => SetProperty(ref _liveRecomputeEnabled, value, nameof(LiveRecomputeEnabled));
     internal bool SetWholeBodyRecompute(bool value) => SetProperty(ref _wholeBodyRecompute, value, nameof(WholeBodyRecompute));
     internal bool SetSeamControlModeIndex(int value) => SetProperty(ref _seamControlModeIndex, Math.Clamp(value, 0, 2), nameof(SeamControlModeIndex));
@@ -333,7 +339,7 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
                 _selectedProjectionBodyIndex,
                 _planeOffset),
             new EditorUnfoldWorkspaceState(
-                1, _distortionModeIndex, 0, _globalSeamDecorationIndex, _seamControlModeIndex,
+                _netLayoutIndex, _distortionModeIndex, _unrollModeIndex, _globalSeamDecorationIndex, _seamControlModeIndex,
                 _liveRecomputeEnabled, _wholeBodyRecompute,
                 "5", "1", "4", "2",
                 _forcedSeams.Count == 0 ? null : _forcedSeams,
@@ -364,6 +370,8 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
         _selectedProjectionBodyIndex = state.Projection.SelectedProjectionBodyIndex;
         _planeOffset = state.Projection.PlaneOffset;
         _distortionModeIndex = state.Unfold.DistortionModeIndex;
+        _netLayoutIndex = Math.Clamp(state.Unfold.NetLayoutIndex, 0, 1);
+        _unrollModeIndex = Math.Clamp(state.Unfold.UnrollModeIndex, 0, 2);
         _liveRecomputeEnabled = state.Unfold.LiveRecomputeEnabled;
         _wholeBodyRecompute = state.Unfold.WholeBodyRecompute;
         _seamControlModeIndex = state.Unfold.SeamControlModeIndex;
@@ -405,6 +413,8 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedProjectionBodyIndex));
         OnPropertyChanged(nameof(PlaneOffset));
         OnPropertyChanged(nameof(DistortionModeIndex));
+        OnPropertyChanged(nameof(NetLayoutIndex));
+        OnPropertyChanged(nameof(UnrollModeIndex));
         OnPropertyChanged(nameof(LiveRecomputeEnabled));
         OnPropertyChanged(nameof(WholeBodyRecompute));
         OnPropertyChanged(nameof(SeamControlModeIndex));
