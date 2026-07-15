@@ -11,6 +11,26 @@ namespace Pathstitch.App.Services;
 
 public sealed class DxfOutputPreviewService : IEditorOutputPreviewService
 {
+    public Task<Editor2DImportUnitsInfo?> InspectImportUnitsAsync(string outputPath, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Path.GetExtension(outputPath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)
+            || !File.Exists(outputPath))
+            return Task.FromResult<Editor2DImportUnitsInfo?>(null);
+
+        var preview = EditorDxfDocument.LoadPreviewDocument(outputPath);
+        if (!TryMeasureBounds(preview.Paths, out var minX, out var minY, out var maxX, out var maxY))
+            return Task.FromResult<Editor2DImportUnitsInfo?>(null);
+
+        var metadata = EditorDxfDocument.ReadUnitMetadata(outputPath);
+        return Task.FromResult<Editor2DImportUnitsInfo?>(new(
+            Path.GetFullPath(outputPath),
+            metadata.InsUnitsCode,
+            metadata.MillimetersPerDrawingUnit,
+            Math.Max(maxX - minX, 0.0),
+            Math.Max(maxY - minY, 0.0)));
+    }
+
     public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

@@ -224,6 +224,20 @@ public sealed partial class EditorPageViewModel
                     .LoadPreviewDocumentAsync(filePath, token)
                     .ConfigureAwait(true);
                 if (importedDocument is not null)
+                {
+                    var units = await _editorOutputPreviewService
+                        .InspectImportUnitsAsync(filePath, token)
+                        .ConfigureAwait(true);
+                    if (units?.RequiresPrompt == true)
+                    {
+                        var factor = await _importUnitsPromptService
+                            .PromptAsync(units, token)
+                            .ConfigureAwait(true);
+                        if (factor is > 0 and not 1.0)
+                            importedDocument = ScaleImportedTwoDDocument(importedDocument, factor.Value);
+                    }
+                }
+                if (importedDocument is not null)
                     importedDocuments.Add(importedDocument);
             }
 
@@ -276,6 +290,35 @@ public sealed partial class EditorPageViewModel
             }
             _pendingReferenceImagePaths = [];
         }
+    }
+
+    private static Editor2DPreviewDocument ScaleImportedTwoDDocument(Editor2DPreviewDocument document, double factor)
+    {
+        Editor2DPoint Transform(Editor2DPoint point) => new(point.X * factor, point.Y * factor);
+        var paths = document.Paths.Select(path => path with
+        {
+            Points = path.Points.Select(Transform).ToArray(),
+            Start = path.Start is { } start ? Transform(start) : null,
+            Center = path.Center is { } center ? Transform(center) : null,
+            Radius = path.Radius is { } radius ? radius * factor : null,
+            TextHeight = path.TextHeight is { } textHeight ? textHeight * factor : null,
+            BezierAnchors = path.BezierAnchors?.Select(anchor => anchor with
+            {
+                Point = Transform(anchor.Point),
+                HandleIn = anchor.HandleIn is { } handleIn ? Transform(handleIn) : null,
+                HandleOut = anchor.HandleOut is { } handleOut ? Transform(handleOut) : null,
+            }).ToArray(),
+        }).ToArray();
+        var bounds = document.Bounds;
+        return document with
+        {
+            Paths = paths,
+            Bounds = new(
+                bounds.MinX * factor,
+                bounds.MinY * factor,
+                bounds.MaxX * factor,
+                bounds.MaxY * factor),
+        };
     }
 
     private static Editor2DPreviewDocument MergeImportedTwoDDocuments(

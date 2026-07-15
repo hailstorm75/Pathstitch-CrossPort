@@ -19,7 +19,8 @@ public sealed partial class EditorPageViewModel(
     IEditor3DOperationService editor3DOperationService,
     IGeometryKernelDescriptorProvider geometryKernelDescriptorProvider,
     IReferenceImageTraceService? referenceImageTraceService = null,
-    IUnsavedChangesPromptService? unsavedChangesPromptService = null) : BasePageViewModel(logger)
+    IUnsavedChangesPromptService? unsavedChangesPromptService = null,
+    IEditorImportUnitsPromptService? importUnitsPromptService = null) : BasePageViewModel(logger)
 {
     private static readonly HashSet<string> SupportedSourceModelExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -42,6 +43,8 @@ public sealed partial class EditorPageViewModel(
     private readonly Project3DStateService _project3DStateService = project3DStateService;
     private readonly IUnsavedChangesPromptService _unsavedChangesPromptService =
         unsavedChangesPromptService ?? CancelUnsavedChangesPromptService.Instance;
+    private readonly IEditorImportUnitsPromptService _importUnitsPromptService =
+        importUnitsPromptService ?? CancelEditorImportUnitsPromptService.Instance;
     private readonly Editor2DWorkspaceViewModel _twoDWorkspace = new(referenceImageTraceService);
     private readonly EditorBatchWorkspaceViewModel _batchWorkspace = new();
     private ProjectSession? _projectSession;
@@ -71,6 +74,14 @@ public sealed partial class EditorPageViewModel(
             string documentName,
             CancellationToken cancellationToken = default)
             => Task.FromResult(UnsavedChangesPromptResult.Cancel);
+    }
+
+    private sealed class CancelEditorImportUnitsPromptService : IEditorImportUnitsPromptService
+    {
+        public static CancelEditorImportUnitsPromptService Instance { get; } = new();
+
+        public Task<double?> PromptAsync(Editor2DImportUnitsInfo info, CancellationToken cancellationToken = default)
+            => Task.FromResult<double?>(null);
     }
     public event Action<string>? ViewportScriptRequested
     {

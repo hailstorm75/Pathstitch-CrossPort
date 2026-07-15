@@ -292,6 +292,55 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task LoadingPendingDxf_AppliesConfirmedImportUnitCorrection()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-2d-units-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var projectPath = Path.Combine(directory, "imported.stch");
+        var dxfPath = Path.Combine(directory, "inch-drawing.dxf");
+        try
+        {
+            await new Project3DStateService().SaveAsync(projectPath, new Project3DState(null, [], []));
+            File.WriteAllText(dxfPath, "placeholder");
+            var previewPath = new Editor2DPreviewPath("inch-line", "LINE", [new(0, 0), new(10, 0)], false);
+            var preview = new Editor2DPreviewDocument(
+                [previewPath],
+                new Editor2DBounds(0, 0, 10, 0),
+                new Dictionary<string, int> { ["LINE"] = 1 },
+                []);
+            var previewService = new MappingOutputPreviewService(
+                new Dictionary<string, Editor2DPreviewDocument> { [Path.GetFullPath(dxfPath)] = preview },
+                new Dictionary<string, Editor2DImportUnitsInfo>
+                {
+                    [Path.GetFullPath(dxfPath)] = new(dxfPath, 1, 25.4, 10, 1),
+                });
+            var prompt = new RecordingImportUnitsPrompt(25.4);
+            var session = new ProjectSession(
+                Guid.NewGuid(), "Imported inches", projectPath,
+                new ProjectTemplateDefinition("blank", "Blank", "Untitled"),
+                ProjectSessionOrigin.Imported, DateTimeOffset.UtcNow);
+            var viewModel = CreateViewModelForTests(
+                outputPreviewService: previewService,
+                importUnitsPromptService: prompt);
+
+            Assert.True(await viewModel.ConfigureParametersAsync(new Dictionary<string, object>
+            {
+                [EditorNavigationParameterKeys.ProjectSession] = session,
+                [EditorNavigationParameterKeys.PendingTwoDFilePaths] = new[] { dxfPath },
+            }, CancellationToken.None));
+            await ((INavigablePageViewModel)viewModel).LoadAsync(CancellationToken.None);
+
+            var path = Assert.Single(viewModel.TwoDDocument!.Paths);
+            Assert.Equal(254, path.Points[1].X, 6);
+            Assert.Equal(Path.GetFullPath(dxfPath), prompt.LastInfo?.SourcePath);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task BatchMode_PreservesBothToolsAndRejectsEditorShortcuts()
     {
         var viewModel = CreateViewModel();
@@ -561,13 +610,15 @@ public sealed class EditorPageViewModelModeTests
     public static EditorPageViewModel CreateViewModelForTests(
         IProjectFileDialogService? projectFileDialogService = null,
         IEditorOutputPreviewService? outputPreviewService = null,
-        IUnsavedChangesPromptService? unsavedChangesPromptService = null)
-        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService);
+        IUnsavedChangesPromptService? unsavedChangesPromptService = null,
+        IEditorImportUnitsPromptService? importUnitsPromptService = null)
+        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService);
 
     private static EditorPageViewModel CreateViewModel(
         IProjectFileDialogService? projectFileDialogService = null,
         IEditorOutputPreviewService? outputPreviewService = null,
-        IUnsavedChangesPromptService? unsavedChangesPromptService = null)
+        IUnsavedChangesPromptService? unsavedChangesPromptService = null,
+        IEditorImportUnitsPromptService? importUnitsPromptService = null)
         => new(
             NullLogger<EditorPageViewModel>.Instance,
             new StubViewportAssetLocator(),
@@ -578,7 +629,8 @@ public sealed class EditorPageViewModelModeTests
             new Stub2DGeometryKernelService(),
             new Stub3DOperationService(),
             new StubGeometryKernelDescriptorProvider(),
-            unsavedChangesPromptService: unsavedChangesPromptService);
+            unsavedChangesPromptService: unsavedChangesPromptService,
+            importUnitsPromptService: importUnitsPromptService);
 
     private sealed class StubViewportAssetLocator : IEditorViewportAssetLocator
     {
@@ -625,7 +677,8 @@ public sealed class EditorPageViewModelModeTests
     }
 
     private sealed class MappingOutputPreviewService(
-        IReadOnlyDictionary<string, Editor2DPreviewDocument> documents) : IEditorOutputPreviewService
+        IReadOnlyDictionary<string, Editor2DPreviewDocument> documents,
+        IReadOnlyDictionary<string, Editor2DImportUnitsInfo>? importUnits = null) : IEditorOutputPreviewService
     {
         public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
         {
@@ -637,8 +690,26 @@ public sealed class EditorPageViewModelModeTests
         public Task SavePreviewDocumentAsync(Editor2DPreviewDocument document, string outputPath, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 
+        public Task<Editor2DImportUnitsInfo?> InspectImportUnitsAsync(string outputPath, CancellationToken cancellationToken = default)
+        {
+            Editor2DImportUnitsInfo? info = null;
+            importUnits?.TryGetValue(Path.GetFullPath(outputPath), out info);
+            return Task.FromResult(info);
+        }
+
         public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(string outputPath, CancellationToken cancellationToken = default)
             => Task.FromResult<EditorGeneratedOutputSummary?>(null);
+    }
+
+    private sealed class RecordingImportUnitsPrompt(double factor) : IEditorImportUnitsPromptService
+    {
+        public Editor2DImportUnitsInfo? LastInfo { get; private set; }
+
+        public Task<double?> PromptAsync(Editor2DImportUnitsInfo info, CancellationToken cancellationToken = default)
+        {
+            LastInfo = info;
+            return Task.FromResult<double?>(factor);
+        }
     }
 
     private sealed class Stub2DGeometryKernelService : IEditor2DGeometryKernelService
