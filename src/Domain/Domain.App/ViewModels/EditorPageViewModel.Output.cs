@@ -228,6 +228,7 @@ public sealed partial class EditorPageViewModel
 
             _twoDWorkspace.SetActiveTool(value);
             ClearTwoDCircularPatternPivot();
+            TwoDPatternGuidePathId = null;
             OnPropertyChanged();
 
             SyncSidebarToolStates();
@@ -349,6 +350,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             _twoDWorkspace.SetSelection(normalized);
+            TwoDPatternGuidePathId = null;
             OnPropertyChanged();
 
             OnPropertyChanged(nameof(HasTwoDSelection));
@@ -830,6 +832,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(IsTwoDPathPatternMode));
             OnPropertyChanged(nameof(TwoDPatternSummary));
             ClearTwoDCircularPatternPivot();
+            TwoDPatternGuidePathId = null;
         }
     }
 

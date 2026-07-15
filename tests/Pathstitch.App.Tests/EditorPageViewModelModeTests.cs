@@ -24,6 +24,17 @@ public sealed class EditorPageViewModelModeTests
         Assert.Equal([EditorMode.TwoD, EditorMode.ThreeD, EditorMode.Batch], Enum.GetValues<EditorMode>());
     }
 
+    [Fact]
+    public void PatternGuide_IsClearedWhenPatternSessionChanges()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.TwoDPatternGuidePathId = "stale-guide";
+
+        viewModel.TwoDActiveTool = Editor2DTool.Patterning;
+
+        Assert.Null(viewModel.TwoDPatternGuidePathId);
+    }
+
     [Theory]
     [InlineData(EditorMode.TwoD, true, false, false)]
     [InlineData(EditorMode.ThreeD, false, true, false)]
