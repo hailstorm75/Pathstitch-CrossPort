@@ -11,7 +11,8 @@ public sealed record UserPreferences(
     bool SupportCardDismissed = false,
     bool TwoDIntroDismissed = false,
     bool ThreeDIntroDismissed = false,
-    bool BatchIntroDismissed = false);
+    bool BatchIntroDismissed = false,
+    bool TutorialCompleted = false);
 
 public sealed class UserPreferencesStore
 {
