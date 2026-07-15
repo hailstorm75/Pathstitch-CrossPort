@@ -35,6 +35,12 @@ public partial class EditorShellView : EditorInteractionControlBase
             viewModel.ToggleTwoDSnapping();
     }
 
+    private void OnToggleGridClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ToggleTwoDGrid();
+    }
+
     private async void OnAboutClicked(object? sender, RoutedEventArgs e)
     {
         if (TopLevel.GetTopLevel(this) is not Window owner)
@@ -93,6 +99,15 @@ public partial class EditorShellView : EditorInteractionControlBase
             && viewModel.ActiveEditorMode == EditorMode.TwoD)
         {
             viewModel.ToggleTwoDSnapping();
+            e.Handled = true;
+            return;
+        }
+
+        if (shortcutToken.Equals("G", System.StringComparison.OrdinalIgnoreCase)
+            && e.KeyModifiers == KeyModifiers.Shift
+            && viewModel.ActiveEditorMode == EditorMode.TwoD)
+        {
+            viewModel.ToggleTwoDGrid();
             e.Handled = true;
             return;
         }

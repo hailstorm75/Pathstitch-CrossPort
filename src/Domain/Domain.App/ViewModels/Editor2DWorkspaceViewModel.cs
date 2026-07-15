@@ -112,6 +112,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public bool SnapEnabled => _state.SnapEnabled;
 
+    public bool GridVisible => _state.GridVisible;
+
     public bool IsSewingHoleToolActive => ActiveTool == Editor2DTool.AddSewingHoles;
 
     public IReadOnlyList<string> SelectedPathIds => _state.SelectedPathIds ?? [];
@@ -208,6 +210,11 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public void SetSnapEnabled(bool enabled)
     {
         Apply(_state with { SnapEnabled = enabled }, recordHistory: false);
+    }
+
+    public void SetGridVisible(bool visible)
+    {
+        Apply(_state with { GridVisible = visible }, recordHistory: false);
     }
 
     public void SetSelection(IReadOnlyList<string> selectedPathIds)

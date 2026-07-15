@@ -42,6 +42,12 @@ public sealed class DxfPreviewCanvas : Control
             defaultValue: true,
             defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<bool> GridVisibleProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(
+            nameof(GridVisible),
+            defaultValue: true,
+            defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<IReadOnlyList<string>> SelectedPathIdsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<string>>(
             nameof(SelectedPathIds),
@@ -217,6 +223,7 @@ public sealed class DxfPreviewCanvas : Control
             DocumentProperty,
             ActiveToolProperty,
             SnapEnabledProperty,
+            GridVisibleProperty,
             SelectedPathIdsProperty,
             HiddenPathIdsProperty,
             PreviewPathsProperty,
@@ -359,6 +366,12 @@ public sealed class DxfPreviewCanvas : Control
     {
         get => GetValue(SnapEnabledProperty);
         set => SetValue(SnapEnabledProperty, value);
+    }
+
+    public bool GridVisible
+    {
+        get => GetValue(GridVisibleProperty);
+        set => SetValue(GridVisibleProperty, value);
     }
 
     public IReadOnlyList<string> SelectedPathIds
@@ -627,7 +640,8 @@ public sealed class DxfPreviewCanvas : Control
         if (Document is null || Zoom <= 0.0)
             return;
 
-        DrawGrid(context, size);
+        if (GridVisible)
+            DrawGrid(context, size);
         DrawReferenceImages(context, size);
         DrawReferenceImageGizmo(context, size);
         var visiblePaths = GetVisiblePaths();

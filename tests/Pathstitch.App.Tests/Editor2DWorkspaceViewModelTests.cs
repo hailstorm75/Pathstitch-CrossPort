@@ -30,6 +30,24 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void GridVisibility_DefaultsOnAndPersistsWithoutPollutingUndoHistory()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+
+        Assert.True(workspace.GridVisible);
+        workspace.SetGridVisible(false);
+
+        Assert.False(workspace.GridVisible);
+        Assert.False(workspace.State.GridVisible);
+        Assert.False(workspace.CanUndo);
+
+        var restored = JsonSerializer.Deserialize<Editor2DWorkspaceState>(JsonSerializer.Serialize(workspace.State));
+        var reopened = new Editor2DWorkspaceViewModel();
+        reopened.Apply(Assert.IsType<Editor2DWorkspaceState>(restored), recordHistory: false);
+        Assert.False(reopened.GridVisible);
+    }
+
+    [Fact]
     public void BlankWorkspace_IsImmediatelyEditableWithoutTwoD()
     {
         var workspace = new Editor2DWorkspaceViewModel();

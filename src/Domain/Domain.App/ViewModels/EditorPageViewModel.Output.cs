@@ -294,6 +294,26 @@ public sealed partial class EditorPageViewModel
 
     public void ToggleTwoDSnapping() => TwoDSnapEnabled = !TwoDSnapEnabled;
 
+    public bool TwoDGridVisible
+    {
+        get => _twoDWorkspace.GridVisible;
+        set
+        {
+            if (_twoDWorkspace.GridVisible == value)
+                return;
+
+            _twoDWorkspace.SetGridVisible(value);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TwoDGridSummary));
+            SyncTwoDWorkspaceState(recordHistory: false);
+            Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        }
+    }
+
+    public string TwoDGridSummary => TwoDGridVisible ? "Grid: On (Shift+G)" : "Grid: Off (Shift+G)";
+
+    public void ToggleTwoDGrid() => TwoDGridVisible = !TwoDGridVisible;
+
     public IReadOnlyList<string> TwoDSelectedPathIds
     {
         get => _twoDWorkspace.SelectedPathIds;

@@ -116,6 +116,28 @@ public sealed class EditorShellHeadlessTests
     }
 
     [Fact]
+    public async Task LiveShell_GridToggleIsVisibleInTwoDAndUpdatesPersistedWorkspaceState()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            var grid = _ui.FindByAutomationId<Button>(shell, "editor.workspace.grid");
+            Assert.True(_ui.IsEffectivelyVisible(grid));
+            Assert.Contains("active", grid.Classes);
+            grid.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            session.Window.UpdateLayout();
+            Assert.DoesNotContain("active", grid.Classes);
+        });
+
+        Assert.False(viewModel.TwoDGridVisible);
+        Assert.False(viewModel.TwoDWorkspace.State.GridVisible);
+    }
+
+    [Fact]
     public async Task LiveShell_SewingInspectorHasReadableNumericFieldsAndResizableRightPanel()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();

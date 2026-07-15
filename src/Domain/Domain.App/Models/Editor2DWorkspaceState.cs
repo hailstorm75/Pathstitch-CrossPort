@@ -23,7 +23,8 @@ public sealed record Editor2DWorkspaceState(
     [property: JsonPropertyName("cornerParameters")] IReadOnlyList<Editor2DCornerParameter>? CornerParameters = null,
     [property: JsonPropertyName("sewingHoleParameters")] Editor2DSewingHoleParameters? SewingHoleParameters = null,
     [property: JsonPropertyName("sewingHoleOperations")] IReadOnlyList<Editor2DSewingHoleOperation>? SewingHoleOperations = null,
-    [property: JsonPropertyName("snapEnabled")] bool SnapEnabled = true)
+    [property: JsonPropertyName("snapEnabled")] bool SnapEnabled = true,
+    [property: JsonPropertyName("gridVisible")] bool GridVisible = true)
 {
     public static Editor2DWorkspaceState Empty { get; } = new(
         new Editor2DPreviewDocument(

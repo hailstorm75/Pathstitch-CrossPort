@@ -178,7 +178,8 @@ public sealed partial class EditorPageViewModel
                 _twoDWorkspace.CornerParameters,
                 _twoDWorkspace.SewingHoleParameters,
                 _twoDWorkspace.SewingHoleOperations,
-                _twoDWorkspace.SnapEnabled),
+                _twoDWorkspace.SnapEnabled,
+                _twoDWorkspace.GridVisible),
             recordHistory);
         NotifyTwoDHistoryCommands();
     }
@@ -237,6 +238,8 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDActiveTool));
         OnPropertyChanged(nameof(TwoDSnapEnabled));
         OnPropertyChanged(nameof(TwoDSnappingSummary));
+        OnPropertyChanged(nameof(TwoDGridVisible));
+        OnPropertyChanged(nameof(TwoDGridSummary));
         OnPropertyChanged(nameof(TwoDSelectedPathIds));
         OnPropertyChanged(nameof(TwoDMeasurements));
         OnPropertyChanged(nameof(TwoDSelectedMeasurementId));

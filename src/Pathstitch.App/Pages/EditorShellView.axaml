@@ -267,6 +267,18 @@
             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="15" Text="◎" />
           </Button>
           <Button
+            AutomationProperties.AutomationId="editor.workspace.grid"
+            Classes="chip-button"
+            Classes.active="{Binding TwoDGridVisible}"
+            Width="34"
+            Height="34"
+            Padding="0"
+            IsVisible="{Binding IsShowingTwoDWorkspace}"
+            ToolTip.Tip="{Binding TwoDGridSummary}"
+            Click="OnToggleGridClicked">
+            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="15" Text="#" />
+          </Button>
+          <Button
             Name="HomeFrameButton"
             AutomationProperties.AutomationId="editor.workspace.frame-home"
             Padding="0"
