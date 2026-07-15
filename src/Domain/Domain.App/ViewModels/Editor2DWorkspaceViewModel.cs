@@ -671,6 +671,38 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         return true;
     }
 
+    public bool MergeSelectedLayers()
+    {
+        var selectedPathIds = SelectedPathIds.ToHashSet(StringComparer.Ordinal);
+        var selectedLayers = Layers
+            .Where(layer => layer.Kind == Editor2DLayerKind.Geometry
+                && layer.PathIds.Any(selectedPathIds.Contains))
+            .OrderBy(layer => layer.Order)
+            .ToArray();
+        if (selectedLayers.Length < 2 || selectedLayers.Any(layer => layer.IsLocked))
+            return false;
+
+        var target = selectedLayers[0];
+        var mergedPathIds = selectedLayers
+            .SelectMany(layer => layer.PathIds)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var selectedIds = selectedLayers.Select(layer => layer.Id).ToHashSet(StringComparer.Ordinal);
+        var layers = Layers
+            .Where(layer => !selectedIds.Contains(layer.Id))
+            .Append(target with { PathIds = mergedPathIds })
+            .OrderBy(layer => layer.Order)
+            .Select((layer, order) => layer with { Order = order })
+            .ToArray();
+        Apply(_state with
+        {
+            Layers = layers,
+            ActiveLayerId = target.Id,
+            SelectedPathIds = mergedPathIds,
+        });
+        return true;
+    }
+
     public bool AssignPathsToLayer(string layerId, IReadOnlyList<string> pathIds)
     {
         var validPathIds = pathIds

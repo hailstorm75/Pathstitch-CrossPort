@@ -1860,6 +1860,17 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
+    public bool MergeTwoDSelectedLayers()
+    {
+        if (!_twoDWorkspace.MergeSelectedLayers())
+            return false;
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+        StatusText = "Merged selected layers";
+        ViewportStateText = OutputStatusSummary;
+        return true;
+    }
+
     public void FrameTwoDToContent()
     {
         if (!HasTwoDWorkspaceDocument)
