@@ -155,6 +155,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Content=\"Add file\"", panel, StringComparison.Ordinal);
         Assert.Contains("Text=\"Batch inputs\"", view, StringComparison.Ordinal);
         Assert.Contains("AddInputFile", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("editor.batch.export-dxf", panel, StringComparison.Ordinal);
+        Assert.Contains("OutputDirectory", panel, StringComparison.Ordinal);
     }
 
     [Fact]

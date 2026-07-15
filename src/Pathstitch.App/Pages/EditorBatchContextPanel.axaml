@@ -34,6 +34,10 @@
         Classes="panel-button"
         Content="Add file"
         Click="OnAddProjectClicked" />
+      <TextBox
+        AutomationProperties.AutomationId="editor.batch.output-directory"
+        PlaceholderText="Output directory (optional)"
+        Text="{Binding OutputDirectory, Mode=TwoWay}" />
       <ToggleSwitch
         AutomationProperties.AutomationId="editor.batch.continue-on-error"
         Content="Continue after errors"
@@ -44,6 +48,12 @@
         Content="Run batch"
         IsEnabled="{Binding CanRun}"
         Click="OnRunBatchClicked" />
+      <Button
+        AutomationProperties.AutomationId="editor.batch.export-dxf"
+        Classes="panel-button"
+        Content="Export DXF outputs"
+        IsEnabled="{Binding CanExport}"
+        Click="OnExportDxfClicked" />
     </StackPanel>
   </Border>
 </UserControl>

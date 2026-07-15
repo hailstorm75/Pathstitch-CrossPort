@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO.Compression;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Domain.App.Models;
+using Domain.App.Services;
 
 namespace Domain.App.ViewModels;
 
@@ -11,6 +12,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     private bool _continueOnError = true;
     private bool _isRunning;
     private string _summary = "No files queued.";
+    private string _outputDirectory = string.Empty;
 
     public ObservableCollection<EditorBatchItem> Items { get; } = [];
 
@@ -30,17 +32,29 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         set => SetProperty(ref _continueOnError, value);
     }
 
+    public string OutputDirectory
+    {
+        get => _outputDirectory;
+        set => SetProperty(ref _outputDirectory, value ?? string.Empty);
+    }
+
     public bool IsRunning
     {
         get => _isRunning;
         private set
         {
             if (SetProperty(ref _isRunning, value))
+            {
                 OnPropertyChanged(nameof(CanRun));
+                OnPropertyChanged(nameof(CanExport));
+            }
         }
     }
 
     public bool CanRun => !IsRunning && Items.Count > 0;
+
+    public bool CanExport => !IsRunning && Items.Any(item =>
+        Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase));
 
     public string Summary
     {
@@ -132,6 +146,56 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         {
             IsRunning = false;
             Summary = $"Batch complete: {succeeded} succeeded, {failed} failed.";
+        }
+    }
+
+    public async Task ExportDxfAsync(
+        IEditorOutputPreviewService outputPreviewService,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanExport)
+            return;
+
+        IsRunning = true;
+        var firstDxf = Items.First(item => Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase));
+        var outputDirectory = string.IsNullOrWhiteSpace(OutputDirectory)
+            ? Path.Combine(Path.GetDirectoryName(firstDxf.FilePath)!, "batch-output")
+            : Path.GetFullPath(OutputDirectory.Trim().Trim('"'));
+        Directory.CreateDirectory(outputDirectory);
+        var succeeded = 0;
+        var failed = 0;
+        try
+        {
+            foreach (var item in Items.Where(item => Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                item.Status = EditorBatchItemStatus.Running;
+                item.Message = "Exporting DXF";
+                try
+                {
+                    var document = await outputPreviewService.LoadPreviewDocumentAsync(item.FilePath, cancellationToken).ConfigureAwait(false)
+                        ?? throw new InvalidDataException("DXF preview could not be loaded.");
+                    var outputPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(item.FilePath)}-batch.dxf");
+                    await outputPreviewService.SavePreviewDocumentAsync(document, outputPath, cancellationToken).ConfigureAwait(false);
+                    item.OutputPath = outputPath;
+                    item.Status = EditorBatchItemStatus.Succeeded;
+                    item.Message = "DXF exported";
+                    succeeded++;
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    item.Status = EditorBatchItemStatus.Failed;
+                    item.Message = exception.Message;
+                    failed++;
+                    if (!ContinueOnError)
+                        break;
+                }
+            }
+        }
+        finally
+        {
+            IsRunning = false;
+            Summary = $"DXF export complete: {succeeded} succeeded, {failed} failed.";
         }
     }
 

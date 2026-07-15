@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Domain.App.ViewModels;
+using Pathstitch.App.Services;
 
 namespace Pathstitch.App.Pages;
 
@@ -18,5 +19,11 @@ public partial class EditorBatchContextPanel : UserControl
     {
         if (DataContext is EditorBatchWorkspaceViewModel viewModel)
             await viewModel.RunAsync();
+    }
+
+    private async void OnExportDxfClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorBatchWorkspaceViewModel viewModel)
+            await viewModel.ExportDxfAsync(new DxfOutputPreviewService());
     }
 }

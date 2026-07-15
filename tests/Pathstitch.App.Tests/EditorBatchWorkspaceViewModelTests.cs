@@ -1,5 +1,6 @@
 using Domain.App.Models;
 using Domain.App.ViewModels;
+using Pathstitch.App.Services;
 
 namespace Pathstitch.App.Tests;
 
@@ -58,6 +59,28 @@ public sealed class EditorBatchWorkspaceViewModelTests
         finally
         {
             File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ExportDxfAsync_WritesOutput()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchExport", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var input = Path.Combine(directory, "drawing.dxf");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel { OutputDirectory = Path.Combine(directory, "out") };
+            Assert.True(workspace.AddFile(input));
+            await workspace.ExportDxfAsync(new DxfOutputPreviewService());
+            Assert.NotNull(workspace.Items[0].OutputPath);
+            Assert.True(File.Exists(workspace.Items[0].OutputPath));
+            Assert.Equal(EditorBatchItemStatus.Succeeded, workspace.Items[0].Status);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
         }
     }
 

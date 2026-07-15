@@ -35,6 +35,7 @@
                   <TextBlock Foreground="{StaticResource PrimaryTextBrush}" Text="{Binding FileName}" />
                   <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding FilePath}" />
                   <TextBlock FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding Message}" />
+                  <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding OutputPath}" />
                 </StackPanel>
                 <TextBlock Grid.Column="1" Foreground="{StaticResource AccentBrush}" Text="{Binding Status}" />
               </Grid>

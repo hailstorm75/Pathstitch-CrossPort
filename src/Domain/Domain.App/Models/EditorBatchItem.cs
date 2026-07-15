@@ -19,6 +19,7 @@ public sealed class EditorBatchItem(string filePath) : ObservableObject
 {
     private EditorBatchItemStatus _status;
     private string _message = "Ready";
+    private string? _outputPath;
 
     public string FilePath { get; } = Path.GetFullPath(filePath);
 
@@ -34,5 +35,11 @@ public sealed class EditorBatchItem(string filePath) : ObservableObject
     {
         get => _message;
         internal set => SetProperty(ref _message, value);
+    }
+
+    public string? OutputPath
+    {
+        get => _outputPath;
+        internal set => SetProperty(ref _outputPath, value);
     }
 }
