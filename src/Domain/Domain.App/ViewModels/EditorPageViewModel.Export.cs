@@ -19,6 +19,8 @@ public sealed partial class EditorPageViewModel
 
     public bool CanExportTwoDPng => TwoDDocument is not null;
 
+    public bool CanExportTwoDPdf => TwoDDocument is not null;
+
     public string TwoDPngLongestEdgeText
     {
         get => _twoDPngLongestEdgeText;
@@ -180,6 +182,40 @@ public sealed partial class EditorPageViewModel
         {
             _logger.LogError(exception, "Failed to export 2D workspace PNG.");
             ErrorMessage = $"Could not export PNG: {exception.Message}";
+        }
+    }
+
+    public async Task ExportTwoDPdfAsync(CancellationToken cancellationToken = default)
+    {
+        var document = TwoDDocument;
+        if (document is null)
+            return;
+
+        try
+        {
+            ErrorMessage = null;
+            var suggestedFileName = string.IsNullOrWhiteSpace(ProjectName)
+                ? "Pathstitch Export.pdf"
+                : $"{ProjectName}.pdf";
+            var outputPath = await _projectFileDialogService
+                .PickPdfExportFileAsync(suggestedFileName, cancellationToken)
+                .ConfigureAwait(true);
+            if (string.IsNullOrWhiteSpace(outputPath))
+                return;
+
+            await _editorOutputPreviewService
+                .SavePreviewDocumentAsync(BuildExportDocument(document), outputPath, ParseSvgOptions(), cancellationToken)
+                .ConfigureAwait(true);
+            StatusText = $"Exported PDF to {Path.GetFileName(outputPath)}";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to export 2D workspace PDF.");
+            ErrorMessage = $"Could not export PDF: {exception.Message}";
         }
     }
 

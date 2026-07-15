@@ -59,6 +59,12 @@
         IsEnabled="{Binding CanExportTwoDPng}"
         Content="Export PNG"
         Click="OnExportTwoDPngClicked" />
+      <Button
+        AutomationProperties.AutomationId="editor.2d.export-pdf"
+        Classes="chip-button"
+        IsEnabled="{Binding CanExportTwoDPdf}"
+        Content="Export PDF"
+        Click="OnExportTwoDPdfClicked" />
       <CheckBox
         AutomationProperties.AutomationId="editor.2d.export-selected-only"
         Content="Export selected paths only"

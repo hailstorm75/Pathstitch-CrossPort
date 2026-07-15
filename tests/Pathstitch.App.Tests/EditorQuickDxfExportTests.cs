@@ -232,6 +232,28 @@ public sealed class EditorQuickDxfExportTests
         }
     }
 
+    [Fact]
+    public async Task PdfWriter_ProducesSinglePageVectorDocument()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-pdf-export-{Guid.NewGuid():N}.pdf");
+        try
+        {
+            await new DxfOutputPreviewService().SavePreviewDocumentAsync(
+                CreateDocument(), outputPath, Editor2DExportOptions.Defaults);
+
+            var pdf = await File.ReadAllTextAsync(outputPath);
+            Assert.StartsWith("%PDF-1.4", pdf, StringComparison.Ordinal);
+            Assert.Contains("/Type /Page", pdf, StringComparison.Ordinal);
+            Assert.Contains(" m\n", pdf, StringComparison.Ordinal);
+            Assert.Contains(" l\n", pdf, StringComparison.Ordinal);
+            Assert.Contains("xref", pdf, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(outputPath);
+        }
+    }
+
     private static Editor2DPreviewDocument CreateDocument()
         => new(
             [new Editor2DPreviewPath("line-1", "LINE", [new(1, 2), new(3, 4)], false)],
