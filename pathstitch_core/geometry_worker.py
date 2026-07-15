@@ -278,7 +278,7 @@ def _resolve_stable_references(path, payload, operation):
             face_id = topology["bodies"][body_index]["faces"][face_index]["id"]
             payload["face_id"] = face_id
             face_ids = [face_id]
-    elif operation == "unfold":
+    elif operation in ("unfold", "unfold_faces"):
         if face_ids:
             unknown = [value for value in face_ids if value not in faces]
             if unknown:
@@ -390,13 +390,14 @@ def _dispatch(operation, payload):
         except ValueError as exc:
             return _error("invalid-input", str(exc))
         result = op_project_edges(payload)
-    elif operation == "unfold":
+    elif operation in ("unfold", "unfold_faces"):
         from pathstitch_core.net_unfold import op_unfold_connected
+        from pathstitch_core.step_ops import op_unfold_faces
         try:
             topology, provenance = _resolve_stable_references(payload.get("input"), payload, operation)
         except ValueError as exc:
             return _error("invalid-input", str(exc))
-        result = op_unfold_connected(payload)
+        result = op_unfold_connected(payload) if operation == "unfold" else op_unfold_faces(payload)
     elif operation == "distortion":
         from pathstitch_core.step_ops import op_face_distortion
         try:
@@ -408,7 +409,7 @@ def _dispatch(operation, payload):
         return _error("invalid-input", f"Unknown operation: {operation}")
     if result.get("status") != "ok":
         return _error("backend-failure", result.get("message", f"{operation} failed."))
-    if operation in ("project", "unfold"):
+    if operation in ("project", "unfold", "unfold_faces"):
         _attach_source_edge_provenance(topology, operation, result.get("data") or {}, provenance)
         result.setdefault("data", {})["typedGeometry"] = _typed_geometry(operation, result.get("data") or {}, provenance)
     return {"ok": True, "data": result.get("data", result)}

@@ -171,7 +171,10 @@ public sealed class PackagedStepGeometryKernelService(
         var visibleBodyIds = request.VisibleBodyIds ?? TryGetBodyIds(document, request.VisibleBodyIndices);
         try
         {
-            var response = await SendAsync("unfold", new
+            var operation = string.Equals(request.NetLayout, "connected", StringComparison.OrdinalIgnoreCase)
+                ? "unfold"
+                : "unfold_faces";
+            var response = await SendAsync(operation, new
             {
                 input = request.SourceModelPath,
                 output,
@@ -181,7 +184,7 @@ public sealed class PackagedStepGeometryKernelService(
                 whole_body = request.WholeBody,
                 faces = request.SelectedFaces.Select(face => new { body_index = face.BodyIndex, face_index = face.FaceIndex }).ToArray(),
                 distortion_mode = request.DistortionMode,
-                mode = "radial",
+                mode = request.UnrollMode,
                 decoration = request.SeamDecoration,
                 anchor = request.AnchorFace is { } anchor
                     ? new { body_index = anchor.BodyIndex, face_index = anchor.FaceIndex }
@@ -206,7 +209,11 @@ public sealed class PackagedStepGeometryKernelService(
             }, cancellationToken).ConfigureAwait(false);
             var geometry = response.GetProperty("data").GetProperty("typedGeometry")
                 .Deserialize<StepOperationGeometry>(JsonOptions);
-            return new EditorOperationResult(true, "Unfolded STEP B-rep through packaged OCCT worker.", output, Geometry: geometry);
+            return new EditorOperationResult(true,
+                request.NetLayout.Equals("connected", StringComparison.OrdinalIgnoreCase)
+                    ? "Unfolded connected STEP net through packaged OCCT worker."
+                    : "Flattened separate STEP pieces through packaged OCCT worker.",
+                output, Geometry: geometry);
         }
         catch (GeometryWorkerException ex)
         {
