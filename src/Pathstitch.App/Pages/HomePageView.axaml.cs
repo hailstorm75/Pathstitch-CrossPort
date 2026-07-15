@@ -8,8 +8,10 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Domain.App.Models;
+using Domain.App.Services;
 using Domain.App.ViewModels;
 using Domain.MVVM.Navigation;
+using Microsoft.Extensions.DependencyInjection;
 using Pathstitch.App.Services;
 using UI.Navigation;
 
@@ -22,9 +24,11 @@ public partial class HomePageView : BasePageView
     private static readonly IBrush DropSurfaceActiveBrush = new SolidColorBrush(Color.Parse("#1C1C22"));
     private static readonly IBrush DropSurfaceActiveBorderBrush = new SolidColorBrush(Color.Parse("#4D7FFF"));
     private readonly UserPreferencesStore _preferencesStore = new();
+    private readonly IFileIntegrationService _fileIntegrationService;
 
     public HomePageView(IServiceProvider serviceProvider) : base(serviceProvider, NavigationAddressBook.HomePage)
     {
+        _fileIntegrationService = serviceProvider.GetRequiredService<IFileIntegrationService>();
         InitializeComponent();
         GettingStartedCard.IsVisible = !_preferencesStore.Load().GettingStartedDismissed;
         SupportCard.IsVisible = !_preferencesStore.Load().SupportCardDismissed;
@@ -93,6 +97,14 @@ public partial class HomePageView : BasePageView
 
         viewModel.SelectRecentProjectCard(recentProject);
         await viewModel.OpenRecentProjectCardAsync(recentProject);
+    }
+
+    private async void OnRevealRecentProjectClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control control || control.DataContext is not RecentProjectSummary recentProject)
+            return;
+
+        await _fileIntegrationService.RevealFileAsync(recentProject.ProjectFilePath);
     }
 
     private void OnLoaded(object? sender, EventArgs e)
