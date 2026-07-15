@@ -125,6 +125,9 @@ public static class Editor2DReferenceImageMetadata
         if (TryReadTiffPixelSize(data, out width, out height))
             return true;
 
+        if (TryReadIsoBmffPixelSize(data, out width, out height))
+            return true;
+
         return false;
     }
 
@@ -206,4 +209,30 @@ public static class Editor2DReferenceImageMetadata
         => littleEndian
             ? (uint)(bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24)
             : (uint)(bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]);
+
+    private static bool TryReadIsoBmffPixelSize(ReadOnlySpan<byte> data, out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+        for (var index = 4; index + 16 <= data.Length; index++)
+        {
+            if (data[index] != (byte)'i' || data[index + 1] != (byte)'s'
+                || data[index + 2] != (byte)'p' || data[index + 3] != (byte)'e')
+                continue;
+
+            var parsedWidth = ReadBigEndianUInt32(data[(index + 8)..(index + 12)]);
+            var parsedHeight = ReadBigEndianUInt32(data[(index + 12)..(index + 16)]);
+            if (parsedWidth is > 0 and <= int.MaxValue && parsedHeight is > 0 and <= int.MaxValue)
+            {
+                width = (int)parsedWidth;
+                height = (int)parsedHeight;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static uint ReadBigEndianUInt32(ReadOnlySpan<byte> bytes)
+        => (uint)(bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]);
 }

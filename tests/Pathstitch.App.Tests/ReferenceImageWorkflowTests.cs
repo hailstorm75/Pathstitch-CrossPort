@@ -126,6 +126,28 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Equal(480, height);
     }
 
+    [Fact]
+    public void ImageMetadata_ReadsIsoBmffIspeDimensions()
+    {
+        var header = new byte[20];
+        header[4] = (byte)'i';
+        header[5] = (byte)'s';
+        header[6] = (byte)'p';
+        header[7] = (byte)'e';
+        header[12] = 0x00;
+        header[13] = 0x00;
+        header[14] = 0x02;
+        header[15] = 0x80;
+        header[16] = 0x00;
+        header[17] = 0x00;
+        header[18] = 0x01;
+        header[19] = 0xE0;
+
+        Assert.True(Editor2DReferenceImageMetadata.TryReadPixelSize(header, out var width, out var height));
+        Assert.Equal(640, width);
+        Assert.Equal(480, height);
+    }
+
     private static void WriteTiffLongEntry(byte[] data, int offset, ushort tag, uint value)
     {
         data[offset] = (byte)tag;
