@@ -6,6 +6,47 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class Editor2DWorkspaceViewModel
 {
+    public Editor2DWorkspaceOperationResult ApplyExplodeCompoundPaths()
+    {
+        var selected = SelectedPaths(path => path.IsClosed
+            && (path.EntityType.Equals("LWPOLYLINE", StringComparison.OrdinalIgnoreCase)
+                || path.EntityType.Equals("POLYLINE", StringComparison.OrdinalIgnoreCase)));
+        if (selected.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("Select a closed polyline before exploding compound paths");
+
+        var replacements = new Dictionary<string, IReadOnlyList<Editor2DPreviewPath>>(StringComparer.Ordinal);
+        foreach (var path in selected)
+        {
+            var loops = Editor2DGeometry.ExplodeCompoundPath(path);
+            if (loops.Count > 1)
+                replacements[path.Id] = loops;
+        }
+
+        if (replacements.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("Nothing to explode — the selection is a single loop");
+
+        var selectedIds = new List<string>();
+        var nextPaths = new List<Editor2DPreviewPath>();
+        foreach (var path in Document.Paths)
+        {
+            if (!replacements.TryGetValue(path.Id, out var loops))
+            {
+                nextPaths.Add(path);
+                if (SelectedPathIds.Contains(path.Id, StringComparer.Ordinal))
+                    selectedIds.Add(path.Id);
+                continue;
+            }
+
+            nextPaths.AddRange(loops);
+            selectedIds.AddRange(loops.Select(loop => loop.Id));
+        }
+
+        CommitDocumentEdit(RebuildDocument(Document, nextPaths), selectedIds);
+        var loopCount = replacements.Values.Sum(loops => loops.Count);
+        return Editor2DWorkspaceOperationResult.Success(
+            $"Exploded {replacements.Count} compound path{(replacements.Count == 1 ? "" : "s")} into {loopCount} loops");
+    }
+
     public async Task<Editor2DWorkspaceOperationResult> ApplyCurveOffsetAsync(
         IEditor2DGeometryKernelService kernel,
         double distance,

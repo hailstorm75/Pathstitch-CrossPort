@@ -83,6 +83,45 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void ExplodeCompoundPaths_SplitsSelfCrossingClosedPolylineIntoLoops()
+    {
+        var compound = new Editor2DPreviewPath(
+            "bowtie",
+            "LWPOLYLINE",
+            [new(0, 0), new(10, 10), new(0, 10), new(10, 0)],
+            IsClosed: true);
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [compound] });
+        workspace.SetSelection([compound.Id]);
+
+        var result = workspace.ApplyExplodeCompoundPaths();
+
+        Assert.True(result.IsSuccess, result.Message);
+        Assert.Equal(2, workspace.Document.Paths.Count);
+        Assert.All(workspace.Document.Paths, path => Assert.True(path.IsClosed));
+        Assert.Equal(2, workspace.SelectedPathIds.Count);
+    }
+
+    [Fact]
+    public void ExplodeCompoundPaths_LeavesSimpleLoopUnchanged()
+    {
+        var rectangle = new Editor2DPreviewPath(
+            "square",
+            "LWPOLYLINE",
+            [new(0, 0), new(10, 0), new(10, 10), new(0, 10)],
+            IsClosed: true);
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [rectangle] });
+        workspace.SetSelection([rectangle.Id]);
+
+        var result = workspace.ApplyExplodeCompoundPaths();
+
+        Assert.False(result.IsSuccess);
+        Assert.Single(workspace.Document.Paths);
+        Assert.Equal(rectangle.Id, workspace.Document.Paths[0].Id);
+    }
+
+    [Fact]
     public void CircularPattern_UsesExplicitPivotWhenProvided()
     {
         var workspace = new Editor2DWorkspaceViewModel();
@@ -273,6 +312,7 @@ public sealed class Editor2DWorkspaceViewModelTests
         Assert.NotNull(workspaceType.GetMethod(nameof(Editor2DWorkspaceViewModel.DeleteSelection)));
         Assert.NotNull(workspaceType.GetMethod(nameof(Editor2DWorkspaceViewModel.DeleteSelectedMeasurement)));
         Assert.NotNull(workspaceType.GetMethod(nameof(Editor2DWorkspaceViewModel.ExpandSelectedRectangles)));
+        Assert.NotNull(workspaceType.GetMethod(nameof(Editor2DWorkspaceViewModel.ApplyExplodeCompoundPaths)));
         Assert.NotNull(workspaceType.GetMethod(nameof(Editor2DWorkspaceViewModel.ClearManualMeasurements)));
     }
 

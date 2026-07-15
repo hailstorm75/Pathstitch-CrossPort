@@ -6,6 +6,125 @@ public static class Editor2DGeometry
     private const double MeasurementTolerance = 1e-6;
     private const double PolylineTolerance = 1e-6;
 
+    public static IReadOnlyList<Editor2DPreviewPath> ExplodeCompoundPath(Editor2DPreviewPath path)
+    {
+        if (!path.IsClosed
+            || path.Points.Count < 3
+            || (!path.EntityType.Equals("LWPOLYLINE", StringComparison.OrdinalIgnoreCase)
+                && !path.EntityType.Equals("POLYLINE", StringComparison.OrdinalIgnoreCase)))
+            return [];
+
+        var nodes = new List<Editor2DPoint>();
+        var segments = new List<List<(double Parameter, int Node)>>();
+        var segmentCount = path.Points.Count;
+        for (var index = 0; index < segmentCount; index++)
+        {
+            var start = path.Points[index];
+            var end = path.Points[(index + 1) % segmentCount];
+            var points = new List<(double Parameter, int Node)>
+            {
+                (0.0, GetOrAddNode(nodes, start)),
+                (1.0, GetOrAddNode(nodes, end)),
+            };
+            segments.Add(points);
+        }
+
+        for (var first = 0; first < segmentCount; first++)
+        for (var second = first + 1; second < segmentCount; second++)
+        {
+            if (AreAdjacentSegments(first, second, segmentCount))
+                continue;
+            if (!TrySegmentIntersection(
+                    path.Points[first],
+                    path.Points[(first + 1) % segmentCount],
+                    path.Points[second],
+                    path.Points[(second + 1) % segmentCount],
+                    out var firstParameter,
+                    out var secondParameter,
+                    out var intersection))
+                continue;
+
+            segments[first].Add((firstParameter, GetOrAddNode(nodes, intersection)));
+            segments[second].Add((secondParameter, GetOrAddNode(nodes, intersection)));
+        }
+
+        var adjacency = Enumerable.Range(0, nodes.Count)
+            .Select(static _ => new HashSet<int>())
+            .ToArray();
+        foreach (var segment in segments)
+        {
+            var ordered = segment
+                .OrderBy(item => item.Parameter)
+                .Select(item => item.Node)
+                .Distinct()
+                .ToArray();
+            for (var index = 0; index + 1 < ordered.Length; index++)
+            {
+                if (ordered[index] == ordered[index + 1])
+                    continue;
+                adjacency[ordered[index]].Add(ordered[index + 1]);
+                adjacency[ordered[index + 1]].Add(ordered[index]);
+            }
+        }
+
+        var orderedAdjacency = adjacency
+            .Select((neighbors, node) => neighbors
+                .OrderBy(neighbor => Math.Atan2(nodes[neighbor].Y - nodes[node].Y, nodes[neighbor].X - nodes[node].X))
+                .ToArray())
+            .ToArray();
+        var visited = new HashSet<(int From, int To)>();
+        var faces = new List<IReadOnlyList<Editor2DPoint>>();
+        for (var from = 0; from < orderedAdjacency.Length; from++)
+        foreach (var to in orderedAdjacency[from])
+        {
+            if (visited.Contains((from, to)))
+                continue;
+
+            var loop = new List<Editor2DPoint>();
+            var currentFrom = from;
+            var currentTo = to;
+            var closed = false;
+            for (var guard = 0; guard < visited.Count + nodes.Count * 4 + 8; guard++)
+            {
+                if (!visited.Add((currentFrom, currentTo)))
+                    break;
+                loop.Add(nodes[currentFrom]);
+                var neighbors = orderedAdjacency[currentTo];
+                var reverseIndex = Array.IndexOf(neighbors, currentFrom);
+                if (reverseIndex < 0 || neighbors.Length == 0)
+                    break;
+                var nextIndex = (reverseIndex - 1 + neighbors.Length) % neighbors.Length;
+                var next = neighbors[nextIndex];
+                currentFrom = currentTo;
+                currentTo = next;
+                if (currentFrom == from && currentTo == to)
+                {
+                    closed = true;
+                    break;
+                }
+            }
+
+            if (closed && loop.Count >= 3 && Math.Abs(SignedArea(loop)) > PolylineTolerance)
+                faces.Add(loop);
+        }
+
+        if (faces.Count < 2)
+            return [];
+
+        var positive = faces.Where(face => SignedArea(face) > 0).ToArray();
+        var negative = faces.Where(face => SignedArea(face) < 0).ToArray();
+        var boundedFaces = positive.Length >= negative.Length ? positive : negative;
+        if (boundedFaces.Length < 2)
+            return [];
+
+        return boundedFaces.Select((points, index) => new Editor2DPreviewPath(
+            $"{path.Id}:explode:{index}:{Guid.NewGuid():N}",
+            "LWPOLYLINE",
+            points,
+            IsClosed: true,
+            IsAxisAlignedRectangle: IsAxisAlignedRectangle(points, isClosed: true))).ToArray();
+    }
+
     public static bool IsAxisAlignedRectangle(IReadOnlyList<Editor2DPoint> points, bool isClosed)
     {
         if (!isClosed || points.Count != 4)
@@ -1382,5 +1501,73 @@ public static class Editor2DGeometry
         }
 
         return distinct.Count;
+    }
+
+    private static int GetOrAddNode(ICollection<Editor2DPoint> nodes, Editor2DPoint point)
+    {
+        var index = 0;
+        foreach (var existing in nodes)
+        {
+            if (Math.Abs(existing.X - point.X) <= PolylineTolerance
+                && Math.Abs(existing.Y - point.Y) <= PolylineTolerance)
+                return index;
+            index++;
+        }
+
+        nodes.Add(point);
+        return index;
+    }
+
+    private static bool AreAdjacentSegments(int first, int second, int count)
+        => second == first + 1 || (first == 0 && second == count - 1);
+
+    private static bool TrySegmentIntersection(
+        Editor2DPoint firstStart,
+        Editor2DPoint firstEnd,
+        Editor2DPoint secondStart,
+        Editor2DPoint secondEnd,
+        out double firstParameter,
+        out double secondParameter,
+        out Editor2DPoint intersection)
+    {
+        var firstX = firstEnd.X - firstStart.X;
+        var firstY = firstEnd.Y - firstStart.Y;
+        var secondX = secondEnd.X - secondStart.X;
+        var secondY = secondEnd.Y - secondStart.Y;
+        var denominator = (firstX * secondY) - (firstY * secondX);
+        if (Math.Abs(denominator) <= PolylineTolerance)
+        {
+            firstParameter = secondParameter = 0.0;
+            intersection = default!;
+            return false;
+        }
+
+        var offsetX = secondStart.X - firstStart.X;
+        var offsetY = secondStart.Y - firstStart.Y;
+        firstParameter = ((offsetX * secondY) - (offsetY * secondX)) / denominator;
+        secondParameter = ((offsetX * firstY) - (offsetY * firstX)) / denominator;
+        if (firstParameter <= PolylineTolerance || firstParameter >= 1.0 - PolylineTolerance
+            || secondParameter <= PolylineTolerance || secondParameter >= 1.0 - PolylineTolerance)
+        {
+            intersection = default!;
+            return false;
+        }
+
+        intersection = new Editor2DPoint(
+            firstStart.X + (firstX * firstParameter),
+            firstStart.Y + (firstY * firstParameter));
+        return true;
+    }
+
+    private static double SignedArea(IReadOnlyList<Editor2DPoint> points)
+    {
+        var area = 0.0;
+        for (var index = 0; index < points.Count; index++)
+        {
+            var next = points[(index + 1) % points.Count];
+            area += (points[index].X * next.Y) - (next.X * points[index].Y);
+        }
+
+        return area / 2.0;
     }
 }
