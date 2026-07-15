@@ -101,6 +101,8 @@ public sealed class UiAutomationIdentifierTests
         _ui.FindXamlElementByAutomationId(home, "home.dialog.new-project");
         _ui.FindXamlElementByAutomationId(home, "home.dialog.open-project");
         _ui.FindXamlElementByAutomationId(home, "home.new-project.name");
+        _ui.FindXamlElementByAutomationId(home, "home.getting-started");
+        _ui.FindXamlElementByAutomationId(home, "home.getting-started.dismiss");
     }
 
     [Fact]

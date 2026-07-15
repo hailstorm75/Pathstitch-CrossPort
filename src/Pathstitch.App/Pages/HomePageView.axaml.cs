@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Domain.App.Models;
 using Domain.App.ViewModels;
@@ -92,6 +93,11 @@ public partial class HomePageView : BasePageView
     private void OnLoaded(object? sender, EventArgs e)
     {
         Focus();
+    }
+
+    private void OnDismissGettingStartedClicked(object? sender, RoutedEventArgs e)
+    {
+        GettingStartedCard.IsVisible = false;
     }
 
     private async void OnHomePageKeyDown(object? sender, KeyEventArgs e)

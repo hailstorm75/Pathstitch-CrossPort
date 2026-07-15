@@ -335,6 +335,43 @@
 
         <StackPanel Grid.Column="1" Spacing="16">
           <Border
+            x:Name="GettingStartedCard"
+            AutomationProperties.AutomationId="home.getting-started"
+            Padding="16"
+            Background="{StaticResource PanelBackgroundBrush}"
+            BorderBrush="{StaticResource AccentBrush}"
+            BorderThickness="1"
+            CornerRadius="10">
+            <StackPanel Spacing="8">
+              <DockPanel>
+                <Button
+                  DockPanel.Dock="Right"
+                  AutomationProperties.AutomationId="home.getting-started.dismiss"
+                  Classes="secondary-action"
+                  Padding="8,4"
+                  Content="Dismiss"
+                  Click="OnDismissGettingStartedClicked" />
+                <TextBlock
+                  VerticalAlignment="Center"
+                  FontSize="14"
+                  FontWeight="SemiBold"
+                  Foreground="{StaticResource PrimaryTextBrush}"
+                  Text="Getting Started" />
+              </DockPanel>
+              <TextBlock
+                FontSize="10"
+                TextWrapping="Wrap"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="Start in 2D to draw a pattern, use 3D to unfold model faces, or choose Batch to arrange multiple pieces." />
+              <StackPanel Spacing="3">
+                <TextBlock FontSize="10" Text="1. Create or open a project." />
+                <TextBlock FontSize="10" Text="2. Edit geometry, layers, and sewing details." />
+                <TextBlock FontSize="10" Text="3. Save, unfold, or export your finished pattern." />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border
             Padding="16"
             Background="{StaticResource PanelBackgroundBrush}"
             BorderBrush="{StaticResource BorderBrush}"
