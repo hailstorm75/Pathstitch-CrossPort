@@ -172,7 +172,7 @@
           Orientation="Horizontal"
           Spacing="10"
           VerticalAlignment="Center">
-          <pages:EditorCommandPalette />
+          <pages:EditorCommandPalette x:Name="CommandPalette" />
           <Border
             Padding="10,6"
             Background="{StaticResource AccentDimBrush}"

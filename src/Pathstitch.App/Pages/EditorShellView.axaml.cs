@@ -73,8 +73,16 @@ public partial class EditorShellView : EditorInteractionControlBase
     {
         if (DataContext is not EditorPageViewModel viewModel
             || IsShortcutSuppressedByFocusedElement()
-            || e.KeyModifiers != KeyModifiers.None)
+            || (e.KeyModifiers != KeyModifiers.None
+                && !(e.Key == Key.K && e.KeyModifiers is (KeyModifiers.Control or KeyModifiers.Meta))))
             return;
+
+        if (e.Key == Key.K && e.KeyModifiers is (KeyModifiers.Control or KeyModifiers.Meta))
+        {
+            CommandPalette.FocusSearch();
+            e.Handled = true;
+            return;
+        }
 
         var shortcutToken = GetShortcutText(e.Key);
 

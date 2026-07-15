@@ -12,6 +12,12 @@ public partial class EditorCommandPalette : UserControl
 
     public EditorCommandPalette() => InitializeComponent();
 
+    public void FocusSearch()
+    {
+        CommandSearchInput.Focus();
+        CommandSearchInput.SelectAll();
+    }
+
     private void OnSearchKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not EditorPageViewModel viewModel)
