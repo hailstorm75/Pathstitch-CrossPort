@@ -7,6 +7,11 @@ namespace Pathstitch.App.Controls;
 
 internal static class DxfCanvasPenEditing
 {
+    public static Editor2DPoint? GetHandleInForHit(Editor2DBezierAnchor anchor)
+        => anchor.HandleIn ?? (anchor.HandleOut is Editor2DPoint handleOut
+            ? ReflectHandle(anchor.Point, handleOut)
+            : null);
+
     public static Editor2DBezierAnchor MoveAnchor(Editor2DBezierAnchor anchor, Editor2DPoint delta)
         => new(
             new Editor2DPoint(anchor.Point.X + delta.X, anchor.Point.Y + delta.Y),

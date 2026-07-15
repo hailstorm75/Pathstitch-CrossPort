@@ -38,6 +38,14 @@ public sealed class BezierPenFoundationTests
     }
 
     [Fact]
+    public void PenEditing_InfersMissingIncomingHandleFromOutgoingHandle()
+    {
+        var anchor = new Editor2DBezierAnchor(new(10, 8), HandleOut: new(14, 13));
+
+        Assert.Equal(new Editor2DPoint(6, 3), DxfCanvasPenEditing.GetHandleInForHit(anchor));
+    }
+
+    [Fact]
     public void PenCommit_KeepsEditableAnchorsAndRendererReadySampledGeometry()
     {
         var document = Editor2DWorkspaceState.Empty.Document;

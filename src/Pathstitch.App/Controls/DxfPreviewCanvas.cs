@@ -3585,7 +3585,7 @@ Selection:
             var anchor = _pendingPenAnchors[candidate];
             foreach (var handle in new[]
             {
-                (Point: anchor.HandleIn, Control: DxfCanvasInteractionSession.PenDragControl.HandleIn),
+                (Point: DxfCanvasPenEditing.GetHandleInForHit(anchor), Control: DxfCanvasInteractionSession.PenDragControl.HandleIn),
                 (Point: anchor.HandleOut, Control: DxfCanvasInteractionSession.PenDragControl.HandleOut),
             })
             {
