@@ -44,6 +44,12 @@ public partial class EditorShellView : EditorInteractionControlBase
 
         var store = new UserPreferencesStore();
         var preferences = store.Load();
+        if (!preferences.TutorialCompleted)
+        {
+            await new TutorialDialog(store).ShowDialog(owner);
+            preferences = store.Load();
+        }
+
         var dismissed = viewModel.ActiveEditorMode switch
         {
             EditorMode.TwoD => preferences.TwoDIntroDismissed,

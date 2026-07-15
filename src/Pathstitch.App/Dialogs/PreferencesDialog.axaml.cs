@@ -112,6 +112,12 @@ public sealed partial class PreferencesDialog : Window
         StatusText.Text = "Mode intro cards will show again when each workspace opens.";
     }
 
+    private void OnReplayTutorialClicked(object? sender, RoutedEventArgs e)
+    {
+        _preferencesStore.Save(_preferencesStore.Load() with { TutorialCompleted = false });
+        StatusText.Text = "The guided tutorial will show again when the editor opens.";
+    }
+
     private void BuildShortcutEditors()
     {
         if (_viewModel is null)

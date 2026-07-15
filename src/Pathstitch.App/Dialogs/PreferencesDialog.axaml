@@ -26,7 +26,7 @@
         <ComboBoxItem Content="Dark" />
       </ComboBox>
     </Grid>
-    <Grid Grid.Row="3" Margin="0,0,0,14" ColumnDefinitions="*,Auto,Auto">
+    <Grid Grid.Row="3" Margin="0,0,0,14" ColumnDefinitions="*,Auto,Auto,Auto">
       <CheckBox
                 x:Name="ReversePanDirection"
                 Content="Reverse pan direction"
@@ -37,6 +37,12 @@
               Click="OnShowGettingStartedClicked"
               AutomationProperties.AutomationId="dialog.preferences.show-getting-started" />
       <Button Grid.Column="2"
+              Margin="0,0,0,0"
+              Padding="8,4"
+              Content="Replay Tutorial"
+              Click="OnReplayTutorialClicked"
+              AutomationProperties.AutomationId="dialog.preferences.replay-tutorial" />
+      <Button Grid.Column="3"
               Margin="0,0,0,0"
               Padding="8,4"
               Content="Show Mode Intros Again"

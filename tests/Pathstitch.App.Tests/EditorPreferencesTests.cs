@@ -97,6 +97,32 @@ public sealed class EditorPreferencesTests
     }
 
     [Fact]
+    public async Task PreferencesDialog_CanReplayGuidedTutorial()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-ui-tutorial-{Guid.NewGuid():N}.json");
+        try
+        {
+            var store = new UserPreferencesStore(path);
+            store.Save(new UserPreferences(TutorialCompleted: true));
+            var dialog = await _ui.RunAsync(() => new PreferencesDialog(null, store));
+            await _ui.RunAsync(() =>
+            {
+                dialog.Show();
+                dialog.UpdateLayout();
+                _ui.FindByAutomationId<Button>(dialog, "dialog.preferences.replay-tutorial")
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            });
+
+            Assert.False(store.Load().TutorialCompleted);
+            await _ui.RunAsync(dialog.Close);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task PreferencesDialog_AppliesShortcutAndResetRestoresActiveModeDefaults()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
