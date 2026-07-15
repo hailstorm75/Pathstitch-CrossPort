@@ -431,6 +431,16 @@ public sealed partial class EditorPageViewModel
         RedoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
     }
 
+    private void ClearBodyMoveHistory()
+    {
+        _threeDBodyMoveUndo.Clear();
+        _threeDBodyMoveRedo.Clear();
+        OnPropertyChanged(nameof(CanUndoThreeDBodyMove));
+        OnPropertyChanged(nameof(CanRedoThreeDBodyMove));
+        UndoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
+        RedoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
+    }
+
     private void ApplyBodyMoveHistory(IReadOnlyList<BodyOffset3D> offsets, string status)
     {
         _isApplyingBodyMoveHistory = true;

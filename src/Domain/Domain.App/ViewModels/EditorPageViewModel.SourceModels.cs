@@ -198,6 +198,7 @@ public sealed partial class EditorPageViewModel
         Bodies = bodies;
         if (!isAppendingToWorkspace)
         {
+            ClearBodyMoveHistory();
             BodyOffsets = [];
             BodyOffsetCount = 0;
         }

@@ -55,6 +55,7 @@ public sealed partial class EditorPageViewModel
             SelectedFaces = [];
             SelectedFaceDetails = [];
             SelectedBodyIndex = null;
+            ClearBodyMoveHistory();
             BodyOffsets = [];
             BodyOffsetCount = 0;
             DistortionModeIndex = 0;
