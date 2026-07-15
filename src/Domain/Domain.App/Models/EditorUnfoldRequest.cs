@@ -10,4 +10,7 @@ public sealed record EditorUnfoldRequest(
     IReadOnlyList<string>? VisibleBodyIds = null,
     string SeamControlMode = "auto",
     IReadOnlyList<EditorSeamEdge3D>? ForcedSeams = null,
-    IReadOnlyList<EditorSeamEdge3D>? ForbiddenSeams = null);
+    IReadOnlyList<EditorSeamEdge3D>? ForbiddenSeams = null,
+    SelectedFace3D? AnchorFace = null,
+    string SeamDecoration = "none",
+    IReadOnlyList<EditorSeamDecoration3D>? SeamDecorations = null);

@@ -333,6 +333,9 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Hybrid (Folds)", unfold, StringComparison.Ordinal);
         Assert.Contains("SeamOverrideSummary", unfold, StringComparison.Ordinal);
         Assert.Contains("OnClearActiveSeamOverridesClicked", unfold, StringComparison.Ordinal);
+        Assert.Contains("GlobalSeamDecorationIndex", unfold, StringComparison.Ordinal);
+        Assert.Contains("AnchorFaceSummary", unfold, StringComparison.Ordinal);
+        Assert.Contains("SelectedSeamDecoration", unfold, StringComparison.Ordinal);
     }
 
     [Fact]

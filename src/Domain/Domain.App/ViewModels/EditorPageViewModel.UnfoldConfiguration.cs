@@ -142,13 +142,86 @@ public sealed partial class EditorPageViewModel
 
     public IReadOnlyList<EditorSeamEdge3D> ForbiddenSeams => _threeDWorkspace.ForbiddenSeams;
 
+    public int GlobalSeamDecorationIndex
+    {
+        get => _threeDWorkspace.GlobalSeamDecorationIndex;
+        set
+        {
+            if (!SetWorkspaceFacadeValue(
+                    _threeDWorkspace.GlobalSeamDecorationIndex,
+                    Math.Clamp(value, 0, 2),
+                    updated => _threeDWorkspace.SetGlobalSeamDecorationIndex(updated)))
+                return;
+
+            NotifySeamDecorationChanged();
+        }
+    }
+
+    public string GlobalSeamDecorationLabel => GlobalSeamDecorationIndex switch
+    {
+        1 => "Glue Tabs",
+        2 => "Sew Holes",
+        _ => "Plain",
+    };
+
+    public string SeamDecorationValue => GlobalSeamDecorationIndex switch
+    {
+        1 => "tabs",
+        2 => "holes",
+        _ => "none",
+    };
+
+    public SelectedFace3D? AnchorFace => _threeDWorkspace.AnchorFace;
+
+    public string AnchorFaceSummary => AnchorFace is { } anchor
+        ? $"Anchor: B{anchor.BodyIndex + 1}:F{anchor.FaceIndex}"
+        : "Anchor: automatic (largest face)";
+
+    public bool HasAnchorFace => AnchorFace is not null;
+
+    public IReadOnlyList<string> SeamDecorationOptions { get; } = ["none", "tabs", "holes"];
+
+    public bool CanSetSelectedFaceAsAnchor => SelectedFaces.Count == 1;
+
+    public EditorSeamEdge3D? SelectedSeamEdge => _threeDWorkspace.SelectedSeamEdge;
+
+    public string SelectedSeamDecoration
+    {
+        get => SelectedSeamEdge is { } edge
+            ? _threeDWorkspace.SeamDecorations.FirstOrDefault(item => item.Edge == edge)?.Decoration ?? "none"
+            : "none";
+        set
+        {
+            if (SelectedSeamEdge is not { } edge)
+                return;
+            _threeDWorkspace.SetSeamDecoration(edge, value);
+            NotifySeamDecorationChanged();
+        }
+    }
+
+    public bool HasSelectedSeamEdge => SelectedSeamEdge is not null;
+
+    public void SetSelectedFaceAsAnchor()
+    {
+        if (SelectedFaces.Count != 1)
+            return;
+        _threeDWorkspace.SetAnchorFace(SelectedFaces[0]);
+        NotifySeamDecorationChanged();
+    }
+
+    public void ClearAnchorFace()
+    {
+        _threeDWorkspace.SetAnchorFace(null);
+        NotifySeamDecorationChanged();
+    }
+
     public void ToggleSeamEdge(int bodyIndex, int edgeIndex)
     {
-        if (SeamControlModeIndex == 0)
-            return;
-
-        _threeDWorkspace.ToggleSeamEdge(bodyIndex, edgeIndex);
+        _threeDWorkspace.SetSelectedSeamEdge(new EditorSeamEdge3D(bodyIndex, edgeIndex));
+        if (SeamControlModeIndex != 0)
+            _threeDWorkspace.ToggleSeamEdge(bodyIndex, edgeIndex);
         NotifySeamControlChanged();
+        NotifySeamDecorationChanged();
         Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
         if (LiveRecomputeEnabled)
             RequestLiveRecompute(TimeSpan.FromMilliseconds(150));
@@ -216,7 +289,7 @@ public sealed partial class EditorPageViewModel
             NetLayoutIndex: 1,
             DistortionModeIndex,
             UnrollModeIndex: 0,
-            GlobalSeamDecorationIndex: 0,
+            GlobalSeamDecorationIndex,
             SeamControlModeIndex,
             LiveRecomputeEnabled,
             WholeBodyRecompute: _wholeBodyRecompute,
@@ -225,7 +298,9 @@ public sealed partial class EditorPageViewModel
             HoleSpacingText: "4",
             HoleMarginText: "2",
             ForcedSeams.Count == 0 ? null : ForcedSeams,
-            ForbiddenSeams.Count == 0 ? null : ForbiddenSeams);
+            ForbiddenSeams.Count == 0 ? null : ForbiddenSeams,
+            AnchorFace,
+            SeamDecorations.Count == 0 ? null : SeamDecorations);
 
     private void ApplyPersistedUnfoldWorkspaceState(EditorUnfoldWorkspaceState? state)
     {
@@ -237,7 +312,11 @@ public sealed partial class EditorPageViewModel
         SeamControlModeIndex = openGeometryState.SeamControlModeIndex;
         _threeDWorkspace.SetForcedSeams(openGeometryState.ForcedSeams ?? []);
         _threeDWorkspace.SetForbiddenSeams(openGeometryState.ForbiddenSeams ?? []);
+        _threeDWorkspace.SetGlobalSeamDecorationIndex(openGeometryState.GlobalSeamDecorationIndex);
+        _threeDWorkspace.SetAnchorFace(openGeometryState.AnchorFace);
+        _threeDWorkspace.SetSeamDecorations(openGeometryState.SeamDecorations ?? []);
         NotifySeamControlChanged();
+        NotifySeamDecorationChanged();
         SetUnfoldPreviewScope(
             openGeometryState.WholeBodyRecompute && CanUnfoldEntireBody,
             requestPersistence: false,
@@ -279,7 +358,10 @@ public sealed partial class EditorPageViewModel
                 .ToArray(),
             SeamControlMode: GetSeamControlModeValue(),
             ForcedSeams: ForcedSeams,
-            ForbiddenSeams: ForbiddenSeams);
+            ForbiddenSeams: ForbiddenSeams,
+            AnchorFace: AnchorFace,
+            SeamDecoration: SeamDecorationValue,
+            SeamDecorations: SeamDecorations);
 
     private string GetSeamControlModeValue() => SeamControlModeIndex switch
     {
@@ -297,6 +379,26 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(SeamOverrideSummary));
         OnPropertyChanged(nameof(CanClearActiveSeamOverrides));
         RequestSeamControlStateSync();
+    }
+
+    private IReadOnlyList<EditorSeamDecoration3D> SeamDecorations => _threeDWorkspace.SeamDecorations;
+
+    private void NotifySeamDecorationChanged()
+    {
+        OnPropertyChanged(nameof(GlobalSeamDecorationIndex));
+        OnPropertyChanged(nameof(GlobalSeamDecorationLabel));
+        OnPropertyChanged(nameof(SeamDecorationValue));
+        OnPropertyChanged(nameof(AnchorFace));
+        OnPropertyChanged(nameof(AnchorFaceSummary));
+        OnPropertyChanged(nameof(HasAnchorFace));
+        OnPropertyChanged(nameof(CanSetSelectedFaceAsAnchor));
+        OnPropertyChanged(nameof(SelectedSeamEdge));
+        OnPropertyChanged(nameof(SelectedSeamDecoration));
+        OnPropertyChanged(nameof(HasSelectedSeamEdge));
+        RequestSeamControlStateSync();
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        if (LiveRecomputeEnabled)
+            RequestLiveRecompute(TimeSpan.FromMilliseconds(150));
     }
 
     private void NotifyUnfoldPreviewScopeChanged()

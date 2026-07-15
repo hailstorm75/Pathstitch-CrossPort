@@ -15,7 +15,9 @@ public sealed record EditorUnfoldWorkspaceState(
     [property: JsonPropertyName("holeSpacingText")] string HoleSpacingText,
     [property: JsonPropertyName("holeMarginText")] string HoleMarginText,
     [property: JsonPropertyName("forcedSeams")] IReadOnlyList<EditorSeamEdge3D>? ForcedSeams = null,
-    [property: JsonPropertyName("forbiddenSeams")] IReadOnlyList<EditorSeamEdge3D>? ForbiddenSeams = null)
+    [property: JsonPropertyName("forbiddenSeams")] IReadOnlyList<EditorSeamEdge3D>? ForbiddenSeams = null,
+    [property: JsonPropertyName("anchorFace")] SelectedFace3D? AnchorFace = null,
+    [property: JsonPropertyName("seamDecorations")] IReadOnlyList<EditorSeamDecoration3D>? SeamDecorations = null)
 {
     public EditorUnfoldWorkspaceState NormalizeForOpenGeometryEditor()
         => this with
@@ -28,5 +30,6 @@ public sealed record EditorUnfoldWorkspaceState(
             HoleMarginText = "2",
             ForcedSeams = ForcedSeams ?? [],
             ForbiddenSeams = ForbiddenSeams ?? [],
+            SeamDecorations = SeamDecorations ?? [],
         };
 }

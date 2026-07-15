@@ -208,6 +208,18 @@ public abstract class EditorInteractionControlBase : UserControl
             viewModel.ClearActiveSeamOverrides();
     }
 
+    protected void OnSetSelectedFaceAsAnchorClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.SetSelectedFaceAsAnchor();
+    }
+
+    protected void OnClearAnchorFaceClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ClearAnchorFace();
+    }
+
     protected async void OnOpenTwoDClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

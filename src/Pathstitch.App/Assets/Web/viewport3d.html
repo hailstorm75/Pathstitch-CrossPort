@@ -632,7 +632,7 @@
             updateVisuals();
         };
 
-        window.setSeams = function(forcedJsonStr, forbiddenJsonStr, mode) {
+        window.setSeams = function(forcedJsonStr, forbiddenJsonStr, mode, decorationsJsonStr) {
             forcedSeams = JSON.parse(forcedJsonStr || "[]");
             forbiddenSeams = JSON.parse(forbiddenJsonStr || "[]");
             seamControlMode = mode;

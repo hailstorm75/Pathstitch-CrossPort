@@ -48,6 +48,10 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     private int _seamControlModeIndex;
     private IReadOnlyList<EditorSeamEdge3D> _forcedSeams = [];
     private IReadOnlyList<EditorSeamEdge3D> _forbiddenSeams = [];
+    private int _globalSeamDecorationIndex;
+    private SelectedFace3D? _anchorFace;
+    private IReadOnlyList<EditorSeamDecoration3D> _seamDecorations = [];
+    private EditorSeamEdge3D? _selectedSeamEdge;
     private string _selectedBodyOffsetXText = "0";
     private string _selectedBodyOffsetYText = "0";
     private string _selectedBodyOffsetZText = "0";
@@ -109,6 +113,10 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     public int SeamControlModeIndex => _seamControlModeIndex;
     public IReadOnlyList<EditorSeamEdge3D> ForcedSeams => _forcedSeams;
     public IReadOnlyList<EditorSeamEdge3D> ForbiddenSeams => _forbiddenSeams;
+    public int GlobalSeamDecorationIndex => _globalSeamDecorationIndex;
+    public SelectedFace3D? AnchorFace => _anchorFace;
+    public IReadOnlyList<EditorSeamDecoration3D> SeamDecorations => _seamDecorations;
+    public EditorSeamEdge3D? SelectedSeamEdge => _selectedSeamEdge;
     public string SelectedBodyOffsetXText => _selectedBodyOffsetXText;
     public string SelectedBodyOffsetYText => _selectedBodyOffsetYText;
     public string SelectedBodyOffsetZText => _selectedBodyOffsetZText;
@@ -198,10 +206,24 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     internal bool SetSeamControlModeIndex(int value) => SetProperty(ref _seamControlModeIndex, Math.Clamp(value, 0, 2), nameof(SeamControlModeIndex));
     internal bool SetForcedSeams(IReadOnlyList<EditorSeamEdge3D> value) => SetProperty(ref _forcedSeams, value, nameof(ForcedSeams));
     internal bool SetForbiddenSeams(IReadOnlyList<EditorSeamEdge3D> value) => SetProperty(ref _forbiddenSeams, value, nameof(ForbiddenSeams));
+    internal bool SetGlobalSeamDecorationIndex(int value) => SetProperty(ref _globalSeamDecorationIndex, Math.Clamp(value, 0, 2), nameof(GlobalSeamDecorationIndex));
+    internal bool SetAnchorFace(SelectedFace3D? value) => SetProperty(ref _anchorFace, value, nameof(AnchorFace));
+    internal bool SetSeamDecorations(IReadOnlyList<EditorSeamDecoration3D> value) => SetProperty(ref _seamDecorations, value, nameof(SeamDecorations));
+    internal bool SetSelectedSeamEdge(EditorSeamEdge3D? value) => SetProperty(ref _selectedSeamEdge, value, nameof(SelectedSeamEdge));
+
+    public void SetSeamDecoration(EditorSeamEdge3D edge, string decoration)
+    {
+        var normalized = decoration is "tabs" or "holes" or "none" ? decoration : "none";
+        SetSeamDecorations(_seamDecorations
+            .Where(item => item.Edge != edge)
+            .Append(new EditorSeamDecoration3D(edge, normalized))
+            .ToArray());
+    }
 
     public void ToggleSeamEdge(int bodyIndex, int edgeIndex)
     {
         var edge = new EditorSeamEdge3D(bodyIndex, edgeIndex);
+        SetSelectedSeamEdge(edge);
         if (_seamControlModeIndex == 1)
             SetForcedSeams(ToggleEdge(_forcedSeams, edge));
         else if (_seamControlModeIndex == 2)
@@ -311,11 +333,13 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
                 _selectedProjectionBodyIndex,
                 _planeOffset),
             new EditorUnfoldWorkspaceState(
-                1, _distortionModeIndex, 0, 0, 0,
+                1, _distortionModeIndex, 0, _globalSeamDecorationIndex, _seamControlModeIndex,
                 _liveRecomputeEnabled, _wholeBodyRecompute,
                 "5", "1", "4", "2",
                 _forcedSeams.Count == 0 ? null : _forcedSeams,
-                _forbiddenSeams.Count == 0 ? null : _forbiddenSeams));
+                _forbiddenSeams.Count == 0 ? null : _forbiddenSeams,
+                _anchorFace,
+                _seamDecorations.Count == 0 ? null : _seamDecorations));
 
     public void RestoreState(Editor3DWorkspaceState state)
     {
@@ -345,6 +369,9 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
         _seamControlModeIndex = state.Unfold.SeamControlModeIndex;
         _forcedSeams = state.Unfold.ForcedSeams ?? [];
         _forbiddenSeams = state.Unfold.ForbiddenSeams ?? [];
+        _globalSeamDecorationIndex = state.Unfold.GlobalSeamDecorationIndex;
+        _anchorFace = state.Unfold.AnchorFace;
+        _seamDecorations = state.Unfold.SeamDecorations ?? [];
         RaiseStateProperties();
     }
 
@@ -383,6 +410,10 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(SeamControlModeIndex));
         OnPropertyChanged(nameof(ForcedSeams));
         OnPropertyChanged(nameof(ForbiddenSeams));
+        OnPropertyChanged(nameof(GlobalSeamDecorationIndex));
+        OnPropertyChanged(nameof(AnchorFace));
+        OnPropertyChanged(nameof(SeamDecorations));
+        OnPropertyChanged(nameof(SelectedSeamEdge));
     }
 
     private static IReadOnlyList<EditorSeamEdge3D> ToggleEdge(

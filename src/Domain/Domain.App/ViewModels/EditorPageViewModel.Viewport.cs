@@ -70,6 +70,7 @@ public sealed partial class EditorPageViewModel
     {
         var forced = JsonSerializer.Serialize(_threeDWorkspace.ForcedSeams);
         var forbidden = JsonSerializer.Serialize(_threeDWorkspace.ForbiddenSeams);
+        var decorations = JsonSerializer.Serialize(_threeDWorkspace.SeamDecorations);
         var mode = SeamControlModeIndex switch
         {
             1 => "manual",
@@ -77,7 +78,7 @@ public sealed partial class EditorPageViewModel
             _ => "auto",
         };
         RequestViewportScript(
-            $"setSeams(\"{EscapeForJavaScriptString(forced)}\", \"{EscapeForJavaScriptString(forbidden)}\", \"{mode}\");");
+            $"setSeams(\"{EscapeForJavaScriptString(forced)}\", \"{EscapeForJavaScriptString(forbidden)}\", \"{mode}\", \"{EscapeForJavaScriptString(decorations)}\");");
     }
 
     private static string EscapeForJavaScriptString(string raw)

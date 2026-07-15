@@ -139,6 +139,30 @@ public sealed class Editor3DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void UnfoldDecorationAndAnchorState_RoundTrips()
+    {
+        var workspace = CreateWorkspace();
+        var anchor = new SelectedFace3D(1, 3);
+        var edge = new EditorSeamEdge3D(1, 4);
+        var decoration = new EditorSeamDecoration3D(edge, "holes");
+        var state = workspace.CaptureState() with
+        {
+            Unfold = workspace.CaptureState().Unfold with
+            {
+                GlobalSeamDecorationIndex = 2,
+                AnchorFace = anchor,
+                SeamDecorations = [decoration],
+            },
+        };
+
+        workspace.RestoreState(state);
+
+        Assert.Equal(2, workspace.CaptureState().Unfold.GlobalSeamDecorationIndex);
+        Assert.Equal(anchor, workspace.CaptureState().Unfold.AnchorFace);
+        Assert.Equal([decoration], workspace.CaptureState().Unfold.SeamDecorations);
+    }
+
+    [Fact]
     public async Task ProjectPersistenceRoundTripPreservesOwnedThreeDWorkspaceState()
     {
         var workspace = CreateWorkspace();

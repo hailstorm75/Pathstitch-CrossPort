@@ -182,7 +182,10 @@ public sealed class PackagedStepGeometryKernelService(
                 faces = request.SelectedFaces.Select(face => new { body_index = face.BodyIndex, face_index = face.FaceIndex }).ToArray(),
                 distortion_mode = request.DistortionMode,
                 mode = "radial",
-                decoration = "none",
+                decoration = request.SeamDecoration,
+                anchor = request.AnchorFace is { } anchor
+                    ? new { body_index = anchor.BodyIndex, face_index = anchor.FaceIndex }
+                    : null,
                 seam_control_mode = request.SeamControlMode,
                 forced_seams = (request.ForcedSeams ?? []).Select(edge => new
                 {
@@ -193,6 +196,12 @@ public sealed class PackagedStepGeometryKernelService(
                 {
                     body_index = edge.BodyIndex,
                     edge_index = edge.EdgeIndex,
+                }).ToArray(),
+                seam_decorations = (request.SeamDecorations ?? []).Select(item => new
+                {
+                    body_index = item.Edge.BodyIndex,
+                    edge_index = item.Edge.EdgeIndex,
+                    decoration = item.Decoration,
                 }).ToArray(),
             }, cancellationToken).ConfigureAwait(false);
             var geometry = response.GetProperty("data").GetProperty("typedGeometry")
