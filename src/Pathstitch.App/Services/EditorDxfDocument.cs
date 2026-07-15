@@ -54,6 +54,12 @@ internal static class EditorDxfDocument
             return;
         }
 
+        if (Path.GetExtension(outputPath).Equals(".png", StringComparison.OrdinalIgnoreCase))
+        {
+            PngOutputDocumentWriter.Save(outputPath, document, options ?? Editor2DExportOptions.Defaults);
+            return;
+        }
+
         var outputDirectory = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrWhiteSpace(outputDirectory))
             Directory.CreateDirectory(outputDirectory);

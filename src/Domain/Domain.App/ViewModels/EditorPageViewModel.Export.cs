@@ -10,10 +10,26 @@ public sealed partial class EditorPageViewModel
     private string _twoDSvgPrecisionText = "3";
     private string _twoDSvgStrokeWidthText = "0.5";
     private string _twoDDxfVersion = "R2010";
+    private string _twoDPngLongestEdgeText = "2048";
+    private bool _twoDPngTransparent = true;
 
     public bool CanExportTwoDDxf => TwoDDocument is not null;
 
     public bool CanExportTwoDSvg => TwoDDocument is not null;
+
+    public bool CanExportTwoDPng => TwoDDocument is not null;
+
+    public string TwoDPngLongestEdgeText
+    {
+        get => _twoDPngLongestEdgeText;
+        set => SetProperty(ref _twoDPngLongestEdgeText, value ?? string.Empty);
+    }
+
+    public bool TwoDPngTransparent
+    {
+        get => _twoDPngTransparent;
+        set => SetProperty(ref _twoDPngTransparent, value);
+    }
 
     public bool TwoDExportSelectedOnly
     {
@@ -133,6 +149,40 @@ public sealed partial class EditorPageViewModel
         }
     }
 
+    public async Task ExportTwoDPngAsync(CancellationToken cancellationToken = default)
+    {
+        var document = TwoDDocument;
+        if (document is null)
+            return;
+
+        try
+        {
+            ErrorMessage = null;
+            var suggestedFileName = string.IsNullOrWhiteSpace(ProjectName)
+                ? "Pathstitch Export.png"
+                : $"{ProjectName}.png";
+            var outputPath = await _projectFileDialogService
+                .PickPngExportFileAsync(suggestedFileName, cancellationToken)
+                .ConfigureAwait(true);
+            if (string.IsNullOrWhiteSpace(outputPath))
+                return;
+
+            await _editorOutputPreviewService
+                .SavePreviewDocumentAsync(BuildExportDocument(document), outputPath, ParsePngOptions(), cancellationToken)
+                .ConfigureAwait(true);
+            StatusText = $"Exported PNG to {Path.GetFileName(outputPath)}";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to export 2D workspace PNG.");
+            ErrorMessage = $"Could not export PNG: {exception.Message}";
+        }
+    }
+
     private Editor2DPreviewDocument BuildExportDocument(Editor2DPreviewDocument document)
     {
         var exportDocument = TwoDExportSelectedOnly && TwoDSelectedPathIds.Count > 0
@@ -166,4 +216,13 @@ public sealed partial class EditorPageViewModel
 
     private Editor2DExportOptions ParseDxfOptions()
         => new(IncludeMeasurementLines: TwoDExportMeasurementLines, DxfVersion: TwoDDxfVersion);
+
+    private Editor2DExportOptions ParsePngOptions()
+    {
+        var edge = int.TryParse(TwoDPngLongestEdgeText, out var parsedEdge) ? parsedEdge : 2048;
+        return new Editor2DExportOptions(
+            IncludeMeasurementLines: TwoDExportMeasurementLines,
+            PngLongestEdge: edge,
+            PngTransparent: TwoDPngTransparent);
+    }
 }

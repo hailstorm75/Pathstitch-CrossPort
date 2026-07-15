@@ -1,6 +1,7 @@
 using Domain.App.Models;
 using Domain.App.Services;
 using Pathstitch.App.Services;
+using SkiaSharp;
 
 namespace Pathstitch.App.Tests;
 
@@ -197,6 +198,33 @@ public sealed class EditorQuickDxfExportTests
             var dxf = await File.ReadAllTextAsync(outputPath);
             Assert.Contains("$ACADVER", dxf, StringComparison.Ordinal);
             Assert.Contains("AC1032", dxf, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(outputPath);
+        }
+    }
+
+    [Fact]
+    public async Task PngWriter_UsesRequestedLongestEdgeAndTransparency()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-png-export-{Guid.NewGuid():N}.png");
+        try
+        {
+            var document = new Editor2DPreviewDocument(
+                [new Editor2DPreviewPath("line", "LINE", [new(0, 0), new(10, 5)], false)],
+                new Editor2DBounds(0, 0, 10, 5),
+                new Dictionary<string, int> { ["LINE"] = 1 },
+                []);
+            await new DxfOutputPreviewService().SavePreviewDocumentAsync(
+                document,
+                outputPath,
+                new Editor2DExportOptions(PngLongestEdge: 256, PngTransparent: true));
+
+            using var bitmap = SKBitmap.Decode(outputPath);
+            Assert.Equal(256, bitmap.Width);
+            Assert.Equal(128, bitmap.Height);
+            Assert.Equal(0, bitmap.GetPixel(0, 127).Alpha);
         }
         finally
         {

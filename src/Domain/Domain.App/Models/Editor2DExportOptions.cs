@@ -4,7 +4,9 @@ public sealed record Editor2DExportOptions(
     int SvgPrecision = 3,
     double SvgStrokeWidth = 0.5,
     bool IncludeMeasurementLines = false,
-    string DxfVersion = "R2010")
+    string DxfVersion = "R2010",
+    int PngLongestEdge = 2048,
+    bool PngTransparent = true)
 {
     public static Editor2DExportOptions Defaults { get; } = new();
 
@@ -19,4 +21,6 @@ public sealed record Editor2DExportOptions(
         => DxfVersionOptions.Contains(DxfVersion, StringComparer.OrdinalIgnoreCase)
             ? DxfVersion.ToUpperInvariant()
             : Defaults.DxfVersion;
+
+    public int NormalizedPngLongestEdge => Math.Clamp(PngLongestEdge, 256, 8192);
 }

@@ -250,6 +250,12 @@ public abstract class EditorInteractionControlBase : UserControl
             await viewModel.ExportTwoDSvgAsync();
     }
 
+    protected async void OnExportTwoDPngClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            await viewModel.ExportTwoDPngAsync();
+    }
+
     protected void OnExpandTwoDRectanglesClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

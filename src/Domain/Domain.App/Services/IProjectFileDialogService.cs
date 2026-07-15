@@ -20,4 +20,7 @@ public interface IProjectFileDialogService
 
     Task<string?> PickSvgExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
         => Task.FromResult<string?>(null);
+
+    Task<string?> PickPngExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
 }
