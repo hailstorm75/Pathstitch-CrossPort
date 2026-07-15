@@ -17,6 +17,8 @@
     HiddenPathIds="{Binding TwoDHiddenPathIds}"
     PreviewPaths="{Binding TwoDWorkspace.SewingHolePreviewPaths}"
     ReferenceImages="{Binding TwoDReferenceImages}"
+    ActiveReferenceImage="{Binding TwoDActiveReferenceImage}"
+    ActiveReferenceImageLocked="{Binding TwoDActiveReferenceImageLocked}"
     CornerParameters="{Binding TwoDCornerParameters, Mode=TwoWay}"
     Measurements="{Binding TwoDMeasurements, Mode=TwoWay}"
     SelectedMeasurementId="{Binding TwoDSelectedMeasurementId, Mode=TwoWay}"

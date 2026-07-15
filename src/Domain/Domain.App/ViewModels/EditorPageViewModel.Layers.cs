@@ -19,6 +19,9 @@ public sealed partial class EditorPageViewModel
 
     public bool HasTwoDActiveReferenceImage => TwoDActiveReferenceImage is not null;
 
+    public bool TwoDActiveReferenceImageLocked
+        => _twoDWorkspace.ActiveLayer?.IsLocked == true;
+
     private string _twoDReferenceCalibrationWidthText = "100";
 
     public string TwoDReferenceCalibrationWidthText
@@ -87,6 +90,18 @@ public sealed partial class EditorPageViewModel
         {
             RefreshTwoDLayerFacade();
         }
+    }
+
+    public void UpdateTwoDReferenceImageTransform(
+        string layerId,
+        double x,
+        double y,
+        double width,
+        double height,
+        double rotationDegrees)
+    {
+        if (_twoDWorkspace.UpdateReferenceImageTransform(layerId, x, y, width, height, rotationDegrees))
+            RefreshTwoDLayerFacade();
     }
 
     public void ScaleTwoDReferenceImage(string layerId, double factor)
@@ -205,6 +220,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDReferenceImages));
         OnPropertyChanged(nameof(TwoDActiveReferenceImage));
         OnPropertyChanged(nameof(HasTwoDActiveReferenceImage));
+        OnPropertyChanged(nameof(TwoDActiveReferenceImageLocked));
         Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
     }
 

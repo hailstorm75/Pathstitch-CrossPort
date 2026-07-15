@@ -63,6 +63,12 @@ public sealed class DxfPreviewCanvas : Control
             nameof(ReferenceImages),
             defaultValue: Array.Empty<Editor2DReferenceImage>());
 
+    public static readonly StyledProperty<Editor2DReferenceImage?> ActiveReferenceImageProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DReferenceImage?>(nameof(ActiveReferenceImage));
+
+    public static readonly StyledProperty<bool> ActiveReferenceImageLockedProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(ActiveReferenceImageLocked));
+
     public static readonly StyledProperty<IReadOnlyList<Editor2DCornerParameter>> CornerParametersProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DCornerParameter>>(
             nameof(CornerParameters),
@@ -190,6 +196,8 @@ public sealed class DxfPreviewCanvas : Control
     private ref double? _cornerToolSessionValue => ref _interaction.CornerToolSessionValue;
     private DxfCanvasSnapResult? _activeSnapResult;
     private bool _shiftSnapHeld;
+    private Editor2DReferenceImage? _referenceImageDragStart;
+    private Point _referenceImageDragStartPoint;
     private double? _pinchLastScale;
 
     static DxfPreviewCanvas()
@@ -202,6 +210,8 @@ public sealed class DxfPreviewCanvas : Control
             HiddenPathIdsProperty,
             PreviewPathsProperty,
             ReferenceImagesProperty,
+            ActiveReferenceImageProperty,
+            ActiveReferenceImageLockedProperty,
             CornerParametersProperty,
             MeasurementsProperty,
             SelectedMeasurementIdProperty,
@@ -364,6 +374,20 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(ReferenceImagesProperty, value ?? Array.Empty<Editor2DReferenceImage>());
     }
 
+    public Editor2DReferenceImage? ActiveReferenceImage
+    {
+        get => GetValue(ActiveReferenceImageProperty);
+        set => SetValue(ActiveReferenceImageProperty, value);
+    }
+
+    public bool ActiveReferenceImageLocked
+    {
+        get => GetValue(ActiveReferenceImageLockedProperty);
+        set => SetValue(ActiveReferenceImageLockedProperty, value);
+    }
+
+    public event Action<string, double, double, double, double, double>? ReferenceImageTransformChanged;
+
     public IReadOnlyList<Editor2DCornerParameter> CornerParameters
     {
         get => GetValue(CornerParametersProperty);
@@ -484,6 +508,7 @@ public sealed class DxfPreviewCanvas : Control
         _editingVertexPathId = null;
         _editingVertexIndex = 0;
         _editingVertexIsConstrainedRectangle = false;
+        _referenceImageDragStart = null;
         _pressedPathId = null;
         SetCurrentValue(SelectedMeasurementIdProperty, null);
         CancelMarqueeSelection();
@@ -592,6 +617,7 @@ public sealed class DxfPreviewCanvas : Control
 
         DrawGrid(context, size);
         DrawReferenceImages(context, size);
+        DrawReferenceImageGizmo(context, size);
         var visiblePaths = GetVisiblePaths();
         if (visiblePaths.Count > 0)
             DrawPaperBounds(context, size, Document.Bounds);
@@ -647,6 +673,18 @@ public sealed class DxfPreviewCanvas : Control
 
         if (!point.Properties.IsLeftButtonPressed || Document is null)
             return;
+
+        if (ActiveTool == Editor2DTool.Select
+            && !ActiveReferenceImageLocked
+            && ActiveReferenceImage is { } activeImage
+            && IsInsideReferenceImage(point.Position, activeImage))
+        {
+            _referenceImageDragStart = activeImage;
+            _referenceImageDragStartPoint = point.Position;
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
 
         if (ActiveTool == Editor2DTool.Select
             || ActiveTool == Editor2DTool.Scale
@@ -728,6 +766,23 @@ public sealed class DxfPreviewCanvas : Control
         UpdateShiftSnapModifier(e.KeyModifiers);
         _hoverPointerPosition = position;
         _hasHoverPointerPosition = true;
+        if (_referenceImageDragStart is { } image)
+        {
+            var startWorld = ScreenToWorld(_referenceImageDragStartPoint);
+            var currentWorld = ScreenToWorld(position);
+            var deltaX = currentWorld.X - startWorld.X;
+            var deltaY = currentWorld.Y - startWorld.Y;
+            ReferenceImageTransformChanged?.Invoke(
+                image.Id,
+                image.X + deltaX,
+                image.Y + deltaY,
+                image.Width,
+                image.Height,
+                image.RotationDegrees);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
         if (_isAwaitingSecondaryContextClick)
         {
             var secondaryDelta = position - _pointerPressPosition;
@@ -785,6 +840,15 @@ Hover:
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+
+        if (_referenceImageDragStart is not null)
+        {
+            _referenceImageDragStart = null;
+            e.Pointer.Capture(null);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
 
         switch (_interactionController.RouteRelease(ActiveTool, e.Pointer.Captured == this))
         {
@@ -1026,6 +1090,30 @@ Selection:
                 bitmap,
                 new Rect(bitmap.Size),
                 destination);
+        }
+    }
+
+    private void DrawReferenceImageGizmo(DrawingContext context, Size size)
+    {
+        if (ActiveTool != Editor2DTool.Select || ActiveReferenceImage is not { } image || image.Width <= 0.0 || image.Height <= 0.0)
+            return;
+
+        var center = WorldToScreen(new Editor2DPoint(image.X, image.Y), size);
+        var rect = GetReferenceImageLocalRect(image, Zoom);
+        using var transform = context.PushTransform(
+            Matrix.CreateTranslation(center.X, center.Y)
+            * Matrix.CreateRotation(-image.RotationDegrees * Math.PI / 180.0));
+        context.DrawRectangle(null, SelectedPathPen, rect);
+        const double handle = 7.0;
+        foreach (var point in new[]
+        {
+            new Point(rect.Left, rect.Top),
+            new Point(rect.Right, rect.Top),
+            new Point(rect.Right, rect.Bottom),
+            new Point(rect.Left, rect.Bottom),
+        })
+        {
+            context.FillRectangle(EditableVertexHandleFillBrush, new Rect(point.X - handle / 2.0, point.Y - handle / 2.0, handle, handle));
         }
     }
 
@@ -2841,8 +2929,25 @@ Selection:
     private Point WorldToScreen(Editor2DPoint point, Size size)
         => DxfCanvasViewportTransform.WorldToScreen(point, size, Zoom, OffsetX, OffsetY);
 
+    private Editor2DPoint ScreenToWorld(Point point)
+        => ScreenToWorld(point, Zoom);
+
     private Editor2DPoint ScreenToWorld(Point point, double zoom)
         => DxfCanvasViewportTransform.ScreenToWorld(point, Bounds.Size, zoom, OffsetX, OffsetY);
+
+    private bool IsInsideReferenceImage(Point screenPoint, Editor2DReferenceImage image)
+    {
+        var center = WorldToScreen(new Editor2DPoint(image.X, image.Y), Bounds.Size);
+        var dx = screenPoint.X - center.X;
+        var dy = screenPoint.Y - center.Y;
+        var radians = image.RotationDegrees * Math.PI / 180.0;
+        var cosine = Math.Cos(radians);
+        var sine = Math.Sin(radians);
+        var localX = (cosine * dx - sine * dy) / Math.Max(Zoom, 0.0001);
+        var localY = (sine * dx + cosine * dy) / Math.Max(Zoom, 0.0001);
+        return Math.Abs(localX) <= image.Width / 2.0
+            && Math.Abs(localY) <= image.Height / 2.0;
+    }
 
     private bool IsSnappingActive => SnapEnabled != _shiftSnapHeld;
 
