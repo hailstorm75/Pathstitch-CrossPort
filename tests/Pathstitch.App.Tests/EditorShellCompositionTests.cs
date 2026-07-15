@@ -218,6 +218,16 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void TwoDLayersPanel_ExposesMergeWithBelow()
+    {
+        var layers = ReadPage("Editor2DLayersPanel.axaml");
+        var codeBehind = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DLayersPanel.axaml.cs");
+
+        Assert.Contains("Content=\"Merge ↓\"", layers, StringComparison.Ordinal);
+        Assert.Contains("OnMergeLayerWithBelowClicked", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InspectorHost_ScopesWorkspaceSpecificPanels()
     {
         var host = ReadPage("EditorInspectorHost.axaml");

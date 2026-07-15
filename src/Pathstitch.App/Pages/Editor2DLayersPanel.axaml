@@ -59,6 +59,7 @@
                     <Button Padding="5,2" Content="Lock" Tag="{Binding Id}" Click="OnToggleLockClicked" />
                     <Button Padding="5,2" Content="↑" Tag="{Binding Id}" Click="OnMoveLayerUpClicked" />
                     <Button Padding="5,2" Content="↓" Tag="{Binding Id}" Click="OnMoveLayerDownClicked" />
+                    <Button Padding="5,2" Content="Merge ↓" Tag="{Binding Id}" Click="OnMergeLayerWithBelowClicked" />
                   </StackPanel>
                   <Button
                     Padding="5,2"
