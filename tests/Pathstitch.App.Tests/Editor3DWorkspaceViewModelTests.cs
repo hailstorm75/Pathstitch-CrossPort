@@ -115,6 +115,30 @@ public sealed class Editor3DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void SeamControl_TogglesForcedCutsAndForbiddenFoldsByMode()
+    {
+        var workspace = CreateWorkspace();
+
+        workspace.RestoreState(workspace.CaptureState() with
+        {
+            Unfold = workspace.CaptureState().Unfold with { SeamControlModeIndex = 1 },
+        });
+        workspace.ToggleSeamEdge(2, 7);
+        Assert.Equal([new EditorSeamEdge3D(2, 7)], workspace.ForcedSeams);
+        workspace.ToggleSeamEdge(2, 7);
+        Assert.Empty(workspace.ForcedSeams);
+
+        workspace.RestoreState(workspace.CaptureState() with
+        {
+            Unfold = workspace.CaptureState().Unfold with { SeamControlModeIndex = 2 },
+        });
+        workspace.ToggleSeamEdge(1, 4);
+        Assert.Equal([new EditorSeamEdge3D(1, 4)], workspace.ForbiddenSeams);
+        workspace.ClearActiveSeamOverrides();
+        Assert.Empty(workspace.ForbiddenSeams);
+    }
+
+    [Fact]
     public async Task ProjectPersistenceRoundTripPreservesOwnedThreeDWorkspaceState()
     {
         var workspace = CreateWorkspace();

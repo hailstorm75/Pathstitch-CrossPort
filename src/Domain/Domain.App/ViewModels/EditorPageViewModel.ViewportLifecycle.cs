@@ -47,6 +47,11 @@ public sealed partial class EditorPageViewModel
                 RequestBodyMoveStateSync();
                 break;
 
+            case "selectEdge" when message.BodyIndex is not null && message.EdgeIndex is not null:
+                ToggleSeamEdge(message.BodyIndex.Value, message.EdgeIndex.Value);
+                StatusText = $"{SeamControlModeLabel}: edge B{message.BodyIndex.Value + 1}:E{message.EdgeIndex.Value}";
+                break;
+
             case "bodyMoveBegin":
                 StatusText = "Body move started";
                 break;

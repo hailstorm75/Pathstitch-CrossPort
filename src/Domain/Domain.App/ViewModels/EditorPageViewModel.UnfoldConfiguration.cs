@@ -101,6 +101,68 @@ public sealed partial class EditorPageViewModel
 
     public string UnfoldConfigurationSummary => $"3D geometry pieces / {GetDistortionModeLabel()}";
 
+    public int SeamControlModeIndex
+    {
+        get => _threeDWorkspace.SeamControlModeIndex;
+        set
+        {
+            if (!SetWorkspaceFacadeValue(
+                    _threeDWorkspace.SeamControlModeIndex,
+                    Math.Clamp(value, 0, 2),
+                    updated => _threeDWorkspace.SetSeamControlModeIndex(updated)))
+                return;
+
+            OnPropertyChanged(nameof(SeamControlModeLabel));
+            RequestSeamControlStateSync();
+            Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+            if (LiveRecomputeEnabled)
+                RequestLiveRecompute(TimeSpan.FromMilliseconds(150));
+        }
+    }
+
+    public string SeamControlModeLabel => SeamControlModeIndex switch
+    {
+        1 => "Manual (Cuts)",
+        2 => "Hybrid (Folds)",
+        _ => "Auto",
+    };
+
+    public string SeamOverrideSummary => SeamControlModeIndex switch
+    {
+        1 => $"{ForcedSeams.Count} manual cut(s) selected.",
+        2 => $"{ForbiddenSeams.Count} forced fold(s) selected.",
+        _ => "Automatic seam selection is active.",
+    };
+
+    public bool CanClearActiveSeamOverrides
+        => SeamControlModeIndex == 1 ? ForcedSeams.Count > 0
+            : SeamControlModeIndex == 2 && ForbiddenSeams.Count > 0;
+
+    public IReadOnlyList<EditorSeamEdge3D> ForcedSeams => _threeDWorkspace.ForcedSeams;
+
+    public IReadOnlyList<EditorSeamEdge3D> ForbiddenSeams => _threeDWorkspace.ForbiddenSeams;
+
+    public void ToggleSeamEdge(int bodyIndex, int edgeIndex)
+    {
+        if (SeamControlModeIndex == 0)
+            return;
+
+        _threeDWorkspace.ToggleSeamEdge(bodyIndex, edgeIndex);
+        NotifySeamControlChanged();
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        if (LiveRecomputeEnabled)
+            RequestLiveRecompute(TimeSpan.FromMilliseconds(150));
+    }
+
+    public void ClearActiveSeamOverrides()
+    {
+        _threeDWorkspace.ClearActiveSeamOverrides();
+        NotifySeamControlChanged();
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        if (LiveRecomputeEnabled)
+            RequestLiveRecompute(TimeSpan.FromMilliseconds(150));
+    }
+
     public string UnfoldPreviewModeSummary => LiveRecomputeEnabled
         ? _wholeBodyRecompute
             ? "Live recompute refreshes the 2D preview from every visible body."
@@ -155,13 +217,15 @@ public sealed partial class EditorPageViewModel
             DistortionModeIndex,
             UnrollModeIndex: 0,
             GlobalSeamDecorationIndex: 0,
-            SeamControlModeIndex: 0,
+            SeamControlModeIndex,
             LiveRecomputeEnabled,
             WholeBodyRecompute: _wholeBodyRecompute,
             GlueTabHeightText: "5",
             HoleDiameterText: "1",
             HoleSpacingText: "4",
-            HoleMarginText: "2");
+            HoleMarginText: "2",
+            ForcedSeams.Count == 0 ? null : ForcedSeams,
+            ForbiddenSeams.Count == 0 ? null : ForbiddenSeams);
 
     private void ApplyPersistedUnfoldWorkspaceState(EditorUnfoldWorkspaceState? state)
     {
@@ -170,6 +234,10 @@ public sealed partial class EditorPageViewModel
 
         var openGeometryState = state.NormalizeForOpenGeometryEditor();
         DistortionModeIndex = openGeometryState.DistortionModeIndex;
+        SeamControlModeIndex = openGeometryState.SeamControlModeIndex;
+        _threeDWorkspace.SetForcedSeams(openGeometryState.ForcedSeams ?? []);
+        _threeDWorkspace.SetForbiddenSeams(openGeometryState.ForbiddenSeams ?? []);
+        NotifySeamControlChanged();
         SetUnfoldPreviewScope(
             openGeometryState.WholeBodyRecompute && CanUnfoldEntireBody,
             requestPersistence: false,
@@ -208,7 +276,28 @@ public sealed partial class EditorPageViewModel
                     : null)
                 .Where(id => id is not null)
                 .Cast<string>()
-                .ToArray());
+                .ToArray(),
+            SeamControlMode: GetSeamControlModeValue(),
+            ForcedSeams: ForcedSeams,
+            ForbiddenSeams: ForbiddenSeams);
+
+    private string GetSeamControlModeValue() => SeamControlModeIndex switch
+    {
+        1 => "manual",
+        2 => "hybrid",
+        _ => "auto",
+    };
+
+    private void NotifySeamControlChanged()
+    {
+        OnPropertyChanged(nameof(SeamControlModeIndex));
+        OnPropertyChanged(nameof(SeamControlModeLabel));
+        OnPropertyChanged(nameof(ForcedSeams));
+        OnPropertyChanged(nameof(ForbiddenSeams));
+        OnPropertyChanged(nameof(SeamOverrideSummary));
+        OnPropertyChanged(nameof(CanClearActiveSeamOverrides));
+        RequestSeamControlStateSync();
+    }
 
     private void NotifyUnfoldPreviewScopeChanged()
     {

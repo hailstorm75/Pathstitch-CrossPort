@@ -202,6 +202,12 @@ public abstract class EditorInteractionControlBase : UserControl
             await viewModel.RefreshActiveUnfoldPreviewAsync();
     }
 
+    protected void OnClearActiveSeamOverridesClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ClearActiveSeamOverrides();
+    }
+
     protected async void OnOpenTwoDClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

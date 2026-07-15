@@ -13,18 +13,20 @@ public sealed record EditorUnfoldWorkspaceState(
     [property: JsonPropertyName("glueTabHeightText")] string GlueTabHeightText,
     [property: JsonPropertyName("holeDiameterText")] string HoleDiameterText,
     [property: JsonPropertyName("holeSpacingText")] string HoleSpacingText,
-    [property: JsonPropertyName("holeMarginText")] string HoleMarginText)
+    [property: JsonPropertyName("holeMarginText")] string HoleMarginText,
+    [property: JsonPropertyName("forcedSeams")] IReadOnlyList<EditorSeamEdge3D>? ForcedSeams = null,
+    [property: JsonPropertyName("forbiddenSeams")] IReadOnlyList<EditorSeamEdge3D>? ForbiddenSeams = null)
 {
     public EditorUnfoldWorkspaceState NormalizeForOpenGeometryEditor()
         => this with
         {
             NetLayoutIndex = 1,
             UnrollModeIndex = 0,
-            GlobalSeamDecorationIndex = 0,
-            SeamControlModeIndex = 0,
             GlueTabHeightText = "5",
             HoleDiameterText = "1",
             HoleSpacingText = "4",
             HoleMarginText = "2",
+            ForcedSeams = ForcedSeams ?? [],
+            ForbiddenSeams = ForbiddenSeams ?? [],
         };
 }

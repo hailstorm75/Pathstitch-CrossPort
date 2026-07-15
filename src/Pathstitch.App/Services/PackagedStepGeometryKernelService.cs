@@ -183,6 +183,17 @@ public sealed class PackagedStepGeometryKernelService(
                 distortion_mode = request.DistortionMode,
                 mode = "radial",
                 decoration = "none",
+                seam_control_mode = request.SeamControlMode,
+                forced_seams = (request.ForcedSeams ?? []).Select(edge => new
+                {
+                    body_index = edge.BodyIndex,
+                    edge_index = edge.EdgeIndex,
+                }).ToArray(),
+                forbidden_seams = (request.ForbiddenSeams ?? []).Select(edge => new
+                {
+                    body_index = edge.BodyIndex,
+                    edge_index = edge.EdgeIndex,
+                }).ToArray(),
             }, cancellationToken).ConfigureAwait(false);
             var geometry = response.GetProperty("data").GetProperty("typedGeometry")
                 .Deserialize<StepOperationGeometry>(JsonOptions);

@@ -324,6 +324,18 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void UnfoldInspector_ExposesMacSeamControls()
+    {
+        var unfold = ReadPage("EditorUnfoldInspector.axaml");
+
+        Assert.Contains("SeamControlModeIndex", unfold, StringComparison.Ordinal);
+        Assert.Contains("Manual (Cuts)", unfold, StringComparison.Ordinal);
+        Assert.Contains("Hybrid (Folds)", unfold, StringComparison.Ordinal);
+        Assert.Contains("SeamOverrideSummary", unfold, StringComparison.Ordinal);
+        Assert.Contains("OnClearActiveSeamOverridesClicked", unfold, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CommandPalette_IsCatalogBackedAndHostedByTheEditorShell()
     {
         var shell = ReadPage("EditorShellView.axaml");

@@ -18,6 +18,7 @@ public sealed partial class EditorPageViewModel
         RequestBodyVisibilityStateSync();
         _threeDWorkspace.RequestViewportScript(BuildSetBodyMoveStateScript());
         _threeDWorkspace.RequestViewportScript(BuildSetFaceDistortionScript(_distortionDataJson));
+        RequestSeamControlStateSync();
     }
 
     private void RequestViewportScript(string script)
@@ -64,6 +65,20 @@ public sealed partial class EditorPageViewModel
 
     private static string BuildSetFaceDistortionScript(string payload)
         => $"setFaceDistortion(\"{EscapeForJavaScriptString(payload)}\");";
+
+    private void RequestSeamControlStateSync()
+    {
+        var forced = JsonSerializer.Serialize(_threeDWorkspace.ForcedSeams);
+        var forbidden = JsonSerializer.Serialize(_threeDWorkspace.ForbiddenSeams);
+        var mode = SeamControlModeIndex switch
+        {
+            1 => "manual",
+            2 => "hybrid",
+            _ => "auto",
+        };
+        RequestViewportScript(
+            $"setSeams(\"{EscapeForJavaScriptString(forced)}\", \"{EscapeForJavaScriptString(forbidden)}\", \"{mode}\");");
+    }
 
     private static string EscapeForJavaScriptString(string raw)
         => raw

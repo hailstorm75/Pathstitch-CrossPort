@@ -45,6 +45,9 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     private int _distortionModeIndex;
     private bool _liveRecomputeEnabled;
     private bool _wholeBodyRecompute;
+    private int _seamControlModeIndex;
+    private IReadOnlyList<EditorSeamEdge3D> _forcedSeams = [];
+    private IReadOnlyList<EditorSeamEdge3D> _forbiddenSeams = [];
     private string _selectedBodyOffsetXText = "0";
     private string _selectedBodyOffsetYText = "0";
     private string _selectedBodyOffsetZText = "0";
@@ -103,6 +106,9 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     public int DistortionModeIndex => _distortionModeIndex;
     public bool LiveRecomputeEnabled => _liveRecomputeEnabled;
     public bool WholeBodyRecompute => _wholeBodyRecompute;
+    public int SeamControlModeIndex => _seamControlModeIndex;
+    public IReadOnlyList<EditorSeamEdge3D> ForcedSeams => _forcedSeams;
+    public IReadOnlyList<EditorSeamEdge3D> ForbiddenSeams => _forbiddenSeams;
     public string SelectedBodyOffsetXText => _selectedBodyOffsetXText;
     public string SelectedBodyOffsetYText => _selectedBodyOffsetYText;
     public string SelectedBodyOffsetZText => _selectedBodyOffsetZText;
@@ -189,6 +195,26 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     internal bool SetDistortionModeIndex(int value) => SetProperty(ref _distortionModeIndex, value, nameof(DistortionModeIndex));
     internal bool SetLiveRecomputeEnabled(bool value) => SetProperty(ref _liveRecomputeEnabled, value, nameof(LiveRecomputeEnabled));
     internal bool SetWholeBodyRecompute(bool value) => SetProperty(ref _wholeBodyRecompute, value, nameof(WholeBodyRecompute));
+    internal bool SetSeamControlModeIndex(int value) => SetProperty(ref _seamControlModeIndex, Math.Clamp(value, 0, 2), nameof(SeamControlModeIndex));
+    internal bool SetForcedSeams(IReadOnlyList<EditorSeamEdge3D> value) => SetProperty(ref _forcedSeams, value, nameof(ForcedSeams));
+    internal bool SetForbiddenSeams(IReadOnlyList<EditorSeamEdge3D> value) => SetProperty(ref _forbiddenSeams, value, nameof(ForbiddenSeams));
+
+    public void ToggleSeamEdge(int bodyIndex, int edgeIndex)
+    {
+        var edge = new EditorSeamEdge3D(bodyIndex, edgeIndex);
+        if (_seamControlModeIndex == 1)
+            SetForcedSeams(ToggleEdge(_forcedSeams, edge));
+        else if (_seamControlModeIndex == 2)
+            SetForbiddenSeams(ToggleEdge(_forbiddenSeams, edge));
+    }
+
+    public void ClearActiveSeamOverrides()
+    {
+        if (_seamControlModeIndex == 1)
+            SetForcedSeams([]);
+        else if (_seamControlModeIndex == 2)
+            SetForbiddenSeams([]);
+    }
     internal bool SetSelectedBodyOffsetText(char axis, string value) => axis switch
     {
         'X' => SetProperty(ref _selectedBodyOffsetXText, value, nameof(SelectedBodyOffsetXText)),
@@ -287,7 +313,9 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
             new EditorUnfoldWorkspaceState(
                 1, _distortionModeIndex, 0, 0, 0,
                 _liveRecomputeEnabled, _wholeBodyRecompute,
-                "5", "1", "4", "2"));
+                "5", "1", "4", "2",
+                _forcedSeams.Count == 0 ? null : _forcedSeams,
+                _forbiddenSeams.Count == 0 ? null : _forbiddenSeams));
 
     public void RestoreState(Editor3DWorkspaceState state)
     {
@@ -314,6 +342,9 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
         _distortionModeIndex = state.Unfold.DistortionModeIndex;
         _liveRecomputeEnabled = state.Unfold.LiveRecomputeEnabled;
         _wholeBodyRecompute = state.Unfold.WholeBodyRecompute;
+        _seamControlModeIndex = state.Unfold.SeamControlModeIndex;
+        _forcedSeams = state.Unfold.ForcedSeams ?? [];
+        _forbiddenSeams = state.Unfold.ForbiddenSeams ?? [];
         RaiseStateProperties();
     }
 
@@ -349,7 +380,17 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(DistortionModeIndex));
         OnPropertyChanged(nameof(LiveRecomputeEnabled));
         OnPropertyChanged(nameof(WholeBodyRecompute));
+        OnPropertyChanged(nameof(SeamControlModeIndex));
+        OnPropertyChanged(nameof(ForcedSeams));
+        OnPropertyChanged(nameof(ForbiddenSeams));
     }
+
+    private static IReadOnlyList<EditorSeamEdge3D> ToggleEdge(
+        IReadOnlyList<EditorSeamEdge3D> source,
+        EditorSeamEdge3D edge)
+        => source.Contains(edge)
+            ? source.Where(candidate => candidate != edge).ToArray()
+            : source.Append(edge).ToArray();
 
 }
 

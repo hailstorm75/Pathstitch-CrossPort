@@ -7,4 +7,7 @@ public sealed record EditorUnfoldRequest(
     bool WholeBody,
     string DistortionMode,
     IReadOnlyList<string>? SelectedFaceIds = null,
-    IReadOnlyList<string>? VisibleBodyIds = null);
+    IReadOnlyList<string>? VisibleBodyIds = null,
+    string SeamControlMode = "auto",
+    IReadOnlyList<EditorSeamEdge3D>? ForcedSeams = null,
+    IReadOnlyList<EditorSeamEdge3D>? ForbiddenSeams = null);
