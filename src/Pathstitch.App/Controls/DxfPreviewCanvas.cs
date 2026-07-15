@@ -66,6 +66,12 @@ public sealed class DxfPreviewCanvas : Control
     public static readonly StyledProperty<bool> PatternPivotPickingProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(PatternPivotPicking), defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<Editor2DPoint?> ScalePivotProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DPoint?>(nameof(ScalePivot), defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<bool> ScalePivotPickingProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(ScalePivotPicking), defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<IReadOnlyList<string>> SelectedPathIdsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<string>>(
             nameof(SelectedPathIds),
@@ -430,6 +436,18 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(PatternPivotPickingProperty, value);
     }
 
+    public Editor2DPoint? ScalePivot
+    {
+        get => GetValue(ScalePivotProperty);
+        set => SetValue(ScalePivotProperty, value);
+    }
+
+    public bool ScalePivotPicking
+    {
+        get => GetValue(ScalePivotPickingProperty);
+        set => SetValue(ScalePivotPickingProperty, value);
+    }
+
     public IReadOnlyList<string> SelectedPathIds
     {
         get => GetValue(SelectedPathIdsProperty);
@@ -713,6 +731,7 @@ public sealed class DxfPreviewCanvas : Control
             DrawPaperBounds(context, size, Document.Bounds);
         DrawPaths(context, size, visiblePaths);
         DrawPatternPivot(context, size);
+        DrawScalePivot(context, size);
         DrawPreviewPaths(context, size);
         DrawPreviewPaths(context, size, PatternPreviewPaths);
         DrawEditableVertexHandles(context, size, visiblePaths);
@@ -784,6 +803,14 @@ public sealed class DxfPreviewCanvas : Control
         {
             SetCurrentValue(PatternPivotProperty, ScreenToWorld(point.Position));
             SetCurrentValue(PatternPivotPickingProperty, false);
+            e.Handled = true;
+            return;
+        }
+
+        if (ActiveTool == Editor2DTool.Scale && ScalePivotPicking)
+        {
+            SetCurrentValue(ScalePivotProperty, ScreenToWorld(point.Position));
+            SetCurrentValue(ScalePivotPickingProperty, false);
             e.Handled = true;
             return;
         }
@@ -1383,6 +1410,17 @@ Selection:
 
         var point = WorldToScreen(pivot, size);
         var pen = new Pen(new SolidColorBrush(Color.Parse("#FFB84D")), 1.5);
+        context.DrawEllipse(null, pen, point, 6, 6);
+        context.DrawLine(pen, new Point(point.X - 9, point.Y), new Point(point.X + 9, point.Y));
+        context.DrawLine(pen, new Point(point.X, point.Y - 9), new Point(point.X, point.Y + 9));
+    }
+
+    private void DrawScalePivot(DrawingContext context, Size size)
+    {
+        if (ActiveTool != Editor2DTool.Scale || ScalePivot is not { } pivot)
+            return;
+        var point = WorldToScreen(pivot, size);
+        var pen = new Pen(new SolidColorBrush(Color.Parse("#63D6A2")), 1.5);
         context.DrawEllipse(null, pen, point, 6, 6);
         context.DrawLine(pen, new Point(point.X - 9, point.Y), new Point(point.X + 9, point.Y));
         context.DrawLine(pen, new Point(point.X, point.Y - 9), new Point(point.X, point.Y + 9));
@@ -2914,7 +2952,7 @@ Selection:
         _isScalingSelection = true;
         _scaleDocumentSnapshot = Document;
         _scaleSelectionIds = SelectedPathIds.ToArray();
-        _scaleCenterPoint = center;
+        _scaleCenterPoint = ScalePivot ?? center;
         var startWorldPoint = ScreenToWorld(screenPoint, Zoom);
         _scaleStartDistance = Math.Max(DistanceBetween(center, startWorldPoint), 1e-6);
         _scalePreviewFactor = 1.0;

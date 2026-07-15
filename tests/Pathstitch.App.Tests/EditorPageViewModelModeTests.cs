@@ -57,6 +57,19 @@ public sealed class EditorPageViewModelModeTests
         Assert.Equal(0, preview[1].Points[1].Y, 6);
     }
 
+    [Fact]
+    public void ScalePivot_IsTransientAcrossToolSessions()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+        viewModel.TwoDScalePivot = new Editor2DPoint(12, 7);
+
+        viewModel.TwoDActiveTool = Editor2DTool.Select;
+
+        Assert.Null(viewModel.TwoDScalePivot);
+        Assert.False(viewModel.TwoDScalePivotPicking);
+    }
+
     [Theory]
     [InlineData(EditorMode.TwoD, true, false, false)]
     [InlineData(EditorMode.ThreeD, false, true, false)]

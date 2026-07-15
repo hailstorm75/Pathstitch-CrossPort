@@ -230,6 +230,7 @@ public sealed partial class EditorPageViewModel
             ClearTwoDCircularPatternPivot();
             TwoDPatternGuidePathId = null;
             OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
+            ClearTwoDScalePivot();
             OnPropertyChanged();
 
             SyncSidebarToolStates();
@@ -618,6 +619,43 @@ public sealed partial class EditorPageViewModel
     public bool IsTwoDPenToolActive => TwoDActiveTool == Editor2DTool.Pen;
 
     public bool IsTwoDScaleToolActive => TwoDActiveTool == Editor2DTool.Scale;
+
+    public Editor2DPoint? TwoDScalePivot
+    {
+        get => _twoDScalePivot;
+        set
+        {
+            if (Equals(_twoDScalePivot, value))
+                return;
+            _twoDScalePivot = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TwoDScalePivotSummary));
+        }
+    }
+
+    public bool TwoDScalePivotPicking
+    {
+        get => _twoDScalePivotPicking;
+        set => SetWorkspaceFacadeValue(_twoDScalePivotPicking, value, updated => _twoDScalePivotPicking = updated);
+    }
+
+    public string TwoDScalePivotSummary => TwoDScalePivot is { } pivot
+        ? $"Pivot: ({pivot.X:0.###}, {pivot.Y:0.###})"
+        : "Pivot: selection center";
+
+    public void PickTwoDScalePivot()
+    {
+        if (!IsTwoDScaleToolActive)
+            return;
+        TwoDScalePivotPicking = true;
+        StatusText = "Click a point on the canvas for the scale pivot";
+    }
+
+    private void ClearTwoDScalePivot()
+    {
+        TwoDScalePivot = null;
+        TwoDScalePivotPicking = false;
+    }
 
     public bool IsTwoDMirrorToolActive => TwoDActiveTool == Editor2DTool.Mirror;
 

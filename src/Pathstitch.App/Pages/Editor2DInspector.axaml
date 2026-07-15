@@ -467,6 +467,12 @@
         </Grid>
         <Button Classes="chip-button" Content="Apply Exact Transform" Click="OnApplyTwoDPreciseTransformClicked" />
       </StackPanel>
+      <StackPanel Spacing="8" IsVisible="{Binding IsTwoDScaleToolActive}">
+        <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Scale" />
+        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Drag the corner handle around a custom pivot." TextWrapping="Wrap" />
+        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDScalePivotSummary}" />
+        <Button Classes="chip-button" Content="Pick Pivot" Click="OnPickTwoDScalePivotClicked" />
+      </StackPanel>
       <StackPanel
         Spacing="8"
         IsVisible="{Binding IsTwoDPaperFoldingToolActive}">

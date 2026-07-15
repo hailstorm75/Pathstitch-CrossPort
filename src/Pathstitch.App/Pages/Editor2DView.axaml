@@ -19,6 +19,8 @@
     PatternGuidePathId="{Binding TwoDPatternGuidePathId, Mode=TwoWay}"
     PatternPivot="{Binding TwoDPatternPivot, Mode=TwoWay}"
     PatternPivotPicking="{Binding TwoDPatternPivotPicking, Mode=TwoWay}"
+    ScalePivot="{Binding TwoDScalePivot, Mode=TwoWay}"
+    ScalePivotPicking="{Binding TwoDScalePivotPicking, Mode=TwoWay}"
     SelectedPathIds="{Binding TwoDSelectedPathIds, Mode=TwoWay}"
     HiddenPathIds="{Binding TwoDHiddenPathIds}"
     PreviewPaths="{Binding TwoDWorkspace.SewingHolePreviewPaths}"
