@@ -122,6 +122,27 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void StrokeFillConversion_RoundTripsClosedPathAndPreservesSelection()
+    {
+        var path = new Editor2DPreviewPath(
+            "square",
+            "LWPOLYLINE",
+            [new(0, 0), new(10, 0), new(10, 10), new(0, 10)],
+            IsClosed: true);
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [path] });
+        workspace.SetSelection([path.Id]);
+
+        Assert.True(workspace.ApplyStrokeToFill().IsSuccess);
+        Assert.True(workspace.Document.Paths.Single().IsFilled);
+        Assert.Equal([path.Id], workspace.SelectedPathIds);
+
+        Assert.True(workspace.ApplyFillToStroke().IsSuccess);
+        Assert.False(workspace.Document.Paths.Single().IsFilled);
+        Assert.Equal(path.Points, workspace.Document.Paths.Single().Points);
+    }
+
+    [Fact]
     public void CircularPattern_UsesExplicitPivotWhenProvided()
     {
         var workspace = new Editor2DWorkspaceViewModel();

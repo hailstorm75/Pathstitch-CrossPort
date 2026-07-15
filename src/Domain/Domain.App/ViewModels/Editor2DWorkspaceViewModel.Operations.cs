@@ -6,6 +6,36 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class Editor2DWorkspaceViewModel
 {
+    public Editor2DWorkspaceOperationResult ApplyStrokeToFill()
+    {
+        var selected = SelectedPaths(path => path.IsClosed && !path.IsFilled);
+        if (selected.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("Select one or more closed stroke paths before converting to fill");
+
+        var ids = selected.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
+        var nextPaths = Document.Paths
+            .Select(path => ids.Contains(path.Id) ? path with { IsFilled = true } : path)
+            .ToArray();
+        CommitDocumentEdit(RebuildDocument(Document, nextPaths), SelectedPathIds);
+        return Editor2DWorkspaceOperationResult.Success(
+            selected.Count == 1 ? "Converted 1 stroke path to fill" : $"Converted {selected.Count} stroke paths to fill");
+    }
+
+    public Editor2DWorkspaceOperationResult ApplyFillToStroke()
+    {
+        var selected = SelectedPaths(static path => path.IsFilled);
+        if (selected.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("Select one or more filled paths before converting to stroke");
+
+        var ids = selected.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
+        var nextPaths = Document.Paths
+            .Select(path => ids.Contains(path.Id) ? path with { IsFilled = false } : path)
+            .ToArray();
+        CommitDocumentEdit(RebuildDocument(Document, nextPaths), SelectedPathIds);
+        return Editor2DWorkspaceOperationResult.Success(
+            selected.Count == 1 ? "Converted 1 fill to stroke" : $"Converted {selected.Count} fills to stroke");
+    }
+
     public Editor2DWorkspaceOperationResult ApplyExplodeCompoundPaths()
     {
         var selected = SelectedPaths(path => path.IsClosed
