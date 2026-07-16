@@ -27,6 +27,24 @@ internal readonly record struct DxfCanvasTransformPrecisionRequest(
     Point Anchor,
     bool Focus);
 
+internal sealed class DxfCanvasSelectionTransformEventArgs(
+    Editor2DAffineTransform transform,
+    bool createCopy)
+{
+    public Editor2DAffineTransform Transform { get; } = transform;
+    public bool CreateCopy { get; } = createCopy;
+    public bool Committed { get; private set; }
+    public Editor2DPreviewDocument? Document { get; private set; }
+    public IReadOnlyList<string> SelectedPathIds { get; private set; } = [];
+
+    public void Complete(Editor2DPreviewDocument document, IReadOnlyList<string> selectedPathIds)
+    {
+        Committed = true;
+        Document = document;
+        SelectedPathIds = selectedPathIds;
+    }
+}
+
 public sealed class DxfPreviewCanvas : Control
 {
     /// <summary>Flips vertical wheel/trackpad panning to match the user's preference.</summary>
@@ -333,6 +351,7 @@ public sealed class DxfPreviewCanvas : Control
     private ref IReadOnlyList<string> _rotateSelectionIds => ref _interaction.RotateSelectionIds;
     private ref IReadOnlyList<string> _translateSelectionIds => ref _interaction.TranslateSelectionIds;
     private ref Editor2DPoint? _moveStartPoint => ref _interaction.MoveStartPoint;
+    private ref Editor2DPoint _movePreviewDelta => ref _interaction.MovePreviewDelta;
     private ref Editor2DPoint? _scaleCenterPoint => ref _interaction.ScaleCenterPoint;
     private ref double _scaleStartDistance => ref _interaction.ScaleStartDistance;
     private ref double _scalePreviewFactor => ref _interaction.ScalePreviewFactor;
@@ -934,6 +953,7 @@ public sealed class DxfPreviewCanvas : Control
     public event Action<string, double, double, double, double, double>? ReferenceImageTransformChanged;
     internal event Action<DxfCanvasTransformPrecisionRequest>? TransformPrecisionRequested;
     internal event Action? TransformPrecisionDismissed;
+    internal event Action<DxfCanvasSelectionTransformEventArgs>? SelectionTransformRequested;
 
     public IReadOnlyList<Editor2DCornerParameter> CornerParameters
     {
@@ -1079,6 +1099,7 @@ public sealed class DxfPreviewCanvas : Control
         _rotateSelectionIds = Array.Empty<string>();
         _translateSelectionIds = Array.Empty<string>();
         _moveStartPoint = null;
+        _movePreviewDelta = new Editor2DPoint(0, 0);
         _scaleCenterPoint = null;
         _scaleStartDistance = 0.0;
         _scaleStartFactor = 1.0;
@@ -1252,6 +1273,21 @@ public sealed class DxfPreviewCanvas : Control
         DrawReferenceImages(context, size);
         DrawReferenceImageGizmo(context, size);
         var visiblePaths = GetVisiblePaths();
+        if (_isMovingSelection
+            && (Math.Abs(_movePreviewDelta.X) > 1e-12 || Math.Abs(_movePreviewDelta.Y) > 1e-12))
+        {
+            var movedPaths = DxfCanvasGeometryEditor.Translate(
+                Document with { Paths = visiblePaths },
+                _moveSelectionIds,
+                _movePreviewDelta.X,
+                _movePreviewDelta.Y).Paths;
+            visiblePaths = _interaction.MoveSelectionCreateCopy
+                ? [
+                    .. visiblePaths,
+                    .. movedPaths.Where(path => _moveSelectionIds.Contains(path.Id, StringComparer.Ordinal)),
+                ]
+                : movedPaths;
+        }
         if (_isTranslatingSelection
             && (Math.Abs(_translatePreviewDelta.X) > 1e-12 || Math.Abs(_translatePreviewDelta.Y) > 1e-12))
         {
@@ -1668,7 +1704,14 @@ Hover:
             case DxfCanvasReleaseRoute.Context:
                 _isAwaitingSecondaryContextClick = false; e.Pointer.Capture(null); HandleContextClick(e.GetPosition(this)); e.Handled = true; return;
             case DxfCanvasReleaseRoute.MoveSelection:
-                _isMovingSelection = false; _moveDocumentSnapshot = null; _moveSelectionIds = Array.Empty<string>(); _moveStartPoint = null; break;
+                ApplyMoveSelection(e.GetPosition(this));
+                if (Math.Abs(_movePreviewDelta.X) > 1e-12 || Math.Abs(_movePreviewDelta.Y) > 1e-12)
+                {
+                    RequestSelectionTransform(
+                        Editor2DAffineTransform.CreateTranslation(_movePreviewDelta.X, _movePreviewDelta.Y),
+                        _interaction.MoveSelectionCreateCopy);
+                }
+                _isMovingSelection = false; _moveDocumentSnapshot = null; _moveSelectionIds = Array.Empty<string>(); _moveStartPoint = null; _movePreviewDelta = new Editor2DPoint(0, 0); break;
             case DxfCanvasReleaseRoute.ScaleSelection:
                 _isScalingSelection = false; _scaleDocumentSnapshot = null; _scaleSelectionIds = Array.Empty<string>(); _scaleCenterPoint = null; _scaleStartDistance = 0; _scaleStartFactor = 1; _scalePreviewFactor = 1; break;
             case DxfCanvasReleaseRoute.RotateSelection:
@@ -4385,6 +4428,7 @@ Selection:
         _moveDocumentSnapshot = Document;
         _moveSelectionIds = selectionIds.ToArray();
         _moveStartPoint = ScreenToWorld(pointerPosition, Zoom);
+        _movePreviewDelta = new Editor2DPoint(0, 0);
         _interaction.MoveSelectionCreateCopy = TwoDMoveCreateCopy;
         _cancelInteractionOnPointerRelease = false;
         pointer.Capture(this);
@@ -4403,41 +4447,12 @@ Selection:
             return;
         }
 
-        var moved = ApplyPointToPointMove(
-            Document,
-            SelectedPathIds,
-            source,
-            point,
-            TwoDMoveCreateCopy,
-            out var movedSelectionIds);
-        SetCurrentValue(DocumentProperty, moved);
-        SetCurrentValue(SelectedPathIdsProperty, movedSelectionIds);
+        RequestSelectionTransform(
+            Editor2DAffineTransform.CreateTranslation(point.X - source.X, point.Y - source.Y),
+            TwoDMoveCreateCopy);
         SetCurrentValue(TwoDMovePointToPointSourceProperty, null);
         SetCurrentValue(TwoDMovePointToPointActiveProperty, false);
         InvalidateVisual();
-    }
-
-    private static Editor2DPreviewDocument ApplyPointToPointMove(
-        Editor2DPreviewDocument document,
-        IReadOnlyList<string> selectedPathIds,
-        Editor2DPoint source,
-        Editor2DPoint destination,
-        bool createCopy,
-        out IReadOnlyList<string> movedSelectionIds)
-    {
-        var workingDocument = document;
-        movedSelectionIds = selectedPathIds.ToArray();
-        if (createCopy)
-        {
-            workingDocument = DuplicateSelectedPaths(document, selectedPathIds, out movedSelectionIds)
-                ?? document;
-        }
-
-        return TranslatePaths(
-            workingDocument,
-            movedSelectionIds,
-            destination.X - source.X,
-            destination.Y - source.Y);
     }
 
     private void ApplyMoveSelection(Point pointerPosition)
@@ -4448,23 +4463,7 @@ Selection:
         var currentPoint = ScreenToWorld(pointerPosition, Zoom);
         var deltaX = currentPoint.X - _moveStartPoint.X;
         var deltaY = currentPoint.Y - _moveStartPoint.Y;
-        if (_interaction.MoveSelectionCreateCopy
-            && _moveDocumentSnapshot == Document
-            && _moveSelectionIds.Count > 0)
-        {
-            var copiedDocument = DuplicateSelectedPaths(_moveDocumentSnapshot, _moveSelectionIds, out var copySelectionIds);
-            if (copiedDocument is not null)
-            {
-                _moveDocumentSnapshot = copiedDocument;
-                _moveSelectionIds = copySelectionIds;
-                SetCurrentValue(SelectedPathIdsProperty, copySelectionIds);
-                SetCurrentValue(DocumentProperty, copiedDocument);
-            }
-        }
-
-        var movedDocument = TranslatePaths(_moveDocumentSnapshot, _moveSelectionIds, deltaX, deltaY);
-        SetCurrentValue(DocumentProperty, movedDocument);
-        SetCurrentValue(SelectedPathIdsProperty, _moveSelectionIds);
+        _movePreviewDelta = new Editor2DPoint(deltaX, deltaY);
         InvalidateVisual();
     }
 
@@ -4553,27 +4552,11 @@ Selection:
             return false;
         }
 
-        var workingDocument = _translateDocumentSnapshot;
-        IReadOnlyList<string> movedSelectionIds = _translateSelectionIds;
-        if (_translateCreateCopy)
-        {
-            var copiedDocument = DuplicateSelectedPaths(
-                workingDocument,
-                _translateSelectionIds,
-                out var copySelectionIds);
-            if (copiedDocument is null)
-                return false;
-            workingDocument = copiedDocument;
-            movedSelectionIds = copySelectionIds;
-        }
-
-        var translated = DxfCanvasGeometryEditor.Translate(
-            workingDocument,
-            movedSelectionIds,
-            _translatePreviewDelta.X,
-            _translatePreviewDelta.Y);
-        CommitSelectionTransform(translated, movedSelectionIds);
-        return true;
+        return RequestSelectionTransform(
+            Editor2DAffineTransform.CreateTranslation(
+                _translatePreviewDelta.X,
+                _translatePreviewDelta.Y),
+            _translateCreateCopy);
     }
 
     private void ResetTranslateSelection()
@@ -4602,24 +4585,23 @@ Selection:
             return false;
         }
 
-        var rotated = DxfCanvasGeometryEditor.Rotate(
-            _rotateDocumentSnapshot,
-            _rotateSelectionIds,
-            _rotatePivot,
-            -_rotatePreviewDegrees);
-        CommitSelectionTransform(rotated, _rotateSelectionIds);
-        return true;
+        return RequestSelectionTransform(
+            Editor2DAffineTransform.CreateRotation(_rotatePivot, -_rotatePreviewDegrees));
     }
 
-    private void CommitSelectionTransform(
-        Editor2DPreviewDocument document,
-        IReadOnlyList<string> selectedPathIds)
+    private bool RequestSelectionTransform(Editor2DAffineTransform transform, bool createCopy = false)
     {
         _isCommittingSelectionTransform = true;
         try
         {
-            SetCurrentValue(DocumentProperty, document);
-            SetCurrentValue(SelectedPathIdsProperty, selectedPathIds);
+            var request = new DxfCanvasSelectionTransformEventArgs(transform, createCopy);
+            SelectionTransformRequested?.Invoke(request);
+            if (!request.Committed || request.Document is null)
+                return false;
+
+            SetCurrentValue(DocumentProperty, request.Document);
+            SetCurrentValue(SelectedPathIdsProperty, request.SelectedPathIds);
+            return true;
         }
         finally
         {
@@ -4649,12 +4631,12 @@ Selection:
                     return false;
                 if (Math.Abs(correction) > 1e-12)
                 {
-                    var translated = DxfCanvasGeometryEditor.Translate(
-                        Document,
-                        SelectedPathIds,
-                        axis == DxfCanvasPrecisionAxis.X ? correction : 0.0,
-                        axis == DxfCanvasPrecisionAxis.Y ? correction : 0.0);
-                    CommitSelectionTransform(translated, SelectedPathIds);
+                    if (!RequestSelectionTransform(Editor2DAffineTransform.CreateTranslation(
+                            axis == DxfCanvasPrecisionAxis.X ? correction : 0.0,
+                            axis == DxfCanvasPrecisionAxis.Y ? correction : 0.0)))
+                    {
+                        return false;
+                    }
                 }
                 _transformPrecisionState = nextState;
                 ShowTransformPrecision(
@@ -4670,12 +4652,11 @@ Selection:
                     return false;
                 if (Math.Abs(correction) > 1e-12)
                 {
-                    var rotated = DxfCanvasGeometryEditor.Rotate(
-                        Document,
-                        SelectedPathIds,
-                        pivot,
-                        correction);
-                    CommitSelectionTransform(rotated, SelectedPathIds);
+                    if (!RequestSelectionTransform(
+                            Editor2DAffineTransform.CreateRotation(pivot, correction)))
+                    {
+                        return false;
+                    }
                 }
                 _transformPrecisionState = nextState;
                 ShowTransformPrecision(

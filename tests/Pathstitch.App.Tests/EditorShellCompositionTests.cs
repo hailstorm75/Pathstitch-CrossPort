@@ -508,6 +508,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("GizmoDimensionPill", view, StringComparison.Ordinal);
         Assert.Contains("OnGizmoDimensionInputKeyDown", view, StringComparison.Ordinal);
         Assert.Contains("TransformPrecisionRequested", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("SelectionTransformRequested", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ApplyTwoDSelectionTransform", codeBehind, StringComparison.Ordinal);
         Assert.Contains("TryApplyTransformPrecisionInput", codeBehind, StringComparison.Ordinal);
         Assert.Contains("DismissTransformPrecisionInput", codeBehind, StringComparison.Ordinal);
         Assert.Contains("DispatcherPriority.Input", codeBehind, StringComparison.Ordinal);

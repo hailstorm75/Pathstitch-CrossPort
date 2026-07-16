@@ -4,6 +4,21 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class EditorPageViewModel
 {
+    public bool ApplyTwoDSelectionTransform(Editor2DAffineTransform transform, bool createCopy = false)
+    {
+        var succeeded = _twoDWorkspace.ApplySelectionTransform(transform, createCopy);
+        if (!CompleteTwoDWorkspaceOperation(succeeded
+                ? Editor2DWorkspaceOperationResult.Success(createCopy
+                    ? "Copied and transformed the selection."
+                    : "Transformed the selection.")
+                : Editor2DWorkspaceOperationResult.Failure("Select geometry to transform.")))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     private void CommitTwoDWorkspaceEdit(Editor2DPreviewDocument document, IReadOnlyList<string> selectedPathIds)
     {
         _twoDWorkspace.CommitDocumentEdit(document, selectedPathIds);

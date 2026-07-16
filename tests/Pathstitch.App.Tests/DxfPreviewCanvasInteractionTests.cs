@@ -109,37 +109,23 @@ public sealed class DxfPreviewCanvasInteractionTests
         Assert.Single(translated.Paths);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void PointToPointMove_UsesExactDeltaAndOptionalCopy(bool createCopy)
+    [Fact]
+    public void SelectionTransformRequest_ReturnsCanonicalDocumentAndSelection()
     {
         var document = new Editor2DPreviewDocument(
             [new Editor2DPreviewPath("shape-1", "LINE", [new Editor2DPoint(0, 0), new Editor2DPoint(5, 0)], false)],
             new Editor2DBounds(0, 0, 5, 0),
             new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
             []);
-        var method = typeof(DxfPreviewCanvas).GetMethod(
-            "ApplyPointToPointMove",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(method);
-        var arguments = new object[]
-        {
-            document,
-            new[] { "shape-1" },
-            new Editor2DPoint(2, 3),
-            new Editor2DPoint(12, 8),
-            createCopy,
-            null!,
-        };
+        var transform = Editor2DAffineTransform.CreateTranslation(10, 5);
+        var request = new DxfCanvasSelectionTransformEventArgs(transform, createCopy: true);
 
-        var moved = Assert.IsType<Editor2DPreviewDocument>(method!.Invoke(null, arguments));
-        var movedSelectionIds = Assert.IsAssignableFrom<IReadOnlyList<string>>(arguments[5]);
-        var movedPath = Assert.Single(moved.Paths, path => movedSelectionIds.Contains(path.Id, StringComparer.Ordinal));
+        request.Complete(document, ["shape-1"]);
 
-        Assert.Equal(new Editor2DPoint(10, 5), movedPath.Points[0]);
-        Assert.Equal(new Editor2DPoint(15, 5), movedPath.Points[1]);
-        Assert.Equal(createCopy ? 2 : 1, moved.Paths.Count);
-        Assert.Equal(new Editor2DPoint(0, 0), document.Paths[0].Points[0]);
+        Assert.Same(transform, request.Transform);
+        Assert.True(request.CreateCopy);
+        Assert.True(request.Committed);
+        Assert.Same(document, request.Document);
+        Assert.Equal(["shape-1"], request.SelectedPathIds);
     }
 }

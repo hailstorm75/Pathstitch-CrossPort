@@ -18,6 +18,7 @@ public partial class Editor2DView : EditorInteractionControlBase
         TwoDPreviewCanvas.ReferenceImageTransformChanged += OnReferenceImageTransformChanged;
         TwoDPreviewCanvas.TransformPrecisionRequested += OnTransformPrecisionRequested;
         TwoDPreviewCanvas.TransformPrecisionDismissed += OnTransformPrecisionDismissed;
+        TwoDPreviewCanvas.SelectionTransformRequested += OnSelectionTransformRequested;
         WorkspaceRoot.AddHandler(
             InputElement.PointerPressedEvent,
             OnWorkspacePointerPressed,
@@ -36,6 +37,18 @@ public partial class Editor2DView : EditorInteractionControlBase
             layerId, x, y, width, height, rotationDegrees);
 
     public void CancelActiveInteraction() => TwoDPreviewCanvas.CancelActiveInteraction();
+
+    private void OnSelectionTransformRequested(DxfCanvasSelectionTransformEventArgs request)
+    {
+        if (DataContext is not Domain.App.ViewModels.EditorPageViewModel viewModel
+            || !viewModel.ApplyTwoDSelectionTransform(request.Transform, request.CreateCopy)
+            || viewModel.TwoDDocument is not { } document)
+        {
+            return;
+        }
+
+        request.Complete(document, viewModel.TwoDSelectedPathIds);
+    }
 
     private void OnTransformPrecisionRequested(DxfCanvasTransformPrecisionRequest request)
     {
