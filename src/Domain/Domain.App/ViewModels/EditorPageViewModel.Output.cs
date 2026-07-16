@@ -232,13 +232,17 @@ public sealed partial class EditorPageViewModel
             if (_twoDWorkspace.ActiveTool == value)
             {
                 if (value == Editor2DTool.Move)
+                {
                     TwoDMoveCreateCopy = false;
+                    ResetTwoDMovePointToPoint();
+                }
                 return;
             }
 
             _twoDWorkspace.SetActiveTool(value);
             if (value == Editor2DTool.Move)
                 TwoDMoveCreateCopy = false;
+            ResetTwoDMovePointToPoint();
             ClearTwoDCircularPatternPivot();
             TwoDPatternGuidePathId = null;
             OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
@@ -364,6 +368,8 @@ public sealed partial class EditorPageViewModel
                 return;
 
             _twoDWorkspace.SetSelection(normalized);
+            if (normalized.Length == 0)
+                ResetTwoDMovePointToPoint();
             TwoDPatternGuidePathId = null;
             OnPropertyChanged();
 
@@ -585,6 +591,63 @@ public sealed partial class EditorPageViewModel
     {
         get => _twoDMoveCreateCopy;
         set => SetProperty(ref _twoDMoveCreateCopy, value);
+    }
+
+    private bool _twoDMovePointToPointActive;
+    private Editor2DPoint? _twoDMovePointToPointSource;
+
+    public bool TwoDMovePointToPointActive
+    {
+        get => _twoDMovePointToPointActive;
+        set
+        {
+            if (!SetProperty(ref _twoDMovePointToPointActive, value))
+                return;
+            if (!value)
+                TwoDMovePointToPointSource = null;
+            OnPropertyChanged(nameof(TwoDMovePointToPointActionLabel));
+            OnPropertyChanged(nameof(TwoDMovePointToPointSummary));
+        }
+    }
+
+    public Editor2DPoint? TwoDMovePointToPointSource
+    {
+        get => _twoDMovePointToPointSource;
+        set
+        {
+            if (!SetProperty(ref _twoDMovePointToPointSource, value))
+                return;
+            OnPropertyChanged(nameof(TwoDMovePointToPointActionLabel));
+            OnPropertyChanged(nameof(TwoDMovePointToPointSummary));
+        }
+    }
+
+    public string TwoDMovePointToPointActionLabel => !TwoDMovePointToPointActive
+        ? "Start Point-to-Point"
+        : TwoDMovePointToPointSource is null ? "Click source point…" : "Click destination…";
+
+    public string TwoDMovePointToPointSummary => !TwoDMovePointToPointActive
+        ? "Move selection by picking exact source and destination points."
+        : TwoDMovePointToPointSource is null
+            ? "Pick source point on canvas."
+            : $"Source: {TwoDMovePointToPointSource.X:0.###}, {TwoDMovePointToPointSource.Y:0.###} mm";
+
+    public void ToggleTwoDMovePointToPoint()
+    {
+        if (!HasTwoDSelection)
+        {
+            StatusText = "Select one or more 2D entities before starting point-to-point move";
+            return;
+        }
+
+        TwoDMovePointToPointSource = null;
+        TwoDMovePointToPointActive = !TwoDMovePointToPointActive;
+    }
+
+    private void ResetTwoDMovePointToPoint()
+    {
+        TwoDMovePointToPointActive = false;
+        TwoDMovePointToPointSource = null;
     }
 
     public string TwoDPrecisionDeltaXText
@@ -1610,6 +1673,7 @@ public sealed partial class EditorPageViewModel
     public void ActivateTwoDMoveTool()
     {
         TwoDMoveCreateCopy = false;
+        ResetTwoDMovePointToPoint();
         TwoDActiveTool = Editor2DTool.Move;
     }
 

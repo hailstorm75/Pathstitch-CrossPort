@@ -168,6 +168,44 @@ public sealed class EditorPageViewModelModeTests
         Assert.False(viewModel.TwoDMoveCreateCopy);
     }
 
+    [Fact]
+    public void MovePointToPointState_IsTransientAcrossToolSessions()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(0, 0), new(5, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDActiveTool = Editor2DTool.Move;
+        viewModel.TwoDSelectedPathIds = [source.Id];
+
+        viewModel.ToggleTwoDMovePointToPoint();
+        viewModel.TwoDMovePointToPointSource = new Editor2DPoint(12, 7);
+
+        Assert.True(viewModel.TwoDMovePointToPointActive);
+        Assert.Equal("Click destination…", viewModel.TwoDMovePointToPointActionLabel);
+
+        viewModel.TwoDActiveTool = Editor2DTool.Select;
+
+        Assert.False(viewModel.TwoDMovePointToPointActive);
+        Assert.Null(viewModel.TwoDMovePointToPointSource);
+    }
+
+    [Fact]
+    public void MovePointToPointState_ResetsWhenSelectionClears()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(0, 0), new(5, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDActiveTool = Editor2DTool.Move;
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.ToggleTwoDMovePointToPoint();
+        viewModel.TwoDMovePointToPointSource = new Editor2DPoint(12, 7);
+
+        viewModel.TwoDSelectedPathIds = [];
+
+        Assert.False(viewModel.TwoDMovePointToPointActive);
+        Assert.Null(viewModel.TwoDMovePointToPointSource);
+    }
+
     [Theory]
     [InlineData(EditorMode.TwoD, true, false, false)]
     [InlineData(EditorMode.ThreeD, false, true, false)]

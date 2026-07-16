@@ -532,6 +532,19 @@
           Content="Create copy (move duplicates)"
           IsChecked="{Binding TwoDMoveCreateCopy, Mode=TwoWay}"
           AutomationProperties.AutomationId="editor.2d.move.create-copy" />
+        <Border Height="1" Background="{StaticResource BorderBrush}" />
+        <TextBlock FontSize="10" Foreground="{StaticResource AccentBrush}" Text="POINT TO POINT" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDMovePointToPointSummary}"
+          TextWrapping="Wrap" />
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding HasTwoDSelection}"
+          Content="{Binding TwoDMovePointToPointActionLabel}"
+          Click="OnToggleTwoDMovePointToPointClicked"
+          AutomationProperties.AutomationId="editor.2d.move.point-to-point" />
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="6">
           <TextBlock VerticalAlignment="Center" Text="ΔX (mm)" />
           <TextBox Grid.Column="1" Text="{Binding TwoDPrecisionDeltaXText, Mode=TwoWay}" />

@@ -175,6 +175,21 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void TwoDMovePointToPointState_IsBoundToCanvasAndInspector()
+    {
+        var twoD = ReadPage("Editor2DView.axaml");
+        var inspector = ReadPage("Editor2DInspector.axaml");
+        var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+
+        Assert.Contains("TwoDMovePointToPointActive=\"{Binding TwoDMovePointToPointActive, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
+        Assert.Contains("TwoDMovePointToPointSource=\"{Binding TwoDMovePointToPointSource, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.move.point-to-point", inspector, StringComparison.Ordinal);
+        Assert.Contains("OnToggleTwoDMovePointToPointClicked", inspector, StringComparison.Ordinal);
+        Assert.Contains("SetCurrentValue(TwoDMovePointToPointActiveProperty, false)", canvas, StringComparison.Ordinal);
+        Assert.Contains("SetCurrentValue(TwoDMovePointToPointSourceProperty, null)", canvas, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PersistentTwoDControls_LiveOutsideTheViewportView()
     {
         var toolbar = ReadPage("EditorToolRail.axaml");

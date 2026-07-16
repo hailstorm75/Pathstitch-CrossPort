@@ -336,6 +336,12 @@ public abstract class EditorInteractionControlBase : UserControl
             viewModel.ApplyTwoDPreciseTransform();
     }
 
+    protected void OnToggleTwoDMovePointToPointClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ToggleTwoDMovePointToPoint();
+    }
+
     protected void OnPickTwoDPatternPivotClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

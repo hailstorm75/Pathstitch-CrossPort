@@ -71,6 +71,17 @@ public sealed class DxfPreviewCanvas : Control
             defaultValue: false,
             defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<bool> TwoDMovePointToPointActiveProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(
+            nameof(TwoDMovePointToPointActive),
+            defaultValue: false,
+            defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<Editor2DPoint?> TwoDMovePointToPointSourceProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DPoint?>(
+            nameof(TwoDMovePointToPointSource),
+            defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<string> PatternModeProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, string>(nameof(PatternMode), defaultValue: "Rectangular");
 
@@ -306,6 +317,8 @@ public sealed class DxfPreviewCanvas : Control
             GridVisibleProperty,
             ChainSelectionEnabledProperty,
             TwoDMoveCreateCopyProperty,
+            TwoDMovePointToPointActiveProperty,
+            TwoDMovePointToPointSourceProperty,
             SelectedPathIdsProperty,
             HiddenPathIdsProperty,
             PreviewPathsProperty,
@@ -655,6 +668,18 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(TwoDMoveCreateCopyProperty, value);
     }
 
+    public bool TwoDMovePointToPointActive
+    {
+        get => GetValue(TwoDMovePointToPointActiveProperty);
+        set => SetValue(TwoDMovePointToPointActiveProperty, value);
+    }
+
+    public Editor2DPoint? TwoDMovePointToPointSource
+    {
+        get => GetValue(TwoDMovePointToPointSourceProperty);
+        set => SetValue(TwoDMovePointToPointSourceProperty, value);
+    }
+
     public string PatternMode
     {
         get => GetValue(PatternModeProperty);
@@ -884,6 +909,8 @@ public sealed class DxfPreviewCanvas : Control
         _editingMeasurementStart = false;
         _pressedPathId = null;
         SetCurrentValue(SelectedMeasurementIdProperty, null);
+        SetCurrentValue(TwoDMovePointToPointActiveProperty, false);
+        SetCurrentValue(TwoDMovePointToPointSourceProperty, null);
         CancelMarqueeSelection();
         CancelPendingLine();
         CancelPendingRectangle();
@@ -1174,7 +1201,12 @@ public sealed class DxfPreviewCanvas : Control
             _cancelInteractionOnPointerRelease = false;
             switch (pressRoute)
             {
-                case DxfCanvasPressRoute.Move: StartMoveSelection(point.Position, e.KeyModifiers, e.Pointer); break;
+                case DxfCanvasPressRoute.Move:
+                    if (TwoDMovePointToPointActive)
+                        HandleMovePointToPointClick(point.Position);
+                    else
+                        StartMoveSelection(point.Position, e.KeyModifiers, e.Pointer);
+                    break;
                 case DxfCanvasPressRoute.Measure: HandleMeasurementClick(point.Position); break;
                 case DxfCanvasPressRoute.Dimension: HandleDimensionClick(point.Position); break;
                 case DxfCanvasPressRoute.Trim: HandleTrimClick(point.Position); break;
@@ -3665,6 +3697,56 @@ Selection:
         _interaction.MoveSelectionCreateCopy = TwoDMoveCreateCopy;
         _cancelInteractionOnPointerRelease = false;
         pointer.Capture(this);
+    }
+
+    private void HandleMovePointToPointClick(Point pointerPosition)
+    {
+        if (Document is null || SelectedPathIds.Count == 0)
+            return;
+
+        var point = ResolvePlacementPoint(pointerPosition);
+        if (TwoDMovePointToPointSource is not { } source)
+        {
+            SetCurrentValue(TwoDMovePointToPointSourceProperty, point);
+            InvalidateVisual();
+            return;
+        }
+
+        var moved = ApplyPointToPointMove(
+            Document,
+            SelectedPathIds,
+            source,
+            point,
+            TwoDMoveCreateCopy,
+            out var movedSelectionIds);
+        SetCurrentValue(DocumentProperty, moved);
+        SetCurrentValue(SelectedPathIdsProperty, movedSelectionIds);
+        SetCurrentValue(TwoDMovePointToPointSourceProperty, null);
+        SetCurrentValue(TwoDMovePointToPointActiveProperty, false);
+        InvalidateVisual();
+    }
+
+    private static Editor2DPreviewDocument ApplyPointToPointMove(
+        Editor2DPreviewDocument document,
+        IReadOnlyList<string> selectedPathIds,
+        Editor2DPoint source,
+        Editor2DPoint destination,
+        bool createCopy,
+        out IReadOnlyList<string> movedSelectionIds)
+    {
+        var workingDocument = document;
+        movedSelectionIds = selectedPathIds.ToArray();
+        if (createCopy)
+        {
+            workingDocument = DuplicateSelectedPaths(document, selectedPathIds, out movedSelectionIds)
+                ?? document;
+        }
+
+        return TranslatePaths(
+            workingDocument,
+            movedSelectionIds,
+            destination.X - source.X,
+            destination.Y - source.Y);
     }
 
     private void ApplyMoveSelection(Point pointerPosition)

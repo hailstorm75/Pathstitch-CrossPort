@@ -18,6 +18,8 @@
     GridVisible="{Binding TwoDGridVisible, Mode=TwoWay}"
     ChainSelectionEnabled="{Binding TwoDChainSelectionEnabled, Mode=TwoWay}"
     TwoDMoveCreateCopy="{Binding TwoDMoveCreateCopy, Mode=TwoWay}"
+    TwoDMovePointToPointActive="{Binding TwoDMovePointToPointActive, Mode=TwoWay}"
+    TwoDMovePointToPointSource="{Binding TwoDMovePointToPointSource, Mode=TwoWay}"
     PatternMode="{Binding TwoDPatternMode}"
     PatternGuidePathId="{Binding TwoDPatternGuidePathId, Mode=TwoWay}"
     PatternPivot="{Binding TwoDPatternPivot, Mode=TwoWay}"
