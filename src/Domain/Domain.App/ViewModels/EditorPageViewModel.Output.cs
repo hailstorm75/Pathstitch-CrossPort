@@ -13,6 +13,14 @@ public sealed partial class EditorPageViewModel
 {
     private string? _twoDTextFontPreview;
     private double _twoDRectangleFilletRadius;
+    private string _twoDTextToolDraft = "Label";
+    private string _twoDTextToolHeightText = "5";
+    private string _twoDTextToolFontFamily = string.Empty;
+    private string _twoDTextToolCharacterSpacingText = "0";
+    private bool _twoDTextToolBold;
+    private bool _twoDTextToolItalic;
+    private bool _twoDTextToolUnderline;
+    private string _twoDTextToolFitMode = "None";
 
     private sealed record TwoDConvertLineParameterDefinition(
         string Key,
@@ -318,6 +326,9 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(IsTwoDPatternToolActive));
             OnPropertyChanged(nameof(IsTwoDPaperFoldingToolActive));
             OnPropertyChanged(nameof(IsTwoDSewingHoleToolActive));
+            OnPropertyChanged(nameof(IsTwoDTextInspectorVisible));
+            OnPropertyChanged(nameof(TwoDTextInspectorTitle));
+            NotifyTwoDSelectedTextEditorStateChanged();
             OnPropertyChanged(nameof(TwoDToolHint));
             if (value == Editor2DTool.Offset)
                 QueueTwoDOffsetPreviewRefresh();
@@ -355,6 +366,30 @@ public sealed partial class EditorPageViewModel
             return null;
 
         ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+        return pathId;
+    }
+
+    public string? CreateTwoDText(Editor2DPoint boxStart, Editor2DPoint boxEnd)
+    {
+        var characterSpacing = double.TryParse(
+            _twoDTextToolCharacterSpacingText,
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out var parsedSpacing) && double.IsFinite(parsedSpacing)
+            ? parsedSpacing
+            : 0.0;
+        var boxHeight = Math.Abs(boxEnd.Y - boxStart.Y);
+        var pathId = _twoDWorkspace.CreateText(
+            boxStart, boxEnd, _twoDTextToolDraft, boxHeight,
+            _twoDTextToolFontFamily, characterSpacing,
+            _twoDTextToolBold, _twoDTextToolItalic, _twoDTextToolUnderline,
+            _twoDTextToolFitMode);
+        if (pathId is null)
+            return null;
+
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        SyncTwoDSelectedTextEditorState();
         Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
         return pathId;
     }
@@ -1761,16 +1796,25 @@ public sealed partial class EditorPageViewModel
 
     public string TwoDSelectedTextDraft
     {
-        get => _twoDSelectedTextDraft;
-        set => SetWorkspaceFacadeValue(_twoDSelectedTextDraft, value ?? string.Empty, updated => _twoDSelectedTextDraft = updated);
+        get => IsConfiguringTwoDTextTool ? _twoDTextToolDraft : _twoDSelectedTextDraft;
+        set
+        {
+            if (IsConfiguringTwoDTextTool)
+                SetProperty(ref _twoDTextToolDraft, value ?? string.Empty, nameof(TwoDSelectedTextDraft));
+            else
+                SetWorkspaceFacadeValue(_twoDSelectedTextDraft, value ?? string.Empty, updated => _twoDSelectedTextDraft = updated);
+        }
     }
 
     public string TwoDSelectedTextHeightText
     {
-        get => _twoDSelectedTextHeightText;
+        get => IsConfiguringTwoDTextTool ? _twoDTextToolHeightText : _twoDSelectedTextHeightText;
         set
         {
-            if (!SetWorkspaceFacadeValue(_twoDSelectedTextHeightText, value ?? string.Empty, updated => _twoDSelectedTextHeightText = updated))
+            var changed = IsConfiguringTwoDTextTool
+                ? SetProperty(ref _twoDTextToolHeightText, value ?? string.Empty, nameof(TwoDSelectedTextHeightText))
+                : SetWorkspaceFacadeValue(_twoDSelectedTextHeightText, value ?? string.Empty, updated => _twoDSelectedTextHeightText = updated);
+            if (!changed)
                 return;
 
             SetTwoDSelectedTextHeightValidity(true);
@@ -1780,8 +1824,17 @@ public sealed partial class EditorPageViewModel
 
     public string TwoDSelectedTextFontFamily
     {
-        get => _twoDSelectedTextFontFamily;
-        set => SetWorkspaceFacadeValue(_twoDSelectedTextFontFamily, string.IsNullOrWhiteSpace(value) ? "Inter" : value.Trim(), updated => _twoDSelectedTextFontFamily = updated);
+        get => IsConfiguringTwoDTextTool ? _twoDTextToolFontFamily : _twoDSelectedTextFontFamily;
+        set
+        {
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? (IsConfiguringTwoDTextTool ? string.Empty : "Inter")
+                : value.Trim();
+            if (IsConfiguringTwoDTextTool)
+                SetProperty(ref _twoDTextToolFontFamily, normalized, nameof(TwoDSelectedTextFontFamily));
+            else
+                SetWorkspaceFacadeValue(_twoDSelectedTextFontFamily, normalized, updated => _twoDSelectedTextFontFamily = updated);
+        }
     }
 
     public string? TwoDTextFontPreview
@@ -1792,41 +1845,74 @@ public sealed partial class EditorPageViewModel
 
     public string TwoDSelectedTextCharacterSpacingText
     {
-        get => _twoDSelectedTextCharacterSpacingText;
-        set => SetWorkspaceFacadeValue(_twoDSelectedTextCharacterSpacingText, value ?? "0", updated => _twoDSelectedTextCharacterSpacingText = updated);
+        get => IsConfiguringTwoDTextTool ? _twoDTextToolCharacterSpacingText : _twoDSelectedTextCharacterSpacingText;
+        set
+        {
+            if (IsConfiguringTwoDTextTool)
+                SetProperty(ref _twoDTextToolCharacterSpacingText, value ?? "0", nameof(TwoDSelectedTextCharacterSpacingText));
+            else
+                SetWorkspaceFacadeValue(_twoDSelectedTextCharacterSpacingText, value ?? "0", updated => _twoDSelectedTextCharacterSpacingText = updated);
+        }
     }
 
     public bool TwoDSelectedTextBold
     {
-        get => _twoDSelectedTextBold;
-        set => SetWorkspaceFacadeValue(_twoDSelectedTextBold, value, updated => _twoDSelectedTextBold = updated);
+        get => IsConfiguringTwoDTextTool ? _twoDTextToolBold : _twoDSelectedTextBold;
+        set
+        {
+            if (IsConfiguringTwoDTextTool)
+                SetProperty(ref _twoDTextToolBold, value, nameof(TwoDSelectedTextBold));
+            else
+                SetWorkspaceFacadeValue(_twoDSelectedTextBold, value, updated => _twoDSelectedTextBold = updated);
+        }
     }
 
     public bool TwoDSelectedTextItalic
     {
-        get => _twoDSelectedTextItalic;
-        set => SetWorkspaceFacadeValue(_twoDSelectedTextItalic, value, updated => _twoDSelectedTextItalic = updated);
+        get => IsConfiguringTwoDTextTool ? _twoDTextToolItalic : _twoDSelectedTextItalic;
+        set
+        {
+            if (IsConfiguringTwoDTextTool)
+                SetProperty(ref _twoDTextToolItalic, value, nameof(TwoDSelectedTextItalic));
+            else
+                SetWorkspaceFacadeValue(_twoDSelectedTextItalic, value, updated => _twoDSelectedTextItalic = updated);
+        }
     }
 
     public bool TwoDSelectedTextUnderline
     {
-        get => _twoDSelectedTextUnderline;
-        set => SetWorkspaceFacadeValue(_twoDSelectedTextUnderline, value, updated => _twoDSelectedTextUnderline = updated);
+        get => IsConfiguringTwoDTextTool ? _twoDTextToolUnderline : _twoDSelectedTextUnderline;
+        set
+        {
+            if (IsConfiguringTwoDTextTool)
+                SetProperty(ref _twoDTextToolUnderline, value, nameof(TwoDSelectedTextUnderline));
+            else
+                SetWorkspaceFacadeValue(_twoDSelectedTextUnderline, value, updated => _twoDSelectedTextUnderline = updated);
+        }
     }
 
     public IReadOnlyList<string> TwoDSelectedTextFitModeOptions => ["None", "Height", "Width", "Both"];
 
     public string TwoDSelectedTextFitMode
     {
-        get => _twoDSelectedTextFitMode;
+        get => IsConfiguringTwoDTextTool ? _twoDTextToolFitMode : _twoDSelectedTextFitMode;
         set
         {
             var normalized = TwoDSelectedTextFitModeOptions.Contains(value, StringComparer.Ordinal)
                 ? value
                 : "None";
-            SetWorkspaceFacadeValue(_twoDSelectedTextFitMode, normalized, updated => _twoDSelectedTextFitMode = updated);
+            if (IsConfiguringTwoDTextTool)
+                SetProperty(ref _twoDTextToolFitMode, normalized, nameof(TwoDSelectedTextFitMode));
+            else
+                SetWorkspaceFacadeValue(_twoDSelectedTextFitMode, normalized, updated => _twoDSelectedTextFitMode = updated);
         }
     }
+
+    public bool IsTwoDTextInspectorVisible => IsTwoDTextToolActive || HasSingleTwoDTextSelection;
+
+    public string TwoDTextInspectorTitle => IsConfiguringTwoDTextTool ? "Text Tool" : "Selected Text";
+
+    private bool IsConfiguringTwoDTextTool => IsTwoDTextToolActive;
 
     public bool IsTwoDSelectedTextHeightValid => _isTwoDSelectedTextHeightValid;
 
@@ -2045,7 +2131,7 @@ public sealed partial class EditorPageViewModel
         Editor2DTool.SketchRectangle => "Rectangle tool: click once to place the first corner, then click again to create a constrained rectangle with editable initial fillets and attached dimensions.",
         Editor2DTool.SketchCircle => "Circle tool: click once to place the center, then click again to set the radius and add a circular path to the 2D workspace.",
         Editor2DTool.SketchPolygon => "Polygon tool: click once to place the center, then click again to set the radius and add a regular closed polygon using the current side count.",
-        Editor2DTool.SketchText => "Text tool: click once to place one corner of a text box, then click again to size it. Edit the selected TEXT content and height from the 2D selection panel.",
+        Editor2DTool.SketchText => "Text tool: choose the next text style and fit mode, draw its box, then type. Enter places text; Shift+Enter adds a line.",
         Editor2DTool.Pen => "Pen tool: click to add path vertices, click the first vertex to close the path, and press Enter to commit an open path.",
         _ => string.Empty,
     };
@@ -3167,6 +3253,8 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDSelectedTextFitMode));
         OnPropertyChanged(nameof(TwoDSelectedTextFitModeOptions));
         OnPropertyChanged(nameof(CanApplyTwoDSelectedText));
+        OnPropertyChanged(nameof(IsTwoDTextInspectorVisible));
+        OnPropertyChanged(nameof(TwoDTextInspectorTitle));
     }
 
     private void SetTwoDSelectedTextHeightValidity(bool isValid)

@@ -921,11 +921,11 @@
       </StackPanel>
       <StackPanel
         Spacing="8"
-        IsVisible="{Binding HasSingleTwoDTextSelection}">
+        IsVisible="{Binding IsTwoDTextInspectorVisible}">
         <TextBlock
           FontSize="10"
           Foreground="{StaticResource PrimaryTextBrush}"
-          Text="Selected Text" />
+          Text="{Binding TwoDTextInspectorTitle}" />
         <TextBox
           AutomationProperties.AutomationId="editor.text.selected-draft"
           MinWidth="240"
@@ -939,6 +939,7 @@
         <ComboBox
           x:Name="InstalledFontSelector"
           AutomationProperties.AutomationId="editor.text.font-family"
+          PlaceholderText="System Default"
           SelectedItem="{Binding TwoDSelectedTextFontFamily, Mode=TwoWay}">
           <ComboBox.ItemTemplate>
             <DataTemplate>
@@ -955,10 +956,12 @@
             Foreground="{StaticResource SecondaryTextBrush}"
             Text="Height (mm)" />
           <TextBox
+            AutomationProperties.AutomationId="editor.text.height"
             Width="76"
             Text="{Binding TwoDSelectedTextHeightText, Mode=TwoWay}" />
           <Button
             Classes="chip-button"
+            IsVisible="{Binding HasSingleTwoDTextSelection}"
             IsEnabled="{Binding CanApplyTwoDSelectedText}"
             Content="Apply Text"
             Click="OnApplyTwoDSelectedTextClicked" />
@@ -970,20 +973,22 @@
             Foreground="{StaticResource SecondaryTextBrush}"
             Text="Character spacing (mm)" />
           <TextBox
+            AutomationProperties.AutomationId="editor.text.character-spacing"
             Width="76"
             Text="{Binding TwoDSelectedTextCharacterSpacingText, Mode=TwoWay}" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Fit to box" />
           <ComboBox
+            AutomationProperties.AutomationId="editor.text.fit-mode"
             Width="120"
             ItemsSource="{Binding TwoDSelectedTextFitModeOptions}"
             SelectedItem="{Binding TwoDSelectedTextFitMode, Mode=TwoWay}" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="10">
-          <ToggleSwitch Content="Bold" IsChecked="{Binding TwoDSelectedTextBold, Mode=TwoWay}" />
-          <ToggleSwitch Content="Italic" IsChecked="{Binding TwoDSelectedTextItalic, Mode=TwoWay}" />
-          <ToggleSwitch Content="Underline" IsChecked="{Binding TwoDSelectedTextUnderline, Mode=TwoWay}" />
+          <ToggleSwitch AutomationProperties.AutomationId="editor.text.bold" Content="Bold" IsChecked="{Binding TwoDSelectedTextBold, Mode=TwoWay}" />
+          <ToggleSwitch AutomationProperties.AutomationId="editor.text.italic" Content="Italic" IsChecked="{Binding TwoDSelectedTextItalic, Mode=TwoWay}" />
+          <ToggleSwitch AutomationProperties.AutomationId="editor.text.underline" Content="Underline" IsChecked="{Binding TwoDSelectedTextUnderline, Mode=TwoWay}" />
         </StackPanel>
         <TextBlock
           FontSize="10"

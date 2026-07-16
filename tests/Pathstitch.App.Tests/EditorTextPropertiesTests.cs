@@ -6,6 +6,45 @@ namespace Pathstitch.App.Tests;
 public sealed class EditorTextPropertiesTests
 {
     [Fact]
+    public async Task TextToolDefaultsStyleNextBoxAndRemainOneUndoStep()
+    {
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests();
+        await editor.SetActiveEditorModeAsync(EditorMode.TwoD);
+        editor.ActivateTwoDTextTool();
+
+        Assert.True(editor.IsTwoDTextInspectorVisible);
+        Assert.Equal("Text Tool", editor.TwoDTextInspectorTitle);
+        Assert.Equal("Label", editor.TwoDSelectedTextDraft);
+        Assert.Equal("5", editor.TwoDSelectedTextHeightText);
+        Assert.Equal(string.Empty, editor.TwoDSelectedTextFontFamily);
+        Assert.Equal("None", editor.TwoDSelectedTextFitMode);
+
+        editor.TwoDSelectedTextDraft = "ABCD";
+        editor.TwoDSelectedTextFontFamily = "Segoe UI";
+        editor.TwoDSelectedTextCharacterSpacingText = "1.25";
+        editor.TwoDSelectedTextBold = true;
+        editor.TwoDSelectedTextItalic = true;
+        editor.TwoDSelectedTextUnderline = true;
+        editor.TwoDSelectedTextFitMode = "Both";
+
+        var pathId = editor.CreateTwoDText(new(24, 8), new(0, 0));
+
+        Assert.NotNull(pathId);
+        var text = Assert.Single(editor.TwoDDocument!.Paths);
+        Assert.Equal("ABCD", text.Text);
+        Assert.Equal(new Editor2DPoint(0, 0), text.Start);
+        Assert.Equal(8, text.TextHeight);
+        Assert.Equal(1.25, text.WidthFactor!.Value, 8);
+        Assert.Equal("Segoe UI", text.FontFamily);
+        Assert.Equal(1.25, text.CharacterSpacing);
+        Assert.True(text.IsBold && text.IsItalic && text.IsUnderline);
+        Assert.True(editor.UndoTwoDWorkspace());
+        Assert.Empty(editor.TwoDDocument!.Paths);
+        Assert.True(editor.RedoTwoDWorkspace());
+        Assert.Single(editor.TwoDDocument!.Paths);
+    }
+
+    [Fact]
     public async Task SelectedText_AppliesMultilineTypographyAndPersistsIt()
     {
         var editor = EditorPageViewModelModeTests.CreateViewModelForTests();
@@ -87,6 +126,11 @@ public sealed class EditorTextPropertiesTests
         Assert.Contains("GotFocus=\"OnTwoDSelectedTextGotFocus\"", inspector, StringComparison.Ordinal);
         Assert.Contains("KeyDown=\"OnTwoDSelectedTextKeyDown\"", inspector, StringComparison.Ordinal);
         Assert.Contains("OnTwoDSelectedTextKeyDown", interactionBase, StringComparison.Ordinal);
+        Assert.Contains("IsTwoDTextInspectorVisible", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDTextInspectorTitle", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.text.height\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.text.character-spacing\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.text.fit-mode\"", inspector, StringComparison.Ordinal);
     }
 
     [Fact]

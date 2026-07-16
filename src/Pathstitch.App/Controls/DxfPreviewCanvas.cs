@@ -314,6 +314,7 @@ public sealed class DxfPreviewCanvas : Control
     private ref Editor2DPoint? _pendingTextStart => ref _interaction.PendingTextStart;
     private ref Editor2DPoint? _pendingTextEnd => ref _interaction.PendingTextEnd;
     private bool _isTextEntryActive;
+    private string? _pendingTextInitialEntry;
     private ref IReadOnlyList<Editor2DBezierAnchor> _pendingPenAnchors => ref _interaction.PendingPenAnchors;
     private ref Editor2DPoint? _pendingPenHoverPoint => ref _interaction.PendingPenHoverPoint;
     private ref int? _pendingPenDragAnchorIndex => ref _interaction.PendingPenDragAnchorIndex;
@@ -1435,7 +1436,9 @@ public sealed class DxfPreviewCanvas : Control
             case DxfCanvasMoveRoute.RectangleDraft: _pendingRectangleEnd = ResolvePlacementPoint(position); break;
             case DxfCanvasMoveRoute.CircleDraft: _pendingCircleEdge = ResolvePlacementPoint(position); break;
             case DxfCanvasMoveRoute.PolygonDraft: _pendingPolygonEdge = ResolvePlacementPoint(position); break;
-            case DxfCanvasMoveRoute.TextDraft: _pendingTextEnd = ResolvePlacementPoint(position); break;
+            case DxfCanvasMoveRoute.TextDraft:
+                if (!_isTextEntryActive) _pendingTextEnd = ResolvePlacementPoint(position);
+                break;
             case DxfCanvasMoveRoute.PenHandleDrag: UpdatePendingPenHandle(position); e.Handled = true; break;
             case DxfCanvasMoveRoute.PenDraft: _pendingPenHoverPoint = ResolvePlacementPoint(position, _pendingPenAnchors.LastOrDefault()?.Point, allowOrthogonal: _pendingPenAnchors.Count > 0); break;
             case DxfCanvasMoveRoute.MeasurementDraft: _pendingMeasurementEnd = ResolvePlacementPoint(position, _pendingMeasurementStart, allowOrthogonal: true); break;
@@ -1615,7 +1618,9 @@ Selection:
         {
             if (_isTextEntryActive)
             {
-                _isTextEntryActive = false;
+                if (_pendingTextInitialEntry is not null)
+                    SetCurrentValue(TextEntryProperty, _pendingTextInitialEntry);
+                CancelPendingText();
                 e.Handled = true;
                 return;
             }
@@ -1642,8 +1647,27 @@ Selection:
                 return;
             }
 
-            if (DataContext is EditorPageViewModel viewModel)
-                viewModel.ApplyTwoDSelectedText();
+            if (_pendingTextStart is { } textStart
+                && _pendingTextEnd is { } textEnd
+                && DataContext is EditorPageViewModel viewModel)
+            {
+                viewModel.TwoDSelectedTextDraft = TextEntry;
+                var newPathId = viewModel.CreateTwoDText(textStart, textEnd);
+                if (newPathId is not null)
+                {
+                    SetCurrentValue(DocumentProperty, viewModel.TwoDDocument);
+                    SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
+                    SetCurrentValue(SelectedMeasurementIdProperty, null);
+                    SetCurrentValue(TextEntryProperty, "Label");
+                }
+                _pendingTextStart = null;
+                _pendingTextEnd = null;
+                _pendingTextInitialEntry = null;
+            }
+            else if (DataContext is EditorPageViewModel selectedTextViewModel)
+            {
+                selectedTextViewModel.ApplyTwoDSelectedText();
+            }
             _isTextEntryActive = false;
             e.Handled = true;
             return;
@@ -2374,6 +2398,29 @@ Selection:
             labelText.Height + 6.0);
         context.FillRectangle(MeasurementLabelFillBrush, backgroundRect);
         context.DrawText(labelText, labelOrigin);
+
+        if (_isTextEntryActive
+            && !string.IsNullOrEmpty(TextEntry)
+            && DataContext is EditorPageViewModel textViewModel)
+        {
+            var spacing = double.TryParse(
+                textViewModel.TwoDSelectedTextCharacterSpacingText,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var parsedSpacing) && double.IsFinite(parsedSpacing)
+                ? parsedSpacing
+                : 0.0;
+            var preview = Editor2DTextCreationService.Create(
+                "text-preview", startModel, endModel, TextEntry, height,
+                TextFontPreview ?? textViewModel.TwoDSelectedTextFontFamily,
+                spacing,
+                textViewModel.TwoDSelectedTextBold,
+                textViewModel.TwoDSelectedTextItalic,
+                textViewModel.TwoDSelectedTextUnderline,
+                textViewModel.TwoDSelectedTextFitMode);
+            if (preview is not null)
+                TryDrawSemanticPrimitive(context, size, preview, HoverPathPen);
+        }
     }
 
     private void DrawMarquee(DrawingContext context)
@@ -3605,6 +3652,9 @@ Selection:
 
     private void HandleSketchTextClick(Point screenPoint)
     {
+        if (_isTextEntryActive)
+            return;
+
         var worldPoint = ResolvePlacementPoint(screenPoint);
         if (_pendingTextStart is null)
         {
@@ -3614,20 +3664,13 @@ Selection:
             return;
         }
 
-        var nextDocument = AddTextToDocument(_pendingTextStart, worldPoint);
-        if (nextDocument is not null)
-        {
-            SetCurrentValue(DocumentProperty, nextDocument);
-            var newPathId = nextDocument.Paths[^1].Id;
-            SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
-            SetCurrentValue(SelectedMeasurementIdProperty, null);
-            SetCurrentValue(TextEntryProperty, DefaultTextValue);
-            _isTextEntryActive = true;
-            Focus();
-        }
-
-        _pendingTextStart = null;
-        _pendingTextEnd = null;
+        _pendingTextEnd = worldPoint;
+        _pendingTextInitialEntry = TextEntry;
+        SetCurrentValue(TextEntryProperty, string.Empty);
+        SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
+        SetCurrentValue(SelectedMeasurementIdProperty, null);
+        _isTextEntryActive = true;
+        Focus();
         InvalidateVisual();
     }
 
@@ -4721,6 +4764,7 @@ Selection:
     {
         _pendingTextStart = null;
         _pendingTextEnd = null;
+        _pendingTextInitialEntry = null;
         _isTextEntryActive = false;
     }
 

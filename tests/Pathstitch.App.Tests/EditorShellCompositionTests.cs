@@ -377,6 +377,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("OnTextInput", canvas, StringComparison.Ordinal);
         Assert.Contains("Shift", canvas, StringComparison.Ordinal);
         Assert.Contains("ApplyTwoDSelectedText", canvas, StringComparison.Ordinal);
+        Assert.Contains("CreateTwoDText", canvas, StringComparison.Ordinal);
+        Assert.Contains("IsTwoDTextInspectorVisible", ReadPage("Editor2DInspector.axaml"), StringComparison.Ordinal);
         Assert.Contains("_isTextEntryActive", canvas, StringComparison.Ordinal);
         Assert.Contains("TryBeginTextEditing", canvas, StringComparison.Ordinal);
     }

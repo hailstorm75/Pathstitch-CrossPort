@@ -489,6 +489,9 @@ public abstract class EditorInteractionControlBase : UserControl
         if (DataContext is not EditorPageViewModel viewModel)
             return;
 
+        if (!viewModel.HasSingleTwoDTextSelection)
+            return;
+
         e.Handled = true;
         viewModel.ApplyTwoDSelectedText();
     }
