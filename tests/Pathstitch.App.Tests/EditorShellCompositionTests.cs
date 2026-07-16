@@ -195,9 +195,12 @@ public sealed class EditorShellCompositionTests
         var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
 
         Assert.Contains("TwoDMirrorLineMode=\"{Binding TwoDMirrorLineMode, Mode=TwoWay}\"", view, StringComparison.Ordinal);
+        Assert.Contains("TwoDMirrorFlipCopy=\"{Binding TwoDMirrorFlipCopy}\"", view, StringComparison.Ordinal);
         Assert.Contains("TwoDMirrorAxisStart=\"{Binding TwoDMirrorAxisStart, Mode=TwoWay}\"", view, StringComparison.Ordinal);
         Assert.Contains("TwoDMirrorAxisEnd=\"{Binding TwoDMirrorAxisEnd, Mode=TwoWay}\"", view, StringComparison.Ordinal);
         Assert.Contains("editor.2d.mirror.line-mode", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDMirrorFlipCopy, Mode=TwoWay", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.mirror.flip-copy", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDMirrorKeepLink, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("editor.2d.mirror.keep-live-link", inspector, StringComparison.Ordinal);
         Assert.Contains("editor.2d.mirror.confirm", inspector, StringComparison.Ordinal);
@@ -205,7 +208,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("OnConfirmTwoDMirrorClicked", handlers, StringComparison.Ordinal);
         Assert.Contains("OnCancelTwoDMirrorClicked", handlers, StringComparison.Ordinal);
         Assert.Contains("if (!TwoDMirrorLineMode)", canvas, StringComparison.Ordinal);
-        Assert.Contains("Editor2DGeometry.ReflectPath", canvas, StringComparison.Ordinal);
+        Assert.Contains("Editor2DGeometry.CreateMirrorCopy", canvas, StringComparison.Ordinal);
         Assert.Contains("mirrorViewModel.ConfirmTwoDMirror()", canvas, StringComparison.Ordinal);
         Assert.Contains("mirrorViewModel.CancelTwoDMirror(exitTool: true)", canvas, StringComparison.Ordinal);
         Assert.Contains("Header = \"Break Mirror Link\"", canvas, StringComparison.Ordinal);

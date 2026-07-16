@@ -1382,14 +1382,15 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         IReadOnlyList<Editor2DPreviewPath> sources,
         IReadOnlyList<Editor2DPreviewPath> copies,
         Editor2DPoint axisStart,
-        Editor2DPoint axisEnd)
+        Editor2DPoint axisEnd,
+        bool mirror)
     {
         for (var index = 0; index < Math.Min(sources.Count, copies.Count); index++)
         {
             var sourceId = sources[index].Id;
             var copyId = copies[index].Id;
-            _mirrorLinks[sourceId] = new Editor2DMirrorLink(copyId, axisStart, axisEnd);
-            _mirrorLinks[copyId] = new Editor2DMirrorLink(sourceId, axisStart, axisEnd);
+            _mirrorLinks[sourceId] = new Editor2DMirrorLink(copyId, axisStart, axisEnd, mirror);
+            _mirrorLinks[copyId] = new Editor2DMirrorLink(sourceId, axisStart, axisEnd, mirror);
         }
         RaiseMirrorLinksChanged();
     }

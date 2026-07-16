@@ -245,6 +245,32 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public void MirrorFlipCopy_DefaultsTrueAndPersistsAcrossConfirmAndCancel()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(2, 0), new(4, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Mirror;
+
+        Assert.True(viewModel.TwoDMirrorFlipCopy);
+        viewModel.TwoDMirrorFlipCopy = false;
+        viewModel.TwoDMirrorAxisStart = new Editor2DPoint(0, 0);
+        viewModel.TwoDMirrorAxisEnd = new Editor2DPoint(0, 10);
+
+        Assert.True(viewModel.ConfirmTwoDMirror());
+
+        var copyId = Assert.Single(viewModel.TwoDSelectedPathIds);
+        var copy = viewModel.TwoDDocument!.Paths.Single(path => path.Id == copyId);
+        Assert.Equal([new Editor2DPoint(-4, 0), new Editor2DPoint(-2, 0)], copy.Points);
+        Assert.False(viewModel.TwoDMirrorFlipCopy);
+        Assert.All(viewModel.MirrorLinks.Values, link => Assert.False(link.Mirror));
+
+        viewModel.CancelTwoDMirror(exitTool: true);
+        Assert.False(viewModel.TwoDMirrorFlipCopy);
+    }
+
+    [Fact]
     public async Task MirrorEscape_CancelsStagingAndReturnsToSelectWithoutClearingObjects()
     {
         var viewModel = CreateViewModel();

@@ -27,6 +27,7 @@
     ScalePivot="{Binding TwoDScalePivot, Mode=TwoWay}"
     ScalePivotPicking="{Binding TwoDScalePivotPicking, Mode=TwoWay}"
     TwoDMirrorLineMode="{Binding TwoDMirrorLineMode, Mode=TwoWay}"
+    TwoDMirrorFlipCopy="{Binding TwoDMirrorFlipCopy}"
     TwoDMirrorAxisStart="{Binding TwoDMirrorAxisStart, Mode=TwoWay}"
     TwoDMirrorAxisEnd="{Binding TwoDMirrorAxisEnd, Mode=TwoWay}"
     SelectedPathIds="{Binding TwoDSelectedPathIds, Mode=TwoWay}"

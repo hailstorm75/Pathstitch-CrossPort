@@ -364,6 +364,76 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void ApplyMirror_CopyModePreservesOrientationAndMovesEachEntityCentroid()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var line = new Editor2DPreviewPath("line", "LINE", [new(2, 1), new(4, 3)], false);
+        var circle = new Editor2DPreviewPath(
+            "circle", "CIRCLE", [new(2, -1), new(4, 1)], true,
+            Center: new Editor2DPoint(3, 0), Radius: 1);
+        var text = new Editor2DPreviewPath(
+            "text", "TEXT", [new(5, 1), new(9, 1), new(9, 3), new(5, 3)], true,
+            Start: new Editor2DPoint(5, 1), Text: "Copy", TextHeight: 2,
+            RotationDegrees: 30, WidthFactor: 0.8);
+        var anchors = new[]
+        {
+            new Editor2DBezierAnchor(new(10, 0), HandleOut: new(11, 4)),
+            new Editor2DBezierAnchor(new(14, 2), HandleIn: new(13, -2)),
+        };
+        var bezier = new Editor2DPreviewPath(
+            "bezier", "LWPOLYLINE", Editor2DBezierGeometry.Flatten(anchors, closed: false), false,
+            BezierAnchors: anchors);
+        var sources = new[] { line, circle, text, bezier };
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = sources });
+        workspace.SetSelection(sources.Select(static path => path.Id).ToArray());
+        var axisStart = new Editor2DPoint(0, -10);
+        var axisEnd = new Editor2DPoint(0, 10);
+
+        Assert.True(workspace.ApplyMirror(axisStart, axisEnd, flip: false).IsSuccess);
+
+        foreach (var source in sources)
+        {
+            var copy = workspace.Document.Paths.Single(path => path.Id.StartsWith($"{source.Id}:mirror:", StringComparison.Ordinal));
+            var sourceCenter = BoundingBoxCenter(source.Points);
+            var copyCenter = BoundingBoxCenter(copy.Points);
+            Assert.Equal(-sourceCenter.X, copyCenter.X, 6);
+            Assert.Equal(sourceCenter.Y, copyCenter.Y, 6);
+        }
+
+        var lineCopy = workspace.Document.Paths.Single(path => path.Id.StartsWith("line:mirror:", StringComparison.Ordinal));
+        Assert.Equal(line.Points[1].X - line.Points[0].X, lineCopy.Points[1].X - lineCopy.Points[0].X, 6);
+        Assert.Equal(line.Points[1].Y - line.Points[0].Y, lineCopy.Points[1].Y - lineCopy.Points[0].Y, 6);
+
+        var circleCopy = workspace.Document.Paths.Single(path => path.Id.StartsWith("circle:mirror:", StringComparison.Ordinal));
+        Assert.Equal(new Editor2DPoint(-3, 0), circleCopy.Center);
+        Assert.Equal(circle.Radius, circleCopy.Radius);
+
+        var textCopy = workspace.Document.Paths.Single(path => path.Id.StartsWith("text:mirror:", StringComparison.Ordinal));
+        Assert.Equal(text.RotationDegrees, textCopy.RotationDegrees);
+        Assert.Equal(text.WidthFactor, textCopy.WidthFactor);
+        Assert.Equal(text.Text, textCopy.Text);
+
+        var bezierCopy = workspace.Document.Paths.Single(path => path.Id.StartsWith("bezier:mirror:", StringComparison.Ordinal));
+        var sourceHandle = anchors[0].HandleOut!;
+        var sourceHandleOffset = new Editor2DPoint(
+            sourceHandle.X - anchors[0].Point.X,
+            sourceHandle.Y - anchors[0].Point.Y);
+        var copiedAnchor = bezierCopy.BezierAnchors![0];
+        var copiedHandle = copiedAnchor.HandleOut!;
+        var copiedHandleOffset = new Editor2DPoint(
+            copiedHandle.X - copiedAnchor.Point.X,
+            copiedHandle.Y - copiedAnchor.Point.Y);
+        Assert.Equal(sourceHandleOffset, copiedHandleOffset);
+
+        Assert.All(workspace.MirrorLinks.Values, link => Assert.False(link.Mirror));
+
+        static Editor2DPoint BoundingBoxCenter(IReadOnlyList<Editor2DPoint> points)
+            => new(
+                (points.Min(static point => point.X) + points.Max(static point => point.X)) / 2.0,
+                (points.Min(static point => point.Y) + points.Max(static point => point.Y)) / 2.0);
+    }
+
+    [Fact]
     public void ApplyMirror_RejectsMissingSelectionAndDegenerateAxisWithoutHistory()
     {
         var workspace = new Editor2DWorkspaceViewModel();

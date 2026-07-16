@@ -280,7 +280,8 @@ public sealed partial class Editor2DWorkspaceViewModel
     public Editor2DWorkspaceOperationResult ApplyMirror(
         Editor2DPoint axisStart,
         Editor2DPoint axisEnd,
-        bool keepLink = true)
+        bool keepLink = true,
+        bool flip = true)
     {
         var selected = SelectedPaths();
         if (selected.Count == 0)
@@ -289,15 +290,16 @@ public sealed partial class Editor2DWorkspaceViewModel
             return Editor2DWorkspaceOperationResult.Failure("Pick two distinct points for the mirror axis");
 
         var copies = selected
-            .Select(path => Editor2DGeometry.ReflectPath(
+            .Select(path => Editor2DGeometry.CreateMirrorCopy(
                 path,
                 axisStart,
                 axisEnd,
+                flip,
                 $"{path.Id}:mirror:{Guid.NewGuid():N}"))
             .ToArray();
         AppendAndSelect(copies);
         if (keepLink)
-            AddMirrorLinks(selected, copies, axisStart, axisEnd);
+            AddMirrorLinks(selected, copies, axisStart, axisEnd, flip);
         return Editor2DWorkspaceOperationResult.Success(
             $"Mirrored {copies.Length} selected {(copies.Length == 1 ? "entity" : "entities")}");
     }

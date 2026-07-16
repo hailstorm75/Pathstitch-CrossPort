@@ -150,6 +150,7 @@ public sealed partial class EditorPageViewModel(
     private bool _twoDScaleFromCenter = true;
     private bool _twoDMirrorLineMode;
     private bool _twoDMirrorKeepLink = true;
+    private bool _twoDMirrorFlipCopy = true;
     private Editor2DPoint? _twoDMirrorAxisStart;
     private Editor2DPoint? _twoDMirrorAxisEnd;
 

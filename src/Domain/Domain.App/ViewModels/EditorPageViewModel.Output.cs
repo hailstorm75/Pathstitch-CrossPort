@@ -808,6 +808,12 @@ public sealed partial class EditorPageViewModel
         set => SetProperty(ref _twoDMirrorKeepLink, value);
     }
 
+    public bool TwoDMirrorFlipCopy
+    {
+        get => _twoDMirrorFlipCopy;
+        set => SetProperty(ref _twoDMirrorFlipCopy, value);
+    }
+
     public bool TwoDMirrorLineMode
     {
         get => _twoDMirrorLineMode;
@@ -878,7 +884,11 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        var completed = CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyMirror(start, end, TwoDMirrorKeepLink));
+        var completed = CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyMirror(
+            start,
+            end,
+            keepLink: TwoDMirrorKeepLink,
+            flip: TwoDMirrorFlipCopy));
         if (completed)
         {
             OnPropertyChanged(nameof(MirrorLinks));

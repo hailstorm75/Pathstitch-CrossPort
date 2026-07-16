@@ -585,6 +585,10 @@
           IsChecked="{Binding TwoDMirrorLineMode, Mode=TwoWay}"
           AutomationProperties.AutomationId="editor.2d.mirror.line-mode" />
         <CheckBox
+          Content="Mirror (flip) copy"
+          IsChecked="{Binding TwoDMirrorFlipCopy, Mode=TwoWay}"
+          AutomationProperties.AutomationId="editor.2d.mirror.flip-copy" />
+        <CheckBox
           Content="Keep live link"
           IsChecked="{Binding TwoDMirrorKeepLink, Mode=TwoWay}"
           AutomationProperties.AutomationId="editor.2d.mirror.keep-live-link" />

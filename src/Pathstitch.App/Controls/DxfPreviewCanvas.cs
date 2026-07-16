@@ -104,6 +104,9 @@ public sealed class DxfPreviewCanvas : Control
     public static readonly StyledProperty<bool> TwoDMirrorLineModeProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(TwoDMirrorLineMode), defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<bool> TwoDMirrorFlipCopyProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(TwoDMirrorFlipCopy), defaultValue: true);
+
     public static readonly StyledProperty<Editor2DPoint?> TwoDMirrorAxisStartProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DPoint?>(nameof(TwoDMirrorAxisStart), defaultBindingMode: BindingMode.TwoWay);
 
@@ -329,6 +332,7 @@ public sealed class DxfPreviewCanvas : Control
             TwoDMovePointToPointActiveProperty,
             TwoDMovePointToPointSourceProperty,
             TwoDMirrorLineModeProperty,
+            TwoDMirrorFlipCopyProperty,
             TwoDMirrorAxisStartProperty,
             TwoDMirrorAxisEndProperty,
             SelectedPathIdsProperty,
@@ -747,6 +751,12 @@ public sealed class DxfPreviewCanvas : Control
     {
         get => GetValue(TwoDMirrorLineModeProperty);
         set => SetValue(TwoDMirrorLineModeProperty, value);
+    }
+
+    public bool TwoDMirrorFlipCopy
+    {
+        get => GetValue(TwoDMirrorFlipCopyProperty);
+        set => SetValue(TwoDMirrorFlipCopyProperty, value);
     }
 
     public Editor2DPoint? TwoDMirrorAxisStart
@@ -2207,7 +2217,7 @@ Selection:
         var selected = SelectedPathIds.ToHashSet(StringComparer.Ordinal);
         var mirrored = Document.Paths
             .Where(path => selected.Contains(path.Id))
-            .Select(path => Editor2DGeometry.ReflectPath(path, start, end))
+            .Select(path => Editor2DGeometry.CreateMirrorCopy(path, start, end, TwoDMirrorFlipCopy))
             .ToArray();
         DrawPreviewPaths(context, size, mirrored);
     }

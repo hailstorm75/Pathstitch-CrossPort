@@ -763,6 +763,37 @@ public static class Editor2DGeometry
         };
     }
 
+    public static Editor2DPreviewPath CreateMirrorCopy(
+        Editor2DPreviewPath path,
+        Editor2DPoint axisStart,
+        Editor2DPoint axisEnd,
+        bool flip,
+        string? id = null)
+    {
+        if (flip)
+            return ReflectPath(path, axisStart, axisEnd, id);
+
+        var boundsPoints = path.Points.Count > 0
+            ? path.Points
+            : path.Start is Editor2DPoint start
+                ? [start]
+                : path.Center is Editor2DPoint center
+                    ? [center]
+                    : [];
+        if (boundsPoints.Count == 0)
+            return path with { Id = id ?? path.Id };
+
+        var centroid = new Editor2DPoint(
+            (boundsPoints.Min(static point => point.X) + boundsPoints.Max(static point => point.X)) / 2.0,
+            (boundsPoints.Min(static point => point.Y) + boundsPoints.Max(static point => point.Y)) / 2.0);
+        var reflectedCentroid = ReflectPoint(centroid, axisStart, axisEnd);
+        return TranslatePath(
+            path,
+            reflectedCentroid.X - centroid.X,
+            reflectedCentroid.Y - centroid.Y,
+            id);
+    }
+
     public static Editor2DPoint ReflectPoint(Editor2DPoint point, Editor2DPoint axisStart, Editor2DPoint axisEnd)
     {
         var deltaX = axisEnd.X - axisStart.X;
