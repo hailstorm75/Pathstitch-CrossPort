@@ -377,6 +377,28 @@ public sealed partial class EditorPageViewModel
             double.IsFinite(value) ? Math.Max(0.0, value) : 0.0);
     }
 
+    public string? CreateTwoDLine(Editor2DPoint start, Editor2DPoint end)
+    {
+        var pathId = _twoDWorkspace.CreateLine(start, end);
+        if (pathId is null)
+            return null;
+
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+        return pathId;
+    }
+
+    public string? CreateTwoDCircle(Editor2DPoint center, Editor2DPoint edge)
+    {
+        var pathId = _twoDWorkspace.CreateCircle(center, edge);
+        if (pathId is null)
+            return null;
+
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+        return pathId;
+    }
+
     public string? CreateTwoDRectangle(Editor2DPoint start, Editor2DPoint end)
     {
         var pathId = _twoDWorkspace.CreateRectangle(start, end, TwoDRectangleFilletRadius);
@@ -648,10 +670,13 @@ public sealed partial class EditorPageViewModel
         out string error)
     {
         var measurement = TwoDMeasurements.FirstOrDefault(item => item.Id == measurementId);
-        var isAutoRectangleDimension = measurement?.IsAutoDimension == true
-            && (measurement.DimensionType?.Trim().Equals("width", StringComparison.OrdinalIgnoreCase) == true
-                || measurement.DimensionType?.Trim().Equals("height", StringComparison.OrdinalIgnoreCase) == true);
-        var committed = isAutoRectangleDimension
+        var normalizedDimensionType = measurement?.DimensionType?.Trim();
+        var isAutoDrivingDimension = measurement?.IsAutoDimension == true
+            && (normalizedDimensionType?.Equals("length", StringComparison.OrdinalIgnoreCase) == true
+                || normalizedDimensionType?.Equals("radius", StringComparison.OrdinalIgnoreCase) == true
+                || normalizedDimensionType?.Equals("width", StringComparison.OrdinalIgnoreCase) == true
+                || normalizedDimensionType?.Equals("height", StringComparison.OrdinalIgnoreCase) == true);
+        var committed = isAutoDrivingDimension
             ? Editor2DDimensionExpression.TryEvaluate(
                 expression,
                 new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
@@ -2986,17 +3011,63 @@ public sealed partial class EditorPageViewModel
         var autoMeasurements = document is null
             ? []
             : BuildAutoTwoDMeasurements(document);
+        var creationLineMeasurements = document is null
+            ? []
+            : RebuildCreationLineMeasurements(
+                document,
+                TwoDMeasurements.Where(static measurement =>
+                    measurement.IsAutoDimension
+                    && measurement.DimensionType?.Trim().Equals(
+                        "length",
+                        StringComparison.OrdinalIgnoreCase) == true));
         _isRefreshingDerivedTwoDMeasurements = true;
         try
         {
             TwoDMeasurements = autoMeasurements
+                .Concat(creationLineMeasurements)
                 .Concat(manualMeasurements)
+                .DistinctBy(static measurement => measurement.Id)
                 .ToArray();
         }
         finally
         {
             _isRefreshingDerivedTwoDMeasurements = false;
         }
+    }
+
+    private static IReadOnlyList<Editor2DMeasurement> RebuildCreationLineMeasurements(
+        Editor2DPreviewDocument document,
+        IEnumerable<Editor2DMeasurement> measurements)
+    {
+        var rebuilt = new List<Editor2DMeasurement>();
+        foreach (var measurement in measurements)
+        {
+            if (string.IsNullOrWhiteSpace(measurement.EntityPathId))
+                continue;
+            var path = document.Paths.FirstOrDefault(candidate =>
+                candidate.Id.Equals(measurement.EntityPathId, StringComparison.Ordinal)
+                && candidate.EntityType.Equals("LINE", StringComparison.OrdinalIgnoreCase));
+            if (path is null
+                || !Editor2DGeometry.TryBuildAttachedMeasurement(
+                    path,
+                    "length",
+                    measurement.OffsetDistance,
+                    measurement.PlacementAngleDegrees,
+                    out var start,
+                    out var end))
+            {
+                continue;
+            }
+
+            rebuilt.Add(measurement with
+            {
+                Start = start,
+                End = end,
+                EntityPathId = path.Id,
+                DimensionType = "length",
+            });
+        }
+        return rebuilt;
     }
 
     private static IReadOnlyList<Editor2DMeasurement> RebuildAttachedTwoDMeasurements(
@@ -3634,7 +3705,8 @@ public sealed partial class EditorPageViewModel
                 EntityPathId: path.Id,
                 DimensionType: "width",
                 RectP1: rectP1,
-                RectP2: rectP2));
+                RectP2: rectP2,
+                OffsetDistance: -offset));
             measurements.Add(new Editor2DMeasurement(
                 Id: $"{path.Id}:height",
                 Start: new Editor2DPoint(minX - offset, minY),
@@ -3643,7 +3715,8 @@ public sealed partial class EditorPageViewModel
                 EntityPathId: path.Id,
                 DimensionType: "height",
                 RectP1: rectP1,
-                RectP2: rectP2));
+                RectP2: rectP2,
+                OffsetDistance: -offset));
         }
 
         foreach (var path in document.Paths.Where(static path =>

@@ -194,6 +194,107 @@ public sealed class EditorPageViewModelModeTests
         Assert.True(viewModel.TwoDWorkspace.CanUndo);
     }
 
+    [Theory]
+    [InlineData("line", " LENGTH ", "1 inch", 25.4)]
+    [InlineData("circle", " Radius ", "25 / 2", 12.5)]
+    public void AutoLineAndCircleDimensions_UseNormalizedPrecisionCommitPath(
+        string shape,
+        string dimensionType,
+        string expression,
+        double targetValue)
+    {
+        var viewModel = CreateViewModelForTests();
+        viewModel.TwoDWorkspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var pathId = shape == "line"
+            ? viewModel.TwoDWorkspace.CreateLine(new(10, 10), new(7, 6), "precision-line")!
+            : viewModel.TwoDWorkspace.CreateCircle(new(3, 4), new(3, 9), "precision-circle")!;
+        var measurement = Assert.Single(viewModel.TwoDMeasurements);
+        viewModel.TwoDWorkspace.SetMeasurements([measurement with { DimensionType = dimensionType }]);
+        viewModel.TwoDWorkspace.ClearHistory();
+
+        Assert.True(viewModel.TryCommitTwoDMeasurementExpression(
+            measurement.Id,
+            expression,
+            out var error), error);
+
+        var path = Assert.Single(viewModel.TwoDDocument!.Paths);
+        if (shape == "line")
+        {
+            Assert.Equal(new Editor2DPoint(10, 10), path.Points[0]);
+            Assert.Equal(targetValue, Assert.Single(viewModel.TwoDMeasurements).Distance, 8);
+        }
+        else
+        {
+            Assert.Equal(new Editor2DPoint(3, 4), path.Center);
+            Assert.Equal(targetValue, path.Radius!.Value, 8);
+        }
+        Assert.Equal(pathId, path.Id);
+        Assert.True(viewModel.TwoDWorkspace.CanUndo);
+    }
+
+    [Fact]
+    public void LineAndCircleCreationWrappers_RefreshFacadeAndKeepAtomicHistory()
+    {
+        var viewModel = CreateViewModelForTests();
+        viewModel.TwoDWorkspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var documentNotifications = 0;
+        var measurementNotifications = 0;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(viewModel.TwoDDocument)) documentNotifications++;
+            if (args.PropertyName == nameof(viewModel.TwoDMeasurements)) measurementNotifications++;
+        };
+
+        var lineId = viewModel.CreateTwoDLine(new(0, 0), new(5, 0));
+        var circleId = viewModel.CreateTwoDCircle(new(10, 10), new(10, 13));
+
+        Assert.NotNull(lineId);
+        Assert.NotNull(circleId);
+        Assert.Equal(2, viewModel.TwoDDocument!.Paths.Count);
+        Assert.Equal(2, viewModel.TwoDMeasurements.Count);
+        Assert.Contains(viewModel.TwoDMeasurements, item => item.Id == $"{lineId}:length");
+        Assert.Contains(viewModel.TwoDMeasurements, item => item.Id == $"{circleId}:radius");
+        Assert.True(documentNotifications > 0);
+        Assert.True(measurementNotifications > 0);
+        Assert.True(viewModel.TwoDWorkspace.CanUndo);
+        Assert.True(viewModel.UndoTwoDWorkspace());
+        Assert.Single(viewModel.TwoDDocument.Paths);
+        Assert.Single(viewModel.TwoDMeasurements);
+    }
+
+    [Fact]
+    public void CreationLineAutoMeasurement_SurvivesDocumentSetterAndRebuildsEndpoints()
+    {
+        var viewModel = CreateViewModelForTests();
+        viewModel.TwoDWorkspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var lineId = viewModel.CreateTwoDLine(new(1, 2), new(6, 2))!;
+        var circleId = viewModel.CreateTwoDCircle(new(20, 20), new(23, 20))!;
+        var updatedLine = viewModel.TwoDDocument!.Paths.Single(path => path.Id == lineId) with
+        {
+            Points = [new Editor2DPoint(1, 2), new Editor2DPoint(9, 2)],
+            Start = new Editor2DPoint(1, 2),
+        };
+
+        viewModel.TwoDDocument = viewModel.TwoDDocument with
+        {
+            Paths = viewModel.TwoDDocument.Paths.Select(path => path.Id == lineId ? updatedLine : path).ToArray(),
+        };
+
+        var lineMeasurement = viewModel.TwoDMeasurements.Single(item => item.Id == $"{lineId}:length");
+        Assert.Equal(new Editor2DPoint(1, 2), lineMeasurement.Start);
+        Assert.Equal(new Editor2DPoint(9, 2), lineMeasurement.End);
+        Assert.Equal(8, lineMeasurement.Distance, 8);
+        Assert.Single(viewModel.TwoDMeasurements, item => item.Id == $"{circleId}:radius");
+        Assert.Equal(2, viewModel.TwoDMeasurements.Count);
+
+        viewModel.TwoDDocument = viewModel.TwoDDocument with
+        {
+            Paths = viewModel.TwoDDocument.Paths.Where(path => path.Id != lineId).ToArray(),
+        };
+        Assert.DoesNotContain(viewModel.TwoDMeasurements, item => item.Id == $"{lineId}:length");
+        Assert.Single(viewModel.TwoDMeasurements, item => item.Id == $"{circleId}:radius");
+    }
+
     [Fact]
     public async Task DimensionParameters_RebuildFromPersistedMeasurementState()
     {

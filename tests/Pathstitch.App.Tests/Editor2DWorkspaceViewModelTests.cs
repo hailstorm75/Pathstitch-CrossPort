@@ -1079,6 +1079,102 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void CreateLine_SeedsStableAutoLengthAtomicallyAndPreservesDirectionOnResize()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+
+        var pathId = workspace.CreateLine(new(10, 10), new(7, 6), "stable-line");
+
+        Assert.Equal("stable-line", pathId);
+        var path = Assert.Single(workspace.Document.Paths);
+        Assert.Equal([new Editor2DPoint(10, 10), new Editor2DPoint(7, 6)], path.Points);
+        Assert.Equal(new Editor2DPoint(10, 10), path.Start);
+        Assert.Equal([path.Id], workspace.SelectedPathIds);
+        var measurement = Assert.Single(workspace.Measurements);
+        Assert.Equal("stable-line:length", measurement.Id);
+        Assert.True(measurement.IsAutoDimension);
+        Assert.Equal(path.Id, measurement.EntityPathId);
+        Assert.Equal("length", measurement.DimensionType);
+        Assert.Equal(5, measurement.Distance, 8);
+        Assert.Contains(path.Id, workspace.ActiveLayer!.PathIds);
+        Assert.True(workspace.CanUndo);
+        Assert.True(workspace.Undo());
+        Assert.Empty(workspace.Document.Paths);
+        Assert.Empty(workspace.Measurements);
+        Assert.True(workspace.Redo());
+        Assert.Equal(path, Assert.Single(workspace.Document.Paths));
+        Assert.Equal(measurement, Assert.Single(workspace.Measurements));
+
+        workspace.ClearHistory();
+        Assert.True(workspace.TrySetMeasurementValue(measurement.Id, 10, out var error), error);
+        var resized = Assert.Single(workspace.Document.Paths);
+        Assert.Equal(new Editor2DPoint(10, 10), resized.Points[0]);
+        Assert.Equal(new Editor2DPoint(4, 2), resized.Points[1]);
+        Assert.Equal(10, Assert.Single(workspace.Measurements).Distance, 8);
+        Assert.True(workspace.Undo());
+        Assert.Equal(path, Assert.Single(workspace.Document.Paths));
+        Assert.True(workspace.Redo());
+        Assert.Equal(new Editor2DPoint(4, 2), Assert.Single(workspace.Document.Paths).Points[1]);
+    }
+
+    [Fact]
+    public void CreateCircle_SeedsStableAutoRadiusAtomicallyAndKeepsCenterOnResize()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+
+        var pathId = workspace.CreateCircle(new(3, 4), new(3, 9), "stable-circle");
+
+        Assert.Equal("stable-circle", pathId);
+        var path = Assert.Single(workspace.Document.Paths);
+        Assert.Equal(new Editor2DPoint(3, 4), path.Center);
+        Assert.Equal(5, path.Radius);
+        Assert.Equal([path.Id], workspace.SelectedPathIds);
+        var measurement = Assert.Single(workspace.Measurements);
+        Assert.Equal("stable-circle:radius", measurement.Id);
+        Assert.True(measurement.IsAutoDimension);
+        Assert.Equal(new Editor2DPoint(3, 4), measurement.Start);
+        Assert.Equal(new Editor2DPoint(8, 4), measurement.End);
+        Assert.Contains(path.Id, workspace.ActiveLayer!.PathIds);
+        Assert.True(workspace.CanUndo);
+        Assert.True(workspace.Undo());
+        Assert.Empty(workspace.Document.Paths);
+        Assert.Empty(workspace.Measurements);
+        Assert.True(workspace.Redo());
+        Assert.Equal(path, Assert.Single(workspace.Document.Paths));
+        Assert.Equal(measurement, Assert.Single(workspace.Measurements));
+
+        workspace.ClearHistory();
+        Assert.True(workspace.TrySetMeasurementValue(measurement.Id, 12, out var error), error);
+        var resized = Assert.Single(workspace.Document.Paths);
+        Assert.Equal(new Editor2DPoint(3, 4), resized.Center);
+        Assert.Equal(12, resized.Radius);
+        Assert.Equal(new Editor2DPoint(15, 4), Assert.Single(workspace.Measurements).End);
+        Assert.True(workspace.Undo());
+        Assert.Equal(path, Assert.Single(workspace.Document.Paths));
+    }
+
+    [Fact]
+    public void CreateLineAndCircle_RejectInvalidDuplicateAndNoOpWithoutHistory()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        Assert.Null(workspace.CreateLine(new(0, 0), new(0, 0), "flat"));
+        Assert.Null(workspace.CreateCircle(new(0, 0), new(0, 0), "flat-circle"));
+        Assert.Null(workspace.CreateLine(new(double.NaN, 0), new(1, 0), "invalid"));
+        Assert.False(workspace.CanUndo);
+
+        var lineId = workspace.CreateLine(new(0, 0), new(5, 0), "duplicate")!;
+        workspace.ClearHistory();
+        var before = workspace.State;
+        Assert.Null(workspace.CreateLine(new(0, 0), new(10, 0), lineId));
+        Assert.Null(workspace.CreateCircle(new(0, 0), new(0, 5), lineId));
+        Assert.True(workspace.TrySetMeasurementValue($"{lineId}:length", 5, out var error), error);
+        Assert.False(workspace.TrySetMeasurementValue($"{lineId}:length", 0, out _));
+        Assert.False(workspace.TrySetMeasurementValue($"{lineId}:length", double.PositiveInfinity, out _));
+        Assert.Equal(before, workspace.State);
+        Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
     public void CreateRectangle_ClampsFilletAndLeavesSharpRectangleUnparameterized()
     {
         var rounded = Editor2DRectangleCreationService.Create("rounded", new(0, 0), new(20, 10), 100);

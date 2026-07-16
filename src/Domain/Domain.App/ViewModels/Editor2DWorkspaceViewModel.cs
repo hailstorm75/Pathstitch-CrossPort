@@ -382,6 +382,91 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         Edit(state => state with { Document = document, IsInitialized = true });
     }
 
+    public string? CreateLine(
+        Editor2DPoint start,
+        Editor2DPoint end,
+        string? pathId = null)
+    {
+        var id = string.IsNullOrWhiteSpace(pathId) ? $"line-{Guid.NewGuid():N}" : pathId.Trim();
+        var length = Math.Sqrt(Math.Pow(end.X - start.X, 2) + Math.Pow(end.Y - start.Y, 2));
+        if (!double.IsFinite(start.X)
+            || !double.IsFinite(start.Y)
+            || !double.IsFinite(end.X)
+            || !double.IsFinite(end.Y)
+            || !double.IsFinite(length)
+            || length <= 1e-6
+            || Document.Paths.Any(path => path.Id.Equals(id, StringComparison.Ordinal))
+            || Measurements.Any(measurement => measurement.Id.Equals($"{id}:length", StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
+        var path = new Editor2DPreviewPath(id, "LINE", [start, end], false, Start: start);
+        var measurement = new Editor2DMeasurement(
+            $"{id}:length",
+            start,
+            end,
+            IsAutoDimension: true,
+            EntityPathId: id,
+            DimensionType: "length");
+        ClearSewingHolePreview();
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, [.. Document.Paths, path]),
+            IsInitialized = true,
+            SelectedPathIds = [id],
+            Measurements = Measurements.Append(measurement).ToArray(),
+        });
+        return id;
+    }
+
+    public string? CreateCircle(
+        Editor2DPoint center,
+        Editor2DPoint edge,
+        string? pathId = null)
+    {
+        var id = string.IsNullOrWhiteSpace(pathId) ? $"circle-{Guid.NewGuid():N}" : pathId.Trim();
+        var radius = Math.Sqrt(Math.Pow(edge.X - center.X, 2) + Math.Pow(edge.Y - center.Y, 2));
+        if (!double.IsFinite(center.X)
+            || !double.IsFinite(center.Y)
+            || !double.IsFinite(edge.X)
+            || !double.IsFinite(edge.Y)
+            || !double.IsFinite(radius)
+            || radius <= 1e-6
+            || Document.Paths.Any(path => path.Id.Equals(id, StringComparison.Ordinal))
+            || Measurements.Any(measurement => measurement.Id.Equals($"{id}:radius", StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
+        var radiusEnd = new Editor2DPoint(center.X + radius, center.Y);
+        var path = new Editor2DPreviewPath(
+            id,
+            "CIRCLE",
+            Editor2DGeometry.BuildCirclePoints(center, radius),
+            true,
+            Center: center,
+            Radius: radius,
+            StartAngleDegrees: 0,
+            EndAngleDegrees: 360);
+        var measurement = new Editor2DMeasurement(
+            $"{id}:radius",
+            center,
+            radiusEnd,
+            IsAutoDimension: true,
+            EntityPathId: id,
+            DimensionType: "radius");
+        ClearSewingHolePreview();
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, [.. Document.Paths, path]),
+            IsInitialized = true,
+            SelectedPathIds = [id],
+            Measurements = Measurements.Append(measurement).ToArray(),
+        });
+        return id;
+    }
+
     public string? CreateRectangle(
         Editor2DPoint start,
         Editor2DPoint end,
@@ -407,9 +492,9 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         var autoMeasurements = new Editor2DMeasurement[]
         {
             new($"{creation.Path.Id}:width", new(minX, minY - offset), new(maxX, minY - offset),
-                true, creation.Path.Id, "width", rectP1, rectP2, filletRadius),
+                true, creation.Path.Id, "width", rectP1, rectP2, filletRadius, OffsetDistance: -offset),
             new($"{creation.Path.Id}:height", new(minX - offset, minY), new(minX - offset, maxY),
-                true, creation.Path.Id, "height", rectP1, rectP2, filletRadius),
+                true, creation.Path.Id, "height", rectP1, rectP2, filletRadius, OffsetDistance: -offset),
         };
 
         ClearSewingHolePreview();
@@ -1015,11 +1100,63 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                     ? new[] { id, copyId }
                     : new[] { id }).ToArray(),
             }).ToArray();
+            var usedMeasurementIds = Measurements
+                .Select(measurement => measurement.Id)
+                .ToHashSet(StringComparer.Ordinal);
+            string NextCopyMeasurementId(string copyPathId, string normalizedType)
+            {
+                var baseId = $"{copyPathId}:{normalizedType}";
+                if (usedMeasurementIds.Add(baseId))
+                    return baseId;
+                for (var index = 2; ; index++)
+                {
+                    var candidate = $"{baseId}:{index}";
+                    if (usedMeasurementIds.Add(candidate))
+                        return candidate;
+                }
+            }
+            var measurementCopies = Measurements
+                .Where(measurement => measurement.IsAutoDimension
+                    && measurement.EntityPathId is { } pathId
+                    && copyIds.ContainsKey(pathId))
+                .Select(measurement =>
+                {
+                    var sourcePathId = measurement.EntityPathId!;
+                    var copyPath = copies[sourcePathId];
+                    var typeToken = AttachedAutoMeasurementTypeToken(measurement.DimensionType);
+                    var transformedMeasurement = TransformAttachedMeasurementMetadata(
+                        measurement,
+                        transform,
+                        copyHasUniformScale ? copyUniformScale : Math.Sqrt(Math.Abs(transform.Determinant)),
+                        transform.Determinant < 0.0
+                            ? -(copyHasUniformScale ? copyUniformScale : Math.Sqrt(Math.Abs(transform.Determinant)))
+                            : copyHasUniformScale ? copyUniformScale : Math.Sqrt(Math.Abs(transform.Determinant)));
+                    var measurementId = NextCopyMeasurementId(copyPath.Id, typeToken);
+                    var rebuilt = RebuildAttachedAutoMeasurement(
+                        transformedMeasurement,
+                        copyPath,
+                        cornerCopies.Where(parameter => parameter.PathId.Equals(copyPath.Id, StringComparison.Ordinal)).ToArray(),
+                        measurementId,
+                        copyPath.Id);
+                    return (rebuilt ?? transformedMeasurement with
+                    {
+                        Id = measurementId,
+                        EntityPathId = copyPath.Id,
+                    }) with
+                    {
+                        VarName = null,
+                        Expression = null,
+                        IsParametric = false,
+                        EvaluatedValue = null,
+                    };
+                })
+                .ToArray();
 
             Apply(_state with
             {
                 Document = RebuildDocument(Document, copiedPaths),
                 SelectedPathIds = copies.Values.Select(path => path.Id).ToArray(),
+                Measurements = Measurements.Concat(measurementCopies).ToArray(),
                 CornerParameters = CornerParameters.Concat(cornerCopies).ToArray(),
                 ConvertLineGroups = ConvertLineGroups.Concat(convertLineCopies).ToArray(),
                 Layers = layers,
@@ -1033,24 +1170,6 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         var hasUniformScale = transform.TryGetUniformScale(out var uniformScale);
         var measurementScale = hasUniformScale ? uniformScale : Math.Sqrt(Math.Abs(transform.Determinant));
         var measurementOffsetScale = transform.Determinant < 0.0 ? -measurementScale : measurementScale;
-        var measurements = Measurements.Select(measurement =>
-            !measurement.IsAutoDimension
-            && measurement.EntityPathId is { } pathId
-            && selectedIds.Contains(pathId)
-                ? measurement with
-                {
-                    Start = transform.TransformPoint(measurement.Start),
-                    End = transform.TransformPoint(measurement.End),
-                    RectP1 = measurement.RectP1 is { } rectP1 ? transform.TransformPoint(rectP1) : null,
-                    RectP2 = measurement.RectP2 is { } rectP2 ? transform.TransformPoint(rectP2) : null,
-                    FilletRadius = measurement.FilletRadius * measurementScale,
-                    OffsetDistance = measurement.OffsetDistance * measurementOffsetScale,
-                    PlacementAngleDegrees = measurement.PlacementAngleDegrees is { } placementAngle
-                        ? transform.TransformDirectionDegrees(placementAngle)
-                        : null,
-                    EvaluatedValue = null,
-                }
-                : measurement).ToArray();
         var cornerParameters = CornerParameters.Select(parameter => selectedIds.Contains(parameter.PathId)
             ? parameter with
             {
@@ -1058,6 +1177,31 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                 SourcePoints = parameter.SourcePoints.Select(transform.TransformPoint).ToArray(),
             }
             : parameter).ToArray();
+        var transformedPathsById = paths.ToDictionary(path => path.Id, StringComparer.Ordinal);
+        var measurements = Measurements.Select(measurement =>
+        {
+            if (measurement.EntityPathId is not { } pathId || !selectedIds.Contains(pathId))
+                return measurement;
+
+            var transformedMeasurement = TransformAttachedMeasurementMetadata(
+                measurement,
+                transform,
+                measurementScale,
+                measurementOffsetScale);
+            if (!measurement.IsAutoDimension)
+                return transformedMeasurement;
+
+            var pathCornerParameters = cornerParameters
+                .Where(parameter => parameter.PathId.Equals(pathId, StringComparison.Ordinal))
+                .ToArray();
+            return RebuildAttachedAutoMeasurement(
+                       transformedMeasurement,
+                       transformedPathsById[pathId],
+                       pathCornerParameters,
+                       measurement.Id,
+                       pathId)
+                   ?? transformedMeasurement;
+        }).ToArray();
         var convertLineGroups = ConvertLineGroups.Select(group =>
         {
             var selectedGeneratedCount = group.GeneratedPathIds.Count(selectedIds.Contains);
@@ -1091,6 +1235,119 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             },
             rebuildMeasurementCaches: false);
         return true;
+    }
+
+    private static Editor2DMeasurement TransformAttachedMeasurementMetadata(
+        Editor2DMeasurement measurement,
+        Editor2DAffineTransform transform,
+        double measurementScale,
+        double offsetScale)
+        => measurement with
+        {
+            Start = transform.TransformPoint(measurement.Start),
+            End = transform.TransformPoint(measurement.End),
+            RectP1 = measurement.RectP1 is { } rectP1 ? transform.TransformPoint(rectP1) : null,
+            RectP2 = measurement.RectP2 is { } rectP2 ? transform.TransformPoint(rectP2) : null,
+            FilletRadius = measurement.FilletRadius * measurementScale,
+            OffsetDistance = measurement.OffsetDistance * offsetScale,
+            PlacementAngleDegrees = measurement.PlacementAngleDegrees is { } placementAngle
+                ? transform.TransformDirectionDegrees(placementAngle)
+                : null,
+            EvaluatedValue = null,
+        };
+
+    private static Editor2DMeasurement? RebuildAttachedAutoMeasurement(
+        Editor2DMeasurement measurement,
+        Editor2DPreviewPath path,
+        IReadOnlyList<Editor2DCornerParameter> cornerParameters,
+        string measurementId,
+        string entityPathId)
+    {
+        measurement = RecoverLegacyRectangleMeasurementOffset(measurement, path, cornerParameters);
+        var normalizedType = measurement.DimensionType?.Trim().ToLowerInvariant();
+        if (normalizedType is not ("length" or "radius" or "width" or "height")
+            || !Editor2DGeometry.TryBuildAttachedMeasurement(
+                path,
+                normalizedType,
+                measurement.OffsetDistance,
+                measurement.PlacementAngleDegrees,
+                cornerParameters,
+                out var start,
+                out var end))
+        {
+            return measurement with
+            {
+                Id = measurementId,
+                EntityPathId = entityPathId,
+                EvaluatedValue = null,
+            };
+        }
+
+        var rectP1 = measurement.RectP1;
+        var rectP2 = measurement.RectP2;
+        if (normalizedType is "width" or "height"
+            && Editor2DGeometry.TryGetAttachedRectangleCorners(
+                path,
+                cornerParameters,
+                out var first,
+                out var opposite))
+        {
+            rectP1 = first;
+            rectP2 = opposite;
+        }
+
+        return measurement with
+        {
+            Id = measurementId,
+            EntityPathId = entityPathId,
+            Start = start,
+            End = end,
+            RectP1 = rectP1,
+            RectP2 = rectP2,
+            EvaluatedValue = null,
+        };
+    }
+
+    private static Editor2DMeasurement RecoverLegacyRectangleMeasurementOffset(
+        Editor2DMeasurement measurement,
+        Editor2DPreviewPath path,
+        IReadOnlyList<Editor2DCornerParameter> cornerParameters)
+    {
+        if (Math.Abs(measurement.OffsetDistance) > 1e-9)
+            return measurement;
+        var normalizedType = measurement.DimensionType?.Trim().ToLowerInvariant();
+        if (normalizedType is not ("width" or "height")
+            || !Editor2DGeometry.TryBuildAttachedMeasurement(
+                path,
+                normalizedType,
+                0.0,
+                measurement.PlacementAngleDegrees,
+                cornerParameters,
+                out var zeroStart,
+                out _))
+        {
+            return measurement;
+        }
+
+        var visibleOffset = normalizedType == "width"
+            ? measurement.Start.Y - zeroStart.Y
+            : measurement.Start.X - zeroStart.X;
+        return Math.Abs(visibleOffset) <= 1e-9
+            ? measurement
+            : measurement with { OffsetDistance = visibleOffset };
+    }
+
+    private static string AttachedAutoMeasurementTypeToken(string? dimensionType)
+    {
+        var normalized = dimensionType?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (normalized.Length == 0)
+            return "auto";
+        var token = new string(normalized
+            .Select(character => char.IsLetterOrDigit(character) || character is '-' or '_'
+                ? character
+                : '-')
+            .ToArray()).Trim('-');
+        return token.Length == 0 ? "auto" : token;
     }
 
     public void ClearManualMeasurements()

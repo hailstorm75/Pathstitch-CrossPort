@@ -63,11 +63,267 @@ public sealed class Editor2DSelectionTransformTests
         AssertPoint(new(5, -1), movedMeasurement.RectP1!);
         AssertPoint(new(7, 1), movedMeasurement.RectP2!);
         Assert.Null(movedMeasurement.EvaluatedValue);
-        Assert.Equal(automatic, workspace.Measurements.Single(item => item.Id == automatic.Id));
+        var movedAutomatic = workspace.Measurements.Single(item => item.Id == automatic.Id);
+        AssertPoint(new(5, -3), movedAutomatic.Start);
+        AssertPoint(new(7, -3), movedAutomatic.End);
         Assert.Equal(free, workspace.Measurements.Single(item => item.Id == free.Id));
         Assert.Equal(
             [new Editor2DPoint(5, -1), new Editor2DPoint(7, -1), new Editor2DPoint(7, 1)],
             Assert.Single(workspace.CornerParameters).SourcePoints);
+    }
+
+    [Fact]
+    public void ApplySelectionTransform_RebuildsLineAndCircleAutoMeasurementsAcrossTransforms()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var lineId = workspace.CreateLine(new(0, 0), new(3, 4), "line")!;
+        var circleId = workspace.CreateCircle(new(10, 0), new(12, 0), "circle")!;
+        workspace.SetSelection([lineId, circleId]);
+        workspace.ClearHistory();
+
+        Assert.True(workspace.ApplySelectionTransform(Editor2DAffineTransform.CreateTranslation(5, -2)));
+        var line = workspace.Measurements.Single(item => item.Id == $"{lineId}:length");
+        AssertPoint(new(5, -2), line.Start);
+        AssertPoint(new(8, 2), line.End);
+        Assert.Equal(5, line.Distance, 8);
+        var radius = workspace.Measurements.Single(item => item.Id == $"{circleId}:radius");
+        AssertPoint(new(15, -2), radius.Start);
+        AssertPoint(new(17, -2), radius.End);
+        Assert.Equal(2, radius.Distance, 8);
+
+        Assert.True(workspace.ApplySelectionTransform(Editor2DAffineTransform.CreateRotation(new(0, 0), 90)));
+        line = workspace.Measurements.Single(item => item.Id == $"{lineId}:length");
+        AssertPoint(new(2, 5), line.Start);
+        AssertPoint(new(-2, 8), line.End);
+        Assert.Equal(5, line.Distance, 8);
+        radius = workspace.Measurements.Single(item => item.Id == $"{circleId}:radius");
+        AssertPoint(new(2, 15), radius.Start);
+        AssertPoint(new(4, 15), radius.End);
+        Assert.Equal(2, radius.Distance, 8);
+
+        var beforeScale = workspace.State;
+        Assert.True(workspace.ApplySelectionTransform(Editor2DAffineTransform.CreateScale(new(0, 0), 2)));
+        Assert.Equal(10, workspace.Measurements.Single(item => item.Id == $"{lineId}:length").Distance, 8);
+        Assert.Equal(4, workspace.Measurements.Single(item => item.Id == $"{circleId}:radius").Distance, 8);
+        Assert.True(workspace.Undo());
+        Assert.Equal(beforeScale, workspace.State);
+        Assert.True(workspace.Redo());
+        Assert.Equal(10, workspace.Measurements.Single(item => item.Id == $"{lineId}:length").Distance, 8);
+    }
+
+    [Fact]
+    public void ApplySelectionTransform_RebuildsRectangleAutoEndpointsAndRectMetadata()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var pathId = workspace.CreateRectangle(new(0, 0), new(20, 10), pathId: "rectangle")!;
+        workspace.ClearHistory();
+
+        Assert.True(workspace.ApplySelectionTransform(Editor2DAffineTransform.CreateTranslation(5, 7)));
+
+        var width = workspace.Measurements.Single(item => item.Id == $"{pathId}:width");
+        var height = workspace.Measurements.Single(item => item.Id == $"{pathId}:height");
+        AssertPoint(new(5, -1), width.Start);
+        AssertPoint(new(25, -1), width.End);
+        AssertPoint(new(-3, 7), height.Start);
+        AssertPoint(new(-3, 17), height.End);
+        Assert.Equal(new Editor2DPoint(5, 7), width.RectP1);
+        Assert.Equal(new Editor2DPoint(25, 17), width.RectP2);
+        Assert.Equal(width.RectP1, height.RectP1);
+        Assert.Equal(width.RectP2, height.RectP2);
+
+        Assert.True(workspace.ApplySelectionTransform(Editor2DAffineTransform.CreateScale(new(5, 7), 2)));
+        width = workspace.Measurements.Single(item => item.Id == $"{pathId}:width");
+        height = workspace.Measurements.Single(item => item.Id == $"{pathId}:height");
+        Assert.Equal(40, width.Distance, 8);
+        Assert.Equal(20, height.Distance, 8);
+        AssertPoint(new(5, -9), width.Start);
+        AssertPoint(new(45, -9), width.End);
+    }
+
+    [Fact]
+    public void ApplySelectionTransform_CopyClonesLineAndCircleAutoMeasurementsWithUniqueIds()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var lineId = workspace.CreateLine(new(0, 0), new(4, 0), "line")!;
+        var circleId = workspace.CreateCircle(new(10, 0), new(12, 0), "circle")!;
+        workspace.SetSelection([lineId, circleId]);
+        workspace.ClearHistory();
+        var before = workspace.State;
+
+        Assert.True(workspace.ApplySelectionTransform(
+            Editor2DAffineTransform.CreateTranslation(5, 3),
+            createCopy: true));
+
+        Assert.Equal(4, workspace.Measurements.Count);
+        Assert.Contains(workspace.Measurements, item => item.Id == $"{lineId}:length");
+        Assert.Contains(workspace.Measurements, item => item.Id == $"{circleId}:radius");
+        var copyIds = workspace.SelectedPathIds.ToHashSet(StringComparer.Ordinal);
+        Assert.Equal(2, copyIds.Count);
+        var lineCopy = workspace.Document.Paths.Single(path => copyIds.Contains(path.Id) && path.EntityType == "LINE");
+        var circleCopy = workspace.Document.Paths.Single(path => copyIds.Contains(path.Id) && path.EntityType == "CIRCLE");
+        var lineMeasurement = workspace.Measurements.Single(item => item.EntityPathId == lineCopy.Id);
+        var circleMeasurement = workspace.Measurements.Single(item => item.EntityPathId == circleCopy.Id);
+        Assert.Equal($"{lineCopy.Id}:length", lineMeasurement.Id);
+        Assert.Equal($"{circleCopy.Id}:radius", circleMeasurement.Id);
+        AssertPoint(new(5, 3), lineMeasurement.Start);
+        AssertPoint(new(9, 3), lineMeasurement.End);
+        AssertPoint(new(15, 3), circleMeasurement.Start);
+        AssertPoint(new(17, 3), circleMeasurement.End);
+        Assert.Equal(4, Assert.Single(workspace.Layers).PathIds.Count);
+        Assert.Equal(4, workspace.Measurements.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count());
+        Assert.True(workspace.Undo());
+        Assert.Equal(before, workspace.State);
+        Assert.True(workspace.Redo());
+        Assert.Equal(4, workspace.Measurements.Count);
+    }
+
+    [Fact]
+    public void ApplySelectionTransform_CopyClonesRectangleAutoMeasurementsAndRectMetadata()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var originalId = workspace.CreateRectangle(
+            new(0, 0),
+            new(20, 10),
+            initialFilletRadius: 2,
+            pathId: "rectangle")!;
+        workspace.ClearHistory();
+
+        Assert.True(workspace.ApplySelectionTransform(
+            Editor2DAffineTransform.CreateTranslation(5, 7),
+            createCopy: true));
+
+        var copyId = Assert.Single(workspace.SelectedPathIds);
+        Assert.NotEqual(originalId, copyId);
+        Assert.Equal(4, workspace.Measurements.Count);
+        var width = workspace.Measurements.Single(item => item.Id == $"{copyId}:width");
+        var height = workspace.Measurements.Single(item => item.Id == $"{copyId}:height");
+        AssertPoint(new(5, -1), width.Start);
+        AssertPoint(new(25, -1), width.End);
+        AssertPoint(new(-3, 7), height.Start);
+        AssertPoint(new(-3, 17), height.End);
+        Assert.Equal(new Editor2DPoint(5, 7), width.RectP1);
+        Assert.Equal(new Editor2DPoint(25, 17), width.RectP2);
+        Assert.Equal(width.RectP1, height.RectP1);
+        Assert.Equal(width.RectP2, height.RectP2);
+        Assert.Equal(8, workspace.CornerParameters.Count);
+        Assert.Equal([originalId, copyId], Assert.Single(workspace.Layers).PathIds);
+        Assert.True(workspace.Undo());
+        Assert.Single(workspace.Document.Paths);
+        Assert.Equal(2, workspace.Measurements.Count);
+    }
+
+    [Fact]
+    public void ApplySelectionTransform_CopyAlwaysClonesUnknownAndBlankAttachedAutos()
+    {
+        var path = Line("line", 0, 0, 4, 0);
+        var blank = new Editor2DMeasurement(
+            "blank", new(0, 2), new(4, 2), true, path.Id, DimensionType: null);
+        var secondBlank = new Editor2DMeasurement(
+            "blank-2", new(0, 4), new(4, 4), true, path.Id, DimensionType: "  ");
+        var unknown = new Editor2DMeasurement(
+            "unknown", new(0, 3), new(4, 3), true, path.Id, DimensionType: " Mystery / Type ");
+        var workspace = Workspace(
+            [path],
+            SelectedPathIds: [path.Id],
+            Measurements: [blank, secondBlank, unknown]);
+
+        Assert.True(workspace.ApplySelectionTransform(
+            Editor2DAffineTransform.CreateTranslation(10, 5),
+            createCopy: true));
+
+        var copyId = Assert.Single(workspace.SelectedPathIds);
+        var copies = workspace.Measurements.Where(item => item.EntityPathId == copyId).ToArray();
+        Assert.Equal(3, copies.Length);
+        Assert.Contains(copies, item => item.Id == $"{copyId}:auto");
+        Assert.Contains(copies, item => item.Id == $"{copyId}:auto:2");
+        Assert.Contains(copies, item => item.Id == $"{copyId}:mystery---type");
+        AssertPoint(new(10, 7), copies.Single(item => item.Id == $"{copyId}:auto").Start);
+        AssertPoint(new(10, 9), copies.Single(item => item.Id == $"{copyId}:auto:2").Start);
+        AssertPoint(new(10, 8), copies.Single(item => item.Id == $"{copyId}:mystery---type").Start);
+        Assert.All(copies, item => Assert.Equal(4, item.Distance, 8));
+        Assert.Contains(blank, workspace.Measurements);
+        Assert.Contains(secondBlank, workspace.Measurements);
+        Assert.Contains(unknown, workspace.Measurements);
+    }
+
+    [Fact]
+    public void ApplySelectionTransform_CopyClearsAutoParameterIdentityAndRemainsDrivable()
+    {
+        var path = Line("line", 0, 0, 4, 0);
+        var automatic = new Editor2DMeasurement(
+            "line:length", new(0, 0), new(4, 0), true, path.Id, "length",
+            VarName: "d1", Expression: "4", IsParametric: true, EvaluatedValue: 4);
+        var dependent = new Editor2DMeasurement(
+            "dependent", new(0, 10), new(8, 10), VarName: "d2", Expression: "d1 * 2",
+            IsParametric: true, EvaluatedValue: 8);
+        var workspace = Workspace(
+            [path],
+            SelectedPathIds: [path.Id],
+            Measurements: [automatic, dependent]);
+
+        Assert.True(workspace.ApplySelectionTransform(
+            Editor2DAffineTransform.CreateTranslation(10, 0),
+            createCopy: true));
+
+        var copyId = Assert.Single(workspace.SelectedPathIds);
+        var copy = workspace.Measurements.Single(item => item.EntityPathId == copyId);
+        Assert.Equal($"{copyId}:length", copy.Id);
+        Assert.Null(copy.VarName);
+        Assert.Null(copy.Expression);
+        Assert.False(copy.IsParametric);
+        Assert.Null(copy.EvaluatedValue);
+        Assert.True(workspace.TrySetMeasurementValue(copy.Id, 8, out var error), error);
+        Assert.Equal(8, workspace.Measurements.Single(item => item.Id == copy.Id).Distance, 8);
+        Assert.Equal("d1", workspace.Measurements.Single(item => item.Id == automatic.Id).VarName);
+        Assert.Equal(8, workspace.Measurements.Single(item => item.Id == dependent.Id).EvaluatedValue!.Value, 8);
+    }
+
+    [Fact]
+    public void ApplySelectionTransform_RecoversLegacyRectangleVisibleOffsetsForTransformAndCopy()
+    {
+        var rectangle = new Editor2DPreviewPath(
+            "rectangle", "LWPOLYLINE", [new(0, 0), new(20, 0), new(20, 10), new(0, 10)],
+            true, IsAxisAlignedRectangle: true);
+        var width = new Editor2DMeasurement(
+            "rectangle:width", new(0, -8), new(20, -8), true, rectangle.Id, "width",
+            new(0, 0), new(20, 10), OffsetDistance: 0);
+        var height = new Editor2DMeasurement(
+            "rectangle:height", new(-8, 0), new(-8, 10), true, rectangle.Id, "height",
+            new(0, 0), new(20, 10), OffsetDistance: 0);
+        var serialized = System.Text.Json.JsonSerializer.Serialize(new Editor2DWorkspaceState(
+            Document([rectangle]),
+            SelectedPathIds: [rectangle.Id],
+            Measurements: [width, height],
+            Layers: [new Editor2DLayer("layer", "Layer", [rectangle.Id])],
+            ActiveLayerId: "layer"));
+        Editor2DWorkspaceViewModel Restored()
+        {
+            var workspace = new Editor2DWorkspaceViewModel();
+            workspace.Apply(System.Text.Json.JsonSerializer.Deserialize<Editor2DWorkspaceState>(serialized)!, recordHistory: false);
+            workspace.ClearHistory();
+            return workspace;
+        }
+
+        var transformed = Restored();
+        Assert.True(transformed.ApplySelectionTransform(Editor2DAffineTransform.CreateTranslation(5, 7)));
+        var movedWidth = transformed.Measurements.Single(item => item.DimensionType == "width");
+        var movedHeight = transformed.Measurements.Single(item => item.DimensionType == "height");
+        Assert.Equal(-8, movedWidth.OffsetDistance, 8);
+        Assert.Equal(-8, movedHeight.OffsetDistance, 8);
+        AssertPoint(new(5, -1), movedWidth.Start);
+        AssertPoint(new(-3, 7), movedHeight.Start);
+
+        var copied = Restored();
+        Assert.True(copied.ApplySelectionTransform(
+            Editor2DAffineTransform.CreateTranslation(5, 7),
+            createCopy: true));
+        var copyId = Assert.Single(copied.SelectedPathIds);
+        var copiedWidth = copied.Measurements.Single(item => item.Id == $"{copyId}:width");
+        var copiedHeight = copied.Measurements.Single(item => item.Id == $"{copyId}:height");
+        Assert.Equal(-8, copiedWidth.OffsetDistance, 8);
+        Assert.Equal(-8, copiedHeight.OffsetDistance, 8);
+        AssertPoint(new(5, -1), copiedWidth.Start);
+        AssertPoint(new(-3, 7), copiedHeight.Start);
     }
 
     [Fact]

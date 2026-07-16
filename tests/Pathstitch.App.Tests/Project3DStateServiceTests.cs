@@ -336,6 +336,78 @@ public sealed class Project3DStateServiceTests
     }
 
     [Fact]
+    public async Task SaveAndLoadAsync_RoundTripsCreationLineAndCircleAutoDimensions()
+    {
+        using var files = TestWorkspace.Create();
+        var projectPath = files.GetPath("creation-precision.stch");
+        var service = new Project3DStateService();
+        var editor = new Editor2DWorkspaceViewModel();
+        var lineId = editor.CreateLine(new(10, 10), new(7, 6), "saved-line")!;
+        var circleId = editor.CreateCircle(new(3, 4), new(3, 9), "saved-circle")!;
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(null, [], [], TwoDWorkspaceState: editor.State));
+        var restored = await service.LoadAsync(projectPath);
+        var reopened = new Editor2DWorkspaceViewModel();
+        reopened.Apply(restored.TwoDWorkspaceState!, recordHistory: false);
+
+        Assert.Equal(2, reopened.Document.Paths.Count);
+        Assert.Equal(2, reopened.Measurements.Count);
+        var line = reopened.Measurements.Single(item => item.Id == $"{lineId}:length");
+        Assert.Equal(new Editor2DPoint(10, 10), line.Start);
+        Assert.Equal(new Editor2DPoint(7, 6), line.End);
+        var radius = reopened.Measurements.Single(item => item.Id == $"{circleId}:radius");
+        Assert.Equal(new Editor2DPoint(3, 4), radius.Start);
+        Assert.Equal(new Editor2DPoint(8, 4), radius.End);
+        Assert.Single(reopened.Layers, layer => layer.PathIds.Contains(lineId) && layer.PathIds.Contains(circleId));
+    }
+
+    [Fact]
+    public async Task SaveAndLoadAsync_RoundTripsCopiedCreationAutoDimensions()
+    {
+        using var files = TestWorkspace.Create();
+        var projectPath = files.GetPath("copied-creation-precision.stch");
+        var service = new Project3DStateService();
+        var editor = new Editor2DWorkspaceViewModel();
+        var lineId = editor.CreateLine(new(0, 0), new(4, 0), "line")!;
+        var circleId = editor.CreateCircle(new(10, 0), new(12, 0), "circle")!;
+        editor.SetMeasurements(editor.Measurements.Select(item => item.Id == $"{lineId}:length"
+            ? item with { VarName = "d1", Expression = "4", IsParametric = true, EvaluatedValue = 4 }
+            : item).ToArray());
+        editor.SetSelection([lineId, circleId]);
+        Assert.True(editor.ApplySelectionTransform(
+            Editor2DAffineTransform.CreateTranslation(5, 3),
+            createCopy: true));
+        var copiedPathIds = editor.SelectedPathIds.ToArray();
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(null, [], [], TwoDWorkspaceState: editor.State));
+        var restored = await service.LoadAsync(projectPath);
+        var reopened = new Editor2DWorkspaceViewModel();
+        reopened.Apply(restored.TwoDWorkspaceState!, recordHistory: false);
+
+        Assert.Equal(4, reopened.Document.Paths.Count);
+        Assert.Equal(4, reopened.Measurements.Count);
+        Assert.Equal(4, reopened.Measurements.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(copiedPathIds, copiedPathId =>
+        {
+            var measurement = Assert.Single(reopened.Measurements, item => item.EntityPathId == copiedPathId);
+            Assert.StartsWith($"{copiedPathId}:", measurement.Id, StringComparison.Ordinal);
+            Assert.Null(measurement.VarName);
+            Assert.Null(measurement.Expression);
+            Assert.False(measurement.IsParametric);
+            Assert.Null(measurement.EvaluatedValue);
+        });
+        var originalLine = reopened.Measurements.Single(item => item.Id == $"{lineId}:length");
+        Assert.Equal("d1", originalLine.VarName);
+        Assert.Equal("4", originalLine.Expression);
+        Assert.True(originalLine.IsParametric);
+        Assert.Single(reopened.Layers, layer => copiedPathIds.All(layer.PathIds.Contains));
+    }
+
+    [Fact]
     public async Task BlankTwoDProject_CanCreateEditSaveCloseAndReopenWithoutTwoDState()
     {
         using var files = TestWorkspace.Create();
