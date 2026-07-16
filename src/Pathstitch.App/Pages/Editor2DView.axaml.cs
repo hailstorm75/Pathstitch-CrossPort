@@ -19,6 +19,7 @@ public partial class Editor2DView : EditorInteractionControlBase
         TwoDPreviewCanvas.TransformPrecisionRequested += OnTransformPrecisionRequested;
         TwoDPreviewCanvas.TransformPrecisionDismissed += OnTransformPrecisionDismissed;
         TwoDPreviewCanvas.SelectionTransformRequested += OnSelectionTransformRequested;
+        TwoDPreviewCanvas.PathReplacementRequested += OnPathReplacementRequested;
         WorkspaceRoot.AddHandler(
             InputElement.PointerPressedEvent,
             OnWorkspacePointerPressed,
@@ -48,6 +49,17 @@ public partial class Editor2DView : EditorInteractionControlBase
         }
 
         request.Complete(document, viewModel.TwoDSelectedPathIds);
+    }
+
+    private void OnPathReplacementRequested(DxfCanvasPathReplacementEventArgs request)
+    {
+        if (DataContext is not Domain.App.ViewModels.EditorPageViewModel viewModel
+            || !viewModel.ReplaceTwoDPath(request.SourcePathId, request.Replacements)
+            || viewModel.TwoDDocument is not { } document)
+        {
+            return;
+        }
+        request.Complete(document);
     }
 
     private void OnTransformPrecisionRequested(DxfCanvasTransformPrecisionRequest request)

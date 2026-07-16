@@ -45,6 +45,17 @@ internal sealed class DxfCanvasSelectionTransformEventArgs(
     }
 }
 
+internal sealed class DxfCanvasPathReplacementEventArgs(
+    string sourcePathId,
+    IReadOnlyList<Editor2DPreviewPath> replacements)
+{
+    public string SourcePathId { get; } = sourcePathId;
+    public IReadOnlyList<Editor2DPreviewPath> Replacements { get; } = replacements;
+    public Editor2DPreviewDocument? Document { get; private set; }
+
+    public void Complete(Editor2DPreviewDocument document) => Document = document;
+}
+
 public sealed class DxfPreviewCanvas : Control
 {
     /// <summary>Flips vertical wheel/trackpad panning to match the user's preference.</summary>
@@ -991,6 +1002,7 @@ public sealed class DxfPreviewCanvas : Control
     internal event Action<DxfCanvasTransformPrecisionRequest>? TransformPrecisionRequested;
     internal event Action? TransformPrecisionDismissed;
     internal event Action<DxfCanvasSelectionTransformEventArgs>? SelectionTransformRequested;
+    internal event Action<DxfCanvasPathReplacementEventArgs>? PathReplacementRequested;
 
     public IReadOnlyList<Editor2DCornerParameter> CornerParameters
     {
@@ -2622,12 +2634,28 @@ Selection:
 
     private void DrawTrimPreview(DrawingContext context, Size size, Editor2DPreviewDocument document)
     {
-        if (ActiveTool != Editor2DTool.Trim
-            || !_hasHoverPointerPosition
-            || !TryBuildTrimTarget(document, _hoverPointerPosition, out var trimTarget))
+        if (ActiveTool != Editor2DTool.Trim || !_hasHoverPointerPosition)
         {
             return;
         }
+
+        var hoverWorld = ScreenToWorld(_hoverPointerPosition, Zoom);
+        var hitToleranceWorld = 12.0 / Math.Max(Zoom, 0.0001);
+        if (DxfCanvasCircularTrimGeometry.TryBuildTarget(
+                document, hoverWorld, hitToleranceWorld, out var circularTarget))
+        {
+            for (var index = 0; index < circularTarget.PreviewPoints.Count - 1; index++)
+            {
+                context.DrawLine(
+                    TrimPreviewPen,
+                    WorldToScreen(circularTarget.PreviewPoints[index], size),
+                    WorldToScreen(circularTarget.PreviewPoints[index + 1], size));
+            }
+            return;
+        }
+
+        if (!TryBuildTrimTarget(document, _hoverPointerPosition, out var trimTarget))
+            return;
 
         var start = WorldToScreen(trimTarget.KillStart, size);
         var end = WorldToScreen(trimTarget.KillEnd, size);
@@ -2989,7 +3017,27 @@ Selection:
 
     private void HandleTrimClick(Point screenPoint)
     {
-        if (Document is null || !TryBuildTrimTarget(Document, screenPoint, out var trimTarget))
+        if (Document is null)
+            return;
+
+        var worldPoint = ScreenToWorld(screenPoint, Zoom);
+        var hitToleranceWorld = 12.0 / Math.Max(Zoom, 0.0001);
+        if (DxfCanvasCircularTrimGeometry.TryBuildTarget(
+                Document, worldPoint, hitToleranceWorld, out var circularTarget))
+        {
+            var request = new DxfCanvasPathReplacementEventArgs(
+                circularTarget.PathId, circularTarget.ReplacementPaths);
+            PathReplacementRequested?.Invoke(request);
+            if (request.Document is null)
+                return;
+            SetCurrentValue(DocumentProperty, request.Document);
+            SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
+            SetCurrentValue(SelectedMeasurementIdProperty, null);
+            InvalidateVisual();
+            return;
+        }
+
+        if (!TryBuildTrimTarget(Document, screenPoint, out var trimTarget))
             return;
 
         var nextDocument = ApplyTrim(Document, trimTarget);

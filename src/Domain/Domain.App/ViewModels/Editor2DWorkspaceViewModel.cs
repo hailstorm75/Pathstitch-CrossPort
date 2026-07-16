@@ -664,6 +664,52 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             SelectedMeasurementId = selectedMeasurementId,
         });
 
+    public bool ReplacePath(string sourcePathId, IReadOnlyList<Editor2DPreviewPath> replacements)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePathId)
+            || !Document.Paths.Any(path => path.Id.Equals(sourcePathId, StringComparison.Ordinal)))
+        {
+            return false;
+        }
+
+        var normalizedReplacements = replacements
+            .Where(path => !string.IsNullOrWhiteSpace(path.Id))
+            .DistinctBy(path => path.Id, StringComparer.Ordinal)
+            .ToArray();
+        var replacementIds = normalizedReplacements.Select(path => path.Id).ToArray();
+        var paths = Document.Paths.SelectMany(path => path.Id.Equals(sourcePathId, StringComparison.Ordinal)
+            ? normalizedReplacements
+            : [path]).ToArray();
+        var layers = Layers.Select(layer => layer with
+        {
+            PathIds = layer.PathIds.SelectMany(id => id.Equals(sourcePathId, StringComparison.Ordinal)
+                ? replacementIds
+                : [id]).ToArray(),
+        }).ToArray();
+
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, paths),
+            Layers = layers,
+            SelectedPathIds = [],
+            SelectedMeasurementId = null,
+            Measurements = Measurements.Where(measurement =>
+                !sourcePathId.Equals(measurement.EntityPathId, StringComparison.Ordinal)).ToArray(),
+            CornerParameters = CornerParameters.Where(parameter =>
+                !sourcePathId.Equals(parameter.PathId, StringComparison.Ordinal)).ToArray(),
+            ConvertLineGroups = ConvertLineGroups.Where(group =>
+                !group.GeneratedPathIds.Contains(sourcePathId, StringComparer.Ordinal)).ToArray(),
+            ImportGroups = ImportGroups.Where(group =>
+                !group.GeneratedPathIds.Contains(sourcePathId, StringComparer.Ordinal)).ToArray(),
+            SewingHoleOperations = SewingHoleOperations.Where(operation =>
+                !operation.SourcePathIds.Contains(sourcePathId, StringComparer.Ordinal)
+                && !operation.GeneratedPathIds.Contains(sourcePathId, StringComparer.Ordinal)).ToArray(),
+            ExpandedRectanglePathIds = ExpandedRectanglePathIds.Where(id =>
+                !id.Equals(sourcePathId, StringComparison.Ordinal)).ToArray(),
+        });
+        return true;
+    }
+
     public bool ApplySelectionTransform(Editor2DAffineTransform transform, bool createCopy = false)
     {
         ArgumentNullException.ThrowIfNull(transform);
