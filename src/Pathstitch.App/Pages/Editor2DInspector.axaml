@@ -407,6 +407,22 @@
             VerticalAlignment="Center"
             FontSize="10"
             Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Distance Type" />
+          <ComboBox
+            Width="88"
+            ItemsSource="{Binding TwoDPatternDistanceModeOptionItems}"
+            SelectedItem="{Binding TwoDPatternDistanceMode, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.pattern.distance-mode" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDRectangularPatternMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
             Text="Count X" />
           <TextBox
             Width="88"
@@ -429,7 +445,7 @@
         <StackPanel
           Orientation="Horizontal"
           Spacing="8"
-          IsVisible="{Binding IsTwoDRectangularPatternMode}">
+          IsVisible="{Binding IsTwoDPatternSpacingMode}">
           <TextBlock
             Width="96"
             VerticalAlignment="Center"
@@ -443,7 +459,7 @@
         <StackPanel
           Orientation="Horizontal"
           Spacing="8"
-          IsVisible="{Binding IsTwoDRectangularPatternMode}">
+          IsVisible="{Binding IsTwoDPatternSpacingMode}">
           <TextBlock
             Width="96"
             VerticalAlignment="Center"
@@ -454,6 +470,40 @@
             Width="88"
             Text="{Binding TwoDPatternSpacingYText, Mode=TwoWay}" />
         </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDPatternExtentMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Extent X (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternExtentXText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDPatternExtentMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Extent Y (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternExtentYText, Mode=TwoWay}" />
+        </StackPanel>
+        <TextBlock
+          IsVisible="{Binding IsTwoDRectangularPatternMode}"
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDPatternEffectiveSpacingSummary}"
+          TextWrapping="Wrap" />
         <StackPanel
           Orientation="Horizontal"
           Spacing="8"

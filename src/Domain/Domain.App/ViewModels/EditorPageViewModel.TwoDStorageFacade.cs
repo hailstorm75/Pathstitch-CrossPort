@@ -48,10 +48,13 @@ public sealed partial class EditorPageViewModel
     private string _twoDAddThicknessWidthText { get => _twoDWorkspace.AddThicknessWidthText; set => _twoDWorkspace.AddThicknessWidthText = value; }
     private string _twoDCleanupToleranceText { get => _twoDWorkspace.CleanupToleranceText; set => _twoDWorkspace.CleanupToleranceText = value; }
     private string _twoDPatternMode { get => _twoDWorkspace.PatternMode; set => _twoDWorkspace.PatternMode = value; }
+    private string _twoDPatternDistanceMode { get => _twoDWorkspace.PatternDistanceMode; set => _twoDWorkspace.PatternDistanceMode = value; }
     private string _twoDPatternCopiesXText { get => _twoDWorkspace.PatternCopiesXText; set => _twoDWorkspace.PatternCopiesXText = value; }
     private string _twoDPatternCopiesYText { get => _twoDWorkspace.PatternCopiesYText; set => _twoDWorkspace.PatternCopiesYText = value; }
     private string _twoDPatternSpacingXText { get => _twoDWorkspace.PatternSpacingXText; set => _twoDWorkspace.PatternSpacingXText = value; }
     private string _twoDPatternSpacingYText { get => _twoDWorkspace.PatternSpacingYText; set => _twoDWorkspace.PatternSpacingYText = value; }
+    private string _twoDPatternExtentXText { get => _twoDWorkspace.PatternExtentXText; set => _twoDWorkspace.PatternExtentXText = value; }
+    private string _twoDPatternExtentYText { get => _twoDWorkspace.PatternExtentYText; set => _twoDWorkspace.PatternExtentYText = value; }
     private string _twoDPatternCircularCountText { get => _twoDWorkspace.PatternCircularCountText; set => _twoDWorkspace.PatternCircularCountText = value; }
     private string _twoDPatternCircularAngleText { get => _twoDWorkspace.PatternCircularAngleText; set => _twoDWorkspace.PatternCircularAngleText = value; }
     private string _twoDPatternPathCopiesText { get => _twoDWorkspace.PatternPathCopiesText; set => _twoDWorkspace.PatternPathCopiesText = value; }

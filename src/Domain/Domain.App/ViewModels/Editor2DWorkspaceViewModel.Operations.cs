@@ -361,10 +361,12 @@ public sealed partial class Editor2DWorkspaceViewModel
 
         var preview = new List<Editor2DPreviewPath>();
         if (string.Equals(PatternMode, "Rectangular", StringComparison.Ordinal)
-            && TryParsePositiveInt(PatternCopiesXText, out var copiesX)
-            && TryParsePositiveInt(PatternCopiesYText, out var copiesY)
-            && TryParseFinite(PatternSpacingXText, out var spacingX)
-            && TryParseFinite(PatternSpacingYText, out var spacingY))
+            && TryGetEffectiveRectangularPattern(
+                out var copiesX,
+                out var copiesY,
+                out var spacingX,
+                out var spacingY,
+                out _))
         {
             for (var row = 0; row < copiesY; row++)
             for (var column = 0; column < copiesX; column++)
@@ -423,6 +425,50 @@ public sealed partial class Editor2DWorkspaceViewModel
             }
         }
         return preview;
+    }
+
+    internal bool TryGetEffectiveRectangularPattern(
+        out int copiesX,
+        out int copiesY,
+        out double spacingX,
+        out double spacingY,
+        out string errorMessage)
+    {
+        copiesX = 0;
+        copiesY = 0;
+        spacingX = 0;
+        spacingY = 0;
+
+        if (!TryParsePositiveInt(PatternCopiesXText, out copiesX))
+        {
+            errorMessage = "Enter a valid pattern X count";
+            return false;
+        }
+        if (!TryParsePositiveInt(PatternCopiesYText, out copiesY))
+        {
+            errorMessage = "Enter a valid pattern Y count";
+            return false;
+        }
+
+        var extentMode = string.Equals(PatternDistanceMode, "Extent", StringComparison.Ordinal);
+        var xText = extentMode ? PatternExtentXText : PatternSpacingXText;
+        var yText = extentMode ? PatternExtentYText : PatternSpacingYText;
+        var valueLabel = extentMode ? "extent" : "spacing";
+        if (!TryParseFinite(xText, out var x) || (!extentMode && x < 0))
+        {
+            errorMessage = $"Enter a valid pattern X {valueLabel}";
+            return false;
+        }
+        if (!TryParseFinite(yText, out var y) || (!extentMode && y < 0))
+        {
+            errorMessage = $"Enter a valid pattern Y {valueLabel}";
+            return false;
+        }
+
+        spacingX = copiesX > 1 ? (extentMode ? x / (copiesX - 1) : x) : 0;
+        spacingY = copiesY > 1 ? (extentMode ? y / (copiesY - 1) : y) : 0;
+        errorMessage = string.Empty;
+        return true;
     }
 
     private static bool TryParsePositiveInt(string text, out int value)

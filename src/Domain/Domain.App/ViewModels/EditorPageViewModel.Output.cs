@@ -92,6 +92,12 @@ public sealed partial class EditorPageViewModel
         "Path",
     ];
 
+    private static readonly IReadOnlyList<string> TwoDPatternDistanceModeOptions =
+    [
+        "Spacing",
+        "Extent",
+    ];
+
     private static readonly IReadOnlyList<string> TwoDGlueTabTypeOptions =
     [
         "Trapezoid",
@@ -1206,6 +1212,8 @@ public sealed partial class EditorPageViewModel
 
     public IReadOnlyList<string> TwoDPatternModeOptionItems => TwoDPatternModeOptions;
 
+    public IReadOnlyList<string> TwoDPatternDistanceModeOptionItems => TwoDPatternDistanceModeOptions;
+
     public string TwoDPatternMode
     {
         get => _twoDPatternMode;
@@ -1218,6 +1226,9 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(IsTwoDRectangularPatternMode));
             OnPropertyChanged(nameof(IsTwoDCircularPatternMode));
             OnPropertyChanged(nameof(IsTwoDPathPatternMode));
+            OnPropertyChanged(nameof(IsTwoDPatternSpacingMode));
+            OnPropertyChanged(nameof(IsTwoDPatternExtentMode));
+            OnPropertyChanged(nameof(TwoDPatternEffectiveSpacingSummary));
             OnPropertyChanged(nameof(TwoDPatternSummary));
             ClearTwoDCircularPatternPivot();
             TwoDPatternGuidePathId = null;
@@ -1230,6 +1241,27 @@ public sealed partial class EditorPageViewModel
     public bool IsTwoDCircularPatternMode => string.Equals(TwoDPatternMode, "Circular", StringComparison.Ordinal);
 
     public bool IsTwoDPathPatternMode => string.Equals(TwoDPatternMode, "Path", StringComparison.Ordinal);
+
+    public string TwoDPatternDistanceMode
+    {
+        get => _twoDPatternDistanceMode;
+        set
+        {
+            var normalized = string.Equals(value, "Extent", StringComparison.OrdinalIgnoreCase) ? "Extent" : "Spacing";
+            if (!SetWorkspaceFacadeValue(_twoDPatternDistanceMode, normalized, updated => _twoDPatternDistanceMode = updated))
+                return;
+
+            OnPropertyChanged(nameof(IsTwoDPatternSpacingMode));
+            OnPropertyChanged(nameof(IsTwoDPatternExtentMode));
+            NotifyTwoDPatternDistanceChanged();
+        }
+    }
+
+    public bool IsTwoDPatternSpacingMode
+        => IsTwoDRectangularPatternMode && string.Equals(TwoDPatternDistanceMode, "Spacing", StringComparison.Ordinal);
+
+    public bool IsTwoDPatternExtentMode
+        => IsTwoDRectangularPatternMode && string.Equals(TwoDPatternDistanceMode, "Extent", StringComparison.Ordinal);
 
     public Editor2DPoint? TwoDPatternPivot
     {
@@ -1295,8 +1327,7 @@ public sealed partial class EditorPageViewModel
             if (!SetWorkspaceFacadeValue(_twoDPatternCopiesXText, value ?? string.Empty, updated => _twoDPatternCopiesXText = updated))
                 return;
 
-            OnPropertyChanged(nameof(TwoDPatternSummary));
-            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
+            NotifyTwoDPatternDistanceChanged();
         }
     }
 
@@ -1308,10 +1339,37 @@ public sealed partial class EditorPageViewModel
             if (!SetWorkspaceFacadeValue(_twoDPatternCopiesYText, value ?? string.Empty, updated => _twoDPatternCopiesYText = updated))
                 return;
 
-            OnPropertyChanged(nameof(TwoDPatternSummary));
-            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
+            NotifyTwoDPatternDistanceChanged();
         }
     }
+
+    public string TwoDPatternExtentXText
+    {
+        get => _twoDPatternExtentXText;
+        set
+        {
+            if (!SetWorkspaceFacadeValue(_twoDPatternExtentXText, value ?? string.Empty, updated => _twoDPatternExtentXText = updated))
+                return;
+            NotifyTwoDPatternDistanceChanged();
+        }
+    }
+
+    public string TwoDPatternExtentYText
+    {
+        get => _twoDPatternExtentYText;
+        set
+        {
+            if (!SetWorkspaceFacadeValue(_twoDPatternExtentYText, value ?? string.Empty, updated => _twoDPatternExtentYText = updated))
+                return;
+            NotifyTwoDPatternDistanceChanged();
+        }
+    }
+
+    public string TwoDPatternEffectiveSpacingSummary
+        => _twoDWorkspace.TryGetEffectiveRectangularPattern(
+            out _, out _, out var spacingX, out var spacingY, out _)
+            ? $"Effective spacing: {spacingX:0.###} / {spacingY:0.###} mm"
+            : "Effective spacing unavailable";
 
     public string TwoDPatternSpacingXText
     {
@@ -1321,8 +1379,7 @@ public sealed partial class EditorPageViewModel
             if (!SetWorkspaceFacadeValue(_twoDPatternSpacingXText, value ?? string.Empty, updated => _twoDPatternSpacingXText = updated))
                 return;
 
-            OnPropertyChanged(nameof(TwoDPatternSummary));
-            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
+            NotifyTwoDPatternDistanceChanged();
         }
     }
 
@@ -1334,8 +1391,7 @@ public sealed partial class EditorPageViewModel
             if (!SetWorkspaceFacadeValue(_twoDPatternSpacingYText, value ?? string.Empty, updated => _twoDPatternSpacingYText = updated))
                 return;
 
-            OnPropertyChanged(nameof(TwoDPatternSummary));
-            OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
+            NotifyTwoDPatternDistanceChanged();
         }
     }
 
@@ -1406,8 +1462,18 @@ public sealed partial class EditorPageViewModel
             if (IsTwoDPathPatternMode)
                 return $"Path pattern will create {TwoDPatternPathCopiesText} copies at {TwoDPatternPathSpacingText} mm spacing. {TwoDPatternGuideSummary}.";
 
-            return $"Rectangular pattern will create a {TwoDPatternCopiesXText} x {TwoDPatternCopiesYText} layout using {TwoDPatternSpacingXText} mm / {TwoDPatternSpacingYText} mm spacing. Counts include the source selection.";
+            var distance = IsTwoDPatternExtentMode
+                ? $"{TwoDPatternExtentXText} mm / {TwoDPatternExtentYText} mm extent"
+                : $"{TwoDPatternSpacingXText} mm / {TwoDPatternSpacingYText} mm spacing";
+            return $"Rectangular pattern will create a {TwoDPatternCopiesXText} x {TwoDPatternCopiesYText} layout using {distance}. {TwoDPatternEffectiveSpacingSummary}. Counts include the source selection.";
         }
+    }
+
+    private void NotifyTwoDPatternDistanceChanged()
+    {
+        OnPropertyChanged(nameof(TwoDPatternSummary));
+        OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
+        OnPropertyChanged(nameof(TwoDPatternEffectiveSpacingSummary));
     }
 
     public IReadOnlyList<Editor2DPreviewPath> TwoDPatternPreviewPaths
@@ -2777,27 +2843,14 @@ public sealed partial class EditorPageViewModel
 
     private bool ApplyTwoDRectangularPattern()
     {
-        if (!TryParseTwoDPatternCount(TwoDPatternCopiesXText, "pattern X count", 1, out var copiesX, out var copiesXErrorMessage))
+        if (!_twoDWorkspace.TryGetEffectiveRectangularPattern(
+                out var copiesX,
+                out var copiesY,
+                out var spacingX,
+                out var spacingY,
+                out var errorMessage))
         {
-            StatusText = copiesXErrorMessage;
-            return false;
-        }
-
-        if (!TryParseTwoDPatternCount(TwoDPatternCopiesYText, "pattern Y count", 1, out var copiesY, out var copiesYErrorMessage))
-        {
-            StatusText = copiesYErrorMessage;
-            return false;
-        }
-
-        if (!TryParseTwoDOffsetDistance(TwoDPatternSpacingXText, "pattern X spacing", 0.0, out var spacingX, out var spacingXErrorMessage))
-        {
-            StatusText = spacingXErrorMessage;
-            return false;
-        }
-
-        if (!TryParseTwoDOffsetDistance(TwoDPatternSpacingYText, "pattern Y spacing", 0.0, out var spacingY, out var spacingYErrorMessage))
-        {
-            StatusText = spacingYErrorMessage;
+            StatusText = errorMessage;
             return false;
         }
 

@@ -219,6 +219,21 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void RectangularPatternInspector_ExposesSpacingAndExtentModes()
+    {
+        var inspector = ReadPage("Editor2DInspector.axaml");
+
+        Assert.Contains("TwoDPatternDistanceModeOptionItems", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDPatternDistanceMode, Mode=TwoWay", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.pattern.distance-mode", inspector, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsTwoDPatternSpacingMode}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDPatternExtentXText, Mode=TwoWay", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDPatternExtentYText, Mode=TwoWay", inspector, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsTwoDPatternExtentMode}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDPatternEffectiveSpacingSummary", inspector, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TwoDMovePointToPointState_IsBoundToCanvasAndInspector()
     {
         var twoD = ReadPage("Editor2DView.axaml");

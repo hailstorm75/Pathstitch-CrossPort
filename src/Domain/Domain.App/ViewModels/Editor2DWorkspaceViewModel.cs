@@ -42,10 +42,13 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private string _addThicknessWidthText = "3";
     private string _cleanupToleranceText = "0.1";
     private string _patternMode = "Rectangular";
+    private string _patternDistanceMode = "Spacing";
     private string _patternCopiesXText = "3";
     private string _patternCopiesYText = "1";
     private string _patternSpacingXText = "10";
     private string _patternSpacingYText = "10";
+    private string _patternExtentXText = "40";
+    private string _patternExtentYText = "40";
     private string _patternCircularCountText = "6";
     private string _patternCircularAngleText = "360";
     private string _patternPathCopiesText = "4";
@@ -102,10 +105,13 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     internal string AddThicknessWidthText { get => _addThicknessWidthText; set => SetProperty(ref _addThicknessWidthText, value); }
     internal string CleanupToleranceText { get => _cleanupToleranceText; set => SetProperty(ref _cleanupToleranceText, value); }
     internal string PatternMode { get => _patternMode; set => SetProperty(ref _patternMode, value); }
+    internal string PatternDistanceMode { get => _patternDistanceMode; set => SetProperty(ref _patternDistanceMode, value); }
     internal string PatternCopiesXText { get => _patternCopiesXText; set => SetProperty(ref _patternCopiesXText, value); }
     internal string PatternCopiesYText { get => _patternCopiesYText; set => SetProperty(ref _patternCopiesYText, value); }
     internal string PatternSpacingXText { get => _patternSpacingXText; set => SetProperty(ref _patternSpacingXText, value); }
     internal string PatternSpacingYText { get => _patternSpacingYText; set => SetProperty(ref _patternSpacingYText, value); }
+    internal string PatternExtentXText { get => _patternExtentXText; set => SetProperty(ref _patternExtentXText, value); }
+    internal string PatternExtentYText { get => _patternExtentYText; set => SetProperty(ref _patternExtentYText, value); }
     internal string PatternCircularCountText { get => _patternCircularCountText; set => SetProperty(ref _patternCircularCountText, value); }
     internal string PatternCircularAngleText { get => _patternCircularAngleText; set => SetProperty(ref _patternCircularAngleText, value); }
     internal string PatternPathCopiesText { get => _patternPathCopiesText; set => SetProperty(ref _patternPathCopiesText, value); }

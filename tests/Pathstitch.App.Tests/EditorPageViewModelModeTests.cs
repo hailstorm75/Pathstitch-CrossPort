@@ -78,6 +78,81 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public void RectangularPattern_ExtentPreviewMatchesCommittedSpacing()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("source", "LINE", [new(0, 0), new(1, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Patterning;
+        viewModel.TwoDPatternMode = "Rectangular";
+        viewModel.TwoDPatternDistanceMode = "Extent";
+        viewModel.TwoDPatternCopiesXText = "3";
+        viewModel.TwoDPatternCopiesYText = "1";
+        viewModel.TwoDPatternExtentXText = "40";
+        viewModel.TwoDPatternExtentYText = "40";
+
+        var previewX = viewModel.TwoDPatternPreviewPaths
+            .Select(path => path.Points[0].X)
+            .Order()
+            .ToArray();
+
+        Assert.Equal([20, 40], previewX);
+        Assert.Equal("Effective spacing: 20 / 0 mm", viewModel.TwoDPatternEffectiveSpacingSummary);
+        Assert.True(viewModel.ApplyTwoDPattern());
+        Assert.Equal(
+            [0, 20, 40],
+            viewModel.TwoDDocument!.Paths.Select(path => path.Points[0].X).Order().ToArray());
+        Assert.Equal(
+            previewX,
+            viewModel.TwoDDocument.Paths
+                .Where(path => path.Id.Contains(":pattern:", StringComparison.Ordinal))
+                .Select(path => path.Points[0].X)
+                .Order()
+                .ToArray());
+    }
+
+    [Fact]
+    public void RectangularPattern_DistanceContractUsesOwnedDefaultsAndZeroSpacingForSingleCounts()
+    {
+        var viewModel = CreateViewModel();
+
+        Assert.Equal(["Spacing", "Extent"], viewModel.TwoDPatternDistanceModeOptionItems);
+        Assert.Equal("Spacing", viewModel.TwoDPatternDistanceMode);
+        Assert.Equal("40", viewModel.TwoDPatternExtentXText);
+        Assert.Equal("40", viewModel.TwoDPatternExtentYText);
+        Assert.True(viewModel.IsTwoDPatternSpacingMode);
+        Assert.False(viewModel.IsTwoDPatternExtentMode);
+
+        viewModel.TwoDPatternCopiesXText = "1";
+        viewModel.TwoDPatternCopiesYText = "1";
+
+        Assert.Equal("Effective spacing: 0 / 0 mm", viewModel.TwoDPatternEffectiveSpacingSummary);
+    }
+
+    [Fact]
+    public void RectangularPattern_ExtentAllowsDirectionButRejectsNonFiniteValues()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("source", "LINE", [new(0, 0), new(1, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Patterning;
+        viewModel.TwoDPatternDistanceMode = "Extent";
+        viewModel.TwoDPatternCopiesXText = "3";
+        viewModel.TwoDPatternCopiesYText = "1";
+        viewModel.TwoDPatternExtentXText = "-40";
+
+        Assert.Equal([-40, -20], viewModel.TwoDPatternPreviewPaths.Select(path => path.Points[0].X).Order().ToArray());
+
+        viewModel.TwoDPatternExtentXText = "NaN";
+
+        Assert.Empty(viewModel.TwoDPatternPreviewPaths);
+        Assert.False(viewModel.ApplyTwoDPattern());
+        Assert.Equal("Enter a valid pattern X extent", viewModel.StatusText);
+    }
+
+    [Fact]
     public async Task StrokeAndFillConversionAvailability_FollowsTheCurrentSelection()
     {
         var viewModel = CreateViewModel();
