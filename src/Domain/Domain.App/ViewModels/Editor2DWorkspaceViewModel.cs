@@ -12,6 +12,20 @@ namespace Domain.App.ViewModels;
 /// </summary>
 public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 {
+    private static readonly IReadOnlySet<string> SupportedConvertLineStyles = new HashSet<string>(
+        ["dashed", "dotted", "zigzag", "wave", "striped", "square", "triangle"],
+        StringComparer.OrdinalIgnoreCase);
+    private static readonly IReadOnlyDictionary<string, (string Key, double Default, double Minimum, bool Integer)[]> ConvertLineSettings =
+        new Dictionary<string, (string, double, double, bool)[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["dashed"] = [("dash_length", 4, .1, false), ("gap", 3, .1, false)],
+            ["dotted"] = [("spacing", 3, .2, false), ("dot_radius", .5, .05, false)],
+            ["zigzag"] = [("wavelength", 6, .5, false), ("amplitude", 2, 0, false)],
+            ["wave"] = [("wavelength", 6, .5, false), ("amplitude", 2, 0, false), ("samples_per_wave", 12, 4, true)],
+            ["striped"] = [("dash_length", 3, .1, false), ("gap", 3, .1, false), ("tilt", 45, -360, false)],
+            ["square"] = [("spacing", 4, .3, false), ("size", 1.5, .1, false)],
+            ["triangle"] = [("spacing", 5, .3, false), ("size", 2, .1, false)],
+        };
     private readonly IReferenceImageTraceService? _referenceImageTraceService;
     private readonly IReferenceImageBackgroundRemovalService? _referenceImageBackgroundRemovalService;
     private readonly Stack<Editor2DWorkspaceState> _undo = new();
@@ -227,6 +241,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public Editor2DSewingHoleParameters SewingHoleParameters => _state.SewingHoleParameters ?? Editor2DSewingHoleParameters.Default;
     public IReadOnlyList<Editor2DSewingHoleOperation> SewingHoleOperations => _state.SewingHoleOperations ?? [];
+
+    public IReadOnlyList<Editor2DConvertLineGroup> ConvertLineGroups => _state.ConvertLineGroups ?? [];
     public IReadOnlyList<Editor2DPreviewPath> SewingHolePreviewPaths => _sewingHolePreviewPaths;
     public int SewingHolePreviewCount => _sewingHolePreviewPaths.Count;
     public bool HasSewingHolePreview => _sewingHolePreviewPaths.Count > 0;
@@ -302,6 +318,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public void Apply(Editor2DWorkspaceState state, bool recordHistory = true)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (recordHistory && ReferenceEquals(state.ConvertLineGroups, _state.ConvertLineGroups))
+            state = DetachEditedConvertLineGroups(state);
         var normalized = Normalize(state);
         if (Equals(_state, normalized))
             return;
@@ -315,6 +333,17 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         _state = normalized;
         RemoveMissingMirrorLinks();
         RaiseStateChanged();
+    }
+
+    private Editor2DWorkspaceState DetachEditedConvertLineGroups(Editor2DWorkspaceState state)
+    {
+        var previousPaths = Document.Paths.ToDictionary(path => path.Id, StringComparer.Ordinal);
+        var nextPaths = state.Document.Paths.ToDictionary(path => path.Id, StringComparer.Ordinal);
+        var retained = ConvertLineGroups.Where(group => group.GeneratedPathIds.All(id =>
+            previousPaths.TryGetValue(id, out var previous)
+            && nextPaths.TryGetValue(id, out var next)
+            && ReferenceEquals(previous, next))).ToArray();
+        return retained.Length == ConvertLineGroups.Count ? state : state with { ConvertLineGroups = retained };
     }
 
     public void SetDocument(Editor2DPreviewDocument document)
@@ -1411,6 +1440,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
         var folders = NormalizeFolders(state.Folders);
         var layers = NormalizeLayers(state with { Folders = folders }, pathIds);
+        var convertLineGroups = NormalizeConvertLineGroups(state.ConvertLineGroups, pathIds, layers);
         var activeLayerId = layers.Any(layer => layer.Id == state.ActiveLayerId)
             ? state.ActiveLayerId
             : layers.FirstOrDefault()?.Id;
@@ -1444,7 +1474,99 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                     Parameters = NormalizeSewingParameters(operation.Parameters),
                 })
                 .ToArray(),
+            ConvertLineGroups = convertLineGroups,
         };
+    }
+
+    private static IReadOnlyList<Editor2DConvertLineGroup> NormalizeConvertLineGroups(
+        IReadOnlyList<Editor2DConvertLineGroup>? groups,
+        IReadOnlySet<string> documentPathIds,
+        IReadOnlyList<Editor2DLayer> layers)
+    {
+        var layerIds = layers.Where(layer => layer.Kind == Editor2DLayerKind.Geometry)
+            .Select(layer => layer.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var claimedGeneratedIds = new HashSet<string>(StringComparer.Ordinal);
+        var normalized = new List<Editor2DConvertLineGroup>();
+        foreach (var group in groups ?? [])
+        {
+            if (group is null || string.IsNullOrWhiteSpace(group.Id))
+                continue;
+            var groupId = group.Id.Trim();
+            if (normalized.Any(existing => existing.Id == groupId)
+                || group.Settings is null
+                || group.Sources is null
+                || group.Settings.Any(setting => string.IsNullOrWhiteSpace(setting.Key) || !double.IsFinite(setting.Value)))
+                continue;
+
+            var style = !string.IsNullOrWhiteSpace(group.Style) && SupportedConvertLineStyles.Contains(group.Style)
+                ? group.Style.Trim().ToLowerInvariant()
+                : "dashed";
+            var settings = CanonicalizeConvertLineSettings(style, group.Settings);
+
+            var sourceIds = new HashSet<string>(StringComparer.Ordinal);
+            var sources = new List<Editor2DConvertLineSource>();
+            foreach (var source in group.Sources ?? [])
+            {
+                if (source is null
+                    || source.SourcePath is null
+                    || string.IsNullOrWhiteSpace(source.SourcePath.Id)
+                    || string.IsNullOrWhiteSpace(source.SourcePath.EntityType)
+                    || source.SourcePath.Points is null
+                    || source.GeneratedPathIds is null
+                    || !sourceIds.Add(source.SourcePath.Id)
+                    || !Editor2DGeometry.IsConvertibleLinePath(source.SourcePath))
+                    continue;
+
+                var generatedIds = source.GeneratedPathIds
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Where(documentPathIds.Contains)
+                    .Where(claimedGeneratedIds.Add)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+                if (generatedIds.Length == 0)
+                    continue;
+
+                sources.Add(source with
+                {
+                    SourceLayerId = source.SourceLayerId is not null && layerIds.Contains(source.SourceLayerId)
+                        ? source.SourceLayerId
+                        : null,
+                    SourceLayerPathIndex = Math.Max(0, source.SourceLayerPathIndex),
+                    SourceDocumentPathIndex = Math.Max(0, source.SourceDocumentPathIndex),
+                    GeneratedPathIds = generatedIds,
+                });
+            }
+
+            if (sources.Count == 0)
+                continue;
+            normalized.Add(group with
+            {
+                Id = groupId,
+                Style = style,
+                Settings = settings,
+                Sources = sources,
+            });
+        }
+
+        return normalized;
+    }
+
+    private static IReadOnlyDictionary<string, double> CanonicalizeConvertLineSettings(
+        string style,
+        IReadOnlyDictionary<string, double> settings)
+    {
+        var suppliedSettings = new Dictionary<string, double>(settings, StringComparer.OrdinalIgnoreCase);
+        return ConvertLineSettings[style].ToDictionary(
+            definition => definition.Key,
+            definition =>
+            {
+                var value = suppliedSettings.TryGetValue(definition.Key, out var supplied) && double.IsFinite(supplied)
+                    ? Math.Max(supplied, definition.Minimum)
+                    : definition.Default;
+                return definition.Integer ? Math.Round(value) : value;
+            },
+            StringComparer.OrdinalIgnoreCase);
     }
 
     private bool UpdateLayer(string layerId, Func<Editor2DLayer, Editor2DLayer> update)
@@ -1709,6 +1831,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(CornerParameters));
         OnPropertyChanged(nameof(SewingHoleParameters));
         OnPropertyChanged(nameof(SewingHoleOperations));
+        OnPropertyChanged(nameof(ConvertLineGroups));
         if (_selectedSewingHoleOperation is not null)
         {
             _selectedSewingHoleOperation = SewingHoleOperations.FirstOrDefault(operation => operation.Id == _selectedSewingHoleOperation.Id);

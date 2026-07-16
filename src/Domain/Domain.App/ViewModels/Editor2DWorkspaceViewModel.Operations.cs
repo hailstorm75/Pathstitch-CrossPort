@@ -590,9 +590,45 @@ public sealed partial class Editor2DWorkspaceViewModel
             count => count == 1 ? "Converted 1 selected entity to dashed crease geometry" : $"Converted {count} selected entities to dashed crease geometry");
 
     public Editor2DWorkspaceOperationResult ApplyConvertedLines(string style, IReadOnlyDictionary<string, double> settings)
-        => ReplaceSelectedConvertibleLines(style, settings,
-            "Select line or polyline geometry before applying Convert Lines",
-            count => count == 1 ? $"Converted 1 selected entity to {style} geometry" : $"Converted {count} selected entities to {style} geometry");
+        => CreateConvertedLineGroup(style, settings);
+
+    public IReadOnlyList<Editor2DPreviewPath> BuildConvertedLinePreview(
+        Editor2DPreviewPath source,
+        string style,
+        IReadOnlyDictionary<string, double> settings)
+        => Editor2DGeometry.BuildConvertedLinePaths(source, style, settings);
+
+    public Editor2DConvertLineGroup? FindConvertLineGroupForPath(string pathId)
+        => ConvertLineGroups.FirstOrDefault(group => group.GeneratedPathIds.Contains(pathId, StringComparer.Ordinal));
+
+    public Editor2DWorkspaceOperationResult RestyleConvertedLines(
+        string groupId,
+        string style,
+        IReadOnlyDictionary<string, double> settings)
+    {
+        var group = ConvertLineGroups.FirstOrDefault(candidate => candidate.Id == groupId);
+        if (group is null)
+            return Editor2DWorkspaceOperationResult.Failure("The converted-line group no longer exists");
+        if (!TryNormalizeConvertLineSettings(style, settings, out var normalizedStyle, out var normalizedSettings))
+            return Editor2DWorkspaceOperationResult.Failure("Convert Lines settings must be finite values");
+
+        var rebuiltSources = BuildConvertedSources(group.Id, group.Sources, normalizedStyle, normalizedSettings);
+        if (rebuiltSources.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("The saved source geometry could not be converted");
+
+        var nextDocumentPaths = ReplaceGeneratedPaths(
+            Document.Paths, group.Sources, rebuiltSources, normalizedStyle, normalizedSettings);
+        var nextLayers = ReplaceGeneratedPathsInLayers(Layers, group.Sources, rebuiltSources);
+        var updated = group with { Style = normalizedStyle, Settings = normalizedSettings, Sources = rebuiltSources };
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, nextDocumentPaths),
+            Layers = nextLayers,
+            ConvertLineGroups = ConvertLineGroups.Select(candidate => candidate.Id == group.Id ? updated : candidate).ToArray(),
+            SelectedPathIds = updated.GeneratedPathIds,
+        });
+        return Editor2DWorkspaceOperationResult.Success($"Updated converted-line group to {normalizedStyle} geometry");
+    }
 
     public Editor2DWorkspaceOperationResult ApplyGlueTabs(double height, string type, string side, double startOffset, double endOffset)
     {
@@ -682,6 +718,171 @@ public sealed partial class Editor2DWorkspaceViewModel
             return Editor2DWorkspaceOperationResult.Failure(emptyMessage);
         CommitDocumentEdit(RebuildDocument(Document, next), nextSelection);
         return Editor2DWorkspaceOperationResult.Success(successMessage(converted));
+    }
+
+    private Editor2DWorkspaceOperationResult CreateConvertedLineGroup(
+        string style,
+        IReadOnlyDictionary<string, double> settings)
+    {
+        if (!TryNormalizeConvertLineSettings(style, settings, out var normalizedStyle, out var normalizedSettings))
+            return Editor2DWorkspaceOperationResult.Failure("Convert Lines settings must be finite values");
+
+        var selectedIds = SelectedPathIds.ToHashSet(StringComparer.Ordinal);
+        var selectedSources = Document.Paths
+            .Select((path, index) => (path, index))
+            .Where(item => selectedIds.Contains(item.path.Id) && Editor2DGeometry.IsConvertibleLinePath(item.path))
+            .ToArray();
+        if (selectedSources.Length == 0)
+            return Editor2DWorkspaceOperationResult.Failure("Select line or polyline geometry before applying Convert Lines");
+
+        var groupId = Guid.NewGuid().ToString("N");
+        var sourceSeeds = selectedSources.Select(item =>
+        {
+            var layer = Layers.FirstOrDefault(candidate => candidate.PathIds.Contains(item.path.Id, StringComparer.Ordinal));
+            return new Editor2DConvertLineSource(
+                item.path,
+                layer?.Id,
+                layer is null
+                    ? 0
+                    : layer.PathIds.Select((id, index) => (id, index))
+                        .First(candidate => candidate.id == item.path.Id).index,
+                item.index,
+                []);
+        }).ToArray();
+        var convertedSources = BuildConvertedSources(groupId, sourceSeeds, normalizedStyle, normalizedSettings);
+        if (convertedSources.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("The selected source geometry could not be converted");
+
+        var sourceById = convertedSources.ToDictionary(source => source.SourcePath.Id, StringComparer.Ordinal);
+        var generatedById = convertedSources.ToDictionary(
+            source => source.SourcePath.Id,
+            source => BuildGeneratedPaths(source, normalizedStyle, normalizedSettings),
+            StringComparer.Ordinal);
+        var paths = new List<Editor2DPreviewPath>();
+        foreach (var path in Document.Paths)
+        {
+            if (sourceById.ContainsKey(path.Id))
+                paths.AddRange(generatedById[path.Id]);
+            else
+                paths.Add(path);
+        }
+
+        var layers = Layers.Select(layer => ReplaceSourceIdsInLayer(layer, convertedSources)).ToArray();
+        var group = new Editor2DConvertLineGroup(groupId, normalizedStyle, normalizedSettings, convertedSources);
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, paths),
+            Layers = layers,
+            ConvertLineGroups = ConvertLineGroups.Append(group).ToArray(),
+            SelectedPathIds = group.GeneratedPathIds,
+        });
+        return Editor2DWorkspaceOperationResult.Success(selectedSources.Length == 1
+            ? $"Converted 1 selected entity to {normalizedStyle} geometry"
+            : $"Converted {selectedSources.Length} selected entities to {normalizedStyle} geometry");
+    }
+
+    private static IReadOnlyList<Editor2DConvertLineSource> BuildConvertedSources(
+        string groupId,
+        IReadOnlyList<Editor2DConvertLineSource> sources,
+        string style,
+        IReadOnlyDictionary<string, double> settings)
+        => sources.Select((source, sourceIndex) =>
+        {
+            var generated = Editor2DGeometry.BuildConvertedLinePaths(source.SourcePath, style, settings);
+            return generated.Count == 0
+                ? null
+                : source with
+                {
+                    GeneratedPathIds = generated.Select((_, generatedIndex) =>
+                        $"convert-{groupId}-{sourceIndex}-{generatedIndex}").ToArray(),
+                };
+        }).Where(source => source is not null).Cast<Editor2DConvertLineSource>().ToArray();
+
+    private static IReadOnlyList<Editor2DPreviewPath> BuildGeneratedPaths(
+        Editor2DConvertLineSource source,
+        string style,
+        IReadOnlyDictionary<string, double> settings)
+    {
+        var generated = Editor2DGeometry.BuildConvertedLinePaths(source.SourcePath, style, settings);
+        return generated.Select((path, index) => path with { Id = source.GeneratedPathIds[index] }).ToArray();
+    }
+
+    private static IReadOnlyList<Editor2DPreviewPath> ReplaceGeneratedPaths(
+        IReadOnlyList<Editor2DPreviewPath> documentPaths,
+        IReadOnlyList<Editor2DConvertLineSource> previousSources,
+        IReadOnlyList<Editor2DConvertLineSource> rebuiltSources,
+        string style,
+        IReadOnlyDictionary<string, double> settings)
+    {
+        var previousByGeneratedId = previousSources
+            .SelectMany(source => source.GeneratedPathIds.Select(id => (id, source.SourcePath.Id)))
+            .ToDictionary(item => item.id, item => item.Id, StringComparer.Ordinal);
+        var rebuiltBySourceId = rebuiltSources.ToDictionary(source => source.SourcePath.Id, StringComparer.Ordinal);
+        var inserted = new HashSet<string>(StringComparer.Ordinal);
+        var next = new List<Editor2DPreviewPath>();
+        foreach (var path in documentPaths)
+        {
+            if (!previousByGeneratedId.TryGetValue(path.Id, out var sourceId))
+            {
+                next.Add(path);
+                continue;
+            }
+            if (inserted.Add(sourceId) && rebuiltBySourceId.TryGetValue(sourceId, out var rebuilt))
+                next.AddRange(BuildGeneratedPaths(rebuilt, style, settings));
+        }
+        return next;
+    }
+
+    private static IReadOnlyList<Editor2DLayer> ReplaceGeneratedPathsInLayers(
+        IReadOnlyList<Editor2DLayer> layers,
+        IReadOnlyList<Editor2DConvertLineSource> previousSources,
+        IReadOnlyList<Editor2DConvertLineSource> rebuiltSources)
+    {
+        var replacements = previousSources.ToDictionary(
+            source => source.SourcePath.Id,
+            source => rebuiltSources.FirstOrDefault(rebuilt => rebuilt.SourcePath.Id == source.SourcePath.Id),
+            StringComparer.Ordinal);
+        var oldOwner = previousSources.SelectMany(source => source.GeneratedPathIds.Select(id => (id, source.SourcePath.Id)))
+            .ToDictionary(item => item.id, item => item.Id, StringComparer.Ordinal);
+        return layers.Select(layer =>
+        {
+            var inserted = new HashSet<string>(StringComparer.Ordinal);
+            var ids = new List<string>();
+            foreach (var id in layer.PathIds)
+            {
+                if (!oldOwner.TryGetValue(id, out var sourceId)) { ids.Add(id); continue; }
+                if (inserted.Add(sourceId) && replacements[sourceId] is { } replacement)
+                    ids.AddRange(replacement.GeneratedPathIds);
+            }
+            return layer with { PathIds = ids };
+        }).ToArray();
+    }
+
+    private static Editor2DLayer ReplaceSourceIdsInLayer(
+        Editor2DLayer layer,
+        IReadOnlyList<Editor2DConvertLineSource> sources)
+    {
+        var replacements = sources.Where(source => source.SourceLayerId == layer.Id)
+            .ToDictionary(source => source.SourcePath.Id, source => source.GeneratedPathIds, StringComparer.Ordinal);
+        var ids = layer.PathIds.SelectMany(id => replacements.TryGetValue(id, out var generated) ? generated : [id]).ToArray();
+        return layer with { PathIds = ids };
+    }
+
+    private static bool TryNormalizeConvertLineSettings(
+        string style,
+        IReadOnlyDictionary<string, double> settings,
+        out string normalizedStyle,
+        out IReadOnlyDictionary<string, double> normalizedSettings)
+    {
+        normalizedStyle = string.IsNullOrWhiteSpace(style) ? "dashed" : style.Trim().ToLowerInvariant();
+        if (!SupportedConvertLineStyles.Contains(normalizedStyle)
+            || settings.Any(setting => string.IsNullOrWhiteSpace(setting.Key) || !double.IsFinite(setting.Value)))
+        {
+            normalizedSettings = new Dictionary<string, double>();
+            return false;
+        }
+        normalizedSettings = CanonicalizeConvertLineSettings(normalizedStyle, settings);
+        return true;
     }
 
     private IReadOnlyList<Editor2DPreviewPath> SelectedPaths(Func<Editor2DPreviewPath, bool>? predicate = null)
