@@ -365,6 +365,36 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         return creation.Path.Id;
     }
 
+    public string? CreateText(
+        Editor2DPoint boxStart,
+        Editor2DPoint boxEnd,
+        string text,
+        double height,
+        string fontFamily,
+        double characterSpacing,
+        bool bold,
+        bool italic,
+        bool underline,
+        string fitMode = "None",
+        string? pathId = null)
+    {
+        var id = string.IsNullOrWhiteSpace(pathId) ? $"text-{Guid.NewGuid():N}" : pathId.Trim();
+        var path = Editor2DTextCreationService.Create(
+            id, boxStart, boxEnd, text, height, fontFamily, characterSpacing,
+            bold, italic, underline, fitMode);
+        if (path is null || Document.Paths.Any(candidate => candidate.Id == path.Id))
+            return null;
+
+        ClearSewingHolePreview();
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, [.. Document.Paths, path]),
+            IsInitialized = true,
+            SelectedPathIds = [path.Id],
+        });
+        return path.Id;
+    }
+
     public void ClearDocument()
     {
         ClearSewingHolePreview();

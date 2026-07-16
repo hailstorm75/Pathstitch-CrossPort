@@ -236,6 +236,79 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void CreateText_AtomicallyPreservesEditableStyleAndBothFitMetadata()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+
+        var pathId = workspace.CreateText(
+            new(20, 12), new(0, 0),
+            "First\r\nSecond", 5, "Segoe UI", 1.25,
+            bold: true, italic: true, underline: true,
+            fitMode: "Both", pathId: "styled-text");
+
+        Assert.Equal("styled-text", pathId);
+        var text = Assert.Single(workspace.Document.Paths);
+        Assert.Equal("TEXT", text.EntityType);
+        Assert.Equal(new Editor2DPoint(0, 0), text.Start);
+        Assert.Equal("First\nSecond", text.Text);
+        Assert.Equal(6, text.TextHeight!.Value, 8);
+        Assert.Equal("Segoe UI", text.FontFamily);
+        Assert.Equal(1.25, text.CharacterSpacing);
+        Assert.True(text.IsBold && text.IsItalic && text.IsUnderline);
+        Assert.Equal(20.0 / (6 * 0.6 * 6), text.WidthFactor!.Value, 8);
+        Assert.Equal([text.Id], workspace.SelectedPathIds);
+        Assert.True(workspace.Undo());
+        Assert.Empty(workspace.Document.Paths);
+        Assert.True(workspace.Redo());
+        var restored = Assert.Single(workspace.Document.Paths);
+        Assert.Equal(text.Text, restored.Text);
+        Assert.Equal(text.FontFamily, restored.FontFamily);
+        Assert.Equal(text.WidthFactor, restored.WidthFactor);
+    }
+
+    [Fact]
+    public void CreateText_NormalizesDefaultsAndRejectsInvalidBoxesWithoutHistory()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+
+        Assert.Null(workspace.CreateText(
+            new(0, 0), new(0, 10), "bad", 5, "Inter", 0,
+            false, false, false));
+        Assert.False(workspace.CanUndo);
+
+        var pathId = workspace.CreateText(
+            new(0, 0), new(10, 4), "  ", -2, "  ", 0,
+            false, false, false, fitMode: "invalid", pathId: "defaults");
+
+        Assert.Equal("defaults", pathId);
+        var text = Assert.Single(workspace.Document.Paths);
+        Assert.Equal("Label", text.Text);
+        Assert.Equal(0.1, text.TextHeight);
+        Assert.Null(text.FontFamily);
+        Assert.Equal(1, text.WidthFactor);
+    }
+
+    [Theory]
+    [InlineData("None", "ABCD", 8, 1)]
+    [InlineData("Height", "AB\nCD", 4, 1)]
+    [InlineData("Width", "ABCD", 10, 1)]
+    [InlineData("Both", "ABCD\nEF", 4, 2.5)]
+    public void CreateText_MatchesMacBoxFitMetrics(
+        string fitMode,
+        string textValue,
+        double expectedHeight,
+        double expectedWidthFactor)
+    {
+        var text = Editor2DTextCreationService.Create(
+            "fit", new(0, 0), new(24, 8), textValue, 8, string.Empty, 0,
+            false, false, false, fitMode);
+
+        Assert.NotNull(text);
+        Assert.Equal(expectedHeight, text!.TextHeight!.Value, 8);
+        Assert.Equal(expectedWidthFactor, text.WidthFactor!.Value, 8);
+    }
+
+    [Fact]
     public void CircularPattern_UsesExplicitPivotWhenProvided()
     {
         var workspace = new Editor2DWorkspaceViewModel();
