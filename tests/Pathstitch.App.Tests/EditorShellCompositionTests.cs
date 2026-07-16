@@ -559,6 +559,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("editor.2d.dimension.inspector", inspector, StringComparison.Ordinal);
         Assert.Contains("editor.2d.dimension.hint", inspector, StringComparison.Ordinal);
         Assert.Contains("editor.2d.dimension.formula-hint", inspector, StringComparison.Ordinal);
+        Assert.Contains("sqrt(d2^2+d3^2)", inspector, StringComparison.Ordinal);
+        Assert.Contains("2.54cm", inspector, StringComparison.Ordinal);
         Assert.Contains("editor.2d.dimension.parameters", inspector, StringComparison.Ordinal);
     }
 

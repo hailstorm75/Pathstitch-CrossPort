@@ -963,7 +963,7 @@
           FontSize="10"
           TextWrapping="Wrap"
           Foreground="{StaticResource MutedTextBrush}"
-          Text="Formulas: 20*2, d1*0.5+10, (d1+d2)/2."
+          Text="Formulas: 20*2, d1*0.5+10, sqrt(d2^2+d3^2). Units: 50, 2.54cm, 1 inch."
           AutomationProperties.AutomationId="editor.2d.dimension.formula-hint" />
         <ItemsControl
           ItemsSource="{Binding TwoDDimensionParameters}"
