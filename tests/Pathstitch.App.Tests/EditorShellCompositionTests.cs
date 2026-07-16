@@ -594,7 +594,12 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("TwoDConvertLineStyle = \"dashed\"", canvas, StringComparison.Ordinal);
         Assert.Contains("ApplyTwoDConvertLines", canvas, StringComparison.Ordinal);
         Assert.Contains("Header = \"Reload from Disk\"", canvas, StringComparison.Ordinal);
-        Assert.Contains("RefreshGeneratedOutputAsync", canvas, StringComparison.Ordinal);
+        Assert.Contains("ReloadSelectedTwoDImportsFromDiskAsync", canvas, StringComparison.Ordinal);
+        Assert.Contains("HasSelectedTwoDImportGroup: true", canvas, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshGeneratedOutputAsync", canvas, StringComparison.Ordinal);
+        var outputInspector = ReadPage("EditorOutputInspector.axaml");
+        Assert.Contains("OnRefreshTwoDClicked", outputInspector, StringComparison.Ordinal);
+        Assert.Contains("editor.output.refresh-generated", outputInspector, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -477,6 +477,7 @@ public sealed class DxfPreviewCanvas : Control
             Header = "Reload from Disk",
             Command = new AsyncRelayCommand(ExecuteReloadFromDiskCommandAsync),
         };
+        AutomationProperties.SetAutomationId(_reloadFromDiskMenuItem, "editor.canvas.2d.reload-import");
 
         _explodeCompoundMenuItem = new MenuItem
         {
@@ -579,7 +580,7 @@ public sealed class DxfPreviewCanvas : Control
     private async Task ExecuteReloadFromDiskCommandAsync()
     {
         if (DataContext is EditorPageViewModel viewModel)
-            await viewModel.RefreshGeneratedOutputAsync().ConfigureAwait(true);
+            await viewModel.ReloadSelectedTwoDImportsFromDiskAsync().ConfigureAwait(true);
         _contextMenu.Close();
     }
 
@@ -5550,10 +5551,8 @@ Selection:
         var canConvertLines = !hasMeasurementSelection
             && DataContext is EditorPageViewModel { CanApplyTwoDConvertLines: true };
         _convertLinesMenuItem.IsVisible = canConvertLines;
-        _reloadFromDiskMenuItem.IsVisible = DataContext is EditorPageViewModel
-            {
-                HasGeneratedOutputFileOnDisk: true,
-            };
+        _reloadFromDiskMenuItem.IsVisible = !hasMeasurementSelection
+            && DataContext is EditorPageViewModel { HasSelectedTwoDImportGroup: true };
         _explodeCompoundMenuItem.IsVisible = !hasMeasurementSelection && canExplodeCompound;
         _strokeToFillMenuItem.IsVisible = !hasMeasurementSelection && canStrokeToFill;
         _fillToStrokeMenuItem.IsVisible = !hasMeasurementSelection && canFillToStroke;

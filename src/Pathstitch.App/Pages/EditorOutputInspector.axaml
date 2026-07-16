@@ -144,7 +144,8 @@
             Classes="panel-button"
             IsEnabled="{Binding CanRefreshGeneratedOutput}"
             Content="Refresh"
-            Click="OnRefreshTwoDClicked" />
+            Click="OnRefreshTwoDClicked"
+            AutomationProperties.AutomationId="editor.output.refresh-generated" />
           <Button
             Grid.Column="1"
             Classes="panel-button"

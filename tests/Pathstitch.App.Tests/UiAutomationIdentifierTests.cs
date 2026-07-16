@@ -73,6 +73,13 @@ public sealed class UiAutomationIdentifierTests
     }
 
     [Fact]
+    public void OutputInspector_ExposesGeneratedRefreshIdentifier()
+    {
+        var inspector = _ui.LoadXaml("src", "Pathstitch.App", "Pages", "EditorOutputInspector.axaml");
+        _ui.FindXamlElementByAutomationId(inspector, "editor.output.refresh-generated");
+    }
+
+    [Fact]
     public void AboutDialog_ExposesStableNavigationAndDismissIdentifiers()
     {
         var dialog = _ui.LoadXaml("src", "Pathstitch.App", "Dialogs", "AboutDialog.axaml");
