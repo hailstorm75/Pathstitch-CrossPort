@@ -15,6 +15,19 @@ public enum Editor2DSewingDistributionMode
     Count,
 }
 
+public enum Editor2DSewingPattern
+{
+    Single,
+    Saddle,
+}
+
+public enum Editor2DSewingSide
+{
+    Left,
+    Right,
+    Both,
+}
+
 public sealed record Editor2DSewingHoleParameters(
     [property: JsonPropertyName("diameter")] double Diameter = 1.0,
     [property: JsonPropertyName("pitch")] double Pitch = 4.0,
@@ -29,7 +42,10 @@ public sealed record Editor2DSewingHoleParameters(
     [property: JsonPropertyName("count")] int Count = 12,
     [property: JsonPropertyName("variableSpacingEnabled")] bool VariableSpacingEnabled = false,
     [property: JsonPropertyName("variableSpacingMin")] double VariableSpacingMin = 4.0,
-    [property: JsonPropertyName("variableSpacingMax")] double VariableSpacingMax = 5.0)
+    [property: JsonPropertyName("variableSpacingMax")] double VariableSpacingMax = 5.0,
+    [property: JsonPropertyName("pattern")] Editor2DSewingPattern Pattern = Editor2DSewingPattern.Single,
+    [property: JsonPropertyName("side")] Editor2DSewingSide Side = Editor2DSewingSide.Left,
+    [property: JsonPropertyName("saddleSpacing")] double SaddleSpacing = 3.0)
 {
     public static Editor2DSewingHoleParameters Default { get; } = new();
 }

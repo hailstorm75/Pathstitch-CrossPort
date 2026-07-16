@@ -21,6 +21,7 @@ public static class Editor2DSewingHoleGeometry
         var avoidIds = (parameters.AvoidPathIds ?? []).ToHashSet(StringComparer.Ordinal);
         var avoidPaths = document.Paths.Where(path => avoidIds.Contains(path.Id)).ToArray();
         var result = new List<Editor2DPreviewPath>();
+        var occupiedCenters = new Dictionary<(long X, long Y), List<Editor2DPoint>>();
         var radius = Math.Max(0.01, parameters.Diameter / 2.0);
 
         foreach (var source in sources)
@@ -30,21 +31,70 @@ public static class Editor2DSewingHoleGeometry
                 continue;
 
             var closed = source.IsClosed || source.Radius is > 0;
-            var distances = BuildPlacementDistances(vertices, closed, parameters);
-            foreach (var distance in distances)
-            {
-                var sample = Sample(vertices, closed, distance);
-                var normalSign = closed && SignedArea(vertices) < 0 ? -1.0 : 1.0;
-                var center = new Editor2DPoint(
-                    sample.Point.X + (-sample.TangentY * parameters.Margin * normalSign),
-                    sample.Point.Y + (sample.TangentX * parameters.Margin * normalSign));
-                if (parameters.AvoidanceEnabled
-                    && avoidPaths.Any(path => DistanceToPath(center, GetVertices(path), path.IsClosed) < parameters.AvoidanceClearance + radius))
+            var rows = parameters.Pattern == Editor2DSewingPattern.Saddle
+                ? new[]
                 {
-                    continue;
+                    (Offset: parameters.Margin - parameters.SaddleSpacing / 2.0, Phase: 0.0),
+                    (Offset: parameters.Margin + parameters.SaddleSpacing / 2.0, Phase: 0.5),
                 }
+                : [(Offset: parameters.Margin, Phase: 0.0)];
+            Editor2DSewingSide[] sides = parameters.Side switch
+            {
+                Editor2DSewingSide.Right => new[] { Editor2DSewingSide.Right },
+                Editor2DSewingSide.Both => new[] { Editor2DSewingSide.Left, Editor2DSewingSide.Right },
+                _ => new[] { Editor2DSewingSide.Left },
+            };
+            var innerNormalSign = closed && SignedArea(vertices) < 0 ? -1.0 : 1.0;
 
-                result.Add(CreateCircle($"sew-preview-{operationId}-{result.Count}", center, radius));
+            foreach (var side in sides)
+            {
+                var sideNormalSign = closed
+                    ? side == Editor2DSewingSide.Left ? innerNormalSign : -innerNormalSign
+                    : side == Editor2DSewingSide.Left ? 1.0 : -1.0;
+
+                foreach (var row in rows)
+                {
+                    var offset = Math.Max(0.25, Math.Abs(row.Offset));
+                    var hasForcedCorners = parameters.CornerMode == Editor2DSewingCornerMode.IncludeCorners
+                        && source.Center is null
+                        && vertices.Count > 2;
+                    var distances = BuildPlacementDistances(
+                        vertices,
+                        closed,
+                        parameters,
+                        hasForcedCorners ? 0.0 : row.Phase);
+                    foreach (var distance in distances)
+                    {
+                        var sample = Sample(vertices, closed, distance);
+                        Editor2DPoint center;
+                        if (source.Center is { } circleCenter && source.Radius is > 0)
+                        {
+                            var radialX = sample.Point.X - circleCenter.X;
+                            var radialY = sample.Point.Y - circleCenter.Y;
+                            var radialLength = Math.Sqrt(radialX * radialX + radialY * radialY);
+                            var radialSign = side == Editor2DSewingSide.Left ? -1.0 : 1.0;
+                            center = new Editor2DPoint(
+                                sample.Point.X + radialX / radialLength * offset * radialSign,
+                                sample.Point.Y + radialY / radialLength * offset * radialSign);
+                        }
+                        else
+                        {
+                            center = new Editor2DPoint(
+                                sample.Point.X + (-sample.TangentY * offset * sideNormalSign),
+                                sample.Point.Y + (sample.TangentX * offset * sideNormalSign));
+                        }
+                        if (parameters.AvoidanceEnabled
+                            && avoidPaths.Any(path => DistanceToPath(center, GetVertices(path), path.IsClosed) < parameters.AvoidanceClearance + radius))
+                        {
+                            continue;
+                        }
+
+                        if (!TryReserveCenter(occupiedCenters, center))
+                            continue;
+
+                        result.Add(CreateCircle($"sew-preview-{operationId}-{result.Count}", center, radius));
+                    }
+                }
             }
         }
 
@@ -54,7 +104,8 @@ public static class Editor2DSewingHoleGeometry
     private static IReadOnlyList<double> BuildPlacementDistances(
         IReadOnlyList<Editor2DPoint> vertices,
         bool closed,
-        Editor2DSewingHoleParameters parameters)
+        Editor2DSewingHoleParameters parameters,
+        double phase)
     {
         var segmentLengths = GetSegmentLengths(vertices, closed);
         var length = segmentLengths.Sum();
@@ -70,7 +121,7 @@ public static class Editor2DSewingHoleGeometry
             {
                 var step = length / count;
                 for (var index = 0; index < count; index++)
-                    distances.Add(index * step);
+                    distances.Add((index + phase) * step);
             }
             else if (count == 1)
             {
@@ -100,13 +151,17 @@ public static class Editor2DSewingHoleGeometry
             var count = closed ? intervals : intervals + 1;
             var actualPitch = length / intervals;
             for (var index = 0; index < count; index++)
-                distances.Add(index * actualPitch);
+            {
+                var distance = (index + phase) * actualPitch;
+                if (closed || distance <= length + 1e-9)
+                    distances.Add(distance);
+            }
         }
         else
         {
             for (var index = 0; index < MaxPitchPlacementsPerPath; index++)
             {
-                var distance = index * pitch;
+                var distance = (index + phase) * pitch;
                 if (distance >= length - 1e-9)
                     break;
                 distances.Add(distance);
@@ -238,6 +293,30 @@ public static class Editor2DSewingHoleGeometry
     }
 
     private static double Mod(double value, double modulus) => (value % modulus + modulus) % modulus;
+
+    private static bool TryReserveCenter(
+        Dictionary<(long X, long Y), List<Editor2DPoint>> occupied,
+        Editor2DPoint center)
+    {
+        const double tolerance = 0.05;
+        var cell = ((long)Math.Floor(center.X / tolerance), (long)Math.Floor(center.Y / tolerance));
+        for (var x = cell.Item1 - 1; x <= cell.Item1 + 1; x++)
+        {
+            for (var y = cell.Item2 - 1; y <= cell.Item2 + 1; y++)
+            {
+                if (occupied.TryGetValue((x, y), out var candidates)
+                    && candidates.Any(candidate => Distance(candidate, center) < tolerance))
+                {
+                    return false;
+                }
+            }
+        }
+
+        if (!occupied.TryGetValue(cell, out var bucket))
+            occupied[cell] = bucket = [];
+        bucket.Add(center);
+        return true;
+    }
 
     private static double Distance(Editor2DPoint first, Editor2DPoint second)
         => Math.Sqrt(Math.Pow(second.X - first.X, 2) + Math.Pow(second.Y - first.Y, 2));
