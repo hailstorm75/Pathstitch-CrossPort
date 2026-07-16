@@ -229,6 +229,7 @@ public sealed partial class EditorPageViewModel
             RefreshDerivedTwoDMeasurements(normalizedDocument);
             SyncTwoDSelectedTextEditorState();
             QueueTwoDOffsetPreviewRefresh();
+            SyncSidebarToolStates();
             NotifyMenuCommands();
 
             if (!_suppressTwoDDocumentPersistence)
@@ -506,6 +507,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
             SyncTwoDSelectedTextEditorState();
             QueueTwoDOffsetPreviewRefresh();
+            SyncSidebarToolStates();
             NotifyMenuCommands();
         }
     }

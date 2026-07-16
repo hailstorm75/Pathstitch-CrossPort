@@ -144,7 +144,9 @@ public sealed partial class EditorPageViewModel
 
     public void ActivateSidebarItem(string itemKey)
     {
-        var item = SidebarTools.FirstOrDefault(tool => string.Equals(tool.Key, itemKey, StringComparison.Ordinal));
+        var item = SidebarTools.FirstOrDefault(tool =>
+            tool.Mode == ActiveEditorMode
+            && string.Equals(tool.Key, itemKey, StringComparison.Ordinal));
         if (item is null)
             return;
 
@@ -390,7 +392,12 @@ public sealed partial class EditorPageViewModel
                     || tool.TwoDTool == TwoDActiveTool
                     || tool.Action is EditorSidebarAction.ToggleOrthographic && ThreeDOrthographic);
             tool.IsEnabled = tool.Mode == ActiveEditorMode
-                && (tool.Action is not EditorSidebarAction.FrameHome || CanFrameHome);
+                && (tool.Action switch
+                {
+                    EditorSidebarAction.FrameHome => CanFrameHome,
+                    EditorSidebarAction.FlipSelectionHorizontal or EditorSidebarAction.FlipSelectionVertical => HasTwoDSelection,
+                    _ => true,
+                });
         }
     }
 

@@ -700,6 +700,29 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task CatalogActivation_IsModeSafeAndFlipActionsTrackSelection()
+    {
+        var viewModel = CreateViewModelForTests();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        viewModel.ActivateSidebarItem("move");
+        Assert.Equal(Editor2DTool.Move, viewModel.TwoDActiveTool);
+        Assert.Equal(Editor3DTool.Select, viewModel.ActiveTool);
+
+        var flip = Assert.Single(viewModel.SidebarTools, item =>
+            item.Action == EditorSidebarAction.FlipSelectionHorizontal);
+        Assert.False(flip.IsEnabled);
+        var path = new Editor2DPreviewPath("flip", "LINE", [new(1, 0), new(3, 0)], false);
+        viewModel.TwoDDocument = viewModel.TwoDDocument! with { Paths = [path] };
+        viewModel.TwoDSelectedPathIds = [path.Id];
+        Assert.True(flip.IsEnabled);
+
+        await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
+        viewModel.ActivateSidebarItem("move");
+        Assert.Equal(Editor3DTool.Move, viewModel.ActiveTool);
+        Assert.Equal(Editor2DTool.Move, viewModel.TwoDActiveTool);
+    }
+
+    [Fact]
     public async Task EditingTwoDDocument_NotifiesLayersPanelWithUpdatedMembership()
     {
         var viewModel = CreateViewModel();
