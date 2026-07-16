@@ -5,11 +5,111 @@ using Domain.App.ViewModels;
 using Pathstitch.App.Controls;
 using Pathstitch.App.Services;
 using SkiaSharp;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Pathstitch.App.Tests;
 
 public sealed class ReferenceImageWorkflowTests
 {
+    [Fact]
+    public void ReferenceImageDepth_JsonRoundTripsFrontAndLegacyDefaultsBack()
+    {
+        var image = new Editor2DReferenceImage(
+            "image",
+            "pattern.png",
+            Convert.ToBase64String([1]),
+            10,
+            5,
+            1,
+            2,
+            10,
+            5,
+            Depth: Editor2DReferenceImageDepth.Front);
+
+        var json = JsonSerializer.Serialize(image);
+        Assert.Contains("\"depth\":\"front\"", json, StringComparison.Ordinal);
+        Assert.Equal(image, JsonSerializer.Deserialize<Editor2DReferenceImage>(json));
+
+        var legacy = JsonNode.Parse(json)!.AsObject();
+        Assert.True(legacy.Remove("depth"));
+        Assert.Equal(
+            Editor2DReferenceImageDepth.Back,
+            JsonSerializer.Deserialize<Editor2DReferenceImage>(legacy.ToJsonString())!.Depth);
+    }
+
+    [Fact]
+    public void SetReferenceImageDepth_IsAtomicUndoableAndPreservesImageSettings()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var layer = workspace.ImportReferenceImage("pattern.png", Convert.ToBase64String([1]), 100, 50);
+        Assert.True(workspace.UpdateReferenceImageTransform(layer.Id, 7, 9, 120, 60, 25));
+        Assert.True(workspace.CalibrateReferenceImage(layer.Id, 240));
+        Assert.True(workspace.SetReferenceImageOpacity(layer.Id, 0.35));
+        var before = workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!;
+        workspace.ClearHistory();
+
+        Assert.True(workspace.SetReferenceImageDepth(layer.Id, Editor2DReferenceImageDepth.Front));
+        Assert.Equal(before with { Depth = Editor2DReferenceImageDepth.Front },
+            workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage);
+        Assert.True(workspace.CanUndo);
+        Assert.True(workspace.Undo());
+        Assert.Equal(before, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage);
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.Redo());
+        Assert.Equal(Editor2DReferenceImageDepth.Front,
+            workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Depth);
+
+        workspace.ClearHistory();
+        Assert.False(workspace.SetReferenceImageDepth(layer.Id, Editor2DReferenceImageDepth.Front));
+        Assert.False(workspace.SetReferenceImageDepth(layer.Id, (Editor2DReferenceImageDepth)42));
+        Assert.False(workspace.SetReferenceImageDepth("missing", Editor2DReferenceImageDepth.Back));
+        Assert.False(workspace.CanUndo);
+
+        Assert.True(workspace.ToggleLayerLock(layer.Id));
+        workspace.ClearHistory();
+        Assert.False(workspace.SetReferenceImageDepth(layer.Id, Editor2DReferenceImageDepth.Back));
+        Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
+    public void ReferenceImageDepth_InvalidNumericStateNormalizesBackWithoutHistory()
+    {
+        var invalidImage = new Editor2DReferenceImage(
+            "image",
+            "pattern.png",
+            Convert.ToBase64String([1]),
+            10,
+            5,
+            0,
+            0,
+            10,
+            5,
+            Depth: (Editor2DReferenceImageDepth)42);
+        var workspace = new Editor2DWorkspaceViewModel();
+
+        workspace.Apply(Editor2DWorkspaceState.Empty with
+        {
+            IsInitialized = true,
+            Layers =
+            [
+                new Editor2DLayer("geometry", "Geometry", []),
+                new Editor2DLayer(
+                    invalidImage.Id,
+                    "Reference",
+                    [],
+                    Kind: Editor2DLayerKind.ReferenceImage,
+                    ReferenceImage: invalidImage),
+            ],
+            ActiveLayerId = invalidImage.Id,
+        }, recordHistory: false);
+
+        Assert.Equal(Editor2DReferenceImageDepth.Back,
+            workspace.Layers.Single(item => item.Id == invalidImage.Id).ReferenceImage!.Depth);
+        Assert.False(workspace.CanUndo);
+    }
+
     [Fact]
     public void ImportReferenceImage_RemainsNonGeometryUntilExplicitTrace()
     {
@@ -248,7 +348,33 @@ public sealed class ReferenceImageWorkflowTests
         var view = ReadPage("Editor2DView.axaml");
         var canvasSource = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
         Assert.Contains("ReferenceImages=\"{Binding TwoDReferenceImages}\"", view, StringComparison.Ordinal);
-        Assert.Contains("DrawReferenceImages(context, size)", canvasSource, StringComparison.Ordinal);
+        var paperDraw = canvasSource.IndexOf("DrawPaperBounds(context, size, Document.Bounds)", StringComparison.Ordinal);
+        var backDraw = canvasSource.IndexOf(
+            "DrawReferenceImages(context, size, Editor2DReferenceImageDepth.Back)",
+            StringComparison.Ordinal);
+        var geometryDraw = canvasSource.IndexOf("DrawPaths(context, size, visiblePaths)", StringComparison.Ordinal);
+        var frontDraw = canvasSource.IndexOf(
+            "DrawReferenceImages(context, size, Editor2DReferenceImageDepth.Front)",
+            StringComparison.Ordinal);
+        var referenceGizmoDraw = canvasSource.IndexOf("DrawReferenceImageGizmo(context, size)", StringComparison.Ordinal);
+        var firstOverlayDraw = canvasSource.IndexOf("DrawTranslationGizmo(context, size)", StringComparison.Ordinal);
+        Assert.True(
+            paperDraw >= 0
+            && paperDraw < backDraw
+            && backDraw < geometryDraw
+            && geometryDraw < frontDraw
+            && frontDraw < referenceGizmoDraw
+            && referenceGizmoDraw < firstOverlayDraw);
+        var images = new[]
+        {
+            image with { Id = "back-1", Depth = Editor2DReferenceImageDepth.Back },
+            image with { Id = "front", Depth = Editor2DReferenceImageDepth.Front },
+            image with { Id = "back-2", Depth = Editor2DReferenceImageDepth.Back },
+        };
+        Assert.Equal(["back-1", "back-2"],
+            DxfPreviewCanvas.ReferenceImagesAtDepth(images, Editor2DReferenceImageDepth.Back).Select(item => item.Id));
+        Assert.Equal(["front"],
+            DxfPreviewCanvas.ReferenceImagesAtDepth(images, Editor2DReferenceImageDepth.Front).Select(item => item.Id));
         Assert.Contains("context.DrawImage(", canvasSource, StringComparison.Ordinal);
         Assert.Contains("context.PushOpacity", canvasSource, StringComparison.Ordinal);
     }
@@ -262,6 +388,12 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Contains("OnReferenceMoveLeftClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceScaleUpClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceRotateClicked", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.reference.depth.back.{0}", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.reference.depth.front.{0}", panel, StringComparison.Ordinal);
+        Assert.Contains("GroupName=\"{Binding Id}\"", panel, StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"{Binding !IsLocked}\"", panel, StringComparison.Ordinal);
+        Assert.Contains("OnReferenceDepthBackClicked", panel, StringComparison.Ordinal);
+        Assert.Contains("OnReferenceDepthFrontClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceFadeClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceOpacity10Clicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceOpacity25Clicked", panel, StringComparison.Ordinal);

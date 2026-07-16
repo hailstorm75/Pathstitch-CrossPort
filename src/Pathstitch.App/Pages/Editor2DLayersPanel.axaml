@@ -107,6 +107,27 @@
                     Tag="{Binding Id}"
                     Click="OnAssignSelectionClicked" />
                   <StackPanel IsVisible="{Binding IsReferenceImage}" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="4" IsEnabled="{Binding !IsLocked}">
+                      <TextBlock VerticalAlignment="Center" Text="Depth" />
+                      <RadioButton
+                        AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.reference.depth.back.{0}}"
+                        GroupName="{Binding Id}"
+                        Padding="8,2"
+                        Content="Back"
+                        IsEnabled="{Binding !IsLocked}"
+                        IsChecked="{Binding ReferenceImage.IsBack, Mode=OneWay}"
+                        Tag="{Binding Id}"
+                        Click="OnReferenceDepthBackClicked" />
+                      <RadioButton
+                        AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.reference.depth.front.{0}}"
+                        GroupName="{Binding Id}"
+                        Padding="8,2"
+                        Content="Front"
+                        IsEnabled="{Binding !IsLocked}"
+                        IsChecked="{Binding ReferenceImage.IsFront, Mode=OneWay}"
+                        Tag="{Binding Id}"
+                        Click="OnReferenceDepthFrontClicked" />
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="4">
                       <Button Padding="5,2" Content="←" Tag="{Binding Id}" Click="OnReferenceMoveLeftClicked" />
                       <Button Padding="5,2" Content="→" Tag="{Binding Id}" Click="OnReferenceMoveRightClicked" />

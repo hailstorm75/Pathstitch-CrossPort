@@ -85,6 +85,12 @@ public partial class Editor2DLayersPanel : UserControl
 
     private void OnReferenceRotateClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.RotateTwoDReferenceImage(id, 5));
 
+    private void OnReferenceDepthBackClicked(object? sender, RoutedEventArgs e)
+        => WithLayer(sender, id => ViewModel?.SetTwoDReferenceImageDepth(id, Editor2DReferenceImageDepth.Back));
+
+    private void OnReferenceDepthFrontClicked(object? sender, RoutedEventArgs e)
+        => WithLayer(sender, id => ViewModel?.SetTwoDReferenceImageDepth(id, Editor2DReferenceImageDepth.Front));
+
     private void OnReferenceFadeClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.AdjustTwoDReferenceImageOpacity(id, -0.1));
 
     private void OnReferenceBrightenClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.AdjustTwoDReferenceImageOpacity(id, 0.1));

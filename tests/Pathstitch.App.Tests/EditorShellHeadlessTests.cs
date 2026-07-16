@@ -17,6 +17,54 @@ public sealed class EditorShellHeadlessTests
     private readonly HeadlessUiFixture _ui = new();
 
     [Fact]
+    public async Task ReferenceImageDepthSegments_UpdateDepthAndHistoryByStableAutomationId()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var layer = viewModel.TwoDWorkspace.ImportReferenceImage(
+            "pattern.png",
+            Convert.ToBase64String([1]),
+            100,
+            50);
+        var original = layer.ReferenceImage!;
+        viewModel.TwoDWorkspace.ClearHistory();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            var back = _ui.FindByAutomationId<RadioButton>(shell, $"editor.reference.depth.back.{layer.Id}");
+            var front = _ui.FindByAutomationId<RadioButton>(shell, $"editor.reference.depth.front.{layer.Id}");
+            Assert.True(back.IsChecked);
+            Assert.False(front.IsChecked);
+            front.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            session.Window.UpdateLayout();
+        });
+
+        await _ui.RunAsync(() =>
+        {
+            var updated = viewModel.TwoDLayers.Single(item => item.Id == layer.Id).ReferenceImage!;
+            Assert.Equal(original with { Depth = Editor2DReferenceImageDepth.Front }, updated);
+            Assert.True(viewModel.TwoDWorkspace.CanUndo);
+            Assert.False(_ui.FindByAutomationId<RadioButton>(shell, $"editor.reference.depth.back.{layer.Id}").IsChecked);
+            Assert.True(_ui.FindByAutomationId<RadioButton>(shell, $"editor.reference.depth.front.{layer.Id}").IsChecked);
+
+            viewModel.ToggleTwoDLayerLock(layer.Id);
+            session.Window.UpdateLayout();
+
+            var lockedBack = _ui.FindByAutomationId<RadioButton>(shell, $"editor.reference.depth.back.{layer.Id}");
+            var lockedFront = _ui.FindByAutomationId<RadioButton>(shell, $"editor.reference.depth.front.{layer.Id}");
+            Assert.False(lockedBack.IsEnabled);
+            Assert.False(lockedFront.IsEnabled);
+            viewModel.TwoDWorkspace.ClearHistory();
+            Assert.False(viewModel.TwoDWorkspace.SetReferenceImageDepth(layer.Id, Editor2DReferenceImageDepth.Back));
+            Assert.Equal(Editor2DReferenceImageDepth.Front,
+                viewModel.TwoDLayers.Single(item => item.Id == layer.Id).ReferenceImage!.Depth);
+            Assert.False(viewModel.TwoDWorkspace.CanUndo);
+        });
+    }
+
+    [Fact]
     public async Task DimensionExpressionField_InvalidStaysFocusedThenValidCommitsAndKeepsToolActive()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();

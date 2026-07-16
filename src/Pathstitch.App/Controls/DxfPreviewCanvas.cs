@@ -1378,8 +1378,6 @@ public sealed class DxfPreviewCanvas : Control
 
         if (GridVisible)
             DrawGrid(context, size);
-        DrawReferenceImages(context, size);
-        DrawReferenceImageGizmo(context, size);
         var visiblePaths = GetVisiblePaths();
         if (_isMovingSelection
             && (Math.Abs(_movePreviewDelta.X) > 1e-12 || Math.Abs(_movePreviewDelta.Y) > 1e-12))
@@ -1428,7 +1426,10 @@ public sealed class DxfPreviewCanvas : Control
         }
         if (visiblePaths.Count > 0)
             DrawPaperBounds(context, size, Document.Bounds);
+        DrawReferenceImages(context, size, Editor2DReferenceImageDepth.Back);
         DrawPaths(context, size, visiblePaths);
+        DrawReferenceImages(context, size, Editor2DReferenceImageDepth.Front);
+        DrawReferenceImageGizmo(context, size);
         DrawTranslationGizmo(context, size);
         DrawRotationGizmo(context, size);
         DrawPatternPivot(context, size);
@@ -2261,9 +2262,17 @@ Selection:
             extents.Max(bounds => bounds.MaxY));
     }
 
-    private void DrawReferenceImages(DrawingContext context, Size size)
+    internal static IEnumerable<Editor2DReferenceImage> ReferenceImagesAtDepth(
+        IEnumerable<Editor2DReferenceImage> images,
+        Editor2DReferenceImageDepth depth)
+        => images.Where(image => image.Depth == depth);
+
+    private void DrawReferenceImages(
+        DrawingContext context,
+        Size size,
+        Editor2DReferenceImageDepth depth)
     {
-        foreach (var image in ReferenceImages)
+        foreach (var image in ReferenceImagesAtDepth(ReferenceImages, depth))
         {
             var bitmap = GetReferenceImageBitmap(image);
             if (bitmap is null || image.Opacity <= 0.0 || image.Width <= 0.0 || image.Height <= 0.0)
