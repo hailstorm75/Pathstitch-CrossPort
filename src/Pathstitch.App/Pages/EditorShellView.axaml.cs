@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -21,6 +23,7 @@ public partial class EditorShellView : EditorInteractionControlBase
         CloseDocumentMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.W);
         ExportDxfMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.E);
         ExportSvgMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.E, shift: true);
+        SearchCommandsMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.K);
         Loaded += OnLoaded;
         KeyDown += OnEditorKeyDown;
     }
@@ -113,6 +116,71 @@ public partial class EditorShellView : EditorInteractionControlBase
     {
         if (DataContext is EditorPageViewModel viewModel)
             viewModel.FrameTwoDToContent();
+    }
+
+    private void OnSearchCommandsClicked(object? sender, RoutedEventArgs e)
+        => CommandPalette.FocusSearch();
+
+    private void OnToolsSubmenuOpened(object? sender, RoutedEventArgs e)
+    {
+        const int staticItemCount = 2;
+        while (ToolsMenu.Items.Count > staticItemCount)
+            ToolsMenu.Items.RemoveAt(ToolsMenu.Items.Count - 1);
+
+        if (DataContext is not EditorPageViewModel viewModel)
+            return;
+
+        var addedTool = false;
+        foreach (var tool in viewModel.SidebarTools.Where(tool => tool.Tool is not null || tool.TwoDTool is not null))
+        {
+            if (tool.StartsSection && addedTool)
+                ToolsMenu.Items.Add(new Separator());
+
+            var menuItem = new MenuItem
+            {
+                Header = string.IsNullOrWhiteSpace(tool.ShortcutText)
+                    ? tool.Label
+                    : $"{tool.Label}\t{tool.ShortcutText}",
+                IsEnabled = tool.IsEnabled,
+                IsChecked = tool.IsActive,
+                ToggleType = MenuItemToggleType.Radio,
+                Tag = tool.Key,
+            };
+            AutomationProperties.SetAutomationId(menuItem, $"editor.menu.tools.{tool.Identifier}");
+            menuItem.Click += OnCatalogToolClicked;
+            ToolsMenu.Items.Add(menuItem);
+            addedTool = true;
+        }
+    }
+
+    private void OnModifySubmenuOpened(object? sender, RoutedEventArgs e)
+    {
+        ModifyMenu.Items.Clear();
+        if (DataContext is not EditorPageViewModel viewModel)
+            return;
+
+        foreach (var tool in viewModel.SidebarTools.Where(tool =>
+                     tool.Action is EditorSidebarAction.FlipSelectionHorizontal or EditorSidebarAction.FlipSelectionVertical))
+        {
+            var menuItem = new MenuItem
+            {
+                Header = tool.Label,
+                IsEnabled = tool.IsEnabled,
+                Tag = tool.Key,
+            };
+            AutomationProperties.SetAutomationId(menuItem, $"editor.menu.modify.{tool.Identifier}");
+            menuItem.Click += OnCatalogToolClicked;
+            ModifyMenu.Items.Add(menuItem);
+        }
+    }
+
+    private void OnCatalogToolClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel
+            && sender is MenuItem { Tag: string toolKey, IsEnabled: true })
+        {
+            viewModel.ActivateSidebarItem(toolKey);
+        }
     }
 
     private async void OnAboutClicked(object? sender, RoutedEventArgs e)

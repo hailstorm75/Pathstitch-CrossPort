@@ -66,6 +66,22 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void ToolsAndModifyMenus_ProjectTheSharedCatalog()
+    {
+        var shell = ReadPage("EditorShellView.axaml");
+        var code = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs");
+
+        Assert.Contains("editor.menu.tools", shell, StringComparison.Ordinal);
+        Assert.Contains("editor.menu.tools.search", shell, StringComparison.Ordinal);
+        Assert.Contains("editor.menu.modify", shell, StringComparison.Ordinal);
+        Assert.Contains("viewModel.SidebarTools.Where", code, StringComparison.Ordinal);
+        Assert.Contains("tool.Tool is not null || tool.TwoDTool is not null", code, StringComparison.Ordinal);
+        Assert.Contains("EditorSidebarAction.FlipSelectionHorizontal", code, StringComparison.Ordinal);
+        Assert.Contains("viewModel.ActivateSidebarItem(toolKey)", code, StringComparison.Ordinal);
+        Assert.Contains("DesktopPrimaryShortcut.Create(Key.K)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ViewMenu_OffersLegacyTwoDZoomControls()
     {
         var shell = ReadPage("EditorShellView.axaml");
