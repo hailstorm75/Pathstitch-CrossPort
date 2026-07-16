@@ -189,6 +189,19 @@ public sealed class DxfPreviewCanvas : Control
             nameof(PatternPreviewPaths),
             defaultValue: Array.Empty<Editor2DPreviewPath>());
 
+    public static readonly StyledProperty<IReadOnlyList<Editor2DPreviewPath>> GlueTabPreviewPathsProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DPreviewPath>>(
+            nameof(GlueTabPreviewPaths),
+            defaultValue: Array.Empty<Editor2DPreviewPath>());
+
+    public static readonly StyledProperty<string> GlueTabStartOffsetTextProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, string>(
+            nameof(GlueTabStartOffsetText), defaultValue: "0", defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<string> GlueTabEndOffsetTextProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, string>(
+            nameof(GlueTabEndOffsetText), defaultValue: "0", defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<IReadOnlyList<Editor2DReferenceImage>> ReferenceImagesProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DReferenceImage>>(
             nameof(ReferenceImages),
@@ -273,6 +286,7 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly Pen TranslationYGizmoPen = new(new SolidColorBrush(Color.Parse("#22C55E")), 2.0);
     private static readonly Pen PreviewPathPen = new(new SolidColorBrush(Color.Parse("#62E6A7")), 1.8, dashStyle: new DashStyle([4, 3], 0));
     private static readonly Pen OffsetPreviewPathPen = new(new SolidColorBrush(Color.Parse("#F59E0B")), 1.2, dashStyle: new DashStyle([4, 4], 0));
+    private static readonly Pen GlueTabPreviewPathPen = new(new SolidColorBrush(Color.Parse("#A855F7")), 1.5, dashStyle: new DashStyle([4, 3], 0));
     private static readonly Pen AutoDimensionPen = new(new SolidColorBrush(Color.Parse("#63D2FF")), 1.2);
     private static readonly Pen ConstrainedRectangleHandlePen = new(new SolidColorBrush(Color.Parse("#8ED7FF")), 1.2);
     private static readonly Pen EditableVertexHandlePen = new(new SolidColorBrush(Color.Parse("#FFFFFF")), 1.0);
@@ -299,6 +313,7 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly IBrush LiveMeasurementPointBrush = new SolidColorBrush(Color.Parse("#B0F5DA"));
     private static readonly IBrush CornerToolHandleBrush = new SolidColorBrush(Color.Parse("#F5B35C"));
     private static readonly IBrush SewingHoleHandleBrush = new SolidColorBrush(Color.Parse("#C084FC"));
+    private static readonly IBrush GlueTabHandleBrush = new SolidColorBrush(Color.Parse("#A855F7"));
     private static readonly IBrush MarqueeFillBrush = new SolidColorBrush(Color.Parse("#224D7FFF"));
     private static readonly Pen SnapIndicatorPen = new(new SolidColorBrush(Color.Parse("#FF9F43")), 1.5);
     private static readonly IBrush SnapIndicatorBrush = new SolidColorBrush(Color.Parse("#FF9F43"));
@@ -339,6 +354,7 @@ public sealed class DxfPreviewCanvas : Control
     private ref bool _isDraggingCorner => ref _interaction.IsDraggingCorner;
     private ref bool _isDraggingSewingHoleMargin => ref _interaction.IsDraggingSewingHoleMargin;
     private ref bool _isDraggingOffsetHandle => ref _interaction.IsDraggingOffsetHandle;
+    private ref DxfCanvasGlueTabHandle _glueTabDragHandle => ref _interaction.GlueTabDragHandle;
     private ref string? _cornerDragPathId => ref _interaction.CornerDragPathId;
     private ref int _cornerDragIndex => ref _interaction.CornerDragIndex;
     private ref Editor2DCornerKind _cornerDragKind => ref _interaction.CornerDragKind;
@@ -434,6 +450,9 @@ public sealed class DxfPreviewCanvas : Control
             OffsetSideProperty,
             OffsetPreviewPathsProperty,
             PatternPreviewPathsProperty,
+            GlueTabPreviewPathsProperty,
+            GlueTabStartOffsetTextProperty,
+            GlueTabEndOffsetTextProperty,
             ReferenceImagesProperty,
             ActiveReferenceImageProperty,
             ActiveReferenceImageLockedProperty,
@@ -932,6 +951,24 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(PatternPreviewPathsProperty, value);
     }
 
+    public IReadOnlyList<Editor2DPreviewPath> GlueTabPreviewPaths
+    {
+        get => GetValue(GlueTabPreviewPathsProperty);
+        set => SetValue(GlueTabPreviewPathsProperty, value);
+    }
+
+    public string GlueTabStartOffsetText
+    {
+        get => GetValue(GlueTabStartOffsetTextProperty);
+        set => SetValue(GlueTabStartOffsetTextProperty, value);
+    }
+
+    public string GlueTabEndOffsetText
+    {
+        get => GetValue(GlueTabEndOffsetTextProperty);
+        set => SetValue(GlueTabEndOffsetTextProperty, value);
+    }
+
     public IReadOnlyList<Editor2DReferenceImage> ReferenceImages
     {
         get => GetValue(ReferenceImagesProperty);
@@ -1083,6 +1120,7 @@ public sealed class DxfPreviewCanvas : Control
         _isDraggingCorner = false;
         _isDraggingSewingHoleMargin = false;
         _isDraggingOffsetHandle = false;
+        _glueTabDragHandle = DxfCanvasGlueTabHandle.None;
         _cornerDragPathId = null;
         _cornerDragIndex = 0;
         _isPanning = false;
@@ -1328,11 +1366,13 @@ public sealed class DxfPreviewCanvas : Control
         DrawPreviewPaths(context, size);
         DrawPreviewPaths(context, size, OffsetPreviewPaths, OffsetPreviewPathPen);
         DrawPreviewPaths(context, size, PatternPreviewPaths);
+        DrawPreviewPaths(context, size, GlueTabPreviewPaths, GlueTabPreviewPathPen);
         DrawEditableVertexHandles(context, size, visiblePaths);
         DrawConstrainedRectangleHandles(context, size, visiblePaths);
         DrawCornerToolHandles(context, size, visiblePaths);
         DrawSewingHoleMarginHandle(context, size, visiblePaths);
         DrawOffsetHandle(context, size, visiblePaths);
+        DrawGlueTabHandles(context, size);
         DrawLiveSketchLine(context, size);
         DrawLiveSketchRectangle(context, size);
         DrawLiveSketchCircle(context, size);
@@ -1475,6 +1515,12 @@ public sealed class DxfPreviewCanvas : Control
             }
 
             if (ActiveTool == Editor2DTool.Offset && TryBeginOffsetHandleDrag(point.Position, e.Pointer))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            if (ActiveTool == Editor2DTool.PaperFolding && TryBeginGlueTabHandleDrag(point.Position, e.Pointer))
             {
                 e.Handled = true;
                 return;
@@ -1634,6 +1680,7 @@ public sealed class DxfPreviewCanvas : Control
             case DxfCanvasMoveRoute.Corner: ApplyCornerDrag(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.SewingHoleMargin: ApplySewingHoleMarginDrag(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.OffsetHandle: ApplyOffsetHandleDrag(position); e.Handled = true; return;
+            case DxfCanvasMoveRoute.GlueTabHandle: ApplyGlueTabHandleDrag(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.EditVertex:
                 if (!_editingVertexIsConstrainedRectangle) ApplyVertexEdit(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.LineDraft: _pendingLineEnd = ResolvePlacementPoint(position, _pendingLineStart, allowOrthogonal: true); break;
@@ -1765,6 +1812,8 @@ Hover:
                 _isDraggingSewingHoleMargin = false; break;
             case DxfCanvasReleaseRoute.OffsetHandle:
                 _isDraggingOffsetHandle = false; break;
+            case DxfCanvasReleaseRoute.GlueTabHandle:
+                _glueTabDragHandle = DxfCanvasGlueTabHandle.None; break;
             case DxfCanvasReleaseRoute.EditVertex:
                 _isEditingVertex = false; _editingVertexPathId = null; _editingVertexIndex = 0; _editingVertexIsConstrainedRectangle = false; break;
             case DxfCanvasReleaseRoute.PenHandleDrag:
@@ -3081,6 +3130,78 @@ Selection:
         SetCurrentValue(OffsetDistanceTextProperty, Math.Max(0.1, Math.Abs(projection)).ToString("0.###", CultureInfo.InvariantCulture));
         SetCurrentValue(OffsetSideProperty, projection >= 0.0 ? "Outward" : "Inward");
         InvalidateVisual();
+    }
+
+    private void DrawGlueTabHandles(DrawingContext context, Size size)
+    {
+        if (!TryGetGlueTabHandles(out _, out var handles))
+            return;
+
+        const double radius = 8.0;
+        context.DrawEllipse(GlueTabHandleBrush, EditableVertexHandlePen, WorldToScreen(handles.Start, size), radius, radius);
+        context.DrawEllipse(GlueTabHandleBrush, EditableVertexHandlePen, WorldToScreen(handles.End, size), radius, radius);
+    }
+
+    private bool TryBeginGlueTabHandleDrag(Point screenPoint, IPointer pointer)
+    {
+        if (!TryGetGlueTabHandles(out _, out var handles))
+            return false;
+        _glueTabDragHandle = DxfCanvasGlueTabInteraction.HitTest(
+            screenPoint,
+            WorldToScreen(handles.Start, Bounds.Size),
+            WorldToScreen(handles.End, Bounds.Size),
+            12.0);
+        if (_glueTabDragHandle == DxfCanvasGlueTabHandle.None)
+            return false;
+        pointer.Capture(this);
+        return true;
+    }
+
+    private void ApplyGlueTabHandleDrag(Point screenPoint)
+    {
+        if (_glueTabDragHandle == DxfCanvasGlueTabHandle.None
+            || !TryGetGlueTabHandles(out var source, out _))
+            return;
+
+        ParseGlueTabOffsets(out var startOffset, out var endOffset);
+        var otherOffset = _glueTabDragHandle == DxfCanvasGlueTabHandle.Start ? endOffset : startOffset;
+        var offset = DxfCanvasGlueTabInteraction.ProjectOffset(
+            source, ScreenToWorld(screenPoint), _glueTabDragHandle, otherOffset);
+        var text = offset.ToString("0.###", CultureInfo.InvariantCulture);
+        if (_glueTabDragHandle == DxfCanvasGlueTabHandle.Start)
+            SetCurrentValue(GlueTabStartOffsetTextProperty, text);
+        else
+            SetCurrentValue(GlueTabEndOffsetTextProperty, text);
+        InvalidateVisual();
+    }
+
+    private bool TryGetGlueTabHandles(
+        out Editor2DPreviewPath source,
+        out DxfCanvasGlueTabHandles handles)
+    {
+        source = default!;
+        handles = default;
+        if (ActiveTool != Editor2DTool.PaperFolding
+            || SelectedPathIds.Count != 1
+            || GlueTabPreviewPaths.Count != 1)
+            return false;
+        source = GetVisiblePaths().FirstOrDefault(path => path.Id == SelectedPathIds[0])!;
+        if (source is null)
+            return false;
+        ParseGlueTabOffsets(out var startOffset, out var endOffset);
+        return DxfCanvasGlueTabInteraction.TryGetHandles(source, startOffset, endOffset, out handles);
+    }
+
+    private void ParseGlueTabOffsets(out double startOffset, out double endOffset)
+    {
+        if (!double.TryParse(GlueTabStartOffsetText, NumberStyles.Float, CultureInfo.InvariantCulture, out startOffset)
+            || !double.IsFinite(startOffset))
+            startOffset = 0.0;
+        if (!double.TryParse(GlueTabEndOffsetText, NumberStyles.Float, CultureInfo.InvariantCulture, out endOffset)
+            || !double.IsFinite(endOffset))
+            endOffset = 0.0;
+        startOffset = Math.Max(0.0, startOffset);
+        endOffset = Math.Max(0.0, endOffset);
     }
 
     private bool TryGetSelectedOffsetHandle(out Editor2DPoint anchor, out Editor2DPoint handle)

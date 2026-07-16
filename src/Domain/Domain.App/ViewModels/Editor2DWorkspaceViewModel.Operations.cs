@@ -624,6 +624,22 @@ public sealed partial class Editor2DWorkspaceViewModel
         return Editor2DWorkspaceOperationResult.Success(additions.Count == 1 ? "Created 1 glue tab outline" : $"Created {additions.Count} glue tab outlines");
     }
 
+    public IReadOnlyList<Editor2DPreviewPath> GetGlueTabPreviewPaths(
+        double height,
+        string type,
+        string side,
+        double startOffset,
+        double endOffset)
+    {
+        if (SelectedPathIds.Count != 1)
+            return [];
+        var source = Document.Paths.FirstOrDefault(path => path.Id == SelectedPathIds[0]);
+        return source is not null
+               && Editor2DGeometry.TryBuildGlueTabPath(source, height, type, side, startOffset, endOffset, out var preview)
+            ? [preview with { Id = $"{source.Id}:glue-tab:preview" }]
+            : [];
+    }
+
     public Editor2DWorkspaceOperationResult ApplySelectedText(
         string text, double height, string font, double spacing, bool bold, bool italic, bool underline,
         string fitMode = "None")

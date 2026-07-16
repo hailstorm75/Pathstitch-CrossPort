@@ -310,6 +310,7 @@ public sealed partial class EditorPageViewModel
             ClearTwoDCircularPatternPivot();
             TwoDPatternGuidePathId = null;
             OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
+            OnPropertyChanged(nameof(TwoDGlueTabPreviewPaths));
             ClearTwoDScalePivot();
             OnPropertyChanged();
 
@@ -519,6 +520,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(CanApplyTwoDPattern));
             OnPropertyChanged(nameof(TwoDPatternSummary));
             OnPropertyChanged(nameof(TwoDPatternPreviewPaths));
+            OnPropertyChanged(nameof(TwoDGlueTabPreviewPaths));
             OnPropertyChanged(nameof(CanApplyTwoDPaperFoldingCreases));
             OnPropertyChanged(nameof(CanApplyTwoDGlueTabs));
             OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
@@ -1794,6 +1796,24 @@ public sealed partial class EditorPageViewModel
 
     public IReadOnlyList<string> TwoDGlueTabTypeOptionItems => TwoDGlueTabTypeOptions;
 
+    public IReadOnlyList<Editor2DPreviewPath> TwoDGlueTabPreviewPaths
+    {
+        get
+        {
+            if (TwoDActiveTool != Editor2DTool.PaperFolding
+                || !double.TryParse(TwoDGlueTabHeightText, NumberStyles.Float, CultureInfo.InvariantCulture, out var height)
+                || !double.TryParse(TwoDGlueTabStartOffsetText, NumberStyles.Float, CultureInfo.InvariantCulture, out var startOffset)
+                || !double.TryParse(TwoDGlueTabEndOffsetText, NumberStyles.Float, CultureInfo.InvariantCulture, out var endOffset)
+                || !double.IsFinite(height) || !double.IsFinite(startOffset) || !double.IsFinite(endOffset))
+            {
+                return [];
+            }
+
+            return _twoDWorkspace.GetGlueTabPreviewPaths(
+                height, TwoDGlueTabType, TwoDGlueTabSide, startOffset, endOffset);
+        }
+    }
+
     public IReadOnlyList<string> TwoDGlueTabSideOptionItems => TwoDGlueTabSideOptions;
 
     public string TwoDGlueTabType
@@ -1806,6 +1826,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
+            OnPropertyChanged(nameof(TwoDGlueTabPreviewPaths));
         }
     }
 
@@ -1819,6 +1840,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
+            OnPropertyChanged(nameof(TwoDGlueTabPreviewPaths));
         }
     }
 
@@ -1831,6 +1853,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
+            OnPropertyChanged(nameof(TwoDGlueTabPreviewPaths));
         }
     }
 
@@ -1843,6 +1866,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
+            OnPropertyChanged(nameof(TwoDGlueTabPreviewPaths));
         }
     }
 
@@ -1855,6 +1879,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
+            OnPropertyChanged(nameof(TwoDGlueTabPreviewPaths));
         }
     }
 

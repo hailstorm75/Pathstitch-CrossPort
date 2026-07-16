@@ -34,6 +34,7 @@ internal sealed class DxfCanvasInteractionSession
     internal bool IsDraggingCorner;
     internal bool IsDraggingSewingHoleMargin;
     internal bool IsDraggingOffsetHandle;
+    internal DxfCanvasGlueTabHandle GlueTabDragHandle;
     internal string? CornerDragPathId;
     internal int CornerDragIndex;
     internal Editor2DCornerKind CornerDragKind;
@@ -111,6 +112,7 @@ internal sealed class DxfCanvasInteractionSession
         IsDraggingCorner = false;
         IsDraggingSewingHoleMargin = false;
         IsDraggingOffsetHandle = false;
+        GlueTabDragHandle = DxfCanvasGlueTabHandle.None;
         CornerDragPathId = null;
         CornerDragIndex = 0;
         CornerDragKind = Editor2DCornerKind.Fillet;

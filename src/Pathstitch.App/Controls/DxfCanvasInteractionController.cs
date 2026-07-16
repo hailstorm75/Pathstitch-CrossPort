@@ -15,9 +15,9 @@ internal enum DxfCanvasMoveRoute
 {
     Pan, MoveSelection, ScaleSelection, RotateSelection, TranslateSelection, EditVertex, LineDraft, RectangleDraft, CircleDraft,
     PolygonDraft, TextDraft, PenHandleDrag, PenDraft, MeasurementDraft, DimensionDraft,
-    Corner, SewingHoleMargin, OffsetHandle, ToolPreview, Marquee, Hover,
+    Corner, SewingHoleMargin, OffsetHandle, GlueTabHandle, ToolPreview, Marquee, Hover,
 }
-internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, RotateSelection, TranslateSelection, EditVertex, PenHandleDrag, Corner, SewingHoleMargin, OffsetHandle, Selection, None }
+internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, RotateSelection, TranslateSelection, EditVertex, PenHandleDrag, Corner, SewingHoleMargin, OffsetHandle, GlueTabHandle, Selection, None }
 internal enum DxfPenCompletion { Open, Closed }
 
 internal static class DxfCanvasPenInteraction
@@ -158,6 +158,7 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (session.IsDraggingCorner) return DxfCanvasMoveRoute.Corner;
         if (session.IsDraggingSewingHoleMargin) return DxfCanvasMoveRoute.SewingHoleMargin;
         if (session.IsDraggingOffsetHandle) return DxfCanvasMoveRoute.OffsetHandle;
+        if (session.GlueTabDragHandle != DxfCanvasGlueTabHandle.None) return DxfCanvasMoveRoute.GlueTabHandle;
         if (tool == Editor2DTool.SketchLine && session.PendingLineStart is not null) return DxfCanvasMoveRoute.LineDraft;
         if (tool == Editor2DTool.SketchRectangle && session.PendingRectangleStart is not null) return DxfCanvasMoveRoute.RectangleDraft;
         if (tool == Editor2DTool.SketchCircle && session.PendingCircleCenter is not null) return DxfCanvasMoveRoute.CircleDraft;
@@ -188,6 +189,7 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (session.IsDraggingCorner) return DxfCanvasReleaseRoute.Corner;
         if (session.IsDraggingSewingHoleMargin) return DxfCanvasReleaseRoute.SewingHoleMargin;
         if (session.IsDraggingOffsetHandle) return DxfCanvasReleaseRoute.OffsetHandle;
+        if (session.GlueTabDragHandle != DxfCanvasGlueTabHandle.None) return DxfCanvasReleaseRoute.GlueTabHandle;
         if (capturedByCanvas && tool == Editor2DTool.Pen && session.PendingPenDragAnchorIndex is not null) return DxfCanvasReleaseRoute.PenHandleDrag;
         return capturedByCanvas && RoutePrimaryPress(tool) == DxfCanvasPressRoute.Selection
             ? DxfCanvasReleaseRoute.Selection : DxfCanvasReleaseRoute.None;
