@@ -19,6 +19,7 @@ public partial class EditorShellView : EditorInteractionControlBase
     {
         InitializeComponent();
         SaveMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.S);
+        SaveAsMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.S, shift: true);
         SaveAndCloseMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.W, shift: true);
         CloseDocumentMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.W);
         ExportDxfMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.E);

@@ -20,6 +20,7 @@ public sealed class UiAutomationIdentifierTests
             "editor.menu-strip",
             "editor.menu.file",
             "editor.menu.file.save",
+            "editor.menu.file.save-as",
             "editor.menu.file.save-and-close",
             "editor.menu.file.export",
             "editor.menu.file.export.dxf",

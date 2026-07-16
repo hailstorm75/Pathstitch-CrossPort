@@ -39,9 +39,11 @@ public sealed class EditorShellCompositionTests
         var shell = ReadPage("EditorShellView.axaml");
 
         Assert.Contains("Command=\"{Binding SaveDocumentCommand}\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding SaveDocumentAsCommand}\"", shell, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding SaveAndCloseDocumentCommand}\"", shell, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding CloseDocumentCommand}\"", shell, StringComparison.Ordinal);
         Assert.Contains("HotKey=\"Ctrl+S\"", shell, StringComparison.Ordinal);
+        Assert.Contains("HotKey=\"Ctrl+Shift+S\"", shell, StringComparison.Ordinal);
         Assert.Contains("HotKey=\"Ctrl+Shift+W\"", shell, StringComparison.Ordinal);
         Assert.Contains("HotKey=\"Ctrl+W\"", shell, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding ExportDxfCommand}\"", shell, StringComparison.Ordinal);
@@ -49,6 +51,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Command=\"{Binding ExportPngCommand}\"", shell, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding ExportPdfCommand}\"", shell, StringComparison.Ordinal);
         Assert.Contains("DesktopPrimaryShortcut.Create(Key.E)", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
+        Assert.Contains("SaveAsMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.S, shift: true)", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
     }
 
     [Fact]

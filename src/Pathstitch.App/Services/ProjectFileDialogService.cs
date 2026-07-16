@@ -88,6 +88,27 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
         return result?.TryGetLocalPath();
     }
 
+    public async Task<string?> PickProjectSaveAsFileAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default)
+    {
+        var topLevel = GetTopLevel();
+        if (topLevel?.StorageProvider is null)
+            return null;
+
+        var result = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save Pathstitch Project As",
+            SuggestedFileName = suggestedFileName,
+            DefaultExtension = "stch",
+            FileTypeChoices = [ProjectFileType],
+            ShowOverwritePrompt = true,
+        }).ConfigureAwait(true);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return result?.TryGetLocalPath();
+    }
+
     public async Task<IReadOnlyList<string>> PickWorkspaceFilesAsync(CancellationToken cancellationToken = default)
     {
         var topLevel = GetTopLevel();

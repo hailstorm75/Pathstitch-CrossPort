@@ -120,6 +120,12 @@
           Header="_Save"
           HotKey="Ctrl+S" />
         <MenuItem
+          x:Name="SaveAsMenuItem"
+          AutomationProperties.AutomationId="editor.menu.file.save-as"
+          Command="{Binding SaveDocumentAsCommand}"
+          Header="Save _As…"
+          HotKey="Ctrl+Shift+S" />
+        <MenuItem
           x:Name="SaveAndCloseMenuItem"
           AutomationProperties.AutomationId="editor.menu.file.save-and-close"
           Command="{Binding SaveAndCloseDocumentCommand}"
