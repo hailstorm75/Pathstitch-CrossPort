@@ -72,6 +72,12 @@ public sealed record Editor2DAffineTransform(
             pivot.X - (factor * pivot.X),
             pivot.Y - (factor * pivot.Y));
 
+    public static Editor2DAffineTransform CreateReflectionAcrossVerticalAxis(double axisX)
+        => new(-1, 0, 0, 1, 2 * axisX, 0);
+
+    public static Editor2DAffineTransform CreateReflectionAcrossHorizontalAxis(double axisY)
+        => new(1, 0, 0, -1, 0, 2 * axisY);
+
     public static Editor2DAffineTransform CreateRotation(Editor2DPoint pivot, double angleDegrees)
     {
         var radians = angleDegrees * Math.PI / 180.0;
