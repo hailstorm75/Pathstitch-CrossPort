@@ -647,7 +647,19 @@ public sealed partial class EditorPageViewModel
         string expression,
         out string error)
     {
-        if (!_twoDWorkspace.TrySetMeasurementExpression(measurementId, expression, out error))
+        var measurement = TwoDMeasurements.FirstOrDefault(item => item.Id == measurementId);
+        var isAutoRectangleDimension = measurement?.IsAutoDimension == true
+            && (measurement.DimensionType?.Trim().Equals("width", StringComparison.OrdinalIgnoreCase) == true
+                || measurement.DimensionType?.Trim().Equals("height", StringComparison.OrdinalIgnoreCase) == true);
+        var committed = isAutoRectangleDimension
+            ? Editor2DDimensionExpression.TryEvaluate(
+                expression,
+                new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
+                out var value,
+                out error)
+              && _twoDWorkspace.TrySetMeasurementValue(measurementId, value, out error)
+            : _twoDWorkspace.TrySetMeasurementExpression(measurementId, expression, out error);
+        if (!committed)
         {
             TwoDMeasurementExpressionError = error;
             StatusText = error;
@@ -660,6 +672,10 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDSelectedMeasurementExpressionText));
         OnPropertyChanged(nameof(TwoDDocument));
         OnPropertyChanged(nameof(TwoDMeasurements));
+        OnPropertyChanged(nameof(TwoDCornerParameters));
+        OnPropertyChanged(nameof(TwoDActiveCornerParameters));
+        OnPropertyChanged(nameof(TwoDCornerSelectionSummary));
+        OnPropertyChanged(nameof(HasSelectedTwoDImportGroup));
         OnPropertyChanged(nameof(TwoDMeasurementSummary));
         OnPropertyChanged(nameof(TwoDDimensionParameters));
         Request3DStatePersistence(TimeSpan.FromMilliseconds(80));

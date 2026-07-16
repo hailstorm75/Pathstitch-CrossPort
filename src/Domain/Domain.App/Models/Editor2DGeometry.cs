@@ -188,6 +188,23 @@ public static class Editor2DGeometry
         double? placementAngleDegrees,
         out Editor2DPoint start,
         out Editor2DPoint end)
+        => TryBuildAttachedMeasurement(
+            path,
+            dimensionType,
+            offsetDistance,
+            placementAngleDegrees,
+            [],
+            out start,
+            out end);
+
+    public static bool TryBuildAttachedMeasurement(
+        Editor2DPreviewPath path,
+        string? dimensionType,
+        double offsetDistance,
+        double? placementAngleDegrees,
+        IReadOnlyList<Editor2DCornerParameter> cornerParameters,
+        out Editor2DPoint start,
+        out Editor2DPoint end)
     {
         var normalizedType = dimensionType?.Trim().ToLowerInvariant();
         switch (normalizedType)
@@ -212,7 +229,14 @@ public static class Editor2DGeometry
 
             case "width":
             case "height":
-                if (path.IsAxisAlignedRectangle && TryGetRectangleBounds(path, out var minX, out var minY, out var maxX, out var maxY))
+                var hasRectangleSource = TryGetRectangleSourcePoints(path, cornerParameters, out var rectanglePoints);
+                if (!hasRectangleSource && path.IsAxisAlignedRectangle && path.Points.Count >= 4)
+                {
+                    rectanglePoints = path.Points;
+                    hasRectangleSource = true;
+                }
+                if (hasRectangleSource
+                    && TryGetRectangleBounds(rectanglePoints, out var minX, out var minY, out var maxX, out var maxY))
                 {
                     if (normalizedType == "width")
                     {
@@ -254,11 +278,87 @@ public static class Editor2DGeometry
         double value,
         out Editor2DPreviewPath updatedPath)
     {
+        var resized = TryResizeForAttachedDimension(
+            path,
+            dimensionType,
+            value,
+            [],
+            out updatedPath,
+            out _);
+        return resized;
+    }
+
+    public static bool TryResizeForAttachedDimension(
+        Editor2DPreviewPath path,
+        string? dimensionType,
+        double value,
+        IReadOnlyList<Editor2DCornerParameter> cornerParameters,
+        out Editor2DPreviewPath updatedPath,
+        out IReadOnlyList<Editor2DCornerParameter> updatedCornerParameters)
+    {
         updatedPath = path;
+        updatedCornerParameters = cornerParameters;
         if (!double.IsFinite(value) || value <= MeasurementTolerance)
             return false;
 
         var normalizedType = dimensionType?.Trim().ToLowerInvariant();
+        if (normalizedType is "width" or "height")
+        {
+            if (!TryGetRectangleSourcePoints(path, cornerParameters, out var sourcePoints))
+            {
+                if (!path.IsAxisAlignedRectangle
+                    || cornerParameters.Any(parameter => parameter.PathId.Equals(path.Id, StringComparison.Ordinal))
+                    || !TryGetRectangleBounds(path.Points, out var minX, out var minY, out var maxX, out var maxY))
+                {
+                    return false;
+                }
+
+                var currentSize = normalizedType == "width" ? maxX - minX : maxY - minY;
+                if (currentSize <= MeasurementTolerance)
+                    return false;
+                var scale = value / currentSize;
+                var resizedPoints = path.Points.Select(point => normalizedType == "width"
+                    ? point with { X = minX + ((point.X - minX) * scale) }
+                    : point with { Y = minY + ((point.Y - minY) * scale) }).ToArray();
+                updatedPath = path with { Points = resizedPoints };
+                updatedCornerParameters = [];
+                return true;
+            }
+
+            var first = sourcePoints[0];
+            var opposite = sourcePoints[2];
+            var width = Math.Abs(opposite.X - first.X);
+            var height = Math.Abs(opposite.Y - first.Y);
+            if (width <= MeasurementTolerance || height <= MeasurementTolerance)
+                return false;
+
+            var nextOpposite = normalizedType == "width"
+                ? opposite with { X = first.X + (opposite.X >= first.X ? value : -value) }
+                : opposite with { Y = first.Y + (opposite.Y >= first.Y ? value : -value) };
+            var resizedSource = new Editor2DPoint[]
+            {
+                first,
+                new(nextOpposite.X, first.Y),
+                nextOpposite,
+                new(first.X, nextOpposite.Y),
+            };
+            var pathParameters = cornerParameters
+                .Where(parameter => parameter.PathId.Equals(path.Id, StringComparison.Ordinal))
+                .Select(parameter => parameter with { SourcePoints = resizedSource.ToArray() })
+                .ToArray();
+            var rectangle = path with
+            {
+                Points = resizedSource,
+                IsClosed = true,
+                IsAxisAlignedRectangle = true,
+            };
+            updatedPath = pathParameters.Length == 0
+                ? rectangle
+                : Editor2DCornerGeometry.Apply(rectangle, pathParameters);
+            updatedCornerParameters = pathParameters;
+            return true;
+        }
+
         if (normalizedType == "length"
             && path.EntityType.Equals("LINE", StringComparison.OrdinalIgnoreCase)
             && TryGetLineEndpoints(path, out var lineStart, out var lineEnd))
@@ -308,6 +408,32 @@ public static class Editor2DGeometry
             return true;
         }
 
+        return false;
+    }
+
+    public static bool TryGetAttachedRectangleCorners(
+        Editor2DPreviewPath path,
+        IReadOnlyList<Editor2DCornerParameter> cornerParameters,
+        out Editor2DPoint first,
+        out Editor2DPoint opposite)
+    {
+        if (TryGetRectangleSourcePoints(path, cornerParameters, out var sourcePoints))
+        {
+            first = sourcePoints[0];
+            opposite = sourcePoints[2];
+            return true;
+        }
+
+        if (path.IsAxisAlignedRectangle
+            && TryGetRectangleBounds(path.Points, out var minX, out var minY, out var maxX, out var maxY))
+        {
+            first = new Editor2DPoint(minX, minY);
+            opposite = new Editor2DPoint(maxX, maxY);
+            return true;
+        }
+
+        first = default!;
+        opposite = default!;
         return false;
     }
 
@@ -1646,23 +1772,47 @@ public static class Editor2DGeometry
         return false;
     }
 
-    private static bool TryGetRectangleBounds(
+    private static bool TryGetRectangleSourcePoints(
         Editor2DPreviewPath path,
+        IReadOnlyList<Editor2DCornerParameter> cornerParameters,
+        out IReadOnlyList<Editor2DPoint> sourcePoints)
+    {
+        var parameterSource = cornerParameters.FirstOrDefault(parameter =>
+            parameter.PathId.Equals(path.Id, StringComparison.Ordinal)
+            && IsAxisAlignedRectangle(parameter.SourcePoints, isClosed: true));
+        if (parameterSource is not null)
+        {
+            sourcePoints = parameterSource.SourcePoints.ToArray();
+            return true;
+        }
+
+        if (path.IsAxisAlignedRectangle && IsAxisAlignedRectangle(path.Points, isClosed: true))
+        {
+            sourcePoints = path.Points.ToArray();
+            return true;
+        }
+
+        sourcePoints = [];
+        return false;
+    }
+
+    private static bool TryGetRectangleBounds(
+        IReadOnlyList<Editor2DPoint> points,
         out double minX,
         out double minY,
         out double maxX,
         out double maxY)
     {
-        if (path.Points.Count < 4)
+        if (points.Count < 4)
         {
             minX = minY = maxX = maxY = 0.0;
             return false;
         }
 
-        minX = path.Points.Min(static point => point.X);
-        minY = path.Points.Min(static point => point.Y);
-        maxX = path.Points.Max(static point => point.X);
-        maxY = path.Points.Max(static point => point.Y);
+        minX = points.Min(static point => point.X);
+        minY = points.Min(static point => point.Y);
+        maxX = points.Max(static point => point.X);
+        maxY = points.Max(static point => point.Y);
         return (maxX - minX) > RectangleTolerance && (maxY - minY) > RectangleTolerance;
     }
 

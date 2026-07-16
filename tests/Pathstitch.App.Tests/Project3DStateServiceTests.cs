@@ -302,6 +302,40 @@ public sealed class Project3DStateServiceTests
     }
 
     [Fact]
+    public async Task SaveAndLoadAsync_RoundTripsDrivenRectangleDimensionsAndCornerSource()
+    {
+        using var files = TestWorkspace.Create();
+        var projectPath = files.GetPath("driven-rectangle.stch");
+        var service = new Project3DStateService();
+        var editor = new Editor2DWorkspaceViewModel();
+        editor.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var pathId = editor.CreateRectangle(new(30, 40), new(10, 20), initialFilletRadius: 2)!;
+        var widthId = $"{pathId}:width";
+        Assert.True(editor.TrySetMeasurementValue(widthId, 35, out var error), error);
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(null, [], [], TwoDWorkspaceState: editor.State));
+        var restored = await service.LoadAsync(projectPath);
+        var reopened = new Editor2DWorkspaceViewModel();
+        reopened.Apply(restored.TwoDWorkspaceState!, recordHistory: false);
+
+        Assert.Equal(35, reopened.Measurements.Single(item => item.Id == widthId).Distance, 8);
+        Assert.All(
+            reopened.CornerParameters.Where(parameter => parameter.PathId == pathId),
+            parameter =>
+            {
+                Assert.Equal(2, parameter.Value);
+                Assert.Equal(new Editor2DPoint(30, 40), parameter.SourcePoints[0]);
+                Assert.Equal(new Editor2DPoint(-5, 20), parameter.SourcePoints[2]);
+            });
+        Assert.Equal(pathId, reopened.Document.Paths.Single(path => path.Id == pathId).Id);
+        Assert.Contains(pathId, reopened.Layers.Single(layer => layer.PathIds.Contains(pathId)).PathIds);
+        Assert.True(reopened.TrySetMeasurementValue($"{pathId}:height", 30, out error), error);
+        Assert.Equal(30, reopened.Measurements.Single(item => item.Id == $"{pathId}:height").Distance, 8);
+    }
+
+    [Fact]
     public async Task BlankTwoDProject_CanCreateEditSaveCloseAndReopenWithoutTwoDState()
     {
         using var files = TestWorkspace.Create();

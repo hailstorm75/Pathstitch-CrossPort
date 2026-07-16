@@ -560,29 +560,123 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             : item).ToArray();
         if (!TryResolveMeasurementGraph(trial, out var values, out error))
             return false;
+
+        return TryApplyMeasurementValue(
+            measurement,
+            trial,
+            values,
+            values[varName],
+            measurementId,
+            out error);
+    }
+
+    public bool TrySetMeasurementValue(string measurementId, double value, out string error)
+    {
+        error = string.Empty;
+        var measurement = Measurements.FirstOrDefault(item => item.Id == measurementId);
+        if (measurement is null)
+        {
+            error = "Select a measurement first";
+            return false;
+        }
+        if (measurement.Driven)
+        {
+            error = "Driven measurements cannot resize geometry.";
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(measurement.EntityPathId))
+        {
+            error = "The measurement is not attached to editable geometry.";
+            return false;
+        }
+        if (!double.IsFinite(value) || value <= 1e-6)
+        {
+            error = "Dimension value must be positive and finite.";
+            return false;
+        }
+        if (Math.Abs(measurement.Distance - value) <= 1e-9)
+            return true;
+
+        var trial = Measurements.ToArray();
+        if (!string.IsNullOrWhiteSpace(measurement.VarName))
+        {
+            trial = trial.Select(item => item.Id == measurementId
+                ? item with
+                {
+                    Expression = value.ToString("R", CultureInfo.InvariantCulture),
+                    IsParametric = true,
+                }
+                : item).ToArray();
+        }
+        if (!TryResolveMeasurementGraph(trial, out var values, out error))
+            return false;
+        if (!string.IsNullOrWhiteSpace(measurement.VarName))
+            value = values[measurement.VarName!];
+
+        return TryApplyMeasurementValue(
+            measurement,
+            trial,
+            values,
+            value,
+            measurementId,
+            out error);
+    }
+
+    private bool TryApplyMeasurementValue(
+        Editor2DMeasurement measurement,
+        Editor2DMeasurement[] trial,
+        IReadOnlyDictionary<string, double> values,
+        double targetValue,
+        string selectedMeasurementId,
+        out string error)
+    {
+        error = string.Empty;
         var updatedDocument = Document;
-        if (!measurement.Driven
-            && measurement.EntityPathId is { } attachedPathId
-            && values.TryGetValue(varName, out var targetValue))
+        var updatedCornerParameters = CornerParameters;
+        var preservesRectangleCorners = false;
+        if (!measurement.Driven && measurement.EntityPathId is { } attachedPathId)
         {
             var attachedPath = Document.Paths.FirstOrDefault(path =>
                 path.Id.Equals(attachedPathId, StringComparison.Ordinal));
+            var attachedCornerParameters = CornerParameters
+                .Where(parameter => parameter.PathId.Equals(attachedPathId, StringComparison.Ordinal))
+                .ToArray();
             if (attachedPath is null
                 || !Editor2DGeometry.TryResizeForAttachedDimension(
                     attachedPath,
                     measurement.DimensionType,
                     targetValue,
-                    out var resizedPath))
+                    attachedCornerParameters,
+                    out var resizedPath,
+                    out var resizedCornerParameters))
             {
                 error = "The attached geometry cannot be resized by this dimension.";
                 return false;
             }
 
+            preservesRectangleCorners = measurement.DimensionType?.Trim().Equals(
+                "width",
+                StringComparison.OrdinalIgnoreCase) == true
+                || measurement.DimensionType?.Trim().Equals(
+                    "height",
+                    StringComparison.OrdinalIgnoreCase) == true;
+            if (preservesRectangleCorners)
+            {
+                updatedCornerParameters = CornerParameters
+                    .Where(parameter => !parameter.PathId.Equals(attachedPathId, StringComparison.Ordinal))
+                    .Concat(resizedCornerParameters)
+                    .ToArray();
+            }
             updatedDocument = RebuildDocument(
                 Document,
                 Document.Paths.Select(path => path.Id.Equals(attachedPathId, StringComparison.Ordinal)
                     ? resizedPath
                     : path).ToArray());
+            var hasRectangleCorners = Editor2DGeometry.TryGetAttachedRectangleCorners(
+                resizedPath,
+                resizedCornerParameters,
+                out var rectP1,
+                out var rectP2);
             trial = trial.Select(item =>
             {
                 if (!attachedPathId.Equals(item.EntityPathId, StringComparison.Ordinal)
@@ -591,12 +685,25 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                         item.DimensionType,
                         item.OffsetDistance,
                         item.PlacementAngleDegrees,
+                        resizedCornerParameters,
                         out var start,
                         out var end))
                 {
                     return item;
                 }
-                return item with { Start = start, End = end };
+                var isRectangleDimension = item.DimensionType?.Trim().Equals(
+                    "width",
+                    StringComparison.OrdinalIgnoreCase) == true
+                    || item.DimensionType?.Trim().Equals(
+                        "height",
+                        StringComparison.OrdinalIgnoreCase) == true;
+                return item with
+                {
+                    Start = start,
+                    End = end,
+                    RectP1 = hasRectangleCorners && isRectangleDimension ? rectP1 : item.RectP1,
+                    RectP2 = hasRectangleCorners && isRectangleDimension ? rectP2 : item.RectP2,
+                };
             }).ToArray();
         }
 
@@ -605,14 +712,18 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         {
             Document = updatedDocument,
             Measurements = updatedMeasurements,
-            SelectedMeasurementId = measurementId,
+            SelectedMeasurementId = selectedMeasurementId,
+            CornerParameters = updatedCornerParameters,
         };
         if (measurement.EntityPathId is { } editedPathId
             && !ReferenceEquals(updatedDocument, Document))
         {
             nextState = PruneSemanticOwnershipForEditedPaths(
                 nextState,
-                new HashSet<string>([editedPathId], StringComparer.Ordinal));
+                new HashSet<string>([editedPathId], StringComparer.Ordinal),
+                preservesRectangleCorners
+                    ? new HashSet<string>([editedPathId], StringComparer.Ordinal)
+                    : null);
         }
         Apply(nextState, rebuildMeasurementCaches: false);
         return true;
@@ -760,11 +871,13 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     private Editor2DWorkspaceState PruneSemanticOwnershipForEditedPaths(
         Editor2DWorkspaceState state,
-        IReadOnlySet<string> editedPathIds)
+        IReadOnlySet<string> editedPathIds,
+        IReadOnlySet<string>? preservedCornerPathIds = null)
         => state with
         {
             CornerParameters = (state.CornerParameters ?? [])
-                .Where(parameter => !editedPathIds.Contains(parameter.PathId))
+                .Where(parameter => !editedPathIds.Contains(parameter.PathId)
+                    || preservedCornerPathIds?.Contains(parameter.PathId) == true)
                 .ToArray(),
             ConvertLineGroups = (state.ConvertLineGroups ?? [])
                 .Where(group => !group.GeneratedPathIds.Any(editedPathIds.Contains))

@@ -158,6 +158,43 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public void AutoRectangleDimension_UsesExistingPrecisionCommitPath()
+    {
+        var viewModel = CreateViewModelForTests();
+        viewModel.TwoDWorkspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var pathId = viewModel.TwoDWorkspace.CreateRectangle(new(0, 0), new(20, 10))!;
+        var widthId = $"{pathId}:width";
+        viewModel.TwoDWorkspace.SetMeasurements(viewModel.TwoDMeasurements.Select(item => item with
+        {
+            DimensionType = item.Id == widthId ? " WIDTH " : " Height ",
+        }).ToArray());
+        viewModel.TwoDWorkspace.ClearHistory();
+        var cornerNotifications = 0;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(viewModel.TwoDCornerParameters))
+                cornerNotifications++;
+        };
+
+        Assert.True(viewModel.TryCommitTwoDMeasurementExpression(widthId, "1 inch", out var error), error);
+
+        Assert.Equal(25.4, viewModel.TwoDMeasurements.Single(item => item.Id == widthId).Distance, 8);
+        Assert.All(viewModel.TwoDMeasurements.Where(item => item.EntityPathId == pathId), item =>
+        {
+            Assert.Equal(new Editor2DPoint(0, 0), item.RectP1);
+            Assert.Equal(new Editor2DPoint(25.4, 10), item.RectP2);
+        });
+        var persisted = JsonSerializer.Deserialize<Editor2DWorkspaceState>(
+            JsonSerializer.Serialize(viewModel.TwoDWorkspace.State));
+        Assert.Equal(
+            new Editor2DPoint(25.4, 10),
+            persisted!.Measurements!.Single(item => item.Id == widthId).RectP2);
+        Assert.Equal("Dimension expression updated", viewModel.StatusText);
+        Assert.True(cornerNotifications > 0);
+        Assert.True(viewModel.TwoDWorkspace.CanUndo);
+    }
+
+    [Fact]
     public async Task DimensionParameters_RebuildFromPersistedMeasurementState()
     {
         var measurement = new Editor2DMeasurement(

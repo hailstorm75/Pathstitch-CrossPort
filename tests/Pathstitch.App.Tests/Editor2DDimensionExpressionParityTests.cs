@@ -317,6 +317,281 @@ public sealed class Editor2DDimensionExpressionParityTests
         Assert.Equal(40, workspace.Measurements.Single(item => item.Id == dependent.Id).Distance, 8);
     }
 
+    [Theory]
+    [InlineData("width", Editor2DCornerKind.Fillet, 25.0)]
+    [InlineData("height", Editor2DCornerKind.Chamfer, 35.0)]
+    public void AutoRectangleDimensionValue_ResizesParametricCornersAndSiblingsAtomically(
+        string dimensionType,
+        Editor2DCornerKind cornerKind,
+        double targetValue)
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var pathId = workspace.CreateRectangle(
+            new Editor2DPoint(30, 40),
+            new Editor2DPoint(10, 20),
+            initialFilletRadius: 2)!;
+        var originalPath = workspace.Document.Paths.Single(path => path.Id == pathId);
+        var originalCorners = workspace.CornerParameters
+            .Where(parameter => parameter.PathId == pathId)
+            .Select(parameter => parameter with { Kind = cornerKind })
+            .ToArray();
+        var sourcePoints = originalCorners[0].SourcePoints;
+        var renderedPath = Editor2DCornerGeometry.Apply(
+            originalPath with { Points = sourcePoints, IsAxisAlignedRectangle = true },
+            originalCorners);
+        var unrelatedPath = new Editor2DPreviewPath(
+            "unrelated", "LINE", [new(50, 50), new(60, 50)], false);
+        var unrelatedCorner = new Editor2DCornerParameter(
+            "unrelated:corner", unrelatedPath.Id, 0, Editor2DCornerKind.Chamfer, 1,
+            [new(50, 50), new(60, 50), new(60, 60)]);
+        var layer = workspace.Layers.Single(candidate => candidate.PathIds.Contains(pathId));
+        var target = workspace.Measurements.Single(measurement =>
+            measurement.Id == $"{pathId}:{dimensionType}") with
+        {
+            VarName = "d1",
+            Expression = "20",
+            IsParametric = true,
+            EvaluatedValue = 20,
+        };
+        var oppositeType = dimensionType == "width" ? "height" : "width";
+        Assert.True(Editor2DGeometry.TryBuildAttachedMeasurement(
+            renderedPath,
+            oppositeType,
+            5,
+            null,
+            originalCorners,
+            out var siblingStart,
+            out var siblingEnd));
+        var manualSibling = new Editor2DMeasurement(
+            "manual-sibling",
+            siblingStart,
+            siblingEnd,
+            EntityPathId: pathId,
+            DimensionType: oppositeType,
+            RectP1: sourcePoints[0],
+            RectP2: sourcePoints[2],
+            OffsetDistance: 5);
+        var dependent = new Editor2DMeasurement(
+            "dependent",
+            new Editor2DPoint(0, 60),
+            new Editor2DPoint(40, 60),
+            VarName: "d2",
+            Expression: "d1 * 2",
+            IsParametric: true,
+            EvaluatedValue: 40);
+        Editor2DConvertLineGroup Convert(string id, Editor2DPreviewPath path) => new(
+            id,
+            "dashed",
+            new Dictionary<string, double>(),
+            [new Editor2DConvertLineSource(path, layer.Id, 0, 0, [path.Id])]);
+        var relatedImport = new Editor2DImportGroup(
+            "import-related", "rectangle.dxf", 1, [pathId], layer.Id, 0, 0);
+        var unrelatedImport = new Editor2DImportGroup(
+            "import-unrelated", "unrelated.dxf", 1, [unrelatedPath.Id], layer.Id, 1, 1);
+        var relatedSewing = new Editor2DSewingHoleOperation(
+            "sewing-related", [pathId], [pathId], Editor2DSewingHoleParameters.Default);
+        var unrelatedSewing = new Editor2DSewingHoleOperation(
+            "sewing-unrelated", [unrelatedPath.Id], [unrelatedPath.Id], Editor2DSewingHoleParameters.Default);
+        var document = workspace.Document with
+        {
+            Paths = [renderedPath, unrelatedPath],
+            Bounds = new Editor2DBounds(10, 20, 60, 60),
+            EntityCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["LWPOLYLINE"] = 1,
+                ["LINE"] = 1,
+            },
+        };
+        workspace.Apply(workspace.State with
+        {
+            Document = document,
+            Measurements = workspace.Measurements
+                .Select(measurement => measurement.Id == target.Id ? target : measurement)
+                .Append(manualSibling)
+                .Append(dependent)
+                .ToArray(),
+            SelectedMeasurementId = target.Id,
+            Layers = workspace.Layers.Select(candidate => candidate.Id == layer.Id
+                ? candidate with { PathIds = candidate.PathIds.Append(unrelatedPath.Id).ToArray() }
+                : candidate).ToArray(),
+            CornerParameters = originalCorners.Append(unrelatedCorner).ToArray(),
+            ImportGroups = [relatedImport, unrelatedImport],
+            SewingHoleOperations = [relatedSewing, unrelatedSewing],
+            ConvertLineGroups = [Convert("convert-related", renderedPath), Convert("convert-unrelated", unrelatedPath)],
+            ExpandedRectanglePathIds = [pathId, unrelatedPath.Id],
+        }, recordHistory: false);
+        workspace.ClearHistory();
+        var before = workspace.State;
+
+        Assert.True(workspace.TrySetMeasurementValue(target.Id, targetValue, out var error), error);
+
+        var resized = workspace.Document.Paths.Single(path => path.Id == pathId);
+        var resizedCorners = workspace.CornerParameters
+            .Where(parameter => parameter.PathId == pathId)
+            .OrderBy(parameter => parameter.Id, StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(originalCorners.Select(parameter => parameter.Id).Order(), resizedCorners.Select(parameter => parameter.Id).Order());
+        Assert.All(resizedCorners, parameter =>
+        {
+            Assert.Equal(cornerKind, parameter.Kind);
+            Assert.Equal(2, parameter.Value);
+            Assert.Equal(sourcePoints[0], parameter.SourcePoints[0]);
+            Assert.Equal(dimensionType == "width" ? 5 : 10, parameter.SourcePoints[2].X, 8);
+            Assert.Equal(dimensionType == "height" ? 5 : 20, parameter.SourcePoints[2].Y, 8);
+        });
+        Assert.Equal(pathId, resized.Id);
+        Assert.Equal(originalPath.EntityType, resized.EntityType);
+        Assert.Equal(layer.Id, workspace.Layers.Single(candidate => candidate.PathIds.Contains(pathId)).Id);
+        Assert.Contains(unrelatedPath.Id, workspace.Layers.Single(candidate => candidate.Id == layer.Id).PathIds);
+        Assert.Equal(targetValue, workspace.Measurements.Single(item => item.Id == target.Id).Distance, 8);
+        Assert.Equal(20, workspace.Measurements.Single(item => item.Id == manualSibling.Id).Distance, 8);
+        Assert.Equal(targetValue * 2, workspace.Measurements.Single(item => item.Id == dependent.Id).Distance, 8);
+        Assert.Equal(targetValue * 2, workspace.Measurements.Single(item => item.Id == dependent.Id).EvaluatedValue!.Value, 8);
+        Assert.All(
+            workspace.Measurements.Where(item => item.EntityPathId == pathId && item.DimensionType is "width" or "height"),
+            item =>
+            {
+                Assert.Equal(sourcePoints[0], item.RectP1);
+                Assert.Equal(resizedCorners[0].SourcePoints[2], item.RectP2);
+            });
+        Assert.Equal([unrelatedImport.Id], workspace.ImportGroups.Select(group => group.Id));
+        Assert.Equal([unrelatedSewing.Id], workspace.SewingHoleOperations.Select(operation => operation.Id));
+        Assert.Equal(["convert-unrelated"], workspace.ConvertLineGroups.Select(group => group.Id));
+        Assert.Contains(workspace.CornerParameters, parameter => parameter.Id == unrelatedCorner.Id);
+        Assert.Equal([unrelatedPath.Id], workspace.State.ExpandedRectanglePathIds);
+        Assert.True(workspace.CanUndo);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal(before, workspace.State);
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.Redo());
+        Assert.Equal(targetValue, workspace.Measurements.Single(item => item.Id == target.Id).Distance, 8);
+    }
+
+    [Fact]
+    public void AutoRectangleDimensionValue_InvalidUnsupportedAndNoOpRemainAtomic()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var pathId = workspace.CreateRectangle(new(0, 0), new(20, 10))!;
+        var width = workspace.Measurements.Single(item => item.Id == $"{pathId}:width");
+        var free = new Editor2DMeasurement("free", new(0, 0), new(5, 0));
+        workspace.SetMeasurements(workspace.Measurements.Append(free).ToArray());
+        workspace.ClearHistory();
+        var before = workspace.State;
+
+        Assert.True(workspace.TrySetMeasurementValue(width.Id, width.Distance, out var noOpError), noOpError);
+        Assert.False(workspace.TrySetMeasurementValue(width.Id, 0, out _));
+        Assert.False(workspace.TrySetMeasurementValue(width.Id, double.NaN, out _));
+        Assert.False(workspace.TrySetMeasurementValue(free.Id, 8, out _));
+        Assert.Equal(before, workspace.State);
+        Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
+    public void AttachedRectangleMeasurement_LegacyFlaggedBoundsRemainSupportedWithoutCornerMetadata()
+    {
+        var path = new Editor2DPreviewPath(
+            "legacy",
+            "LWPOLYLINE",
+            [new(1, 0), new(9, 0), new(10, 1), new(10, 4), new(9, 5), new(1, 5), new(0, 4), new(0, 1)],
+            true,
+            IsAxisAlignedRectangle: true,
+            RotationDegrees: 12,
+            IsConstruction: true);
+
+        Assert.True(Editor2DGeometry.TryBuildAttachedMeasurement(
+            path, "width", -2, null, out var start, out var end));
+        Assert.Equal(new Editor2DPoint(0, -2), start);
+        Assert.Equal(new Editor2DPoint(10, -2), end);
+
+        Assert.True(Editor2DGeometry.TryResizeForAttachedDimension(
+            path,
+            " width ",
+            20,
+            [],
+            out var resized,
+            out var resizedCorners));
+        Assert.Empty(resizedCorners);
+        Assert.Equal(
+            [new(2, 0), new(18, 0), new(20, 1), new(20, 4), new(18, 5), new(2, 5), new(0, 4), new(0, 1)],
+            resized.Points);
+        Assert.Equal(path.Id, resized.Id);
+        Assert.Equal(path.EntityType, resized.EntityType);
+        Assert.Equal(path.RotationDegrees, resized.RotationDegrees);
+        Assert.True(resized.IsConstruction);
+        Assert.True(resized.IsAxisAlignedRectangle);
+        Assert.Equal(20, resized.Points.Max(point => point.X) - resized.Points.Min(point => point.X), 8);
+        Assert.Equal(5, resized.Points.Max(point => point.Y) - resized.Points.Min(point => point.Y), 8);
+
+        Assert.True(Editor2DGeometry.TryResizeForAttachedDimension(
+            path,
+            "HEIGHT",
+            10,
+            [],
+            out var taller,
+            out var tallerCorners));
+        Assert.Empty(tallerCorners);
+        Assert.Equal(
+            new Editor2DPoint[]
+            {
+                new(1, 0), new(9, 0), new(10, 2), new(10, 8),
+                new(9, 10), new(1, 10), new(0, 8), new(0, 2),
+            },
+            taller.Points);
+        Assert.Equal(10, taller.Points.Max(point => point.Y) - taller.Points.Min(point => point.Y), 8);
+    }
+
+    [Fact]
+    public void LegacyRoundedRectangleDimensionValue_ResizesGeometryAndMixedCaseSiblings()
+    {
+        var path = new Editor2DPreviewPath(
+            "legacy",
+            "LWPOLYLINE",
+            [new(1, 0), new(9, 0), new(10, 1), new(10, 4), new(9, 5), new(1, 5), new(0, 4), new(0, 1)],
+            true,
+            IsAxisAlignedRectangle: true);
+        var width = new Editor2DMeasurement(
+            "legacy:width", new(0, -2), new(10, -2), true, path.Id, " WIDTH ",
+            new(0, 0), new(10, 5), OffsetDistance: -2);
+        var height = new Editor2DMeasurement(
+            "legacy:height", new(-2, 0), new(-2, 5), true, path.Id, " Height ",
+            new(0, 0), new(10, 5), OffsetDistance: -2);
+        var layer = new Editor2DLayer("layer", "Layer", [path.Id]);
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.Apply(Editor2DWorkspaceState.Empty with
+        {
+            IsInitialized = true,
+            Document = Editor2DWorkspaceState.Empty.Document with
+            {
+                Paths = [path],
+                Bounds = new(0, 0, 10, 5),
+                EntityCounts = new Dictionary<string, int> { ["LWPOLYLINE"] = 1 },
+            },
+            Measurements = [width, height],
+            Layers = [layer],
+            ActiveLayerId = layer.Id,
+        }, recordHistory: false);
+        workspace.ClearHistory();
+
+        Assert.True(workspace.TrySetMeasurementValue(width.Id, 20, out var error), error);
+
+        Assert.Equal(20, workspace.Measurements.Single(item => item.Id == width.Id).Distance, 8);
+        Assert.Equal(5, workspace.Measurements.Single(item => item.Id == height.Id).Distance, 8);
+        Assert.All(workspace.Measurements, measurement =>
+        {
+            Assert.Equal(new Editor2DPoint(0, 0), measurement.RectP1);
+            Assert.Equal(new Editor2DPoint(20, 5), measurement.RectP2);
+        });
+        Assert.Equal(path.Id, Assert.Single(workspace.Document.Paths).Id);
+        Assert.Equal([path.Id], Assert.Single(workspace.Layers).PathIds);
+        Assert.Empty(workspace.CornerParameters);
+        Assert.True(workspace.CanUndo);
+        Assert.True(workspace.Undo());
+        Assert.Equal(path, Assert.Single(workspace.Document.Paths));
+    }
+
     [Fact]
     public void AttachedExpression_PrunesOnlyEditedPathOwnershipAndHistoryRestoresIt()
     {
