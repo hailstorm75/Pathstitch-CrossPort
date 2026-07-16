@@ -171,6 +171,23 @@ public sealed class UiAutomationIdentifierTests
     }
 
     [Fact]
+    public void ScaleInspector_ExposesStableEditorIdentifiers()
+    {
+        var inspector = _ui.LoadXaml("src", "Pathstitch.App", "Pages", "Editor2DInspector.axaml");
+        var expectedIds = new[]
+        {
+            "editor.2d.scale.inspector",
+            "editor.2d.scale.from-center",
+            "editor.2d.scale.pick-pivot",
+            "editor.2d.scale.factor",
+            "editor.2d.scale.apply",
+        };
+
+        foreach (var automationId in expectedIds)
+            _ui.FindXamlElementByAutomationId(inspector, automationId);
+    }
+
+    [Fact]
     public void CatalogToolButtons_BindAutomationIdToStableDescriptorIdentifier()
     {
         var rail = _ui.LoadXaml("src", "Pathstitch.App", "Pages", "EditorToolRail.axaml");

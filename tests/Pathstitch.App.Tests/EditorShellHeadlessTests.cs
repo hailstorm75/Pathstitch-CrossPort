@@ -2,6 +2,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Domain.App.Models;
@@ -14,6 +15,37 @@ namespace Pathstitch.App.Tests;
 public sealed class EditorShellHeadlessTests
 {
     private readonly HeadlessUiFixture _ui = new();
+
+    [Fact]
+    public async Task LiveCanvas_EnterConfirmsStagedScaleExactlyOnce()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var source = new Editor2DPreviewPath("scale-source", "LINE", [new(0, 0), new(4, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+        viewModel.TwoDScaleFactorText = "2";
+        viewModel.TwoDWorkspace.ClearHistory();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+
+        await _ui.RunAsync(() =>
+        {
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            canvas.RaiseEvent(new KeyEventArgs
+            {
+                RoutedEvent = InputElement.KeyDownEvent,
+                Key = Key.Enter,
+            });
+        });
+
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        Assert.Equal(new Editor2DPoint(-2, 0), viewModel.TwoDDocument!.Paths[0].Points[0]);
+        Assert.Equal(new Editor2DPoint(6, 0), viewModel.TwoDDocument.Paths[0].Points[1]);
+        Assert.True(viewModel.TwoDWorkspace.Undo());
+        Assert.Equal(source.Points, viewModel.TwoDDocument.Paths[0].Points);
+        Assert.False(viewModel.TwoDWorkspace.CanUndo);
+    }
 
     [Fact]
     public async Task LiveShell_ModeChangesSwapRailWorkspaceContextAndInspectorsByAutomationId()

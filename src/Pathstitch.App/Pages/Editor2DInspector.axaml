@@ -689,7 +689,10 @@
         </Grid>
         <Button Classes="chip-button" Content="Apply Exact Transform" Click="OnApplyTwoDPreciseTransformClicked" />
       </StackPanel>
-      <StackPanel Spacing="8" IsVisible="{Binding IsTwoDScaleToolActive}">
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDScaleToolActive}"
+        AutomationProperties.AutomationId="editor.2d.scale.inspector">
         <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Scale" />
         <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Drag the corner handle or enter an exact scale factor." TextWrapping="Wrap" />
         <CheckBox
@@ -697,12 +700,17 @@
           IsChecked="{Binding TwoDScaleFromCenter, Mode=TwoWay}"
           AutomationProperties.AutomationId="editor.2d.scale.from-center" />
         <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDScalePivotSummary}" />
-        <Button Classes="chip-button" Content="Pick Pivot" Click="OnPickTwoDScalePivotClicked" />
+        <Button
+          Classes="chip-button"
+          Content="Pick Pivot"
+          Click="OnPickTwoDScalePivotClicked"
+          AutomationProperties.AutomationId="editor.2d.scale.pick-pivot" />
         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
           <TextBlock VerticalAlignment="Center" Text="Factor" />
           <TextBox
             Grid.Column="1"
             Text="{Binding TwoDScaleFactorText, Mode=TwoWay}"
+            KeyDown="OnTwoDScaleFactorKeyDown"
             AutomationProperties.AutomationId="editor.2d.scale.factor" />
         </Grid>
         <Button

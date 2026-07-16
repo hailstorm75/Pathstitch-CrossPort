@@ -113,6 +113,15 @@ public sealed class DxfPreviewCanvas : Control
     public static readonly StyledProperty<bool> ScalePivotPickingProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(ScalePivotPicking), defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<bool> ScaleFromCenterProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(ScaleFromCenter), defaultValue: true);
+
+    public static readonly StyledProperty<string> ScaleFactorTextProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, string>(nameof(ScaleFactorText), defaultValue: "1", defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<double> ScaleFactorProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, double>(nameof(ScaleFactor), defaultValue: 1.0);
+
     public static readonly StyledProperty<bool> TwoDMirrorLineModeProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(TwoDMirrorLineMode), defaultBindingMode: BindingMode.TwoWay);
 
@@ -285,6 +294,7 @@ public sealed class DxfPreviewCanvas : Control
     private readonly DxfCanvasSnapResolver _snapResolver = new();
     private readonly Dictionary<string, Bitmap> _referenceImageBitmaps = new(StringComparer.Ordinal);
     private bool _isCommittingSelectionTransform;
+    private double _scaleStartFactor = 1.0;
     private DxfCanvasTransformPrecisionState _transformPrecisionState = DxfCanvasTransformPrecisionState.Empty;
     private DxfCanvasTransformPrecisionKind _transformPrecisionKind;
     private string _transformPrecisionSelectionKey = string.Empty;
@@ -812,6 +822,24 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(ScalePivotPickingProperty, value);
     }
 
+    public bool ScaleFromCenter
+    {
+        get => GetValue(ScaleFromCenterProperty);
+        set => SetValue(ScaleFromCenterProperty, value);
+    }
+
+    public string ScaleFactorText
+    {
+        get => GetValue(ScaleFactorTextProperty);
+        set => SetValue(ScaleFactorTextProperty, value);
+    }
+
+    public double ScaleFactor
+    {
+        get => GetValue(ScaleFactorProperty);
+        set => SetValue(ScaleFactorProperty, value);
+    }
+
     public bool TwoDMirrorLineMode
     {
         get => GetValue(TwoDMirrorLineModeProperty);
@@ -1052,6 +1080,7 @@ public sealed class DxfPreviewCanvas : Control
         _moveStartPoint = null;
         _scaleCenterPoint = null;
         _scaleStartDistance = 0.0;
+        _scaleStartFactor = 1.0;
         _scalePreviewFactor = 1.0;
         _rotatePivot = null;
         _rotateGrabPoint = null;
@@ -1189,6 +1218,14 @@ public sealed class DxfPreviewCanvas : Control
             _activeSnapResult = null;
             InvalidateVisual();
         }
+
+        if (change.Property == ScaleFactorTextProperty
+            || change.Property == ScaleFactorProperty
+            || change.Property == ScalePivotProperty
+            || change.Property == ScaleFromCenterProperty)
+        {
+            InvalidateVisual();
+        }
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)
@@ -1236,6 +1273,13 @@ public sealed class DxfPreviewCanvas : Control
                 _rotateSelectionIds,
                 _rotatePivot,
                 -_rotatePreviewDegrees).Paths;
+        }
+        var scalePreviewFactor = GetScalePreviewFactor();
+        if (ActiveTool == Editor2DTool.Scale && Math.Abs(scalePreviewFactor - 1.0) > 1e-12)
+        {
+            var pivot = GetSelectionScalePivot(Document.Paths);
+            if (pivot is not null)
+                visiblePaths = ScalePaths(Document with { Paths = visiblePaths }, SelectedPathIds, pivot, scalePreviewFactor).Paths;
         }
         if (visiblePaths.Count > 0)
             DrawPaperBounds(context, size, Document.Bounds);
@@ -1625,7 +1669,7 @@ Hover:
             case DxfCanvasReleaseRoute.MoveSelection:
                 _isMovingSelection = false; _moveDocumentSnapshot = null; _moveSelectionIds = Array.Empty<string>(); _moveStartPoint = null; break;
             case DxfCanvasReleaseRoute.ScaleSelection:
-                _isScalingSelection = false; _scaleDocumentSnapshot = null; _scaleSelectionIds = Array.Empty<string>(); _scaleCenterPoint = null; _scaleStartDistance = 0; _scalePreviewFactor = 1; break;
+                _isScalingSelection = false; _scaleDocumentSnapshot = null; _scaleSelectionIds = Array.Empty<string>(); _scaleCenterPoint = null; _scaleStartDistance = 0; _scaleStartFactor = 1; _scalePreviewFactor = 1; break;
             case DxfCanvasReleaseRoute.RotateSelection:
                 ApplyRotateSelection(e.GetPosition(this));
                 var rotationCommitted = CommitRotateSelection();
@@ -1814,6 +1858,8 @@ Selection:
 
             if (ActiveTool == Editor2DTool.Offset && DataContext is EditorPageViewModel offsetViewModel)
                 offsetViewModel.CancelTwoDOffset(exitTool: true);
+            else if (ActiveTool == Editor2DTool.Scale && DataContext is EditorPageViewModel scaleViewModel)
+                scaleViewModel.CancelTwoDScaleAndExit();
             else if (ActiveTool == Editor2DTool.Mirror && DataContext is EditorPageViewModel mirrorViewModel)
                 mirrorViewModel.CancelTwoDMirror(exitTool: true);
             else if ((ActiveTool is Editor2DTool.Fillet or Editor2DTool.Chamfer)
@@ -1871,6 +1917,15 @@ Selection:
         if (e.Key == Key.Enter && ActiveTool == Editor2DTool.Pen)
         {
             CommitPendingPenPath(isClosed: false);
+            e.Handled = true;
+        }
+
+        else if (e.Key == Key.Enter
+            && e.KeyModifiers == KeyModifiers.None
+            && ActiveTool == Editor2DTool.Scale
+            && DataContext is EditorPageViewModel scaleViewModel)
+        {
+            scaleViewModel.ConfirmTwoDScaleAndExit();
             e.Handled = true;
         }
 
@@ -2575,14 +2630,11 @@ Selection:
         }
 
         var center = new Editor2DPoint((minX + maxX) / 2.0, (minY + maxY) / 2.0);
-        var pivot = ScalePivot ?? center;
+        var pivot = ScalePivot ?? (ScaleFromCenter ? center : new Editor2DPoint(minX, minY));
         var corner = new Editor2DPoint(maxX, maxY);
         var pivotScreen = WorldToScreen(pivot, size);
         var cornerScreen = WorldToScreen(corner, size);
-        var currentFactor = _isScalingSelection ? _scalePreviewFactor : 1.0;
-        var handleScreen = new Point(
-            pivotScreen.X + ((cornerScreen.X - pivotScreen.X) * currentFactor),
-            pivotScreen.Y + ((cornerScreen.Y - pivotScreen.Y) * currentFactor));
+        var handleScreen = cornerScreen;
 
         context.DrawLine(HoverPathPen, pivotScreen, handleScreen);
         context.DrawEllipse(null, HoverPathPen, pivotScreen, 6.0, 6.0);
@@ -2590,7 +2642,7 @@ Selection:
         context.DrawRectangle(EditableVertexHandleFillBrush, EditableVertexHandlePen, handleRect);
 
         var factorText = new FormattedText(
-            $"x{currentFactor:0.###}",
+            $"x{GetScalePreviewFactor():0.###}",
             CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight,
             MeasurementLabelTypeface,
@@ -4207,9 +4259,13 @@ Selection:
             return false;
         }
 
+        var factor = GetScalePreviewFactor();
         var center = new Editor2DPoint((minX + maxX) / 2.0, (minY + maxY) / 2.0);
-        var pivot = ScalePivot ?? center;
-        var handleScreen = WorldToScreen(new Editor2DPoint(maxX, maxY), Bounds.Size);
+        var pivot = ScalePivot ?? (ScaleFromCenter ? center : new Editor2DPoint(minX, minY));
+        var handle = new Editor2DPoint(
+            pivot.X + ((maxX - pivot.X) * factor),
+            pivot.Y + ((maxY - pivot.Y) * factor));
+        var handleScreen = WorldToScreen(handle, Bounds.Size);
         var distanceToHandle = Math.Sqrt(Math.Pow(screenPoint.X - handleScreen.X, 2) + Math.Pow(screenPoint.Y - handleScreen.Y, 2));
         if (distanceToHandle > ScaleHandleHitTolerance)
             return false;
@@ -4217,10 +4273,11 @@ Selection:
         _isScalingSelection = true;
         _scaleDocumentSnapshot = Document;
         _scaleSelectionIds = SelectedPathIds.ToArray();
-        _scaleCenterPoint = ScalePivot ?? center;
+        _scaleCenterPoint = pivot;
         var startWorldPoint = ScreenToWorld(screenPoint, Zoom);
         _scaleStartDistance = Math.Max(DistanceBetween(pivot, startWorldPoint), 1e-6);
-        _scalePreviewFactor = 1.0;
+        _scaleStartFactor = factor;
+        _scalePreviewFactor = factor;
         _cancelInteractionOnPointerRelease = false;
         SetCurrentValue(SelectedMeasurementIdProperty, null);
         pointer.Capture(this);
@@ -4417,11 +4474,24 @@ Selection:
 
         var currentPoint = ScreenToWorld(pointerPosition, Zoom);
         var currentDistance = Math.Max(DistanceBetween(_scaleCenterPoint, currentPoint), 1e-6);
-        var factor = Math.Max(currentDistance / Math.Max(_scaleStartDistance, 1e-6), 0.05);
+        var factor = Math.Max(_scaleStartFactor * currentDistance / Math.Max(_scaleStartDistance, 1e-6), 0.05);
         _scalePreviewFactor = factor;
-        var scaledDocument = ScalePaths(_scaleDocumentSnapshot, _scaleSelectionIds, _scaleCenterPoint, factor);
-        SetCurrentValue(DocumentProperty, scaledDocument);
+        SetCurrentValue(ScaleFactorTextProperty, factor.ToString("0.###", CultureInfo.InvariantCulture));
         InvalidateVisual();
+    }
+
+    private double GetScalePreviewFactor()
+        => _isScalingSelection
+            ? _scalePreviewFactor
+            : double.IsFinite(ScaleFactor) && ScaleFactor > 0.0 ? ScaleFactor : 1.0;
+
+    private Editor2DPoint? GetSelectionScalePivot(IReadOnlyList<Editor2DPreviewPath> paths)
+    {
+        if (!TryGetSelectedPathBounds(paths, out var minX, out var minY, out var maxX, out var maxY))
+            return null;
+        return ScalePivot ?? (ScaleFromCenter
+            ? new Editor2DPoint((minX + maxX) / 2.0, (minY + maxY) / 2.0)
+            : new Editor2DPoint(minX, minY));
     }
 
     private void ApplyRotateSelection(Point pointerPosition)

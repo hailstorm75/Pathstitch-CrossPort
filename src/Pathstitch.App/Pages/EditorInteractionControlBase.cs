@@ -384,7 +384,18 @@ public abstract class EditorInteractionControlBase : UserControl
     protected void OnApplyTwoDScaleClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)
-            viewModel.ApplyTwoDScale();
+            viewModel.ConfirmTwoDScaleAndExit();
+    }
+
+    protected void OnTwoDScaleFactorKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None)
+            return;
+
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ConfirmTwoDScaleAndExit();
+
+        e.Handled = true;
     }
 
     protected void OnClearTwoDMirrorObjectsClicked(object? sender, RoutedEventArgs e)

@@ -242,12 +242,27 @@ public sealed class EditorShellCompositionTests
     public void TwoDScaleInspector_ExposesExactFactorAndPivotMode()
     {
         var inspector = ReadPage("Editor2DInspector.axaml");
+        var handlers = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorInteractionControlBase.cs");
+        var workspace = ReadPage("Editor2DView.axaml");
+        var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
 
         Assert.Contains("TwoDScaleFromCenter, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDScaleFactorText, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("IsEnabled=\"{Binding CanApplyTwoDScale}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("KeyDown=\"OnTwoDScaleFactorKeyDown\"", inspector, StringComparison.Ordinal);
         Assert.Contains("OnApplyTwoDScaleClicked", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.scale.inspector", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.scale.pick-pivot", inspector, StringComparison.Ordinal);
         Assert.Contains("editor.2d.scale.apply", inspector, StringComparison.Ordinal);
+        Assert.Contains("OnTwoDScaleFactorKeyDown", handlers, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(handlers, "viewModel.ConfirmTwoDScaleAndExit();"));
+        Assert.Contains("ScaleFromCenter=\"{Binding TwoDScaleFromCenter}\"", workspace, StringComparison.Ordinal);
+        Assert.Contains("ScaleFactor=\"{Binding TwoDScalePreviewFactor}\"", workspace, StringComparison.Ordinal);
+        Assert.Contains("ScaleFactorText=\"{Binding TwoDScaleFactorText, Mode=TwoWay}\"", workspace, StringComparison.Ordinal);
+        Assert.Contains("SetCurrentValue(ScaleFactorTextProperty", canvas, StringComparison.Ordinal);
+        Assert.Contains("scaleViewModel.CancelTwoDScaleAndExit()", canvas, StringComparison.Ordinal);
+        Assert.Contains("scaleViewModel.ConfirmTwoDScaleAndExit()", canvas, StringComparison.Ordinal);
+        Assert.DoesNotContain("var scaledDocument = ScalePaths(_scaleDocumentSnapshot", canvas, StringComparison.Ordinal);
     }
 
     [Fact]
