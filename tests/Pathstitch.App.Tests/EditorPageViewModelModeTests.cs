@@ -660,6 +660,25 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task OrdinaryTwoDStateSync_PreservesNestedFoldersAndLayerMembership()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var layer = Assert.Single(viewModel.TwoDLayers);
+        var parent = viewModel.TwoDWorkspace.CreateFolder("Production");
+        var child = viewModel.TwoDWorkspace.CreateFolder("Cut", parent.Id);
+        Assert.True(viewModel.TwoDWorkspace.MoveLayerToFolder(layer.Id, child.Id));
+
+        viewModel.TwoDPolygonSides = 9;
+
+        Assert.Collection(
+            viewModel.TwoDFolders,
+            folder => Assert.Equal(parent, folder),
+            folder => Assert.Equal(child, folder));
+        Assert.Equal(child.Id, Assert.Single(viewModel.TwoDLayers).ParentFolderId);
+    }
+
+    [Fact]
     public async Task FillStrokeActions_ExposeAndApplyExistingWorkspaceOperations()
     {
         var viewModel = CreateViewModel();

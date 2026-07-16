@@ -192,6 +192,32 @@ public sealed class Project3DStateServiceTests
     }
 
     [Fact]
+    public async Task SaveAndLoadAsync_RoundTripsNestedTwoDFoldersAndLayerMembership()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("nested-layer-folders.stch");
+        var service = new Project3DStateService();
+        var path = new Editor2DPreviewPath("path", "LINE", [new Editor2DPoint(0, 0), new Editor2DPoint(5, 0)], false);
+        var parent = new Editor2DLayerFolder("production", "Production");
+        var child = new Editor2DLayerFolder("cut-folder", "Cut", parent.Id);
+        var layer = new Editor2DLayer("cut", "Cut lines", [path.Id], ParentFolderId: child.Id);
+        var state = Editor2DWorkspaceState.Empty with
+        {
+            IsInitialized = true,
+            Document = Editor2DWorkspaceState.Empty.Document with { Paths = [path] },
+            Layers = [layer],
+            ActiveLayerId = layer.Id,
+            Folders = [parent, child],
+        };
+
+        await service.SaveAsync(projectPath, new Project3DState(null, [], [], TwoDWorkspaceState: state));
+        var restored = await service.LoadAsync(projectPath);
+
+        Assert.Equal([parent, child], restored.TwoDWorkspaceState!.Folders);
+        Assert.Equal(child.Id, Assert.Single(restored.TwoDWorkspaceState.Layers!).ParentFolderId);
+    }
+
+    [Fact]
     public async Task SaveAndLoadAsync_RoundTripsReferenceImageLayerWithoutCreatingGeometry()
     {
         using var workspace = TestWorkspace.Create();

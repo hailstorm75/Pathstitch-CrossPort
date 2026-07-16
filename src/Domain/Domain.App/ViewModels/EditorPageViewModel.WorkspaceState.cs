@@ -161,26 +161,28 @@ public sealed partial class EditorPageViewModel
             return;
 
         _twoDWorkspace.Apply(
-            new Editor2DWorkspaceState(
-                TwoDDocument ?? Editor2DWorkspaceState.Empty.Document,
-                TwoDActiveTool,
-                TwoDSelectedPathIds,
-                TwoDMeasurements,
-                TwoDSelectedMeasurementId,
-                TwoDPolygonSides,
-                TwoDViewportZoom,
-                TwoDViewportOffsetX,
-                TwoDViewportOffsetY,
-                _twoDExpandedRectanglePathIds,
-                _twoDWorkspace.IsInitialized,
-                _twoDWorkspace.Layers,
-                _twoDWorkspace.ActiveLayerId,
-                _twoDWorkspace.CornerParameters,
-                _twoDWorkspace.SewingHoleParameters,
-                _twoDWorkspace.SewingHoleOperations,
-                _twoDWorkspace.SnapEnabled,
-                _twoDWorkspace.GridVisible,
-                _twoDWorkspace.ChainSelectionEnabled),
+            _twoDWorkspace.State with
+            {
+                Document = TwoDDocument ?? Editor2DWorkspaceState.Empty.Document,
+                ActiveTool = TwoDActiveTool,
+                SelectedPathIds = TwoDSelectedPathIds,
+                Measurements = TwoDMeasurements,
+                SelectedMeasurementId = TwoDSelectedMeasurementId,
+                PolygonSides = TwoDPolygonSides,
+                ViewportZoom = TwoDViewportZoom,
+                ViewportOffsetX = TwoDViewportOffsetX,
+                ViewportOffsetY = TwoDViewportOffsetY,
+                ExpandedRectanglePathIds = _twoDExpandedRectanglePathIds,
+                IsInitialized = _twoDWorkspace.IsInitialized,
+                Layers = _twoDWorkspace.Layers,
+                ActiveLayerId = _twoDWorkspace.ActiveLayerId,
+                CornerParameters = _twoDWorkspace.CornerParameters,
+                SewingHoleParameters = _twoDWorkspace.SewingHoleParameters,
+                SewingHoleOperations = _twoDWorkspace.SewingHoleOperations,
+                SnapEnabled = _twoDWorkspace.SnapEnabled,
+                GridVisible = _twoDWorkspace.GridVisible,
+                ChainSelectionEnabled = _twoDWorkspace.ChainSelectionEnabled,
+            },
             recordHistory);
         NotifyTwoDHistoryCommands();
     }
