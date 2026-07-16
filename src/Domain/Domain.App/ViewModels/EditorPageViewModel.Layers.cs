@@ -25,12 +25,55 @@ public sealed partial class EditorPageViewModel
         => _twoDWorkspace.ActiveLayer?.IsLocked == true;
 
     private string _twoDReferenceCalibrationWidthText = "100";
+    private bool _twoDReferencePointCalibrationActive;
+    private IReadOnlyList<Editor2DPoint> _twoDReferenceCalibrationPoints = [];
+    private string _twoDReferenceCalibrationTargetText = string.Empty;
+    private string? _twoDReferenceCalibrationLayerId;
 
     public string TwoDReferenceCalibrationWidthText
     {
         get => _twoDReferenceCalibrationWidthText;
         set => SetProperty(ref _twoDReferenceCalibrationWidthText, value ?? string.Empty);
     }
+
+    public bool TwoDReferencePointCalibrationActive
+    {
+        get => _twoDReferencePointCalibrationActive;
+        set
+        {
+            if (SetProperty(ref _twoDReferencePointCalibrationActive, value))
+                OnPropertyChanged(nameof(TwoDReferencePointCalibrationSummary));
+        }
+    }
+
+    public IReadOnlyList<Editor2DPoint> TwoDReferenceCalibrationPoints
+    {
+        get => _twoDReferenceCalibrationPoints;
+        set
+        {
+            if (SetProperty(ref _twoDReferenceCalibrationPoints, value ?? []))
+            {
+                OnPropertyChanged(nameof(TwoDReferencePointCalibrationSummary));
+                OnPropertyChanged(nameof(TwoDReferenceCalibrationAwaitingDistance));
+            }
+        }
+    }
+
+    public string TwoDReferenceCalibrationTargetText
+    {
+        get => _twoDReferenceCalibrationTargetText;
+        set => SetProperty(ref _twoDReferenceCalibrationTargetText, value ?? string.Empty);
+    }
+
+    public string TwoDReferencePointCalibrationSummary
+        => TwoDReferencePointCalibrationActive
+            ? $"Pick two points on the canvas ({TwoDReferenceCalibrationPoints.Count}/2)."
+            : TwoDReferenceCalibrationPoints.Count == 2
+                ? "Enter the known distance between the picked points."
+                : "Pick two canvas points with a known real-world distance.";
+
+    public bool TwoDReferenceCalibrationAwaitingDistance
+        => TwoDReferenceCalibrationPoints.Count == 2;
 
     public IReadOnlyList<string> TwoDHiddenPathIds => TwoDLayers
         .Where(layer => !layer.IsVisible)
@@ -197,6 +240,62 @@ public sealed partial class EditorPageViewModel
         }
     }
 
+    public bool BeginTwoDReferencePointCalibration()
+    {
+        var layer = _twoDWorkspace.ActiveLayer;
+        if (layer is null || !layer.IsReferenceImage || !layer.IsVisible || layer.IsLocked)
+            return false;
+        _twoDReferenceCalibrationLayerId = layer.Id;
+        TwoDReferenceCalibrationPoints = [];
+        TwoDReferenceCalibrationTargetText = string.Empty;
+        TwoDReferencePointCalibrationActive = true;
+        OnPropertyChanged(nameof(TwoDReferencePointCalibrationSummary));
+        StatusText = "Pick the first reference calibration point";
+        return true;
+    }
+
+    public void CaptureTwoDReferenceCalibrationPoints(Editor2DPoint start, Editor2DPoint end)
+    {
+        TwoDReferenceCalibrationPoints = [start, end];
+        TwoDReferencePointCalibrationActive = false;
+        var measured = Distance(start, end);
+        TwoDReferenceCalibrationTargetText = measured.ToString("0.###", CultureInfo.InvariantCulture);
+        OnPropertyChanged(nameof(TwoDReferencePointCalibrationSummary));
+        StatusText = "Enter the known reference distance";
+    }
+
+    public bool CommitTwoDReferencePointCalibration()
+    {
+        if (_twoDReferenceCalibrationLayerId is not { } layerId
+            || TwoDActiveLayerId != layerId
+            || TwoDReferenceCalibrationPoints.Count != 2
+            || !double.TryParse(TwoDReferenceCalibrationTargetText, NumberStyles.Float, CultureInfo.InvariantCulture, out var target)
+            || !double.IsFinite(target) || target <= 0.0)
+        {
+            StatusText = "Calibration distance must be a positive number";
+            return false;
+        }
+        var measured = Distance(TwoDReferenceCalibrationPoints[0], TwoDReferenceCalibrationPoints[1]);
+        if (!_twoDWorkspace.CalibrateReferenceImageDistance(layerId, measured, target))
+            return false;
+        CancelTwoDReferencePointCalibration();
+        RefreshTwoDLayerFacade();
+        StatusText = $"Reference image calibrated to {target:0.###} units between points";
+        return true;
+    }
+
+    public void CancelTwoDReferencePointCalibration()
+    {
+        TwoDReferencePointCalibrationActive = false;
+        TwoDReferenceCalibrationPoints = [];
+        TwoDReferenceCalibrationTargetText = string.Empty;
+        _twoDReferenceCalibrationLayerId = null;
+        OnPropertyChanged(nameof(TwoDReferencePointCalibrationSummary));
+    }
+
+    private static double Distance(Editor2DPoint left, Editor2DPoint right)
+        => Math.Sqrt(Math.Pow(right.X - left.X, 2) + Math.Pow(right.Y - left.Y, 2));
+
     public void TraceTwoDReferenceImage(string layerId)
     {
         var trace = _twoDWorkspace.TraceReferenceImageBounds(layerId);
@@ -228,19 +327,28 @@ public sealed partial class EditorPageViewModel
     public void SelectTwoDLayer(string layerId)
     {
         if (_twoDWorkspace.SelectLayer(layerId))
+        {
+            CancelTwoDReferencePointCalibration();
             RefreshTwoDLayerFacade();
+        }
     }
 
     public void ToggleTwoDLayerVisibility(string layerId)
     {
         if (_twoDWorkspace.ToggleLayerVisibility(layerId))
+        {
+            CancelTwoDReferencePointCalibration();
             RefreshTwoDLayerFacade();
+        }
     }
 
     public void ToggleTwoDLayerLock(string layerId)
     {
         if (_twoDWorkspace.ToggleLayerLock(layerId))
+        {
+            CancelTwoDReferencePointCalibration();
             RefreshTwoDLayerFacade();
+        }
     }
 
     public void MoveTwoDLayer(string layerId, int direction)
@@ -264,7 +372,10 @@ public sealed partial class EditorPageViewModel
     public void DeleteTwoDLayer(string layerId)
     {
         if (_twoDWorkspace.DeleteLayer(layerId))
+        {
+            CancelTwoDReferencePointCalibration();
             RefreshTwoDLayerFacade();
+        }
     }
 
     public void AssignTwoDSelectionToLayer(string layerId)

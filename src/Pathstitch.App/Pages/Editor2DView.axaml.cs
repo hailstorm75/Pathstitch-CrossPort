@@ -20,6 +20,7 @@ public partial class Editor2DView : EditorInteractionControlBase
         TwoDPreviewCanvas.TransformPrecisionDismissed += OnTransformPrecisionDismissed;
         TwoDPreviewCanvas.SelectionTransformRequested += OnSelectionTransformRequested;
         TwoDPreviewCanvas.PathReplacementRequested += OnPathReplacementRequested;
+        TwoDPreviewCanvas.ReferenceCalibrationRequested += OnReferenceCalibrationRequested;
         WorkspaceRoot.AddHandler(
             InputElement.PointerPressedEvent,
             OnWorkspacePointerPressed,
@@ -60,6 +61,44 @@ public partial class Editor2DView : EditorInteractionControlBase
             return;
         }
         request.Complete(document);
+    }
+
+    private void OnReferenceCalibrationRequested(DxfCanvasReferenceCalibrationRequest request)
+    {
+        if (DataContext is not Domain.App.ViewModels.EditorPageViewModel viewModel)
+            return;
+        viewModel.CaptureTwoDReferenceCalibrationPoints(request.Start, request.End);
+        ReferenceCalibrationInput.Text = request.MeasuredDistance.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        Canvas.SetLeft(ReferenceCalibrationPill, Math.Clamp(request.Anchor.X - 55, 0, Math.Max(TwoDPreviewCanvas.Bounds.Width - 110, 0)));
+        Canvas.SetTop(ReferenceCalibrationPill, Math.Clamp(request.Anchor.Y - 42, 0, Math.Max(TwoDPreviewCanvas.Bounds.Height - 30, 0)));
+        Dispatcher.UIThread.Post(() =>
+        {
+            ReferenceCalibrationInput.Focus();
+            ReferenceCalibrationInput.SelectAll();
+        }, DispatcherPriority.Input);
+    }
+
+    private void OnReferenceCalibrationInputKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not Domain.App.ViewModels.EditorPageViewModel viewModel)
+            return;
+        if (e.Key == Key.Enter)
+        {
+            viewModel.TwoDReferenceCalibrationTargetText = ReferenceCalibrationInput.Text ?? string.Empty;
+            if (viewModel.CommitTwoDReferencePointCalibration())
+            {
+                TwoDPreviewCanvas.Focus();
+            }
+            else
+                ReferenceCalibrationInput.SelectAll();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            viewModel.CancelTwoDReferencePointCalibration();
+            TwoDPreviewCanvas.Focus();
+            e.Handled = true;
+        }
     }
 
     private void OnTransformPrecisionRequested(DxfCanvasTransformPrecisionRequest request)

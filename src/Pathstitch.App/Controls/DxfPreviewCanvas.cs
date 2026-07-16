@@ -56,6 +56,12 @@ internal sealed class DxfCanvasPathReplacementEventArgs(
     public void Complete(Editor2DPreviewDocument document) => Document = document;
 }
 
+internal readonly record struct DxfCanvasReferenceCalibrationRequest(
+    Editor2DPoint Start,
+    Editor2DPoint End,
+    Point Anchor,
+    double MeasuredDistance);
+
 public sealed class DxfPreviewCanvas : Control
 {
     /// <summary>Flips vertical wheel/trackpad panning to match the user's preference.</summary>
@@ -224,6 +230,16 @@ public sealed class DxfPreviewCanvas : Control
     public static readonly StyledProperty<bool> ActiveReferenceImageLockedProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(ActiveReferenceImageLocked));
 
+    public static readonly StyledProperty<bool> ReferenceCalibrationActiveProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(
+            nameof(ReferenceCalibrationActive), defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<IReadOnlyList<Editor2DPoint>> ReferenceCalibrationPointsProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DPoint>>(
+            nameof(ReferenceCalibrationPoints),
+            defaultValue: Array.Empty<Editor2DPoint>(),
+            defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<IReadOnlyList<Editor2DCornerParameter>> CornerParametersProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DCornerParameter>>(
             nameof(CornerParameters),
@@ -298,6 +314,8 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly Pen PreviewPathPen = new(new SolidColorBrush(Color.Parse("#62E6A7")), 1.8, dashStyle: new DashStyle([4, 3], 0));
     private static readonly Pen OffsetPreviewPathPen = new(new SolidColorBrush(Color.Parse("#F59E0B")), 1.2, dashStyle: new DashStyle([4, 4], 0));
     private static readonly Pen GlueTabPreviewPathPen = new(new SolidColorBrush(Color.Parse("#A855F7")), 1.5, dashStyle: new DashStyle([4, 3], 0));
+    private static readonly Pen ReferenceCalibrationPen = new(new SolidColorBrush(Color.Parse("#EF4444")), 1.5, dashStyle: new DashStyle([4, 3], 0));
+    private static readonly IBrush ReferenceCalibrationBrush = new SolidColorBrush(Color.Parse("#EF4444"));
     private static readonly Pen AutoDimensionPen = new(new SolidColorBrush(Color.Parse("#63D2FF")), 1.2);
     private static readonly Pen ConstrainedRectangleHandlePen = new(new SolidColorBrush(Color.Parse("#8ED7FF")), 1.2);
     private static readonly Pen EditableVertexHandlePen = new(new SolidColorBrush(Color.Parse("#FFFFFF")), 1.0);
@@ -467,6 +485,8 @@ public sealed class DxfPreviewCanvas : Control
             ReferenceImagesProperty,
             ActiveReferenceImageProperty,
             ActiveReferenceImageLockedProperty,
+            ReferenceCalibrationActiveProperty,
+            ReferenceCalibrationPointsProperty,
             CornerParametersProperty,
             MeasurementsProperty,
             SelectedMeasurementIdProperty,
@@ -998,11 +1018,24 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(ActiveReferenceImageLockedProperty, value);
     }
 
+    public bool ReferenceCalibrationActive
+    {
+        get => GetValue(ReferenceCalibrationActiveProperty);
+        set => SetValue(ReferenceCalibrationActiveProperty, value);
+    }
+
+    public IReadOnlyList<Editor2DPoint> ReferenceCalibrationPoints
+    {
+        get => GetValue(ReferenceCalibrationPointsProperty);
+        set => SetValue(ReferenceCalibrationPointsProperty, value ?? Array.Empty<Editor2DPoint>());
+    }
+
     public event Action<string, double, double, double, double, double>? ReferenceImageTransformChanged;
     internal event Action<DxfCanvasTransformPrecisionRequest>? TransformPrecisionRequested;
     internal event Action? TransformPrecisionDismissed;
     internal event Action<DxfCanvasSelectionTransformEventArgs>? SelectionTransformRequested;
     internal event Action<DxfCanvasPathReplacementEventArgs>? PathReplacementRequested;
+    internal event Action<DxfCanvasReferenceCalibrationRequest>? ReferenceCalibrationRequested;
 
     public IReadOnlyList<Editor2DCornerParameter> CornerParameters
     {
@@ -1396,6 +1429,7 @@ public sealed class DxfPreviewCanvas : Control
         DrawTrimPreview(context, size, Document with { Paths = visiblePaths });
         DrawMeasurements(context, size);
         DrawLiveMeasurement(context, size);
+        DrawReferenceCalibration(context, size);
         DrawSnapIndicator(context);
         DrawMarquee(context);
     }
@@ -1432,6 +1466,30 @@ public sealed class DxfPreviewCanvas : Control
 
         if (!point.Properties.IsLeftButtonPressed || Document is null)
             return;
+
+        if (ReferenceCalibrationActive)
+        {
+            var worldPoint = ResolvePlacementPoint(point.Position);
+            if (ReferenceCalibrationPoints.Count == 1
+                && DxfCanvasReferenceCalibration.Distance(ReferenceCalibrationPoints[0], worldPoint) <= 1e-6)
+            {
+                e.Handled = true;
+                return;
+            }
+            var points = ReferenceCalibrationPoints.Take(1).Append(worldPoint).ToArray();
+            SetCurrentValue(ReferenceCalibrationPointsProperty, points);
+            if (points.Length == 2)
+            {
+                SetCurrentValue(ReferenceCalibrationActiveProperty, false);
+                var midpoint = DxfCanvasReferenceCalibration.Midpoint(points[0], points[1]);
+                ReferenceCalibrationRequested?.Invoke(new DxfCanvasReferenceCalibrationRequest(
+                    points[0], points[1], WorldToScreen(midpoint, Bounds.Size),
+                    DxfCanvasReferenceCalibration.Distance(points[0], points[1])));
+            }
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
 
         if (ActiveTool == Editor2DTool.Select
             && TryHitManualMeasurementEndpoint(point.Position, out var measurementId, out var editingStart))
@@ -1952,6 +2010,16 @@ Selection:
 
         if (e.Key == Key.Escape)
         {
+            if (ReferenceCalibrationActive)
+            {
+                if (DataContext is EditorPageViewModel calibrationViewModel)
+                    calibrationViewModel.CancelTwoDReferencePointCalibration();
+                SetCurrentValue(ReferenceCalibrationActiveProperty, false);
+                SetCurrentValue(ReferenceCalibrationPointsProperty, Array.Empty<Editor2DPoint>());
+                e.Handled = true;
+                return;
+            }
+
             if (_isTextEntryActive)
             {
                 if (_pendingTextInitialEntry is not null)
@@ -2630,6 +2698,23 @@ Selection:
         context.DrawLine(LiveMeasurementPen, start, end);
         context.DrawEllipse(LiveMeasurementPointBrush, null, start, 3.0, 3.0);
         context.DrawEllipse(LiveMeasurementPointBrush, null, end, 3.0, 3.0);
+    }
+
+    private void DrawReferenceCalibration(DrawingContext context, Size size)
+    {
+        if (ReferenceCalibrationPoints.Count == 0)
+            return;
+        var points = ReferenceCalibrationPoints.Take(2).Select(point => WorldToScreen(point, size)).ToArray();
+        if (points.Length == 2)
+            context.DrawLine(ReferenceCalibrationPen, points[0], points[1]);
+        for (var index = 0; index < points.Length; index++)
+        {
+            context.DrawEllipse(ReferenceCalibrationBrush, null, points[index], 5.0, 5.0);
+            var label = new FormattedText(
+                $"Point {index + 1}", CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                new Typeface("Inter, Segoe UI, Arial"), 11, ReferenceCalibrationBrush);
+            context.DrawText(label, points[index] + new Vector(8, -18));
+        }
     }
 
     private void DrawTrimPreview(DrawingContext context, Size size, Editor2DPreviewDocument document)

@@ -164,6 +164,15 @@
           <TextBox Width="90" Text="{Binding TwoDReferenceCalibrationWidthText, Mode=TwoWay}" />
           <Button Content="Calibrate" Click="OnCalibrateReferenceImageClicked" />
         </StackPanel>
+        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDReferencePointCalibrationSummary}" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <Button
+            Content="Pick Two Points"
+            IsEnabled="{Binding !TwoDActiveReferenceImageLocked}"
+            Click="OnBeginReferencePointCalibrationClicked"
+            AutomationProperties.AutomationId="editor.2d.reference-calibration.begin" />
+          <Button Content="Cancel" Click="OnCancelReferencePointCalibrationClicked" />
+        </StackPanel>
       </StackPanel>
       <TextBlock
         Grid.Row="4"

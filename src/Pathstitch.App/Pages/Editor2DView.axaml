@@ -48,6 +48,8 @@
     ReferenceImages="{Binding TwoDReferenceImages}"
     ActiveReferenceImage="{Binding TwoDActiveReferenceImage}"
     ActiveReferenceImageLocked="{Binding TwoDActiveReferenceImageLocked}"
+    ReferenceCalibrationActive="{Binding TwoDReferencePointCalibrationActive, Mode=TwoWay}"
+    ReferenceCalibrationPoints="{Binding TwoDReferenceCalibrationPoints, Mode=TwoWay}"
     CornerParameters="{Binding TwoDCornerParameters, Mode=TwoWay}"
     SelectedCornerParameterId="{Binding TwoDSelectedCornerParameterId, Mode=TwoWay}"
     FilletContinuity="{Binding TwoDFilletContinuity}"
@@ -92,6 +94,29 @@
             VerticalAlignment="Center"
             FontSize="11"
             Foreground="{StaticResource SecondaryTextBrush}" />
+        </Grid>
+      </Border>
+      <Border
+        x:Name="ReferenceCalibrationPill"
+        AutomationProperties.AutomationId="editor.canvas.2d.reference-calibration-input"
+        Width="110"
+        Height="30"
+        Padding="6,2"
+        IsVisible="{Binding TwoDReferenceCalibrationAwaitingDistance}"
+        Background="{StaticResource InputBackgroundBrush}"
+        BorderBrush="{StaticResource AccentBrush}"
+        BorderThickness="1"
+        CornerRadius="4">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="3">
+          <TextBox
+            x:Name="ReferenceCalibrationInput"
+            MinWidth="0"
+            Padding="0"
+            BorderThickness="0"
+            Background="Transparent"
+            FontFamily="Cascadia Mono,Consolas"
+            KeyDown="OnReferenceCalibrationInputKeyDown" />
+          <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="units" FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" />
         </Grid>
       </Border>
     </Canvas>

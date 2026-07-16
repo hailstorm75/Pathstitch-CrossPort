@@ -1119,6 +1119,32 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             };
         });
 
+    public bool CalibrateReferenceImageDistance(string layerId, double measuredDistance, double targetDistance)
+    {
+        if (!double.IsFinite(measuredDistance) || measuredDistance <= 1e-9
+            || !double.IsFinite(targetDistance) || targetDistance <= 0.0)
+            return false;
+        var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId && candidate.IsReferenceImage);
+        if (layer is null || !layer.IsVisible || layer.IsLocked)
+            return false;
+        var ratio = targetDistance / measuredDistance;
+        var image = layer.ReferenceImage!;
+        var width = image.Width * ratio;
+        var height = image.Height * ratio;
+        var unitsPerPixel = image.CalibrationUnitsPerPixel * ratio;
+        if (!double.IsFinite(ratio) || ratio <= 0.0
+            || !double.IsFinite(width) || width <= 0.0
+            || !double.IsFinite(height) || height <= 0.0
+            || !double.IsFinite(unitsPerPixel) || unitsPerPixel <= 0.0)
+            return false;
+        return UpdateReferenceImage(layerId, image => image with
+        {
+            Width = width,
+            Height = height,
+            CalibrationUnitsPerPixel = unitsPerPixel,
+        });
+    }
+
     public bool SetReferenceImageOpacity(string layerId, double opacity)
         => UpdateReferenceImage(layerId, image => image with { Opacity = Math.Clamp(opacity, 0.0, 1.0) });
 

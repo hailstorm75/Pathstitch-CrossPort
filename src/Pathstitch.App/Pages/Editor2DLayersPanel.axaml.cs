@@ -113,6 +113,12 @@ public partial class Editor2DLayersPanel : UserControl
             ViewModel.CalibrateTwoDReferenceImage(layerId);
     }
 
+    private void OnBeginReferencePointCalibrationClicked(object? sender, RoutedEventArgs e)
+        => ViewModel?.BeginTwoDReferencePointCalibration();
+
+    private void OnCancelReferencePointCalibrationClicked(object? sender, RoutedEventArgs e)
+        => ViewModel?.CancelTwoDReferencePointCalibration();
+
     private EditorPageViewModel? ViewModel => DataContext as EditorPageViewModel;
 
     private static void WithLayer(object? sender, Action<string>? action)
