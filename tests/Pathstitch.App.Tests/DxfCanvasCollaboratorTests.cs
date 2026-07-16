@@ -170,6 +170,15 @@ public sealed class DxfCanvasCollaboratorTests
 
         session.IsMovingSelection = false;
         session.MoveDocumentSnapshot = null;
+        session.IsRotatingSelection = true;
+        session.RotateDocumentSnapshot = Document();
+        session.RotatePivot = new Editor2DPoint(0, 0);
+        Assert.Equal(DxfCanvasMoveRoute.RotateSelection, controller.RouteMove(Editor2DTool.Select, true));
+        Assert.Equal(DxfCanvasReleaseRoute.RotateSelection, controller.RouteRelease(Editor2DTool.Select, true));
+
+        session.IsRotatingSelection = false;
+        session.RotateDocumentSnapshot = null;
+        session.RotatePivot = null;
         session.IsDraggingCorner = true;
         Assert.Equal(DxfCanvasMoveRoute.Corner, controller.RouteMove(Editor2DTool.Fillet, true));
         Assert.Equal(DxfCanvasReleaseRoute.Corner, controller.RouteRelease(Editor2DTool.Fillet, true));
@@ -275,6 +284,58 @@ public sealed class DxfCanvasCollaboratorTests
         Assert.Equal(0, translated.Bounds.MinX);
         Assert.Equal(15, translated.Bounds.MaxX);
         Assert.Equal(2, translated.EntityCounts["LINE"]);
+    }
+
+    [Fact]
+    public void RotationInteraction_UsesFixedHandleAndScreenCardinalAngles()
+    {
+        var pivot = new Point(250, 200);
+
+        var topHandle = DxfCanvasRotationInteraction.GetHandlePosition(pivot);
+        var rightHandle = DxfCanvasRotationInteraction.GetHandlePosition(pivot, 90);
+        Assert.Equal(250, topHandle.X, 8);
+        Assert.Equal(100, topHandle.Y, 8);
+        Assert.Equal(350, rightHandle.X, 8);
+        Assert.Equal(200, rightHandle.Y, 8);
+        Assert.Equal(0, DxfCanvasRotationInteraction.GetScreenCardinalAngle(pivot, new Point(250, 100)), 8);
+        Assert.Equal(90, DxfCanvasRotationInteraction.GetScreenCardinalAngle(pivot, new Point(350, 200)), 8);
+        Assert.Equal(180, DxfCanvasRotationInteraction.GetScreenCardinalAngle(pivot, new Point(250, 300)), 8);
+        Assert.Equal(270, DxfCanvasRotationInteraction.GetScreenCardinalAngle(pivot, new Point(150, 200)), 8);
+    }
+
+    [Fact]
+    public void RotationInteraction_WrapsGrabRelativeDeltaAndTestsHitTolerance()
+    {
+        var pivot = new Point(100, 100);
+        var grab = DxfCanvasRotationInteraction.GetHandlePosition(pivot, 355);
+        var pointer = DxfCanvasRotationInteraction.GetHandlePosition(pivot, 5);
+        var handle = DxfCanvasRotationInteraction.GetHandlePosition(pivot);
+
+        Assert.Equal(10, DxfCanvasRotationInteraction.GetGrabRelativeDelta(pivot, grab, pointer), 8);
+        Assert.Equal(-10, DxfCanvasRotationInteraction.GetGrabRelativeDelta(pivot, pointer, grab), 8);
+        Assert.True(DxfCanvasRotationInteraction.IsHandleHit(new Point(handle.X + 6, handle.Y + 8), handle, 10));
+        Assert.False(DxfCanvasRotationInteraction.IsHandleHit(new Point(handle.X + 6.1, handle.Y + 8), handle, 10));
+        Assert.False(DxfCanvasRotationInteraction.IsHandleHit(handle, handle, -1));
+    }
+
+    [Fact]
+    public void GeometryEditor_RotatesOnlySelectedPathsAndPreservesIdentityAndMetadata()
+    {
+        var selected = Path("selected", false, new(1, 0), new(2, 0));
+        var untouched = Path("untouched", false, new(-3, 4), new(-2, 4));
+        var document = Document(selected, untouched);
+
+        var rotated = DxfCanvasGeometryEditor.Rotate(document, [selected.Id], new Editor2DPoint(0, 0), 90);
+        var rotatedPath = Assert.Single(rotated.Paths, path => path.Id == selected.Id);
+
+        Assert.Equal(0, rotatedPath.Points[0].X, 8);
+        Assert.Equal(1, rotatedPath.Points[0].Y, 8);
+        Assert.Equal(0, rotatedPath.Points[1].X, 8);
+        Assert.Equal(2, rotatedPath.Points[1].Y, 8);
+        Assert.Same(untouched, Assert.Single(rotated.Paths, path => path.Id == untouched.Id));
+        Assert.Equal(-3, rotated.Bounds.MinX);
+        Assert.Equal(4, rotated.Bounds.MaxY);
+        Assert.Equal(2, rotated.EntityCounts["LINE"]);
     }
 
     [Fact]

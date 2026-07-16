@@ -76,6 +76,20 @@ internal static class DxfCanvasGeometryEditor
         }).ToArray());
     }
 
+    public static Editor2DPreviewDocument Rotate(
+        Editor2DPreviewDocument document,
+        IReadOnlyList<string> selectedIds,
+        Editor2DPoint pivot,
+        double angleDegrees)
+    {
+        var selected = selectedIds.ToHashSet(StringComparer.Ordinal);
+        return Update(document, document.Paths
+            .Select(path => selected.Contains(path.Id)
+                ? Editor2DGeometry.RotatePath(path, pivot, angleDegrees, path.Id)
+                : path)
+            .ToArray());
+    }
+
     public static Editor2DPreviewDocument Update(
         Editor2DPreviewDocument document,
         IReadOnlyList<Editor2DPreviewPath> paths)

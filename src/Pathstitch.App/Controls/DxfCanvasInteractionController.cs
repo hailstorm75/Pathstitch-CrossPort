@@ -13,11 +13,11 @@ internal enum DxfCanvasPressRoute
 }
 internal enum DxfCanvasMoveRoute
 {
-    Pan, MoveSelection, ScaleSelection, EditVertex, LineDraft, RectangleDraft, CircleDraft,
+    Pan, MoveSelection, ScaleSelection, RotateSelection, EditVertex, LineDraft, RectangleDraft, CircleDraft,
     PolygonDraft, TextDraft, PenHandleDrag, PenDraft, MeasurementDraft, DimensionDraft,
     Corner, SewingHoleMargin, OffsetHandle, ToolPreview, Marquee, Hover,
 }
-internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, EditVertex, PenHandleDrag, Corner, SewingHoleMargin, OffsetHandle, Selection, None }
+internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, RotateSelection, EditVertex, PenHandleDrag, Corner, SewingHoleMargin, OffsetHandle, Selection, None }
 internal enum DxfPenCompletion { Open, Closed }
 
 internal static class DxfCanvasPenInteraction
@@ -140,6 +140,7 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (session.IsPanning) return DxfCanvasMoveRoute.Pan;
         if (session.IsMovingSelection && session.MoveDocumentSnapshot is not null && session.MoveStartPoint is not null) return DxfCanvasMoveRoute.MoveSelection;
         if (session.IsScalingSelection && session.ScaleDocumentSnapshot is not null && session.ScaleCenterPoint is not null) return DxfCanvasMoveRoute.ScaleSelection;
+        if (session.IsRotatingSelection && session.RotateDocumentSnapshot is not null && session.RotatePivot is not null) return DxfCanvasMoveRoute.RotateSelection;
         if (session.IsEditingVertex && session.EditingVertexPathId is not null) return DxfCanvasMoveRoute.EditVertex;
         if (session.IsDraggingCorner) return DxfCanvasMoveRoute.Corner;
         if (session.IsDraggingSewingHoleMargin) return DxfCanvasMoveRoute.SewingHoleMargin;
@@ -168,6 +169,7 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (session.IsAwaitingSecondaryContextClick) return DxfCanvasReleaseRoute.Context;
         if (session.IsMovingSelection) return DxfCanvasReleaseRoute.MoveSelection;
         if (session.IsScalingSelection) return DxfCanvasReleaseRoute.ScaleSelection;
+        if (session.IsRotatingSelection) return DxfCanvasReleaseRoute.RotateSelection;
         if (session.IsEditingVertex) return DxfCanvasReleaseRoute.EditVertex;
         if (session.IsDraggingCorner) return DxfCanvasReleaseRoute.Corner;
         if (session.IsDraggingSewingHoleMargin) return DxfCanvasReleaseRoute.SewingHoleMargin;

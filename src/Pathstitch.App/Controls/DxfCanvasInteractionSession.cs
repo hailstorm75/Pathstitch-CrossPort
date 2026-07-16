@@ -27,6 +27,7 @@ internal sealed class DxfCanvasInteractionSession
     internal bool CancelInteractionOnPointerRelease;
     internal bool IsMovingSelection;
     internal bool IsScalingSelection;
+    internal bool IsRotatingSelection;
     internal bool IsAwaitingSecondaryContextClick;
     internal bool IsEditingVertex;
     internal bool IsDraggingCorner;
@@ -37,13 +38,18 @@ internal sealed class DxfCanvasInteractionSession
     internal Editor2DCornerKind CornerDragKind;
     internal Editor2DPreviewDocument? MoveDocumentSnapshot;
     internal Editor2DPreviewDocument? ScaleDocumentSnapshot;
+    internal Editor2DPreviewDocument? RotateDocumentSnapshot;
     internal IReadOnlyList<string> MoveSelectionIds = Array.Empty<string>();
     internal IReadOnlyList<string> ScaleSelectionIds = Array.Empty<string>();
+    internal IReadOnlyList<string> RotateSelectionIds = Array.Empty<string>();
     internal bool MoveSelectionCreateCopy;
     internal Editor2DPoint? MoveStartPoint;
     internal Editor2DPoint? ScaleCenterPoint;
     internal double ScaleStartDistance;
     internal double ScalePreviewFactor = 1.0;
+    internal Editor2DPoint? RotatePivot;
+    internal Point? RotateGrabPoint;
+    internal double RotatePreviewDegrees;
     internal string? EditingVertexPathId;
     internal int EditingVertexIndex;
     internal bool EditingVertexIsConstrainedRectangle;
@@ -88,6 +94,7 @@ internal sealed class DxfCanvasInteractionSession
     {
         IsMovingSelection = false;
         IsScalingSelection = false;
+        IsRotatingSelection = false;
         IsEditingVertex = false;
         IsDraggingCorner = false;
         IsDraggingSewingHoleMargin = false;
@@ -97,13 +104,18 @@ internal sealed class DxfCanvasInteractionSession
         CornerDragKind = Editor2DCornerKind.Fillet;
         MoveDocumentSnapshot = null;
         ScaleDocumentSnapshot = null;
+        RotateDocumentSnapshot = null;
         MoveSelectionIds = Array.Empty<string>();
         ScaleSelectionIds = Array.Empty<string>();
+        RotateSelectionIds = Array.Empty<string>();
         MoveSelectionCreateCopy = false;
         MoveStartPoint = null;
         ScaleCenterPoint = null;
         ScaleStartDistance = 0;
         ScalePreviewFactor = 1.0;
+        RotatePivot = null;
+        RotateGrabPoint = null;
+        RotatePreviewDegrees = 0;
         EditingVertexPathId = null;
         EditingPenPathId = null;
         EditingPenClosed = false;
