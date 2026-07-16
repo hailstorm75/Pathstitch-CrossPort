@@ -18,5 +18,12 @@ public interface IEditorOutputPreviewService
         CancellationToken cancellationToken = default)
         => SavePreviewDocumentAsync(document, outputPath, cancellationToken);
 
+    Task SaveExportDocumentAsync(
+        Editor2DExportDocument document,
+        string outputPath,
+        Editor2DExportOptions options,
+        CancellationToken cancellationToken = default)
+        => SavePreviewDocumentAsync(document.Geometry, outputPath, options, cancellationToken);
+
     Task<EditorGeneratedOutputSummary?> InspectOutputAsync(string outputPath, CancellationToken cancellationToken = default);
 }

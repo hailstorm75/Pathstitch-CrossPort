@@ -98,7 +98,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             await _editorOutputPreviewService
-                .SavePreviewDocumentAsync(BuildExportDocument(document), outputPath, ParseDxfOptions(), cancellationToken)
+                .SaveExportDocumentAsync(BuildExportDocument(document), outputPath, ParseDxfOptions(), cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported DXF to {Path.GetFileName(outputPath)}";
         }
@@ -132,7 +132,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             await _editorOutputPreviewService
-                .SavePreviewDocumentAsync(
+                .SaveExportDocumentAsync(
                     BuildExportDocument(document),
                     outputPath,
                     ParseSvgOptions(),
@@ -170,7 +170,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             await _editorOutputPreviewService
-                .SavePreviewDocumentAsync(BuildExportDocument(document), outputPath, ParsePngOptions(), cancellationToken)
+                .SaveExportDocumentAsync(BuildExportDocument(document), outputPath, ParsePngOptions(), cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported PNG to {Path.GetFileName(outputPath)}";
         }
@@ -204,7 +204,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             await _editorOutputPreviewService
-                .SavePreviewDocumentAsync(BuildExportDocument(document), outputPath, ParseSvgOptions(), cancellationToken)
+                .SaveExportDocumentAsync(BuildExportDocument(document), outputPath, ParseSvgOptions(), cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported PDF to {Path.GetFileName(outputPath)}";
         }
@@ -219,22 +219,47 @@ public sealed partial class EditorPageViewModel
         }
     }
 
-    private Editor2DPreviewDocument BuildExportDocument(Editor2DPreviewDocument document)
+    private Editor2DExportDocument BuildExportDocument(Editor2DPreviewDocument document)
     {
-        var exportDocument = TwoDExportSelectedOnly && TwoDSelectedPathIds.Count > 0
+        var exportDocument = TwoDExportSelectedOnly
             ? CreateUpdatedTwoDDocument(document, GetSelectedTwoDPaths())
             : document;
-        if (!TwoDExportMeasurementLines || TwoDMeasurements.Count == 0)
-            return exportDocument;
+        if (TwoDExportMeasurementLines && TwoDMeasurements.Count > 0)
+        {
+            var measurementPaths = TwoDMeasurements
+                .Select(measurement => new Editor2DPreviewPath(
+                    $"measurement-export-{measurement.Id}",
+                    "LINE",
+                    [measurement.Start, measurement.End],
+                    IsClosed: false,
+                    IsConstruction: true))
+                .ToArray();
+            exportDocument = CreateUpdatedTwoDDocument(
+                exportDocument,
+                exportDocument.Paths.Concat(measurementPaths).ToArray());
+        }
 
-        var measurementPaths = TwoDMeasurements
-            .Select(measurement => new Editor2DPreviewPath(
-                $"measurement-export-{measurement.Id}",
-                "LINE",
-                [measurement.Start, measurement.End],
-                IsClosed: false))
+        var metadata = new Dictionary<string, Editor2DExportPathMetadata>(StringComparer.Ordinal);
+        var geometryLayers = TwoDLayers
+            .Where(layer => layer.Kind == Editor2DLayerKind.Geometry)
+            .OrderBy(layer => layer.Order)
+            .ThenBy(layer => layer.Id, StringComparer.Ordinal)
             .ToArray();
-        return CreateUpdatedTwoDDocument(exportDocument, exportDocument.Paths.Concat(measurementPaths).ToArray());
+        foreach (var path in exportDocument.Paths)
+        {
+            if (path.IsConstruction)
+            {
+                metadata[path.Id] = new Editor2DExportPathMetadata("CONSTRUCTION", "#808080");
+                continue;
+            }
+
+            var layer = geometryLayers.FirstOrDefault(candidate => candidate.PathIds.Contains(path.Id, StringComparer.Ordinal));
+            metadata[path.Id] = layer is null
+                ? new Editor2DExportPathMetadata("EDITED_OUTPUT", "#000000", int.MaxValue)
+                : new Editor2DExportPathMetadata(layer.Name, layer.ColorHex, layer.Order);
+        }
+
+        return new Editor2DExportDocument(exportDocument, metadata);
     }
 
     private Editor2DExportOptions ParseSvgOptions()

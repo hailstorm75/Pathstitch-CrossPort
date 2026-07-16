@@ -48,10 +48,27 @@ internal static class EditorDxfDocument
         Editor2DPreviewDocument document,
         string layerName = "EDITED_OUTPUT",
         Editor2DExportOptions? options = null)
+        => SaveDocument(outputPath, document, layerName, options, null);
+
+    public static void SaveExportDocument(
+        string outputPath,
+        Editor2DExportDocument document,
+        Editor2DExportOptions? options = null)
+        => SaveDocument(outputPath, document.Geometry, "EDITED_OUTPUT", options, document.PathMetadata);
+
+    private static void SaveDocument(
+        string outputPath,
+        Editor2DPreviewDocument document,
+        string layerName,
+        Editor2DExportOptions? options,
+        IReadOnlyDictionary<string, Editor2DExportPathMetadata>? pathMetadata)
     {
         if (Path.GetExtension(outputPath).Equals(".svg", StringComparison.OrdinalIgnoreCase))
         {
-            SvgOutputDocumentWriter.Save(outputPath, document, options);
+            if (pathMetadata is null)
+                SvgOutputDocumentWriter.Save(outputPath, document, options);
+            else
+                SvgOutputDocumentWriter.Save(outputPath, new Editor2DExportDocument(document, pathMetadata), options);
             return;
         }
 
@@ -71,14 +88,21 @@ internal static class EditorDxfDocument
         AppendPair(builder, 9, "$ACADVER");
         AppendPair(builder, 1, AcadVersionCode(options?.NormalizedDxfVersion ?? Editor2DExportOptions.Defaults.DxfVersion));
         AppendPair(builder, 0, "ENDSEC");
-        if (document.Paths.Any(static path => path.IsConstruction))
+        var exportLayers = pathMetadata is null ? null : BuildExportLayers(document, pathMetadata);
+        if (exportLayers is not null)
+            AppendLayerTables(builder, exportLayers.Layers);
+        else if (document.Paths.Any(static path => path.IsConstruction))
             AppendConstructionTables(builder);
         AppendPair(builder, 0, "SECTION");
         AppendPair(builder, 2, "ENTITIES");
 
         foreach (var path in document.Paths)
         {
-            var entityLayerName = path.IsConstruction ? "CONSTRUCTION" : layerName;
+            var entityLayerName = path.IsConstruction
+                ? "CONSTRUCTION"
+                : exportLayers is not null && exportLayers.PathLayerNames.TryGetValue(path.Id, out var mappedLayerName)
+                    ? mappedLayerName
+                    : layerName;
             if (string.Equals(path.EntityType, "TEXT", StringComparison.OrdinalIgnoreCase)
                 && path.Start is Editor2DPoint textStart
                 && !string.IsNullOrWhiteSpace(path.Text))
@@ -135,6 +159,121 @@ internal static class EditorDxfDocument
         AppendPair(builder, 0, "EOF");
         File.WriteAllText(outputPath, builder.ToString(), Encoding.ASCII);
     }
+
+    private sealed record ExportLayer(string Name, string ColorHex, int Order, int FirstPathIndex, bool IsConstruction);
+    private sealed record ExportLayerMap(
+        IReadOnlyList<ExportLayer> Layers,
+        IReadOnlyDictionary<string, string> PathLayerNames);
+
+    private static ExportLayerMap BuildExportLayers(
+        Editor2DPreviewDocument document,
+        IReadOnlyDictionary<string, Editor2DExportPathMetadata> pathMetadata)
+    {
+        var layers = new Dictionary<string, ExportLayer>(StringComparer.OrdinalIgnoreCase);
+        var assignedNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var usedNames = new HashSet<string>(["CONSTRUCTION"], StringComparer.OrdinalIgnoreCase);
+        var pathLayerNames = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var index = 0; index < document.Paths.Count; index++)
+        {
+            var path = document.Paths[index];
+            var metadata = pathMetadata.TryGetValue(path.Id, out var value)
+                ? value
+                : new Editor2DExportPathMetadata("EDITED_OUTPUT", "#000000", int.MaxValue);
+            var construction = path.IsConstruction;
+            var sourceName = string.IsNullOrWhiteSpace(metadata.LayerName) ? "EDITED_OUTPUT" : metadata.LayerName.Trim();
+            string name;
+            if (construction)
+            {
+                name = "CONSTRUCTION";
+            }
+            else if (assignedNames.TryGetValue(sourceName, out var assignedName))
+            {
+                name = assignedName;
+            }
+            else
+            {
+                var baseName = NormalizeLayerName(sourceName);
+                name = baseName;
+                for (var suffix = 1; !usedNames.Add(name); suffix++)
+                    name = $"{baseName}_{suffix}";
+                assignedNames[sourceName] = name;
+            }
+            pathLayerNames[path.Id] = name;
+            var color = construction ? "#808080" : NormalizeColorHex(metadata.ColorHex);
+            var order = construction ? int.MaxValue : metadata.Order;
+            if (!layers.ContainsKey(name))
+                layers[name] = new ExportLayer(name, color, order, index, construction);
+        }
+
+        var ordered = layers.Values
+            .OrderBy(static layer => layer.Order)
+            .ThenBy(static layer => layer.FirstPathIndex)
+            .ThenBy(static layer => layer.Name, StringComparer.Ordinal)
+            .ToArray();
+        return new ExportLayerMap(ordered, pathLayerNames);
+    }
+
+    private static void AppendLayerTables(StringBuilder builder, IReadOnlyList<ExportLayer> layers)
+    {
+        var hasConstruction = layers.Any(static layer => layer.IsConstruction);
+        AppendPair(builder, 0, "SECTION");
+        AppendPair(builder, 2, "TABLES");
+        if (hasConstruction)
+            AppendDashedLineTypeTable(builder);
+
+        AppendPair(builder, 0, "TABLE");
+        AppendPair(builder, 2, "LAYER");
+        AppendPair(builder, 70, layers.Count.ToString(CultureInfo.InvariantCulture));
+        foreach (var layer in layers)
+        {
+            AppendPair(builder, 0, "LAYER");
+            AppendPair(builder, 2, layer.Name);
+            AppendPair(builder, 70, "0");
+            AppendPair(builder, 62, layer.IsConstruction ? "8" : "7");
+            if (!layer.IsConstruction)
+                AppendPair(builder, 420, RgbTrueColor(layer.ColorHex).ToString(CultureInfo.InvariantCulture));
+            AppendPair(builder, 6, layer.IsConstruction ? "DASHED" : "CONTINUOUS");
+        }
+        AppendPair(builder, 0, "ENDTAB");
+        AppendPair(builder, 0, "ENDSEC");
+    }
+
+    private static void AppendDashedLineTypeTable(StringBuilder builder)
+    {
+        AppendPair(builder, 0, "TABLE");
+        AppendPair(builder, 2, "LTYPE");
+        AppendPair(builder, 70, "1");
+        AppendPair(builder, 0, "LTYPE");
+        AppendPair(builder, 2, "DASHED");
+        AppendPair(builder, 70, "0");
+        AppendPair(builder, 3, "Dashed __ __ __");
+        AppendPair(builder, 72, "65");
+        AppendPair(builder, 73, "2");
+        AppendPair(builder, 40, "0.75");
+        AppendPair(builder, 49, "0.5");
+        AppendPair(builder, 74, "0");
+        AppendPair(builder, 49, "-0.25");
+        AppendPair(builder, 74, "0");
+        AppendPair(builder, 0, "ENDTAB");
+    }
+
+    private static string NormalizeLayerName(string? value)
+    {
+        var name = string.IsNullOrWhiteSpace(value) ? "EDITED_OUTPUT" : value.Trim();
+        var invalid = new HashSet<char>(['<', '>', '/', '\\', '"', ':', ';', '?', '*', '|', '=', ',']);
+        return new string(name.Select(character => invalid.Contains(character) || char.IsControl(character) ? '_' : character).ToArray());
+    }
+
+    private static string NormalizeColorHex(string? value)
+    {
+        var color = value?.Trim() ?? string.Empty;
+        if (color.Length == 7 && color[0] == '#' && int.TryParse(color[1..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out _))
+            return color.ToUpperInvariant();
+        return "#000000";
+    }
+
+    private static int RgbTrueColor(string colorHex)
+        => int.Parse(colorHex[1..], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
 
     private static string AcadVersionCode(string version)
         => version switch

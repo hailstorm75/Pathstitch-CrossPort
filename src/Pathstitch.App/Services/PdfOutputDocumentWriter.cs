@@ -15,6 +15,15 @@ internal static class PdfOutputDocumentWriter
     private const double Margin = 36.0;
 
     public static void Save(string outputPath, Editor2DPreviewDocument document)
+        => Save(outputPath, document, null);
+
+    public static void Save(string outputPath, Editor2DExportDocument document)
+        => Save(outputPath, document.Geometry, document.PathMetadata);
+
+    private static void Save(
+        string outputPath,
+        Editor2DPreviewDocument document,
+        IReadOnlyDictionary<string, Editor2DExportPathMetadata>? pathMetadata)
     {
         var bounds = document.Bounds;
         var width = Math.Max(bounds.MaxX - bounds.MinX, 1.0);
@@ -25,6 +34,10 @@ internal static class PdfOutputDocumentWriter
 
         foreach (var path in document.Paths)
         {
+            var (red, green, blue) = ExportPathColor.ResolvePdf(path, pathMetadata);
+            content.Append(Number(red)).Append(' ').Append(Number(green)).Append(' ').Append(Number(blue))
+                .Append(" RG ").Append(Number(red)).Append(' ').Append(Number(green)).Append(' ').Append(Number(blue))
+                .Append(" rg\n");
             if (path.EntityType.Equals("CIRCLE", StringComparison.OrdinalIgnoreCase)
                 && path.Center is not null
                 && path.Radius is > 0)

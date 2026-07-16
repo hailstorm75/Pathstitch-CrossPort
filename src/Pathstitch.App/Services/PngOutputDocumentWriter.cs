@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Domain.App.Models;
 using SkiaSharp;
@@ -8,6 +9,16 @@ namespace Pathstitch.App.Services;
 internal static class PngOutputDocumentWriter
 {
     public static void Save(string outputPath, Editor2DPreviewDocument document, Editor2DExportOptions options)
+        => Save(outputPath, document, options, null);
+
+    public static void Save(string outputPath, Editor2DExportDocument document, Editor2DExportOptions options)
+        => Save(outputPath, document.Geometry, options, document.PathMetadata);
+
+    private static void Save(
+        string outputPath,
+        Editor2DPreviewDocument document,
+        Editor2DExportOptions options,
+        IReadOnlyDictionary<string, Editor2DExportPathMetadata>? pathMetadata)
     {
         var bounds = document.Bounds;
         var width = Math.Max(bounds.Width, 1.0);
@@ -31,6 +42,7 @@ internal static class PngOutputDocumentWriter
         };
         foreach (var path in document.Paths)
         {
+            paint.Color = ExportPathColor.ResolveSkia(path, pathMetadata);
             if (path.Center is Editor2DPoint center && path.Radius is double radius && radius > 0)
             {
                 canvas.DrawCircle((float)center.X, (float)center.Y, (float)radius, paint);

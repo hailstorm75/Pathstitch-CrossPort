@@ -79,6 +79,31 @@ public sealed class DxfOutputPreviewService : IEditorOutputPreviewService
         return Task.CompletedTask;
     }
 
+    public Task SaveExportDocumentAsync(
+        Editor2DExportDocument document,
+        string outputPath,
+        Editor2DExportOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        switch (Path.GetExtension(outputPath).ToLowerInvariant())
+        {
+            case ".svg":
+                SvgOutputDocumentWriter.Save(outputPath, document, options);
+                break;
+            case ".pdf":
+                PdfOutputDocumentWriter.Save(outputPath, document);
+                break;
+            case ".png":
+                PngOutputDocumentWriter.Save(outputPath, document, options);
+                break;
+            default:
+                EditorDxfDocument.SaveExportDocument(outputPath, document, options);
+                break;
+        }
+        return Task.CompletedTask;
+    }
+
     public Task SavePreviewDocumentAsync(
         Editor2DPreviewDocument document,
         string outputPath,

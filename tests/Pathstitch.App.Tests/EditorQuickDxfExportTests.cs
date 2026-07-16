@@ -82,6 +82,60 @@ public sealed class EditorQuickDxfExportTests
     }
 
     [Fact]
+    public async Task Export_SelectedOnlyWithEmptySelectionWritesEmptyGeometry()
+    {
+        var output = new RecordingExportOutputPreviewService();
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+            new RecordingFileDialogService("empty-selection.dxf"),
+            output);
+        viewModel.TwoDDocument = CreateDocument();
+        viewModel.TwoDExportSelectedOnly = true;
+
+        await viewModel.ExportTwoDDxfAsync();
+
+        var exported = Assert.IsType<Editor2DExportDocument>(output.SavedExportDocument);
+        Assert.Empty(exported.Geometry.Paths);
+        Assert.Empty(exported.PathMetadata);
+    }
+
+    [Fact]
+    public async Task ExportDocument_CarriesFlatLayerMetadataAndKeepsHiddenGeometry()
+    {
+        var document = new Editor2DPreviewDocument(
+            [
+                new Editor2DPreviewPath("cut", "LINE", [new(0, 0), new(10, 0)], false),
+                new Editor2DPreviewPath("score", "LINE", [new(0, 5), new(10, 5)], false),
+                new Editor2DPreviewPath("guide", "LINE", [new(0, 10), new(10, 10)], false, IsConstruction: true),
+            ],
+            new Editor2DBounds(0, 0, 10, 10),
+            new Dictionary<string, int> { ["LINE"] = 3 },
+            []);
+        var output = new RecordingExportOutputPreviewService();
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+            new RecordingFileDialogService("layers.dxf"),
+            output);
+        viewModel.TwoDDocument = document;
+        var cutLayer = Assert.Single(viewModel.TwoDLayers);
+        viewModel.RenameTwoDLayer(cutLayer.Id, "Cut");
+        viewModel.SetTwoDLayerColor(cutLayer.Id, "#FF0000");
+        viewModel.CreateTwoDLayer();
+        var scoreLayer = viewModel.TwoDLayers.Single(layer => layer.Id != cutLayer.Id);
+        viewModel.RenameTwoDLayer(scoreLayer.Id, "Score");
+        viewModel.SetTwoDLayerColor(scoreLayer.Id, "#0000FF");
+        viewModel.TwoDSelectedPathIds = ["score"];
+        viewModel.AssignTwoDSelectionToLayer(scoreLayer.Id);
+        viewModel.ToggleTwoDLayerVisibility(scoreLayer.Id);
+
+        await viewModel.ExportTwoDDxfAsync();
+
+        var exported = Assert.IsType<Editor2DExportDocument>(output.SavedExportDocument);
+        Assert.Equal(["cut", "score", "guide"], exported.Geometry.Paths.Select(path => path.Id).ToArray());
+        Assert.Equal(new Editor2DExportPathMetadata("Cut", "#FF0000", cutLayer.Order), exported.PathMetadata["cut"]);
+        Assert.Equal(new Editor2DExportPathMetadata("Score", "#0000FF", scoreLayer.Order), exported.PathMetadata["score"]);
+        Assert.Equal(new Editor2DExportPathMetadata("CONSTRUCTION", "#808080"), exported.PathMetadata["guide"]);
+    }
+
+    [Fact]
     public async Task Export_WriteFailureSetsErrorMessage()
     {
         var output = new RecordingOutputPreviewService(new IOException("disk full"));
@@ -185,6 +239,27 @@ public sealed class EditorQuickDxfExportTests
     }
 
     [Fact]
+    public async Task ExportDocument_AssignsMeasurementConstructionMetadata()
+    {
+        var output = new RecordingExportOutputPreviewService();
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+            new RecordingFileDialogService("measurements.dxf"),
+            output);
+        viewModel.TwoDDocument = CreateDocument();
+        viewModel.TwoDMeasurements = [new Editor2DMeasurement("measure-1", new(10, 20), new(30, 40))];
+        viewModel.TwoDExportMeasurementLines = true;
+
+        await viewModel.ExportTwoDDxfAsync();
+
+        var exported = Assert.IsType<Editor2DExportDocument>(output.SavedExportDocument);
+        var measurement = Assert.Single(exported.Geometry.Paths, path => path.Id == "measurement-export-measure-1");
+        Assert.True(measurement.IsConstruction);
+        Assert.Equal(
+            new Editor2DExportPathMetadata("CONSTRUCTION", "#808080"),
+            exported.PathMetadata[measurement.Id]);
+    }
+
+    [Fact]
     public async Task DxfWriter_UsesRequestedReleaseVersion()
     {
         var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-dxf-version-{Guid.NewGuid():N}.dxf");
@@ -281,6 +356,126 @@ public sealed class EditorQuickDxfExportTests
             Assert.DoesNotContain("\nCONSTRUCTION\n", dxf, StringComparison.Ordinal);
             Assert.DoesNotContain("\nDASHED\n", dxf, StringComparison.Ordinal);
             Assert.DoesNotContain("\n62\n8\n", dxf, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(outputPath);
+        }
+    }
+
+    [Fact]
+    public async Task DxfWriter_ExportDocumentWritesFlatLayerTableColorsAndPathLayerCodes()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-layered-{Guid.NewGuid():N}.dxf");
+        try
+        {
+            var geometry = new Editor2DPreviewDocument(
+                [
+                    new Editor2DPreviewPath("cut", "LINE", [new(0, 0), new(10, 0)], false),
+                    new Editor2DPreviewPath("score", "LINE", [new(0, 5), new(10, 5)], false),
+                    new Editor2DPreviewPath("guide", "LINE", [new(0, 10), new(10, 10)], false, IsConstruction: true),
+                ],
+                new Editor2DBounds(0, 0, 10, 10),
+                new Dictionary<string, int> { ["LINE"] = 3 },
+                []);
+            var export = new Editor2DExportDocument(
+                geometry,
+                new Dictionary<string, Editor2DExportPathMetadata>
+                {
+                    ["cut"] = new("Cut", "#FF0000", 0),
+                    ["score"] = new("Score", "#0000FF", 1),
+                    ["guide"] = new("ignored", "#00FF00", 2),
+                });
+
+            await new DxfOutputPreviewService().SaveExportDocumentAsync(
+                export, outputPath, Editor2DExportOptions.Defaults);
+
+            var dxf = await File.ReadAllTextAsync(outputPath);
+            Assert.Contains("0\nLAYER\n2\nCut\n70\n0\n62\n7\n420\n16711680\n6\nCONTINUOUS\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("0\nLAYER\n2\nScore\n70\n0\n62\n7\n420\n255\n6\nCONTINUOUS\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("0\nLAYER\n2\nCONSTRUCTION\n70\n0\n62\n8\n6\nDASHED\n", dxf, StringComparison.Ordinal);
+            Assert.Equal(1, dxf.Split("8\nCut\n", StringSplitOptions.None).Length - 1);
+            Assert.Equal(1, dxf.Split("8\nScore\n", StringSplitOptions.None).Length - 1);
+            Assert.Contains("8\nCONSTRUCTION\n6\nDASHED\n62\n8\n", dxf, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(outputPath);
+        }
+    }
+
+    [Fact]
+    public async Task DxfWriter_SuffixesSanitizedLayerNameCollisions()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-layer-collision-{Guid.NewGuid():N}.dxf");
+        try
+        {
+            var geometry = new Editor2DPreviewDocument(
+                [
+                    new Editor2DPreviewPath("first", "LINE", [new(0, 0), new(1, 0)], false),
+                    new Editor2DPreviewPath("second", "LINE", [new(0, 1), new(1, 1)], false),
+                ],
+                new Editor2DBounds(0, 0, 1, 1),
+                new Dictionary<string, int> { ["LINE"] = 2 },
+                []);
+            var export = new Editor2DExportDocument(
+                geometry,
+                new Dictionary<string, Editor2DExportPathMetadata>
+                {
+                    ["first"] = new("Cut:Layer", "#FF0000", 0),
+                    ["second"] = new("Cut?Layer", "#0000FF", 1),
+                });
+
+            await new DxfOutputPreviewService().SaveExportDocumentAsync(
+                export, outputPath, Editor2DExportOptions.Defaults);
+
+            var dxf = await File.ReadAllTextAsync(outputPath);
+            Assert.Contains("0\nLAYER\n2\nCut_Layer\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("0\nLAYER\n2\nCut_Layer_1\n", dxf, StringComparison.Ordinal);
+            Assert.Equal(1, dxf.Split("8\nCut_Layer\n", StringSplitOptions.None).Length - 1);
+            Assert.Equal(1, dxf.Split("8\nCut_Layer_1\n", StringSplitOptions.None).Length - 1);
+        }
+        finally
+        {
+            File.Delete(outputPath);
+        }
+    }
+
+    [Fact]
+    public async Task SvgWriter_ExportDocumentUsesLayerGroupsColorsAndStableSanitizedIds()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-layered-{Guid.NewGuid():N}.svg");
+        try
+        {
+            var geometry = new Editor2DPreviewDocument(
+                [
+                    new Editor2DPreviewPath("first", "LINE", [new(0, 0), new(1, 0)], false),
+                    new Editor2DPreviewPath("second", "LINE", [new(0, 1), new(1, 1)], false),
+                    new Editor2DPreviewPath("guide", "LINE", [new(0, 2), new(1, 2)], false, IsConstruction: true),
+                ],
+                new Editor2DBounds(0, 0, 1, 2),
+                new Dictionary<string, int> { ["LINE"] = 3 },
+                []);
+            var export = new Editor2DExportDocument(
+                geometry,
+                new Dictionary<string, Editor2DExportPathMetadata>
+                {
+                    ["first"] = new("Cut Layer", "#AA0000", 0),
+                    ["second"] = new("Cut:Layer", "#0000BB", 1),
+                    ["guide"] = new("ignored", "#00FF00", 2),
+                });
+
+            await new DxfOutputPreviewService().SaveExportDocumentAsync(
+                export, outputPath, new Editor2DExportOptions(2, 1.25));
+
+            var svg = await File.ReadAllTextAsync(outputPath);
+            Assert.Contains("id=\"layer_Cut_Layer\" data-layer-name=\"Cut Layer\" stroke=\"#AA0000\"", svg, StringComparison.Ordinal);
+            Assert.Contains("id=\"layer_Cut_Layer_1\" data-layer-name=\"Cut:Layer\" stroke=\"#0000BB\"", svg, StringComparison.Ordinal);
+            Assert.Contains("id=\"layer_CONSTRUCTION\" data-layer-name=\"CONSTRUCTION\" stroke=\"#808080\"", svg, StringComparison.Ordinal);
+            Assert.Contains("stroke-width=\"1.25\"", svg, StringComparison.Ordinal);
+            Assert.Contains("stroke-dasharray=\"6 4\"", svg, StringComparison.Ordinal);
+            Assert.True(svg.IndexOf("points=\"0,0 1,0\"", StringComparison.Ordinal)
+                < svg.IndexOf("points=\"0,1 1,1\"", StringComparison.Ordinal));
         }
         finally
         {
@@ -389,6 +584,33 @@ public sealed class EditorQuickDxfExportTests
             SavedPath = outputPath;
             return Task.CompletedTask;
         }
+
+        public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
+            => Task.FromResult<Editor2DPreviewDocument?>(null);
+
+        public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(string outputPath, CancellationToken cancellationToken = default)
+            => Task.FromResult<EditorGeneratedOutputSummary?>(null);
+    }
+
+    private sealed class RecordingExportOutputPreviewService : IEditorOutputPreviewService
+    {
+        public Editor2DExportDocument? SavedExportDocument { get; private set; }
+
+        public Task SaveExportDocumentAsync(
+            Editor2DExportDocument document,
+            string outputPath,
+            Editor2DExportOptions options,
+            CancellationToken cancellationToken = default)
+        {
+            SavedExportDocument = document;
+            return Task.CompletedTask;
+        }
+
+        public Task SavePreviewDocumentAsync(
+            Editor2DPreviewDocument document,
+            string outputPath,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
 
         public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
             => Task.FromResult<Editor2DPreviewDocument?>(null);
