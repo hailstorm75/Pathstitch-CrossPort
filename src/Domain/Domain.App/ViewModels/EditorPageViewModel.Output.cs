@@ -276,6 +276,13 @@ public sealed partial class EditorPageViewModel
             }
 
             var previousTool = _twoDWorkspace.ActiveTool;
+            if (!_isApplyingTwoDWorkspaceState
+                && previousTool == Editor2DTool.Scale
+                && value != Editor2DTool.Scale
+                && !TryCommitPendingTwoDScale())
+            {
+                return;
+            }
             if (previousTool is Editor2DTool.Fillet or Editor2DTool.Chamfer)
                 _twoDWorkspace.ConfirmCornerToolSession();
             if (value == Editor2DTool.Fillet)
@@ -287,6 +294,11 @@ public sealed partial class EditorPageViewModel
             if (_twoDWorkspace.ActiveTool == Editor2DTool.Offset && value != Editor2DTool.Offset)
                 ClearTwoDOffsetPreview();
             _twoDWorkspace.SetActiveTool(value);
+            if (value == Editor2DTool.Scale)
+            {
+                TwoDScaleFactorText = "1";
+                TwoDScaleFromCenter = true;
+            }
             if (value == Editor2DTool.Offset)
             {
                 TwoDOffsetDistanceText = "12";
@@ -480,6 +492,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(HasTwoDSelection));
             OnPropertyChanged(nameof(TwoDSelectionCount));
             OnPropertyChanged(nameof(CanApplyTwoDScale));
+            OnPropertyChanged(nameof(TwoDScalePreviewFactor));
             OnPropertyChanged(nameof(CanConfirmTwoDMirror));
             OnPropertyChanged(nameof(TwoDMirrorStageHint));
             OnPropertyChanged(nameof(TwoDMirrorObjectSummary));
@@ -826,6 +839,7 @@ public sealed partial class EditorPageViewModel
             if (!SetWorkspaceFacadeValue(_twoDScaleFactorText, value ?? string.Empty, updated => _twoDScaleFactorText = updated))
                 return;
             OnPropertyChanged(nameof(CanApplyTwoDScale));
+            OnPropertyChanged(nameof(TwoDScalePreviewFactor));
         }
     }
 
@@ -845,6 +859,13 @@ public sealed partial class EditorPageViewModel
             && TryParseTwoDPrecisionValue(TwoDScaleFactorText, out var factor)
             && double.IsFinite(factor)
             && factor > 0.0;
+
+    public double TwoDScalePreviewFactor
+        => TryParseTwoDPrecisionValue(TwoDScaleFactorText, out var factor)
+            && double.IsFinite(factor)
+            && factor > 0.0
+                ? factor
+                : 1.0;
 
     public Editor2DPoint? TwoDScalePivot
     {
@@ -882,6 +903,48 @@ public sealed partial class EditorPageViewModel
         }
 
         return CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyScale(factor, TwoDScaleFromCenter, TwoDScalePivot));
+    }
+
+    public bool ConfirmTwoDScaleAndExit()
+    {
+        if (!TryCommitPendingTwoDScale())
+            return false;
+
+        TwoDActiveTool = Editor2DTool.Select;
+        return true;
+    }
+
+    public void CancelTwoDScaleAndExit()
+    {
+        TwoDScaleFactorText = "1";
+        ClearTwoDScalePivot();
+        TwoDActiveTool = Editor2DTool.Select;
+    }
+
+    private bool TryCommitPendingTwoDScale()
+    {
+        if (!HasTwoDSelection)
+        {
+            TwoDScaleFactorText = "1";
+            return true;
+        }
+
+        if (!TryParseTwoDPrecisionValue(TwoDScaleFactorText, out var factor)
+            || !double.IsFinite(factor)
+            || factor <= 0.0)
+        {
+            TwoDScaleFactorText = "1";
+            return true;
+        }
+
+        if (Math.Abs(factor - 1.0) > 0.001
+            && !CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyScale(factor, TwoDScaleFromCenter, TwoDScalePivot)))
+        {
+            return false;
+        }
+
+        TwoDScaleFactorText = "1";
+        return true;
     }
 
     public void PickTwoDScalePivot()

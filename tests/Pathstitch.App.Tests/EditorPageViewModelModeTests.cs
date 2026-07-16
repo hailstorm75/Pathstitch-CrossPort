@@ -407,6 +407,24 @@ public sealed class EditorPageViewModelModeTests
 
         Assert.Null(viewModel.TwoDScalePivot);
         Assert.False(viewModel.TwoDScalePivotPicking);
+        Assert.Equal("1", viewModel.TwoDScaleFactorText);
+    }
+
+    [Fact]
+    public void ScaleEntry_ResetsFactorPivotAndCenterMode()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.TwoDScaleFactorText = "4";
+        viewModel.TwoDScaleFromCenter = false;
+        viewModel.TwoDScalePivot = new Editor2DPoint(3, 2);
+        viewModel.TwoDScalePivotPicking = true;
+
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+
+        Assert.Equal("1", viewModel.TwoDScaleFactorText);
+        Assert.True(viewModel.TwoDScaleFromCenter);
+        Assert.Null(viewModel.TwoDScalePivot);
+        Assert.False(viewModel.TwoDScalePivotPicking);
     }
 
     [Fact]
@@ -429,6 +447,139 @@ public sealed class EditorPageViewModelModeTests
         Assert.False(viewModel.CanApplyTwoDScale);
         Assert.False(viewModel.ApplyTwoDScale());
         Assert.Equal("Enter a positive finite scale factor", viewModel.StatusText);
+    }
+
+    [Fact]
+    public void ConfirmScale_AppliesOnceExitsToolAndClearsTransientPivot()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(2, 4), new(6, 8)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+        viewModel.TwoDScaleFromCenter = false;
+        viewModel.TwoDScalePivot = new Editor2DPoint(2, 4);
+        viewModel.TwoDScalePivotPicking = true;
+        viewModel.TwoDScaleFactorText = "2";
+        viewModel.TwoDWorkspace.ClearHistory();
+
+        Assert.True(viewModel.ConfirmTwoDScaleAndExit());
+
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        Assert.Equal([source.Id], viewModel.TwoDSelectedPathIds);
+        Assert.Equal(new Editor2DPoint(2, 4), viewModel.TwoDDocument!.Paths[0].Points[0]);
+        Assert.Equal(new Editor2DPoint(10, 12), viewModel.TwoDDocument.Paths[0].Points[1]);
+        Assert.Null(viewModel.TwoDScalePivot);
+        Assert.False(viewModel.TwoDScalePivotPicking);
+        Assert.True(viewModel.TwoDWorkspace.CanUndo);
+        Assert.True(viewModel.TwoDWorkspace.Undo());
+        Assert.Equal(source.Points, viewModel.TwoDDocument.Paths[0].Points);
+        Assert.False(viewModel.TwoDWorkspace.CanUndo);
+    }
+
+    [Fact]
+    public void LeavingScale_CommitsStagedFactorOnceAndResetsNextSession()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(0, 0), new(4, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+        viewModel.TwoDScaleFactorText = "2";
+        viewModel.TwoDWorkspace.ClearHistory();
+
+        viewModel.TwoDActiveTool = Editor2DTool.Pan;
+
+        Assert.Equal(Editor2DTool.Pan, viewModel.TwoDActiveTool);
+        Assert.Equal(new Editor2DPoint(-2, 0), viewModel.TwoDDocument!.Paths[0].Points[0]);
+        Assert.Equal(new Editor2DPoint(6, 0), viewModel.TwoDDocument.Paths[0].Points[1]);
+        Assert.Equal("1", viewModel.TwoDScaleFactorText);
+        Assert.True(viewModel.TwoDWorkspace.Undo());
+        Assert.Equal(source.Points, viewModel.TwoDDocument.Paths[0].Points);
+        Assert.False(viewModel.TwoDWorkspace.CanUndo);
+
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+        Assert.Equal("1", viewModel.TwoDScaleFactorText);
+    }
+
+    [Fact]
+    public void ConfirmScale_IdentityFactorExitsWithoutGeometryHistory()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(0, 0), new(4, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+        viewModel.TwoDScaleFactorText = "1.0005";
+        viewModel.TwoDWorkspace.ClearHistory();
+
+        Assert.True(viewModel.ConfirmTwoDScaleAndExit());
+
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        Assert.Equal(source.Points, viewModel.TwoDDocument!.Paths[0].Points);
+        Assert.False(viewModel.TwoDWorkspace.CanUndo);
+    }
+
+    [Fact]
+    public void ConfirmScale_WithoutSelectionExitsAndResetsFactor()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+        viewModel.TwoDScaleFactorText = "2";
+        viewModel.TwoDWorkspace.ClearHistory();
+
+        Assert.True(viewModel.ConfirmTwoDScaleAndExit());
+
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        Assert.Equal("1", viewModel.TwoDScaleFactorText);
+        Assert.False(viewModel.TwoDWorkspace.CanUndo);
+    }
+
+    [Fact]
+    public void CancelScale_DropsStagedFactorAndPivotWithoutGeometryHistory()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(0, 0), new(4, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+        viewModel.TwoDScaleFactorText = "3";
+        viewModel.TwoDScalePivot = new Editor2DPoint(1, 0);
+        viewModel.TwoDWorkspace.ClearHistory();
+
+        viewModel.CancelTwoDScaleAndExit();
+
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        Assert.Equal("1", viewModel.TwoDScaleFactorText);
+        Assert.Null(viewModel.TwoDScalePivot);
+        Assert.Equal(source.Points, viewModel.TwoDDocument!.Paths[0].Points);
+        Assert.False(viewModel.TwoDWorkspace.CanUndo);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("invalid")]
+    public void ConfirmScale_InvalidFactorResetsAndExitsWithoutGeometryChange(string factor)
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(2, 4), new(6, 8)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+        viewModel.TwoDScaleFromCenter = false;
+        viewModel.TwoDScalePivot = new Editor2DPoint(2, 4);
+        viewModel.TwoDScalePivotPicking = true;
+        viewModel.TwoDScaleFactorText = factor;
+        viewModel.TwoDWorkspace.ClearHistory();
+
+        Assert.True(viewModel.ConfirmTwoDScaleAndExit());
+
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        Assert.Equal(source.Points, viewModel.TwoDDocument!.Paths[0].Points);
+        Assert.Null(viewModel.TwoDScalePivot);
+        Assert.False(viewModel.TwoDScalePivotPicking);
+        Assert.Equal("1", viewModel.TwoDScaleFactorText);
+        Assert.False(viewModel.TwoDWorkspace.CanUndo);
     }
 
     [Fact]
