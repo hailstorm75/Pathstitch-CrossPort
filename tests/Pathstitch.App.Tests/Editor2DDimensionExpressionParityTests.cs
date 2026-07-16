@@ -1,3 +1,4 @@
+using System.Globalization;
 using Domain.App.Models;
 using Domain.App.Services;
 using Domain.App.ViewModels;
@@ -242,6 +243,151 @@ public sealed class Editor2DDimensionExpressionParityTests
         Assert.Equal("30.00 mm", DxfCanvasMeasurementEditing.FormatLabel(
             formula with { Expression = "30", EvaluatedValue = 30 }));
         Assert.DoesNotContain("inch mm", DxfCanvasMeasurementEditing.FormatLabel(formula), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("LINE", "length", 10.0)]
+    [InlineData("CIRCLE", "radius", 5.0)]
+    [InlineData("ARC", "radius", 5.0)]
+    public void AttachedExpression_ResizesEntityAndDependentsInOneUndoableTransaction(
+        string entityType,
+        string dimensionType,
+        double initialValue)
+    {
+        var path = entityType switch
+        {
+            "LINE" => new Editor2DPreviewPath(
+                "source", "LINE", [new(0, 0), new(initialValue, 0)], false, Start: new(0, 0)),
+            "CIRCLE" => new Editor2DPreviewPath(
+                "source", "CIRCLE", Editor2DGeometry.BuildCirclePoints(new(0, 0), initialValue), true,
+                Center: new(0, 0), Radius: initialValue),
+            _ => new Editor2DPreviewPath(
+                "source", "ARC", Editor2DGeometry.BuildArcPoints(new(0, 0), initialValue, 10, 120), false,
+                Center: new(0, 0), Radius: initialValue, StartAngleDegrees: 10, EndAngleDegrees: 120),
+        };
+        Assert.True(Editor2DGeometry.TryBuildAttachedMeasurement(
+            path, dimensionType, 2, 30, out var start, out var end));
+        var attached = new Editor2DMeasurement(
+            "attached", start, end, EntityPathId: path.Id, DimensionType: dimensionType,
+            OffsetDistance: 2, PlacementAngleDegrees: 30, VarName: "d1",
+            Expression: initialValue.ToString(CultureInfo.InvariantCulture), IsParametric: true,
+            EvaluatedValue: initialValue);
+        var dependent = new Editor2DMeasurement(
+            "dependent", new(0, 20), new(initialValue * 2, 20), VarName: "d2",
+            Expression: "d1 * 2", IsParametric: true, EvaluatedValue: initialValue * 2);
+        var document = Editor2DWorkspaceState.Empty.Document with
+        {
+            Paths = [path],
+            Bounds = new Editor2DBounds(-initialValue, -initialValue, initialValue, initialValue),
+            EntityCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { [entityType] = 1 },
+        };
+        var layer = new Editor2DLayer("layer", "Layer", [path.Id]);
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.Apply(Editor2DWorkspaceState.Empty with
+        {
+            Document = document,
+            Measurements = [attached, dependent],
+            SelectedMeasurementId = attached.Id,
+            Layers = [layer],
+            ActiveLayerId = layer.Id,
+        }, recordHistory: false);
+        workspace.ClearHistory();
+
+        Assert.True(workspace.TrySetMeasurementExpression(attached.Id, "20", out var error), error);
+
+        var resized = Assert.Single(workspace.Document.Paths);
+        if (entityType == "LINE")
+            Assert.Equal(20, Math.Sqrt(
+                Math.Pow(resized.Points[^1].X - resized.Points[0].X, 2)
+                + Math.Pow(resized.Points[^1].Y - resized.Points[0].Y, 2)), 8);
+        else
+            Assert.Equal(20, resized.Radius!.Value, 8);
+        Assert.Equal(path.Id, resized.Id);
+        Assert.Equal([path.Id], Assert.Single(workspace.Layers).PathIds);
+        AssertMeasurement(workspace, attached.Id, distance: 20, evaluated: 20);
+        AssertMeasurement(workspace, dependent.Id, distance: 40, evaluated: 40);
+        Assert.True(workspace.CanUndo);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal(document, workspace.Document);
+        Assert.Equal([attached, dependent], workspace.Measurements);
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.Redo());
+        Assert.Equal(20, workspace.Measurements.Single(item => item.Id == attached.Id).Distance, 8);
+        Assert.Equal(40, workspace.Measurements.Single(item => item.Id == dependent.Id).Distance, 8);
+    }
+
+    [Fact]
+    public void AttachedExpression_PrunesOnlyEditedPathOwnershipAndHistoryRestoresIt()
+    {
+        var edited = new Editor2DPreviewPath("edited", "LINE", [new(0, 0), new(10, 0)], false);
+        var unrelated = new Editor2DPreviewPath("unrelated", "LINE", [new(0, 20), new(10, 20)], false);
+        Assert.True(Editor2DGeometry.TryBuildAttachedMeasurement(
+            edited, "length", 2, null, out var start, out var end));
+        var measurement = new Editor2DMeasurement(
+            "dimension", start, end, EntityPathId: edited.Id, DimensionType: "length",
+            OffsetDistance: 2, VarName: "d1", Expression: "10", IsParametric: true, EvaluatedValue: 10);
+        var layer = new Editor2DLayer("layer", "Layer", [edited.Id, unrelated.Id]);
+        Editor2DConvertLineGroup Convert(string id, Editor2DPreviewPath path) => new(
+            id, "dashed", new Dictionary<string, double>(),
+            [new Editor2DConvertLineSource(path, layer.Id, 0, 0, [path.Id])]);
+        var relatedImport = new Editor2DImportGroup(
+            "import-related", "related.dxf", 1, [edited.Id], layer.Id, 0, 0);
+        var unrelatedImport = new Editor2DImportGroup(
+            "import-unrelated", "unrelated.dxf", 1, [unrelated.Id], layer.Id, 1, 1);
+        var relatedSewing = new Editor2DSewingHoleOperation(
+            "sewing-related", [edited.Id], [unrelated.Id], Editor2DSewingHoleParameters.Default);
+        var unrelatedSewing = new Editor2DSewingHoleOperation(
+            "sewing-unrelated", [unrelated.Id], [unrelated.Id], Editor2DSewingHoleParameters.Default);
+        var relatedCorner = new Editor2DCornerParameter(
+            "corner-related", edited.Id, 0, Editor2DCornerKind.Chamfer, 1, edited.Points);
+        var unrelatedCorner = new Editor2DCornerParameter(
+            "corner-unrelated", unrelated.Id, 0, Editor2DCornerKind.Chamfer, 1, unrelated.Points);
+        var document = Editor2DWorkspaceState.Empty.Document with
+        {
+            Paths = [edited, unrelated],
+            Bounds = new Editor2DBounds(0, 0, 10, 20),
+            EntityCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["LINE"] = 2 },
+        };
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.Apply(Editor2DWorkspaceState.Empty with
+        {
+            Document = document,
+            Measurements = [measurement],
+            SelectedMeasurementId = measurement.Id,
+            Layers = [layer],
+            ActiveLayerId = layer.Id,
+            ImportGroups = [relatedImport, unrelatedImport],
+            SewingHoleOperations = [relatedSewing, unrelatedSewing],
+            ConvertLineGroups = [Convert("convert-related", edited), Convert("convert-unrelated", unrelated)],
+            CornerParameters = [relatedCorner, unrelatedCorner],
+            ExpandedRectanglePathIds = [edited.Id, unrelated.Id],
+        }, recordHistory: false);
+        workspace.ClearHistory();
+
+        Assert.True(workspace.TrySetMeasurementExpression(measurement.Id, "20", out var error), error);
+
+        Assert.Equal([unrelatedImport.Id], workspace.ImportGroups.Select(group => group.Id));
+        Assert.Equal([unrelatedSewing.Id], workspace.SewingHoleOperations.Select(operation => operation.Id));
+        Assert.Equal(["convert-unrelated"], workspace.ConvertLineGroups.Select(group => group.Id));
+        Assert.Equal([unrelatedCorner.Id], workspace.CornerParameters.Select(parameter => parameter.Id));
+        Assert.Equal([unrelated.Id], workspace.State.ExpandedRectanglePathIds);
+        Assert.Equal(layer.PathIds, Assert.Single(workspace.Layers).PathIds);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal(2, workspace.ImportGroups.Count);
+        Assert.Equal(2, workspace.SewingHoleOperations.Count);
+        Assert.Equal(2, workspace.ConvertLineGroups.Count);
+        Assert.Equal(2, workspace.CornerParameters.Count);
+        Assert.Equal([edited.Id, unrelated.Id], workspace.State.ExpandedRectanglePathIds);
+        Assert.Equal(layer.PathIds, Assert.Single(workspace.Layers).PathIds);
+
+        Assert.True(workspace.Redo());
+        Assert.Equal([unrelatedImport.Id], workspace.ImportGroups.Select(group => group.Id));
+        Assert.Equal([unrelatedSewing.Id], workspace.SewingHoleOperations.Select(operation => operation.Id));
+        Assert.Equal(["convert-unrelated"], workspace.ConvertLineGroups.Select(group => group.Id));
+        Assert.Equal([unrelated.Id], workspace.State.ExpandedRectanglePathIds);
+        Assert.Equal(layer.PathIds, Assert.Single(workspace.Layers).PathIds);
     }
 
     [Fact]

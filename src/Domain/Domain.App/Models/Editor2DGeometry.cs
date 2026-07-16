@@ -248,6 +248,69 @@ public static class Editor2DGeometry
         return false;
     }
 
+    public static bool TryResizeForAttachedDimension(
+        Editor2DPreviewPath path,
+        string? dimensionType,
+        double value,
+        out Editor2DPreviewPath updatedPath)
+    {
+        updatedPath = path;
+        if (!double.IsFinite(value) || value <= MeasurementTolerance)
+            return false;
+
+        var normalizedType = dimensionType?.Trim().ToLowerInvariant();
+        if (normalizedType == "length"
+            && path.EntityType.Equals("LINE", StringComparison.OrdinalIgnoreCase)
+            && TryGetLineEndpoints(path, out var lineStart, out var lineEnd))
+        {
+            var deltaX = lineEnd.X - lineStart.X;
+            var deltaY = lineEnd.Y - lineStart.Y;
+            var length = Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+            if (length <= MeasurementTolerance)
+                return false;
+            var nextEnd = new Editor2DPoint(
+                lineStart.X + ((deltaX / length) * value),
+                lineStart.Y + ((deltaY / length) * value));
+            updatedPath = path with
+            {
+                Points = [lineStart, nextEnd],
+                Start = lineStart,
+            };
+            return true;
+        }
+
+        if (normalizedType != "radius"
+            || path.Center is not Editor2DPoint center
+            || path.Radius is null)
+        {
+            return false;
+        }
+
+        if (path.EntityType.Equals("CIRCLE", StringComparison.OrdinalIgnoreCase))
+        {
+            updatedPath = path with
+            {
+                Radius = value,
+                Points = BuildCirclePoints(center, value),
+            };
+            return true;
+        }
+
+        if (path.EntityType.Equals("ARC", StringComparison.OrdinalIgnoreCase)
+            && path.StartAngleDegrees is double startAngleDegrees
+            && path.EndAngleDegrees is double endAngleDegrees)
+        {
+            updatedPath = path with
+            {
+                Radius = value,
+                Points = BuildArcPoints(center, value, startAngleDegrees, endAngleDegrees),
+            };
+            return true;
+        }
+
+        return false;
+    }
+
     public static bool IsConvertibleLinePath(Editor2DPreviewPath path)
         => path.Points.Count >= 2
            && (path.EntityType.Equals("LINE", StringComparison.OrdinalIgnoreCase)

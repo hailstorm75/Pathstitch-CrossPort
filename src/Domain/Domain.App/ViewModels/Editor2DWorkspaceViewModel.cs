@@ -560,11 +560,61 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             : item).ToArray();
         if (!TryResolveMeasurementGraph(trial, out var values, out error))
             return false;
-        var updatedMeasurements = ApplyResolvedMeasurementValues(trial, values, updateEndpoints: true);
+        var updatedDocument = Document;
+        if (!measurement.Driven
+            && measurement.EntityPathId is { } attachedPathId
+            && values.TryGetValue(varName, out var targetValue))
+        {
+            var attachedPath = Document.Paths.FirstOrDefault(path =>
+                path.Id.Equals(attachedPathId, StringComparison.Ordinal));
+            if (attachedPath is null
+                || !Editor2DGeometry.TryResizeForAttachedDimension(
+                    attachedPath,
+                    measurement.DimensionType,
+                    targetValue,
+                    out var resizedPath))
+            {
+                error = "The attached geometry cannot be resized by this dimension.";
+                return false;
+            }
 
-        SetMeasurements(
-            updatedMeasurements,
-            measurementId);
+            updatedDocument = RebuildDocument(
+                Document,
+                Document.Paths.Select(path => path.Id.Equals(attachedPathId, StringComparison.Ordinal)
+                    ? resizedPath
+                    : path).ToArray());
+            trial = trial.Select(item =>
+            {
+                if (!attachedPathId.Equals(item.EntityPathId, StringComparison.Ordinal)
+                    || !Editor2DGeometry.TryBuildAttachedMeasurement(
+                        resizedPath,
+                        item.DimensionType,
+                        item.OffsetDistance,
+                        item.PlacementAngleDegrees,
+                        out var start,
+                        out var end))
+                {
+                    return item;
+                }
+                return item with { Start = start, End = end };
+            }).ToArray();
+        }
+
+        var updatedMeasurements = ApplyResolvedMeasurementValues(trial, values, updateEndpoints: true);
+        var nextState = _state with
+        {
+            Document = updatedDocument,
+            Measurements = updatedMeasurements,
+            SelectedMeasurementId = measurementId,
+        };
+        if (measurement.EntityPathId is { } editedPathId
+            && !ReferenceEquals(updatedDocument, Document))
+        {
+            nextState = PruneSemanticOwnershipForEditedPaths(
+                nextState,
+                new HashSet<string>([editedPathId], StringComparer.Ordinal));
+        }
+        Apply(nextState, rebuildMeasurementCaches: false);
         return true;
     }
 
@@ -681,7 +731,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             if (string.IsNullOrWhiteSpace(item.VarName) || !values.TryGetValue(item.VarName, out var value))
                 return item with { EvaluatedValue = null };
             var updated = item with { EvaluatedValue = value };
-            if (!updateEndpoints || updated.Driven)
+            if (!updateEndpoints || updated.Driven || !string.IsNullOrWhiteSpace(updated.EntityPathId))
                 return updated;
             var dx = item.End.X - item.Start.X;
             var dy = item.End.Y - item.Start.Y;
@@ -707,6 +757,29 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                 return candidate;
         }
     }
+
+    private Editor2DWorkspaceState PruneSemanticOwnershipForEditedPaths(
+        Editor2DWorkspaceState state,
+        IReadOnlySet<string> editedPathIds)
+        => state with
+        {
+            CornerParameters = (state.CornerParameters ?? [])
+                .Where(parameter => !editedPathIds.Contains(parameter.PathId))
+                .ToArray(),
+            ConvertLineGroups = (state.ConvertLineGroups ?? [])
+                .Where(group => !group.GeneratedPathIds.Any(editedPathIds.Contains))
+                .ToArray(),
+            ImportGroups = (state.ImportGroups ?? [])
+                .Where(group => !group.GeneratedPathIds.Any(editedPathIds.Contains))
+                .ToArray(),
+            SewingHoleOperations = (state.SewingHoleOperations ?? [])
+                .Where(operation => !operation.SourcePathIds.Any(editedPathIds.Contains)
+                    && !operation.GeneratedPathIds.Any(editedPathIds.Contains))
+                .ToArray(),
+            ExpandedRectanglePathIds = (state.ExpandedRectanglePathIds ?? [])
+                .Where(id => !editedPathIds.Contains(id))
+                .ToArray(),
+        };
 
     public void CommitDocumentEdit(
         Editor2DPreviewDocument document,
