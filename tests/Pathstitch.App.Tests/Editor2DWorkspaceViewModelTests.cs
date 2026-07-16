@@ -951,6 +951,63 @@ public sealed class Editor2DWorkspaceViewModelTests
         Assert.Equal(source.Points, workspace.CornerParameters[0].SourcePoints);
     }
 
+    [Theory]
+    [InlineData(20, 10)]
+    [InlineData(12, 5)]
+    [InlineData(6, 2)]
+    [InlineData(2, 0)]
+    public void CornerSession_SeedsAllCornersWithLargestFittingMacPreset(double side, double expected)
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var source = new Editor2DPreviewPath(
+            "square", "LWPOLYLINE", [new(0, 0), new(side, 0), new(side, side), new(0, side)], true);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [source] });
+        workspace.SetSelection([source.Id]);
+        workspace.ClearHistory();
+
+        var activeId = workspace.BeginCornerToolSession(Editor2DCornerKind.Fillet);
+
+        Assert.NotNull(activeId);
+        Assert.Equal(4, workspace.CornerParameters.Count);
+        Assert.All(workspace.CornerParameters, parameter => Assert.Equal(expected, parameter.Value));
+        Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
+    public void CornerSession_ConfirmIsOneUndoStepAndCancelRestoresExactSnapshot()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var source = new Editor2DPreviewPath(
+            "square", "LWPOLYLINE", [new(0, 0), new(20, 0), new(20, 20), new(0, 20)], true);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [source] });
+        workspace.SetSelection([source.Id]);
+        workspace.ClearHistory();
+
+        var activeId = Assert.IsType<string>(workspace.BeginCornerToolSession(Editor2DCornerKind.Chamfer));
+        Assert.True(workspace.UpdateCornerParameter(activeId, 3));
+        Assert.True(workspace.UpdateCornerParameter(activeId, 4));
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.ConfirmCornerToolSession());
+        Assert.True(workspace.CanUndo);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal([source], workspace.Document.Paths);
+        Assert.Empty(workspace.CornerParameters);
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.Redo());
+        Assert.Equal(4, workspace.CornerParameters.Single(parameter => parameter.Id == activeId).Value);
+
+        workspace.ClearHistory();
+        var committedDocument = workspace.Document;
+        var committedParameters = workspace.CornerParameters.ToArray();
+        Assert.NotNull(workspace.BeginCornerToolSession(Editor2DCornerKind.Fillet));
+        Assert.True(workspace.UpdateCornerParameter(workspace.CornerParameters[0].Id, 2));
+        Assert.True(workspace.CancelCornerToolSession());
+        Assert.Equal(committedDocument, workspace.Document);
+        Assert.Equal(committedParameters, workspace.CornerParameters);
+        Assert.False(workspace.CanUndo);
+    }
+
     [Fact]
     public void CornerValueFromPoint_MapsBisectorDragToFilletAndChamferValues()
     {

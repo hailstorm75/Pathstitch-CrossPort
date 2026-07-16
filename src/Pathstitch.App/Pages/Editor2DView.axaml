@@ -42,6 +42,8 @@
     ActiveReferenceImage="{Binding TwoDActiveReferenceImage}"
     ActiveReferenceImageLocked="{Binding TwoDActiveReferenceImageLocked}"
     CornerParameters="{Binding TwoDCornerParameters, Mode=TwoWay}"
+    SelectedCornerParameterId="{Binding TwoDSelectedCornerParameterId, Mode=TwoWay}"
+    FilletContinuity="{Binding TwoDFilletContinuity}"
     Measurements="{Binding TwoDMeasurements, Mode=TwoWay}"
     SelectedMeasurementId="{Binding TwoDSelectedMeasurementId, Mode=TwoWay}"
     Zoom="{Binding TwoDViewportZoom, Mode=TwoWay}"

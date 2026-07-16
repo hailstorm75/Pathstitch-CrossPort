@@ -286,6 +286,9 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(IsTwoDTrimToolActive));
         OnPropertyChanged(nameof(IsTwoDFilletToolActive));
         OnPropertyChanged(nameof(IsTwoDChamferToolActive));
+        OnPropertyChanged(nameof(IsTwoDCornerToolActive));
+        OnPropertyChanged(nameof(TwoDActiveCornerLabel));
+        OnPropertyChanged(nameof(TwoDCornerValueLabel));
         OnPropertyChanged(nameof(IsTwoDConvertLinesToolActive));
         OnPropertyChanged(nameof(IsTwoDOffsetToolActive));
         OnPropertyChanged(nameof(IsTwoDAddThicknessToolActive));

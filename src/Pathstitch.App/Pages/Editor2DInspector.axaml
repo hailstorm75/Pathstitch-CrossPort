@@ -945,12 +945,37 @@
           IsVisible="{Binding IsTwoDSelectedTextHeightInvalid}"
           Text="Enter a valid numeric text height." />
       </StackPanel>
-      <StackPanel Spacing="8">
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDCornerToolActive}"
+        AutomationProperties.AutomationId="editor.2d.corner.inspector">
         <TextBlock
           FontSize="10"
           Foreground="{StaticResource PrimaryTextBrush}"
-          Text="Editable Corners" />
-        <ItemsControl ItemsSource="{Binding TwoDCornerParameters}">
+          Text="{Binding TwoDActiveCornerLabel}" />
+        <StackPanel
+          Spacing="4"
+          IsVisible="{Binding IsTwoDFilletToolActive}">
+          <TextBlock
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Continuity" />
+          <ComboBox
+            ItemsSource="{Binding TwoDFilletContinuityOptions}"
+            SelectedItem="{Binding TwoDFilletContinuity, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.corner.continuity" />
+          <TextBlock
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="G1 uses a circular arc. G2 uses the legacy smoother four-arc blend."
+            TextWrapping="Wrap" />
+        </StackPanel>
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDCornerSelectionSummary}"
+          TextWrapping="Wrap" />
+        <ItemsControl ItemsSource="{Binding TwoDActiveCornerParameters}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="models:Editor2DCornerParameter">
               <Button
@@ -964,9 +989,39 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasTwoDSelectedCornerParameter}">
-          <TextBox Width="88" Text="{Binding TwoDCornerValueText, Mode=TwoWay}" />
-          <Button Classes="chip-button" Content="Update" Click="OnApplyTwoDCornerParameterClicked" />
+        <StackPanel Spacing="4" IsVisible="{Binding HasTwoDSelectedCornerParameter}">
+          <TextBlock
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding TwoDCornerValueLabel}" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBox
+              Width="88"
+              Text="{Binding TwoDCornerValueText, Mode=TwoWay}"
+              AutomationProperties.AutomationId="editor.2d.corner.value" />
+            <Button
+              Classes="chip-button"
+              Content="Update"
+              Click="OnApplyTwoDCornerParameterClicked"
+              AutomationProperties.AutomationId="editor.2d.corner.update" />
+          </StackPanel>
+          <TextBlock
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding TwoDCornerLimitHint}"
+            TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button
+            Classes="chip-button"
+            Content="OK"
+            Click="OnConfirmTwoDCornerSessionClicked"
+            AutomationProperties.AutomationId="editor.2d.corner.ok" />
+          <Button
+            Classes="chip-button"
+            Content="Cancel"
+            Click="OnCancelTwoDCornerSessionClicked"
+            AutomationProperties.AutomationId="editor.2d.corner.cancel" />
         </StackPanel>
       </StackPanel>
     </StackPanel>

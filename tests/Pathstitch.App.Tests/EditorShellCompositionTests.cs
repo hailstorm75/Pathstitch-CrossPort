@@ -349,6 +349,10 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("OffsetDistanceText=\"{Binding TwoDOffsetDistanceText, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
         Assert.Contains("OffsetPreviewPaths=\"{Binding TwoDOffsetPreviewPaths}\"", twoD, StringComparison.Ordinal);
         Assert.Contains("TwoDSelectedTextFitModeOptions", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.corner.ok\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.corner.cancel\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("ConfirmTwoDCornerToolSession", canvas, StringComparison.Ordinal);
+        Assert.Contains("CancelTwoDCornerToolSession", canvas, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.export-selected-only\"", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDExportSelectedOnly, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDExportMeasurementLines, Mode=TwoWay", inspector, StringComparison.Ordinal);
@@ -405,6 +409,25 @@ public sealed class EditorShellCompositionTests
 
         Assert.Contains("PointerEntered=\"OnCommandPointerEntered\"", palette, StringComparison.Ordinal);
         Assert.Contains("CommandSearchResults.ScrollIntoView(index)", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FilletInspector_ExposesActiveCornerAndContinuityBindings()
+    {
+        var inspector = ReadPage("Editor2DInspector.axaml");
+        var view = ReadPage("Editor2DView.axaml");
+        var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+
+        Assert.Contains("IsVisible=\"{Binding IsTwoDCornerToolActive}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding TwoDFilletContinuityOptions}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("SelectedItem=\"{Binding TwoDFilletContinuity, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.corner.continuity", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.corner.value", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDActiveCornerLabel", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDCornerSelectionSummary", inspector, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding TwoDActiveCornerParameters}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("SelectedCornerParameterId=\"{Binding TwoDSelectedCornerParameterId, Mode=TwoWay}\"", view, StringComparison.Ordinal);
+        Assert.Contains("SetCurrentValue(SelectedCornerParameterIdProperty, parameter.Id)", canvas, StringComparison.Ordinal);
     }
 
     [Fact]

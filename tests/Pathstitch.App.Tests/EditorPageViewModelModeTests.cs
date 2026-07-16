@@ -36,6 +36,33 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public void CornerToolLifecycle_SeedsConfirmsOnLeaveAndCancelsToExactGeometry()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath(
+            "square", "LWPOLYLINE", [new(0, 0), new(20, 0), new(20, 20), new(0, 20)], true);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDWorkspace.ClearHistory();
+
+        viewModel.TwoDActiveTool = Editor2DTool.Fillet;
+
+        Assert.Equal(4, viewModel.TwoDCornerParameters.Count);
+        Assert.NotNull(viewModel.TwoDSelectedCornerParameterId);
+        viewModel.TwoDActiveTool = Editor2DTool.Pan;
+        Assert.True(viewModel.TwoDWorkspace.CanUndo);
+        Assert.Equal(Editor2DTool.Pan, viewModel.TwoDActiveTool);
+
+        viewModel.TwoDWorkspace.ClearHistory();
+        var committed = viewModel.TwoDDocument;
+        viewModel.TwoDActiveTool = Editor2DTool.Chamfer;
+        Assert.True(viewModel.CancelTwoDCornerToolSession(exitTool: true));
+        Assert.Equal(committed, viewModel.TwoDDocument);
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        Assert.False(viewModel.TwoDWorkspace.CanUndo);
+    }
+
+    [Fact]
     public async Task ThreeDBodyMove_CanUndoAndRedoOffsetChanges()
     {
         var viewModel = CreateViewModelForTests();
@@ -981,6 +1008,50 @@ public sealed class EditorPageViewModelModeTests
             viewModel.ActivateCommandSearchItem(identifier);
             Assert.Equal(string.Empty, viewModel.CommandSearchQuery);
         }
+    }
+
+    [Fact]
+    public async Task FilletContinuity_UpdatesActiveShapeAndPreservesCornerValues()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var source = new Editor2DPreviewPath(
+            "shape",
+            "LWPOLYLINE",
+            [new(0, 0), new(20, 0), new(20, 20), new(0, 20)],
+            true);
+        var otherSource = new Editor2DPreviewPath(
+            "other",
+            "LWPOLYLINE",
+            [new(30, 0), new(50, 0), new(50, 20), new(30, 20)],
+            true);
+        viewModel.TwoDWorkspace.SetDocument(new Editor2DPreviewDocument(
+            [source, otherSource],
+            new Editor2DBounds(0, 0, 50, 20),
+            new Dictionary<string, int> { ["LWPOLYLINE"] = 2 },
+            []));
+        var first = new Editor2DCornerParameter(
+            "shape:0", source.Id, 0, Editor2DCornerKind.Fillet, 2.0, source.Points);
+        var second = new Editor2DCornerParameter(
+            "shape:1", source.Id, 1, Editor2DCornerKind.Fillet, 4.0, source.Points);
+        var other = new Editor2DCornerParameter(
+            "other:0", otherSource.Id, 0, Editor2DCornerKind.Fillet, 3.0, otherSource.Points);
+        viewModel.TwoDCornerParameters = [first, second, other];
+
+        viewModel.SelectTwoDCornerParameter(first.Id);
+
+        Assert.Equal(Editor2DFilletContinuity.G1, viewModel.TwoDFilletContinuity);
+        Assert.Equal("Fillet corner 1", viewModel.TwoDActiveCornerLabel);
+        Assert.Contains("2 editable corners", viewModel.TwoDCornerSelectionSummary, StringComparison.Ordinal);
+        viewModel.TwoDFilletContinuity = Editor2DFilletContinuity.G2;
+
+        var updated = viewModel.TwoDCornerParameters.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        Assert.Equal(Editor2DFilletContinuity.G2, updated[first.Id].Continuity);
+        Assert.Equal(Editor2DFilletContinuity.G2, updated[second.Id].Continuity);
+        Assert.Equal(2.0, updated[first.Id].Value);
+        Assert.Equal(4.0, updated[second.Id].Value);
+        Assert.Equal(Editor2DFilletContinuity.G1, updated[other.Id].Continuity);
+        Assert.Equal(3.0, updated[other.Id].Value);
     }
 
     [Theory]

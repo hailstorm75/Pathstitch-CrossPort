@@ -505,6 +505,18 @@ public abstract class EditorInteractionControlBase : UserControl
             viewModel.ApplyTwoDCornerParameterValue();
     }
 
+    protected void OnConfirmTwoDCornerSessionClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ConfirmTwoDCornerToolSession(exitTool: true);
+    }
+
+    protected void OnCancelTwoDCornerSessionClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.CancelTwoDCornerToolSession(exitTool: true);
+    }
+
     protected async void OnRevealTwoDClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

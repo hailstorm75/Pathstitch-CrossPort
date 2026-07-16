@@ -16,6 +16,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private readonly Stack<Editor2DWorkspaceState> _undo = new();
     private readonly Stack<Editor2DWorkspaceState> _redo = new();
     private readonly Dictionary<string, Editor2DMirrorLink> _mirrorLinks = new(StringComparer.Ordinal);
+    private CornerToolSession? _cornerToolSession;
     private Editor2DWorkspaceState _state = Editor2DWorkspaceState.Empty;
     private int _polygonSides = 6;
     private IReadOnlyList<string> _expandedRectanglePathIds = [];
@@ -62,6 +63,15 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private IReadOnlyList<Editor2DPreviewPath> _sewingHolePreviewPaths = [];
     private string? _editingSewingHoleOperationId;
     private Editor2DSewingHoleOperation? _selectedSewingHoleOperation;
+
+    private sealed record CornerToolSession(
+        Editor2DWorkspaceState State,
+        IReadOnlyList<Editor2DWorkspaceState> Undo,
+        IReadOnlyList<Editor2DWorkspaceState> Redo)
+    {
+        public bool HasChanges { get; set; }
+        public string? ActiveParameterId { get; set; }
+    }
 
     public Editor2DWorkspaceViewModel(
         IReferenceImageTraceService? referenceImageTraceService = null,
@@ -956,28 +966,177 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public void SetCornerParameters(IReadOnlyList<Editor2DCornerParameter> parameters)
         => Apply(_state with { CornerParameters = parameters });
 
-    public bool UpdateCornerParameter(string parameterId, double value)
+    public bool IsCornerToolSessionActive => _cornerToolSession is not null;
+
+    public string? BeginCornerToolSession(
+        Editor2DCornerKind kind,
+        Editor2DFilletContinuity continuity = Editor2DFilletContinuity.G1)
     {
-        var parameter = CornerParameters.FirstOrDefault(item => item.Id == parameterId);
-        if (parameter is null || value <= 0 || !double.IsFinite(value))
+        if (_cornerToolSession is not null)
+            return _cornerToolSession.ActiveParameterId;
+
+        _cornerToolSession = new CornerToolSession(_state, _undo.ToArray(), _redo.ToArray());
+        var selectedIds = SelectedPathIds.ToHashSet(StringComparer.Ordinal);
+        var path = Document.Paths.FirstOrDefault(candidate =>
+            selectedIds.Contains(candidate.Id)
+            && candidate.Points.Count >= 3
+            && (candidate.EntityType.Equals("LWPOLYLINE", StringComparison.OrdinalIgnoreCase)
+                || candidate.EntityType.Equals("POLYLINE", StringComparison.OrdinalIgnoreCase)));
+        if (path is null)
+            return null;
+
+        var existingForPath = CornerParameters.Where(parameter => parameter.PathId == path.Id).ToArray();
+        var sourcePoints = existingForPath.FirstOrDefault()?.SourcePoints ?? path.Points;
+        var targetIndices = path.IsClosed
+            ? Enumerable.Range(0, sourcePoints.Count).ToArray()
+            : Enumerable.Range(1, Math.Max(sourcePoints.Count - 2, 0)).ToArray();
+        if (targetIndices.Length == 0)
+            return null;
+
+        var existingByIndex = existingForPath.ToDictionary(parameter => parameter.CornerIndex);
+        var seeded = targetIndices.Select(index =>
+        {
+            if (existingByIndex.TryGetValue(index, out var existing))
+                return existing with { Kind = kind };
+            return new Editor2DCornerParameter(
+                $"{path.Id}:{index}",
+                path.Id,
+                index,
+                kind,
+                DefaultCornerPreset(sourcePoints, index),
+                sourcePoints.ToArray(),
+                continuity);
+        }).ToArray();
+        var otherParameters = CornerParameters.Where(parameter => parameter.PathId != path.Id).ToArray();
+        var nextParameters = otherParameters.Concat(seeded).ToArray();
+        var rendered = Editor2DCornerGeometry.Apply(path with { Points = sourcePoints }, nextParameters);
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, Document.Paths.Select(candidate => candidate.Id == path.Id ? rendered : candidate).ToArray()),
+            CornerParameters = nextParameters,
+            SelectedPathIds = [path.Id],
+        }, recordHistory: false);
+        _cornerToolSession.HasChanges = !Equals(_cornerToolSession.State, _state);
+        _cornerToolSession.ActiveParameterId = seeded[^1].Id;
+        return seeded[^1].Id;
+    }
+
+    public bool ConfirmCornerToolSession()
+    {
+        var session = _cornerToolSession;
+        if (session is null)
+            return false;
+        _cornerToolSession = null;
+        RestoreHistory(_undo, session.Undo);
+        if (session.HasChanges)
+        {
+            _undo.Push(session.State);
+            _redo.Clear();
+        }
+        else
+        {
+            RestoreHistory(_redo, session.Redo);
+        }
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        return true;
+    }
+
+    public bool CancelCornerToolSession()
+    {
+        var session = _cornerToolSession;
+        if (session is null)
+            return false;
+        _cornerToolSession = null;
+        _state = Normalize(session.State);
+        RestoreHistory(_undo, session.Undo);
+        RestoreHistory(_redo, session.Redo);
+        RemoveMissingMirrorLinks();
+        RaiseStateChanged();
+        return true;
+    }
+
+    public bool UpsertCornerParameter(Editor2DCornerParameter parameter)
+    {
+        if (parameter.Value < 0 || !double.IsFinite(parameter.Value))
+            return false;
+        var path = Document.Paths.FirstOrDefault(item => item.Id == parameter.PathId);
+        if (path is null || parameter.SourcePoints.Count < 3)
             return false;
 
         var nextParameters = CornerParameters
-            .Select(item => item.Id == parameterId ? item with { Value = value } : item)
+            .Where(item => item.Id != parameter.Id)
+            .Append(parameter)
             .ToArray();
-        var path = _state.Document.Paths.FirstOrDefault(item => item.Id == parameter.PathId);
-        if (path is null)
-            return false;
-
-        var sourcePath = path with { Points = parameter.SourcePoints };
-        var rendered = Editor2DCornerGeometry.Apply(sourcePath, nextParameters);
-        var paths = _state.Document.Paths.Select(item => item.Id == path.Id ? rendered : item).ToArray();
+        var rendered = Editor2DCornerGeometry.Apply(path with { Points = parameter.SourcePoints }, nextParameters);
         Apply(_state with
         {
-            Document = _state.Document with { Paths = paths },
+            Document = RebuildDocument(Document, Document.Paths.Select(item => item.Id == path.Id ? rendered : item).ToArray()),
             CornerParameters = nextParameters,
-        });
+            SelectedPathIds = [path.Id],
+        }, recordHistory: _cornerToolSession is null);
+        if (_cornerToolSession is not null)
+        {
+            _cornerToolSession.HasChanges = true;
+            _cornerToolSession.ActiveParameterId = parameter.Id;
+        }
         return true;
+    }
+
+    public bool UpdateCornerParameter(string parameterId, double value)
+    {
+        var parameter = CornerParameters.FirstOrDefault(item => item.Id == parameterId);
+        if (parameter is null || value < 0 || !double.IsFinite(value))
+            return false;
+        return UpsertCornerParameter(parameter with { Value = value });
+    }
+
+    public bool UpdateCornerParameterContinuity(string parameterId, Editor2DFilletContinuity continuity)
+    {
+        var parameter = CornerParameters.FirstOrDefault(item => item.Id == parameterId);
+        if (parameter is null || parameter.Kind != Editor2DCornerKind.Fillet)
+            return false;
+
+        var path = Document.Paths.FirstOrDefault(item => item.Id == parameter.PathId);
+        if (path is null)
+            return false;
+        var nextParameters = CornerParameters
+            .Select(item => item.PathId == parameter.PathId && item.Kind == Editor2DCornerKind.Fillet
+                ? item with { Continuity = continuity }
+                : item)
+            .ToArray();
+        var sourcePoints = parameter.SourcePoints;
+        var rendered = Editor2DCornerGeometry.Apply(path with { Points = sourcePoints }, nextParameters);
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, Document.Paths.Select(item => item.Id == path.Id ? rendered : item).ToArray()),
+            CornerParameters = nextParameters,
+            SelectedPathIds = [path.Id],
+        }, recordHistory: _cornerToolSession is null);
+        if (_cornerToolSession is not null)
+            _cornerToolSession.HasChanges = true;
+        return true;
+    }
+
+    private static double DefaultCornerPreset(IReadOnlyList<Editor2DPoint> points, int index)
+    {
+        var previous = points[index == 0 ? points.Count - 1 : index - 1];
+        var current = points[index];
+        var next = points[index == points.Count - 1 ? 0 : index + 1];
+        var maxFit = Math.Min(CornerDistance(previous, current), CornerDistance(current, next)) * 0.5;
+        return new[] { 10.0, 5.0, 2.0 }.FirstOrDefault(preset => preset <= maxFit);
+    }
+
+    private static double CornerDistance(Editor2DPoint left, Editor2DPoint right)
+        => Math.Sqrt(Math.Pow(left.X - right.X, 2) + Math.Pow(left.Y - right.Y, 2));
+
+    private static void RestoreHistory(
+        Stack<Editor2DWorkspaceState> target,
+        IReadOnlyList<Editor2DWorkspaceState> topFirst)
+    {
+        target.Clear();
+        foreach (var state in topFirst.Reverse())
+            target.Push(state);
     }
 
     public bool RefreshSewingHolePreview()
@@ -1127,7 +1286,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             CornerParameters = (state.CornerParameters ?? [])
                 .Where(parameter => pathIds.Contains(parameter.PathId)
                     && parameter.CornerIndex >= 0
-                    && parameter.Value > 0
+                    && parameter.Value >= 0
                     && double.IsFinite(parameter.Value))
                 .DistinctBy(parameter => parameter.Id, StringComparer.Ordinal)
                 .ToArray(),

@@ -252,9 +252,24 @@ public sealed partial class EditorPageViewModel
                     if (!_isApplyingTwoDWorkspaceState)
                         QueueTwoDOffsetPreviewRefresh();
                 }
+                else if (value == Editor2DTool.Fillet && !_twoDWorkspace.IsCornerToolSessionActive)
+                {
+                    BeginTwoDCornerToolSession(Editor2DCornerKind.Fillet);
+                }
+                else if (value == Editor2DTool.Chamfer && !_twoDWorkspace.IsCornerToolSessionActive)
+                {
+                    BeginTwoDCornerToolSession(Editor2DCornerKind.Chamfer);
+                }
                 return;
             }
 
+            var previousTool = _twoDWorkspace.ActiveTool;
+            if (previousTool is Editor2DTool.Fillet or Editor2DTool.Chamfer)
+                _twoDWorkspace.ConfirmCornerToolSession();
+            if (value == Editor2DTool.Fillet)
+                BeginTwoDCornerToolSession(Editor2DCornerKind.Fillet);
+            else if (value == Editor2DTool.Chamfer)
+                BeginTwoDCornerToolSession(Editor2DCornerKind.Chamfer);
             if (_twoDWorkspace.ActiveTool == Editor2DTool.Mirror || value == Editor2DTool.Mirror)
                 ResetTwoDMirrorStaging();
             if (_twoDWorkspace.ActiveTool == Editor2DTool.Offset && value != Editor2DTool.Offset)
@@ -292,6 +307,9 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(IsTwoDTrimToolActive));
             OnPropertyChanged(nameof(IsTwoDFilletToolActive));
             OnPropertyChanged(nameof(IsTwoDChamferToolActive));
+            OnPropertyChanged(nameof(IsTwoDCornerToolActive));
+            OnPropertyChanged(nameof(TwoDActiveCornerLabel));
+            OnPropertyChanged(nameof(TwoDCornerValueLabel));
             OnPropertyChanged(nameof(IsTwoDConvertLinesToolActive));
             OnPropertyChanged(nameof(IsTwoDOffsetToolActive));
             OnPropertyChanged(nameof(IsTwoDAddThicknessToolActive));

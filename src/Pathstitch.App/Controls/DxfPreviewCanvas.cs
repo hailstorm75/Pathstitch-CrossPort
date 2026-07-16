@@ -167,6 +167,16 @@ public sealed class DxfPreviewCanvas : Control
             defaultValue: Array.Empty<Editor2DCornerParameter>(),
             defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<string?> SelectedCornerParameterIdProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, string?>(
+            nameof(SelectedCornerParameterId),
+            defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<Editor2DFilletContinuity> FilletContinuityProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DFilletContinuity>(
+            nameof(FilletContinuity),
+            defaultValue: Editor2DFilletContinuity.G1);
+
     public static readonly StyledProperty<IReadOnlyList<Editor2DMeasurement>> MeasurementsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DMeasurement>>(
             nameof(Measurements),
@@ -852,6 +862,18 @@ public sealed class DxfPreviewCanvas : Control
     {
         get => GetValue(CornerParametersProperty);
         set => SetValue(CornerParametersProperty, value);
+    }
+
+    public string? SelectedCornerParameterId
+    {
+        get => GetValue(SelectedCornerParameterIdProperty);
+        set => SetValue(SelectedCornerParameterIdProperty, value);
+    }
+
+    public Editor2DFilletContinuity FilletContinuity
+    {
+        get => GetValue(FilletContinuityProperty);
+        set => SetValue(FilletContinuityProperty, value);
     }
 
     public IReadOnlyList<Editor2DMeasurement> Measurements
@@ -1589,6 +1611,9 @@ Selection:
                 offsetViewModel.CancelTwoDOffset(exitTool: true);
             else if (ActiveTool == Editor2DTool.Mirror && DataContext is EditorPageViewModel mirrorViewModel)
                 mirrorViewModel.CancelTwoDMirror(exitTool: true);
+            else if ((ActiveTool is Editor2DTool.Fillet or Editor2DTool.Chamfer)
+                     && DataContext is EditorPageViewModel cornerViewModel)
+                cornerViewModel.CancelTwoDCornerToolSession(exitTool: true);
             else
                 CancelActiveInteraction();
             e.Handled = true;
@@ -1639,6 +1664,14 @@ Selection:
             && DataContext is EditorPageViewModel offsetViewModel)
         {
             await offsetViewModel.ConfirmTwoDOffsetAsync();
+            e.Handled = true;
+        }
+
+        else if (e.Key == Key.Enter
+                 && (ActiveTool is Editor2DTool.Fillet or Editor2DTool.Chamfer)
+                 && DataContext is EditorPageViewModel cornerViewModel)
+        {
+            cornerViewModel.ConfirmTwoDCornerToolSession(exitTool: true);
             e.Handled = true;
         }
     }
@@ -2477,7 +2510,19 @@ Selection:
             hit.CornerIndex,
             cornerKind,
             _cornerToolSessionValue.Value,
-            sourcePoints.ToArray());
+            sourcePoints.ToArray(),
+            FilletContinuity);
+        if (DataContext is EditorPageViewModel cornerViewModel
+            && cornerViewModel.UpsertTwoDCornerParameter(parameter))
+        {
+            _isDraggingCorner = true;
+            _cornerDragPathId = hit.PathId;
+            _cornerDragIndex = hit.CornerIndex;
+            _cornerDragKind = cornerKind;
+            pointer.Capture(this);
+            InvalidateVisual();
+            return;
+        }
         var nextParameters = CornerParameters
             .Where(item => item.Id != parameter.Id)
             .Append(parameter)
@@ -2489,6 +2534,7 @@ Selection:
             Document.Paths.Select(item => item.Id == path.Id ? nextPath : item).ToArray());
 
         SetCurrentValue(CornerParametersProperty, nextParameters);
+        SetCurrentValue(SelectedCornerParameterIdProperty, parameter.Id);
         SetCurrentValue(DocumentProperty, nextDocument);
         SetCurrentValue(SelectedPathIdsProperty, new[] { hit.PathId });
         SetCurrentValue(SelectedMeasurementIdProperty, null);
@@ -2687,6 +2733,13 @@ Selection:
         var nextParameters = CornerParameters
             .Select(item => item.Id == parameter.Id ? item with { Value = value } : item)
             .ToArray();
+        var updatedParameter = nextParameters.First(item => item.Id == parameter.Id);
+        if (DataContext is EditorPageViewModel cornerViewModel
+            && cornerViewModel.UpsertTwoDCornerParameter(updatedParameter))
+        {
+            InvalidateVisual();
+            return;
+        }
         var nextPath = Editor2DCornerGeometry.Apply(path with { Points = source }, nextParameters);
         SetCurrentValue(CornerParametersProperty, nextParameters);
         SetCurrentValue(DocumentProperty, Document with
