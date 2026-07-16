@@ -582,9 +582,13 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("TwoDSelectedMeasurementId = null", codeBehind, StringComparison.Ordinal);
         Assert.Contains("RequestDimensionExpressionInput(referenceMeasurement.Id)", canvas, StringComparison.Ordinal);
         Assert.Contains("RequestDimensionExpressionInput(attachedMeasurement.Id)", canvas, StringComparison.Ordinal);
+        Assert.Contains("RequestDimensionExpressionInput($\"{newPathId}:length\")", canvas, StringComparison.Ordinal);
+        Assert.Contains("RequestDimensionExpressionInput($\"{newPathId}:radius\")", canvas, StringComparison.Ordinal);
         Assert.Contains("RequestDimensionExpressionInput($\"{newPathId}:width\")", canvas, StringComparison.Ordinal);
         Assert.Contains("e.Key == Key.Tab", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("TryGetRectanglePrecisionMeasurement", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("TryGetCreationPrecisionMeasurement", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("L: {Math.Sqrt", canvas, StringComparison.Ordinal);
+        Assert.Contains("R: {radius.ToString(\"0.00\", CultureInfo.InvariantCulture)} mm", canvas, StringComparison.Ordinal);
         Assert.Contains("SeedParametricDimension", canvas, StringComparison.Ordinal);
         Assert.Contains("Driven or reference dimension", inspector, StringComparison.Ordinal);
         Assert.Contains("TopLevel.GetTopLevel(this)", codeBehind, StringComparison.Ordinal);

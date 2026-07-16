@@ -18,6 +18,164 @@ public sealed class EditorShellHeadlessTests
 {
     private readonly HeadlessUiFixture _ui = new();
 
+    [Theory]
+    [InlineData("line", "length")]
+    [InlineData("circle", "radius")]
+    public async Task CreationPrecision_MountedTargetSelectionAndRemovalDismissField(
+        string shape,
+        string dimensionType)
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var pathId = shape == "line"
+            ? viewModel.CreateTwoDLine(new(0, 0), new(10, 0))!
+            : viewModel.CreateTwoDCircle(new(0, 0), new(10, 0))!;
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            var pill = _ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression");
+            Assert.True(canvas.RequestDimensionExpressionInput($"{pathId}:{dimensionType}"));
+            Assert.True(pill.IsVisible);
+            canvas.SelectedPathIds = ["different"];
+            Assert.False(pill.IsVisible);
+
+            canvas.SelectedPathIds = [pathId];
+            Assert.True(canvas.RequestDimensionExpressionInput($"{pathId}:{dimensionType}"));
+            Assert.True(pill.IsVisible);
+            canvas.Document = Editor2DWorkspaceState.Empty.Document;
+            Assert.False(pill.IsVisible);
+        });
+    }
+
+    [Fact]
+    public async Task LinePrecision_TabCommitsUnitsReopensSameFieldThenOutsideKeepsGeometry()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var start = new Editor2DPoint(20, 10);
+        var pathId = viewModel.CreateTwoDLine(start, new(0, 0))!;
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.SketchLine;
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            Assert.True(canvas.RequestDimensionExpressionInput($"{pathId}:length"));
+        });
+        await _ui.RunAsync(() => { });
+
+        await _ui.RunAsync(() =>
+        {
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            Assert.True(input.IsFocused);
+            input.Text = "1 inch";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
+        });
+        await _ui.RunAsync(() => { });
+        await _ui.RunAsync(() => { });
+        await _ui.RunAsync(() => { });
+
+        await _ui.RunAsync(() =>
+        {
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            var path = viewModel.TwoDDocument!.Paths.Single(item => item.Id == pathId);
+            Assert.Equal(25.4, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:length").Distance, 8);
+            Assert.Equal(start, path.Points[0]);
+            Assert.Equal($"{pathId}:length", viewModel.TwoDSelectedMeasurementId);
+            Assert.Equal(Editor2DTool.SketchLine, viewModel.TwoDActiveTool);
+            Assert.True(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+            Assert.Equal(0, input.SelectionStart);
+            Assert.Equal(input.Text!.Length, input.SelectionEnd);
+            Assert.Equal("1 inch", input.Text);
+            Assert.Equal("1 inch", ToolTip.GetTip(input));
+
+            input.Text = "99";
+            var click = canvas.TranslatePoint(
+                new Point(Math.Max(canvas.Bounds.Width - 8, 1), Math.Max(canvas.Bounds.Height - 8, 1)),
+                session.Window)!.Value;
+            session.Window.MouseDown(click, MouseButton.Left, RawInputModifiers.None);
+            session.Window.MouseUp(click, MouseButton.Left, RawInputModifiers.None);
+
+            Assert.Equal(25.4, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:length").Distance, 8);
+            Assert.Equal(start, viewModel.TwoDDocument.Paths.Single(item => item.Id == pathId).Points[0]);
+            Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+            Assert.Null(viewModel.TwoDSelectedMeasurementId);
+            Assert.False(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+        });
+    }
+
+    [Fact]
+    public async Task CirclePrecision_InvalidStaysFocusedThenUnitsEnterKeepsCenterAndFinishes()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var center = new Editor2DPoint(20, 10);
+        var pathId = viewModel.CreateTwoDCircle(center, new(30, 10))!;
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.SketchCircle;
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            Assert.True(canvas.RequestDimensionExpressionInput($"{pathId}:radius"));
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            input.Text = "sqrt(";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        });
+        await _ui.RunAsync(() => session.Window.UpdateLayout());
+
+        await _ui.RunAsync(() =>
+        {
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            Assert.True(viewModel.HasTwoDMeasurementExpressionError);
+            Assert.True(input.IsFocused);
+            Assert.Equal(10, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:radius").Distance, 8);
+
+            input.Text = "2 cm";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+
+            var path = viewModel.TwoDDocument!.Paths.Single(item => item.Id == pathId);
+            Assert.Equal(center, path.Center);
+            Assert.Equal(20, path.Radius);
+            Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+            Assert.False(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+        });
+    }
+
+    [Fact]
+    public async Task CirclePrecision_EscapeDiscardsTextAndKeepsCreatedGeometry()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var center = new Editor2DPoint(5, 7);
+        var pathId = viewModel.CreateTwoDCircle(center, new(15, 7))!;
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.SketchCircle;
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            Assert.True(canvas.RequestDimensionExpressionInput($"{pathId}:radius"));
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            input.Text = "99";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+
+            var path = Assert.Single(viewModel.TwoDDocument!.Paths);
+            Assert.Equal(center, path.Center);
+            Assert.Equal(10, path.Radius);
+            Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+            Assert.Null(viewModel.TwoDSelectedMeasurementId);
+            Assert.False(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+        });
+    }
+
     [Fact]
     public async Task RectanglePrecision_TabCyclesWidthToHeight_InvalidStaysThenEnterFinishes()
     {

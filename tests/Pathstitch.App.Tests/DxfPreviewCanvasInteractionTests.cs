@@ -39,6 +39,94 @@ public sealed class DxfPreviewCanvasInteractionTests
     }
 
     [Fact]
+    public async Task LineClickRouting_ReverseDirectionKeepsStartAndRequestsAutoLengthPrecision()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+            viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document;
+            var canvas = Canvas(viewModel.TwoDDocument!);
+            canvas.DataContext = viewModel;
+            DxfCanvasDimensionExpressionRequest? request = null;
+            canvas.DimensionExpressionRequested += value => request = value;
+
+            InvokeLineClick(canvas, Screen(canvas, new(20, 10)));
+            InvokeLineClick(canvas, Screen(canvas, new(0, 0)));
+
+            var path = Assert.Single(viewModel.TwoDDocument!.Paths);
+            Assert.Equal(20, path.Points[0].X, 8);
+            Assert.Equal(10, path.Points[0].Y, 8);
+            Assert.Equal(0, path.Points[1].X, 8);
+            Assert.Equal(0, path.Points[1].Y, 8);
+            Assert.Equal($"{path.Id}:length", request?.MeasurementId);
+            Assert.Equal(Math.Sqrt(500).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture), request?.Text);
+            Assert.True(viewModel.TwoDMeasurements.Single(item => item.Id == request?.MeasurementId).IsAutoDimension);
+        });
+    }
+
+    [Fact]
+    public async Task CircleClickRouting_KeepsCenterAndRequestsAutoRadiusPrecision()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+            viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document;
+            var canvas = Canvas(viewModel.TwoDDocument!);
+            canvas.DataContext = viewModel;
+            DxfCanvasDimensionExpressionRequest? request = null;
+            canvas.DimensionExpressionRequested += value => request = value;
+
+            InvokeCircleClick(canvas, Screen(canvas, new(20, 10)));
+            InvokeCircleClick(canvas, Screen(canvas, new(20, 25)));
+
+            var path = Assert.Single(viewModel.TwoDDocument!.Paths);
+            Assert.Equal(20, path.Center!.X, 8);
+            Assert.Equal(10, path.Center.Y, 8);
+            Assert.Equal(15, path.Radius!.Value, 8);
+            Assert.Equal($"{path.Id}:radius", request?.MeasurementId);
+            Assert.Equal("15", request?.Text);
+        });
+    }
+
+    [Theory]
+    [InlineData("LINE", "length")]
+    [InlineData("CIRCLE", "radius")]
+    public async Task CreationPrecision_DismissesWhenSelectionChangesOrTargetIsRemoved(
+        string entityType,
+        string dimensionType)
+    {
+        await _ui.RunAsync(() =>
+        {
+            var path = entityType == "LINE"
+                ? new Editor2DPreviewPath("target", "LINE", [new(0, 0), new(10, 0)], false)
+                : new Editor2DPreviewPath(
+                    "target", "CIRCLE", Editor2DGeometry.BuildCirclePoints(new(0, 0), 10), true,
+                    Center: new(0, 0), Radius: 10);
+            var measurement = new Editor2DMeasurement(
+                $"{path.Id}:{dimensionType}",
+                new(0, 0),
+                new(10, 0),
+                IsAutoDimension: true,
+                EntityPathId: path.Id,
+                DimensionType: dimensionType);
+            var canvas = Canvas(Document([path]));
+            canvas.Measurements = [measurement];
+            canvas.SelectedPathIds = [path.Id];
+            var dismissals = 0;
+            canvas.DimensionExpressionDismissed += () => dismissals++;
+
+            Assert.True(canvas.RequestDimensionExpressionInput(measurement.Id));
+            canvas.SelectedPathIds = ["different"];
+            Assert.Equal(1, dismissals);
+
+            canvas.SelectedPathIds = [path.Id];
+            Assert.True(canvas.RequestDimensionExpressionInput(measurement.Id));
+            canvas.Document = Document([]);
+            Assert.Equal(2, dismissals);
+        });
+    }
+
+    [Fact]
     public async Task DimensionClickRouting_TwoPointsCreatesSeededDrivenReference()
     {
         await _ui.RunAsync(() =>
@@ -111,6 +199,16 @@ public sealed class DxfPreviewCanvasInteractionTests
     private static void InvokeRectangleClick(DxfPreviewCanvas canvas, Point point)
         => typeof(DxfPreviewCanvas)
             .GetMethod("HandleSketchRectangleClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(canvas, [point]);
+
+    private static void InvokeLineClick(DxfPreviewCanvas canvas, Point point)
+        => typeof(DxfPreviewCanvas)
+            .GetMethod("HandleSketchLineClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(canvas, [point]);
+
+    private static void InvokeCircleClick(DxfPreviewCanvas canvas, Point point)
+        => typeof(DxfPreviewCanvas)
+            .GetMethod("HandleSketchCircleClick", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(canvas, [point]);
 
     private static Editor2DPreviewDocument Document(IReadOnlyList<Editor2DPreviewPath> paths)

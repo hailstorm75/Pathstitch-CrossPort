@@ -1235,9 +1235,17 @@ public sealed class DxfPreviewCanvas : Control
     {
         base.OnPropertyChanged(change);
 
+        var editingCreationPrecision = _dimensionExpressionEditingId is { } currentEditingId
+            ? Measurements.FirstOrDefault(item =>
+                item.Id.Equals(currentEditingId, StringComparison.Ordinal)
+                && IsCreationPrecisionMeasurement(item))
+            : null;
+        var canRetainCreationPrecision = editingCreationPrecision?.EntityPathId is { } targetPathId
+            && Document?.Paths.Any(path => path.Id.Equals(targetPathId, StringComparison.Ordinal)) == true
+            && SelectedPathIds.Contains(targetPathId, StringComparer.Ordinal);
         if (_dimensionExpressionEditingId is { } editingDimensionId
-            && (change.Property == DocumentProperty
-                || change.Property == SelectedPathIdsProperty
+            && (((change.Property == DocumentProperty || change.Property == SelectedPathIdsProperty)
+                    && !canRetainCreationPrecision)
                 || (change.Property == SelectedMeasurementIdProperty
                     && !string.Equals(SelectedMeasurementId, editingDimensionId, StringComparison.Ordinal))
                 || (change.Property == MeasurementsProperty
@@ -2637,6 +2645,10 @@ Selection:
         context.DrawLine(HoverPathPen, start, end);
         context.DrawEllipse(LiveMeasurementPointBrush, null, start, 3.0, 3.0);
         context.DrawEllipse(LiveMeasurementPointBrush, null, end, 3.0, 3.0);
+        DrawLiveCreationLabel(
+            context,
+            $"L: {Math.Sqrt(Math.Pow(endModel.X - startModel.X, 2) + Math.Pow(endModel.Y - startModel.Y, 2)).ToString("0.00", CultureInfo.InvariantCulture)} mm",
+            new Point((start.X + end.X) / 2.0, (start.Y + end.Y) / 2.0));
     }
 
     private void DrawLiveSketchRectangle(DrawingContext context, Size size)
@@ -2682,7 +2694,33 @@ Selection:
             screenRadius * 2.0);
         context.DrawEllipse(null, HoverPathPen, rect);
         context.DrawEllipse(LiveMeasurementPointBrush, null, center, 3.0, 3.0);
-        context.DrawEllipse(LiveMeasurementPointBrush, null, WorldToScreen(edgeModel, size), 3.0, 3.0);
+        var edge = WorldToScreen(edgeModel, size);
+        context.DrawLine(HoverPathPen, center, edge);
+        context.DrawEllipse(LiveMeasurementPointBrush, null, edge, 3.0, 3.0);
+        DrawLiveCreationLabel(
+            context,
+            $"R: {radius.ToString("0.00", CultureInfo.InvariantCulture)} mm",
+            new Point((center.X + edge.X) / 2.0, (center.Y + edge.Y) / 2.0));
+    }
+
+    private static void DrawLiveCreationLabel(DrawingContext context, string label, Point anchor)
+    {
+        var text = new FormattedText(
+            label,
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            MeasurementLabelTypeface,
+            11.0,
+            AutoDimensionTextBrush);
+        const double paddingX = 6.0;
+        const double paddingY = 3.0;
+        var rect = new Rect(
+            anchor.X - (text.Width / 2.0) - paddingX,
+            anchor.Y - text.Height - 10.0 - paddingY,
+            text.Width + (paddingX * 2.0),
+            text.Height + (paddingY * 2.0));
+        context.FillRectangle(AutoDimensionLabelFillBrush, rect);
+        context.DrawText(text, new Point(rect.X + paddingX, rect.Y + paddingY));
     }
 
     private void DrawLiveSketchPolygon(DrawingContext context, Size size)
@@ -4291,12 +4329,26 @@ Selection:
         }
 
         var startPoint = _pendingLineStart;
-        var nextDocument = AddLineToDocument(startPoint, worldPoint);
-        if (nextDocument is not null)
+        if (DataContext is EditorPageViewModel viewModel)
         {
-            SetCurrentValue(DocumentProperty, nextDocument);
-            var newPathId = nextDocument.Paths[^1].Id;
-            SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
+            var newPathId = viewModel.CreateTwoDLine(startPoint, worldPoint);
+            if (newPathId is not null)
+            {
+                SetCurrentValue(DocumentProperty, viewModel.TwoDDocument);
+                SetCurrentValue(SelectedPathIdsProperty, viewModel.TwoDSelectedPathIds);
+                SetCurrentValue(MeasurementsProperty, viewModel.TwoDMeasurements);
+                RequestDimensionExpressionInput($"{newPathId}:length");
+            }
+        }
+        else
+        {
+            var nextDocument = AddLineToDocument(startPoint, worldPoint);
+            if (nextDocument is not null)
+            {
+                SetCurrentValue(DocumentProperty, nextDocument);
+                var newPathId = nextDocument.Paths[^1].Id;
+                SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
+            }
         }
 
         CancelPendingLine();
@@ -4354,12 +4406,26 @@ Selection:
         }
 
         var centerPoint = _pendingCircleCenter;
-        var nextDocument = AddCircleToDocument(centerPoint, worldPoint);
-        if (nextDocument is not null)
+        if (DataContext is EditorPageViewModel viewModel)
         {
-            SetCurrentValue(DocumentProperty, nextDocument);
-            var newPathId = nextDocument.Paths[^1].Id;
-            SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
+            var newPathId = viewModel.CreateTwoDCircle(centerPoint, worldPoint);
+            if (newPathId is not null)
+            {
+                SetCurrentValue(DocumentProperty, viewModel.TwoDDocument);
+                SetCurrentValue(SelectedPathIdsProperty, viewModel.TwoDSelectedPathIds);
+                SetCurrentValue(MeasurementsProperty, viewModel.TwoDMeasurements);
+                RequestDimensionExpressionInput($"{newPathId}:radius");
+            }
+        }
+        else
+        {
+            var nextDocument = AddCircleToDocument(centerPoint, worldPoint);
+            if (nextDocument is not null)
+            {
+                SetCurrentValue(DocumentProperty, nextDocument);
+                var newPathId = nextDocument.Paths[^1].Id;
+                SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
+            }
         }
 
         CancelPendingCircle();
@@ -5015,7 +5081,7 @@ Selection:
     {
         var measurement = Measurements.FirstOrDefault(item =>
             item.Id == measurementId
-            && (!item.IsAutoDimension || IsRectanglePrecisionMeasurement(item)));
+            && (!item.IsAutoDimension || IsCreationPrecisionMeasurement(item)));
         if (measurement is null)
             return false;
 
@@ -5036,9 +5102,11 @@ Selection:
         return true;
     }
 
-    private static bool IsRectanglePrecisionMeasurement(Editor2DMeasurement measurement)
+    private static bool IsCreationPrecisionMeasurement(Editor2DMeasurement measurement)
         => measurement.IsAutoDimension
-           && (measurement.DimensionType?.Trim().Equals("width", StringComparison.OrdinalIgnoreCase) == true
+           && (measurement.DimensionType?.Trim().Equals("length", StringComparison.OrdinalIgnoreCase) == true
+               || measurement.DimensionType?.Trim().Equals("radius", StringComparison.OrdinalIgnoreCase) == true
+               || measurement.DimensionType?.Trim().Equals("width", StringComparison.OrdinalIgnoreCase) == true
                || measurement.DimensionType?.Trim().Equals("height", StringComparison.OrdinalIgnoreCase) == true);
 
     internal void DismissDimensionExpressionInput()
