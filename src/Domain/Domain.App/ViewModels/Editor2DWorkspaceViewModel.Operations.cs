@@ -885,6 +885,187 @@ public sealed partial class Editor2DWorkspaceViewModel
         return true;
     }
 
+    public Editor2DWorkspaceOperationResult AddImportedDrawings(
+        IReadOnlyList<Editor2DImportedDrawing> drawings,
+        double spacing = 20.0)
+    {
+        var valid = drawings.Where(drawing =>
+                drawing is not null
+                && !string.IsNullOrWhiteSpace(drawing.SourceFilePath)
+                && double.IsFinite(drawing.AppliedUnitScale)
+                && drawing.AppliedUnitScale > 0.0
+                && drawing.Document is { Paths.Count: > 0 })
+            .ToArray();
+        if (valid.Length == 0)
+            return Editor2DWorkspaceOperationResult.Failure("No imported drawing geometry was supplied");
+
+        var normalizedSpacing = double.IsFinite(spacing) ? Math.Max(0.0, spacing) : 20.0;
+        var cursorX = Document.Paths.Count == 0 ? 0.0 : Document.Bounds.MaxX + normalizedSpacing;
+        var appendedPaths = new List<Editor2DPreviewPath>();
+        var appendedLayers = new List<Editor2DLayer>();
+        var groups = new List<Editor2DImportGroup>();
+        var nextLayerOrder = Layers.Select(layer => layer.Order).DefaultIfEmpty(-1).Max() + 1;
+        foreach (var drawing in valid)
+        {
+            var groupId = Guid.NewGuid().ToString("N");
+            var bounds = MeasureImportBounds(drawing.Document.Paths);
+            var deltaX = cursorX - bounds.MinX;
+            var deltaY = -bounds.MinY;
+            var generated = drawing.Document.Paths.Select((path, index) =>
+                Editor2DGeometry.TranslatePath(path, deltaX, deltaY, $"import-{groupId}-{index}")).ToArray();
+            var generatedIds = generated.Select(path => path.Id).ToArray();
+            var layerId = $"import-layer-{groupId}";
+            var layerName = Path.GetFileNameWithoutExtension(drawing.SourceFilePath.Trim());
+            appendedLayers.Add(new Editor2DLayer(
+                layerId,
+                string.IsNullOrWhiteSpace(layerName) ? "Imported Drawing" : layerName,
+                generatedIds,
+                Order: nextLayerOrder++));
+            groups.Add(new Editor2DImportGroup(
+                groupId,
+                drawing.SourceFilePath.Trim(),
+                drawing.AppliedUnitScale,
+                generatedIds,
+                layerId,
+                0,
+                Document.Paths.Count + appendedPaths.Count,
+                drawing.Document.UnsupportedEntityTypes));
+            appendedPaths.AddRange(generated);
+            cursorX += bounds.Width + normalizedSpacing;
+        }
+
+        var selectedIds = groups.SelectMany(group => group.GeneratedPathIds).ToArray();
+        var unsupportedEntityTypes = Document.UnsupportedEntityTypes
+            .Concat(valid.SelectMany(drawing => drawing.Document.UnsupportedEntityTypes))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        Apply(_state with
+        {
+            Document = RebuildDocument(
+                Document with { UnsupportedEntityTypes = unsupportedEntityTypes },
+                Document.Paths.Concat(appendedPaths).ToArray()),
+            Layers = Layers.Concat(appendedLayers).ToArray(),
+            ActiveLayerId = ActiveLayerId ?? appendedLayers[0].Id,
+            ImportGroups = ImportGroups.Concat(groups).ToArray(),
+            BaseUnsupportedEntityTypes = _state.BaseUnsupportedEntityTypes ?? Document.UnsupportedEntityTypes,
+            SelectedPathIds = selectedIds,
+            IsInitialized = true,
+        });
+        return Editor2DWorkspaceOperationResult.Success(groups.Count == 1
+            ? "Imported 1 drawing"
+            : $"Imported {groups.Count} drawings side by side");
+    }
+
+    public Editor2DWorkspaceOperationResult ReloadImportGroups(
+        IReadOnlyDictionary<string, Editor2DPreviewDocument> documentsByGroupId)
+    {
+        if (documentsByGroupId.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("No imported drawing groups were supplied for reload");
+        var replacements = new Dictionary<string, (
+            Editor2DImportGroup Existing,
+            Editor2DImportGroup Updated,
+            IReadOnlyList<Editor2DPreviewPath> Paths)>(StringComparer.Ordinal);
+        foreach (var (groupId, sourceDocument) in documentsByGroupId)
+        {
+            var group = ImportGroups.FirstOrDefault(candidate => candidate.Id == groupId);
+            if (group is null || sourceDocument is not { Paths.Count: > 0 })
+                return Editor2DWorkspaceOperationResult.Failure("An imported drawing group could not be reloaded");
+            var currentPaths = Document.Paths.Where(path => group.GeneratedPathIds.Contains(path.Id, StringComparer.Ordinal)).ToArray();
+            if (currentPaths.Length == 0)
+                return Editor2DWorkspaceOperationResult.Failure("An imported drawing group no longer has reloadable geometry");
+
+            var currentBounds = MeasureImportBounds(currentPaths);
+            var sourceBounds = MeasureImportBounds(sourceDocument.Paths);
+            var deltaX = currentBounds.CenterX - sourceBounds.CenterX;
+            var deltaY = currentBounds.CenterY - sourceBounds.CenterY;
+            var reloadId = Guid.NewGuid().ToString("N");
+            var generated = sourceDocument.Paths.Select((path, index) =>
+                Editor2DGeometry.TranslatePath(path, deltaX, deltaY, $"import-{group.Id}-{reloadId}-{index}")).ToArray();
+            replacements[group.Id] = (
+                group,
+                group with
+                {
+                    GeneratedPathIds = generated.Select(path => path.Id).ToArray(),
+                    UnsupportedEntityTypes = sourceDocument.UnsupportedEntityTypes,
+                },
+                generated);
+        }
+        if (replacements.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("No matching imported drawing groups could be reloaded");
+
+        var oldOwnerByPathId = replacements.Values
+            .SelectMany(item => item.Existing.GeneratedPathIds.Select(id => (id, item.Existing.Id)))
+            .ToDictionary(item => item.id, item => item.Id, StringComparer.Ordinal);
+        var insertedDocumentGroups = new HashSet<string>(StringComparer.Ordinal);
+        var nextPaths = new List<Editor2DPreviewPath>();
+        foreach (var path in Document.Paths)
+        {
+            if (!oldOwnerByPathId.TryGetValue(path.Id, out var groupId))
+            {
+                nextPaths.Add(path);
+                continue;
+            }
+            if (insertedDocumentGroups.Add(groupId))
+                nextPaths.AddRange(replacements[groupId].Paths);
+        }
+
+        var nextLayers = Layers.Select(layer =>
+        {
+            var insertedLayerGroups = new HashSet<string>(StringComparer.Ordinal);
+            var pathIds = new List<string>();
+            foreach (var pathId in layer.PathIds)
+            {
+                if (!oldOwnerByPathId.TryGetValue(pathId, out var groupId))
+                {
+                    pathIds.Add(pathId);
+                    continue;
+                }
+                if (layer.Id == replacements[groupId].Existing.OwningLayerId
+                    && insertedLayerGroups.Add(groupId))
+                    pathIds.AddRange(replacements[groupId].Paths.Select(path => path.Id));
+            }
+            return layer with { PathIds = pathIds };
+        }).ToArray();
+        var nextGroups = ImportGroups.Select(group =>
+            replacements.TryGetValue(group.Id, out var replacement) ? replacement.Updated : group).ToArray();
+        var selectedIds = nextGroups
+            .Where(group => replacements.ContainsKey(group.Id))
+            .SelectMany(group => group.GeneratedPathIds)
+            .ToArray();
+        var previousImportDiagnostics = ImportGroups
+            .SelectMany(group => group.UnsupportedEntityTypes ?? [])
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var baseUnsupportedEntityTypes = _state.BaseUnsupportedEntityTypes
+            ?? Document.UnsupportedEntityTypes.Where(type => !previousImportDiagnostics.Contains(type)).ToArray();
+        var unsupportedEntityTypes = baseUnsupportedEntityTypes
+            .Concat(nextGroups.SelectMany(group => group.UnsupportedEntityTypes ?? []))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document with { UnsupportedEntityTypes = unsupportedEntityTypes }, nextPaths),
+            Layers = nextLayers,
+            ImportGroups = nextGroups,
+            BaseUnsupportedEntityTypes = baseUnsupportedEntityTypes,
+            SelectedPathIds = selectedIds,
+        });
+        return Editor2DWorkspaceOperationResult.Success(replacements.Count == 1
+            ? "Reloaded 1 imported drawing"
+            : $"Reloaded {replacements.Count} imported drawings");
+    }
+
+    private static Editor2DBounds MeasureImportBounds(IReadOnlyList<Editor2DPreviewPath> paths)
+    {
+        var points = paths.SelectMany(path => path.Points).ToArray();
+        return points.Length == 0
+            ? new Editor2DBounds(0, 0, 0, 0)
+            : new Editor2DBounds(
+                points.Min(point => point.X),
+                points.Min(point => point.Y),
+                points.Max(point => point.X),
+                points.Max(point => point.Y));
+    }
+
     private IReadOnlyList<Editor2DPreviewPath> SelectedPaths(Func<Editor2DPreviewPath, bool>? predicate = null)
     {
         var ids = SelectedPathIds.ToHashSet(StringComparer.Ordinal);

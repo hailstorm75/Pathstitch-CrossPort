@@ -243,6 +243,25 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public IReadOnlyList<Editor2DSewingHoleOperation> SewingHoleOperations => _state.SewingHoleOperations ?? [];
 
     public IReadOnlyList<Editor2DConvertLineGroup> ConvertLineGroups => _state.ConvertLineGroups ?? [];
+
+    public IReadOnlyList<Editor2DImportGroup> ImportGroups => _state.ImportGroups ?? [];
+
+    public Editor2DImportGroup? FindImportGroupForPath(string pathId)
+        => ImportGroups.FirstOrDefault(group => group.GeneratedPathIds.Contains(pathId, StringComparer.Ordinal));
+
+    public Editor2DImportGroup? GetSelectedImportGroup()
+    {
+        var groups = GetSelectedImportGroups();
+        return groups.Count == 1 ? groups[0] : null;
+    }
+
+    public IReadOnlyList<Editor2DImportGroup> GetSelectedImportGroups()
+        => SelectedPathIds
+            .Select(FindImportGroupForPath)
+            .Where(group => group is not null)
+            .DistinctBy(group => group!.Id, StringComparer.Ordinal)
+            .Cast<Editor2DImportGroup>()
+            .ToArray();
     public IReadOnlyList<Editor2DPreviewPath> SewingHolePreviewPaths => _sewingHolePreviewPaths;
     public int SewingHolePreviewCount => _sewingHolePreviewPaths.Count;
     public bool HasSewingHolePreview => _sewingHolePreviewPaths.Count > 0;
@@ -1433,7 +1452,9 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             .Where(pathIds.Contains)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-        var measurements = state.Measurements ?? [];
+        var measurements = (state.Measurements ?? [])
+            .Where(measurement => measurement.EntityPathId is null || pathIds.Contains(measurement.EntityPathId))
+            .ToArray();
         var selectedMeasurementId = measurements.Any(item => item.Id == state.SelectedMeasurementId)
             ? state.SelectedMeasurementId
             : null;
@@ -1441,12 +1462,32 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         var folders = NormalizeFolders(state.Folders);
         var layers = NormalizeLayers(state with { Folders = folders }, pathIds);
         var convertLineGroups = NormalizeConvertLineGroups(state.ConvertLineGroups, pathIds, layers);
+        var importGroups = NormalizeImportGroups(state.ImportGroups, pathIds, layers, state.Document.Paths);
+        var importedUnsupportedEntityTypes = importGroups
+            .SelectMany(group => group.UnsupportedEntityTypes ?? [])
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var baseUnsupportedEntityTypes = (state.BaseUnsupportedEntityTypes
+                ?? state.Document.UnsupportedEntityTypes.Where(type => !importedUnsupportedEntityTypes.Contains(type)).ToArray())
+            .Where(type => !string.IsNullOrWhiteSpace(type))
+            .Select(type => type.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var unsupportedEntityTypes = baseUnsupportedEntityTypes
+            .Concat(importedUnsupportedEntityTypes)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var document = state.Document.UnsupportedEntityTypes.SequenceEqual(
+            unsupportedEntityTypes,
+            StringComparer.OrdinalIgnoreCase)
+                ? state.Document
+                : state.Document with { UnsupportedEntityTypes = unsupportedEntityTypes };
         var activeLayerId = layers.Any(layer => layer.Id == state.ActiveLayerId)
             ? state.ActiveLayerId
             : layers.FirstOrDefault()?.Id;
 
         return state with
         {
+            Document = document,
             SelectedPathIds = selectedPathIds,
             Measurements = measurements,
             SelectedMeasurementId = selectedMeasurementId,
@@ -1465,17 +1506,87 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                     && double.IsFinite(parameter.Value))
                 .DistinctBy(parameter => parameter.Id, StringComparer.Ordinal)
                 .ToArray(),
-            SewingHoleParameters = NormalizeSewingParameters(state.SewingHoleParameters),
+            SewingHoleParameters = NormalizeSewingParameters(state.SewingHoleParameters, pathIds),
             SewingHoleOperations = (state.SewingHoleOperations ?? [])
                 .Where(operation => operation.SourcePathIds.All(pathIds.Contains))
                 .Select(operation => operation with
                 {
                     GeneratedPathIds = operation.GeneratedPathIds.Where(pathIds.Contains).ToArray(),
-                    Parameters = NormalizeSewingParameters(operation.Parameters),
+                    Parameters = NormalizeSewingParameters(operation.Parameters, pathIds),
                 })
                 .ToArray(),
             ConvertLineGroups = convertLineGroups,
+            ImportGroups = importGroups,
+            BaseUnsupportedEntityTypes = baseUnsupportedEntityTypes,
         };
+    }
+
+    private static IReadOnlyList<Editor2DImportGroup> NormalizeImportGroups(
+        IReadOnlyList<Editor2DImportGroup>? groups,
+        IReadOnlySet<string> documentPathIds,
+        IReadOnlyList<Editor2DLayer> layers,
+        IReadOnlyList<Editor2DPreviewPath> documentPaths)
+    {
+        var normalized = new List<Editor2DImportGroup>();
+        var claimedGeneratedIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var group in groups ?? [])
+        {
+            if (group is null
+                || string.IsNullOrWhiteSpace(group.Id)
+                || string.IsNullOrWhiteSpace(group.SourceFilePath)
+                || !double.IsFinite(group.AppliedUnitScale)
+                || group.AppliedUnitScale <= 0.0
+                || group.GeneratedPathIds is null)
+                continue;
+
+            var normalizedId = group.Id.Trim();
+            if (normalized.Any(existing => existing.Id == normalizedId))
+                continue;
+
+            var generatedIds = group.GeneratedPathIds
+                .Where(id => !string.IsNullOrWhiteSpace(id) && documentPathIds.Contains(id))
+                .Distinct(StringComparer.Ordinal)
+                .Where(claimedGeneratedIds.Add)
+                .ToArray();
+            if (generatedIds.Length == 0)
+                continue;
+
+            var owningLayer = layers.FirstOrDefault(layer =>
+                layer.Kind == Editor2DLayerKind.Geometry
+                && generatedIds.Any(id => layer.PathIds.Contains(id, StringComparer.Ordinal)));
+            if (owningLayer is null)
+                continue;
+
+            var owningLayerPathIndex = owningLayer.PathIds
+                .Select((id, index) => (id, index))
+                .Where(item => generatedIds.Contains(item.id, StringComparer.Ordinal))
+                .Select(item => item.index)
+                .DefaultIfEmpty(0)
+                .Min();
+            var documentPathIndex = documentPaths
+                .Select((path, index) => (path.Id, index))
+                .Where(item => generatedIds.Contains(item.Id, StringComparer.Ordinal))
+                .Select(item => item.index)
+                .DefaultIfEmpty(0)
+                .Min();
+
+            normalized.Add(group with
+            {
+                Id = normalizedId,
+                SourceFilePath = group.SourceFilePath.Trim(),
+                GeneratedPathIds = generatedIds,
+                OwningLayerId = owningLayer.Id,
+                OwningLayerPathIndex = owningLayerPathIndex,
+                DocumentPathIndex = documentPathIndex,
+                UnsupportedEntityTypes = (group.UnsupportedEntityTypes ?? [])
+                    .Where(type => !string.IsNullOrWhiteSpace(type))
+                    .Select(type => type.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+            });
+        }
+
+        return normalized;
     }
 
     private static IReadOnlyList<Editor2DConvertLineGroup> NormalizeConvertLineGroups(
@@ -1725,7 +1836,9 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             RefreshSewingHolePreview();
     }
 
-    private static Editor2DSewingHoleParameters NormalizeSewingParameters(Editor2DSewingHoleParameters? parameters)
+    private static Editor2DSewingHoleParameters NormalizeSewingParameters(
+        Editor2DSewingHoleParameters? parameters,
+        IReadOnlySet<string>? livePathIds = null)
     {
         var value = parameters ?? Editor2DSewingHoleParameters.Default;
         var side = value.Side;
@@ -1747,7 +1860,10 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             SaddleSpacing = Math.Max(0, value.SaddleSpacing),
             CornerClearance = Math.Max(0, value.CornerClearance),
             AvoidanceClearance = Math.Max(0, value.AvoidanceClearance),
-            AvoidPathIds = (value.AvoidPathIds ?? []).Distinct(StringComparer.Ordinal).ToArray(),
+            AvoidPathIds = (value.AvoidPathIds ?? [])
+                .Where(id => livePathIds is null || livePathIds.Contains(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray(),
             Count = Math.Max(1, value.Count),
             VariableSpacingMin = Math.Max(0.1, Math.Min(value.VariableSpacingMin, value.VariableSpacingMax)),
             VariableSpacingMax = Math.Max(0.1, Math.Max(value.VariableSpacingMin, value.VariableSpacingMax)),
@@ -1832,6 +1948,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(SewingHoleParameters));
         OnPropertyChanged(nameof(SewingHoleOperations));
         OnPropertyChanged(nameof(ConvertLineGroups));
+        OnPropertyChanged(nameof(ImportGroups));
         if (_selectedSewingHoleOperation is not null)
         {
             _selectedSewingHoleOperation = SewingHoleOperations.FirstOrDefault(operation => operation.Id == _selectedSewingHoleOperation.Id);

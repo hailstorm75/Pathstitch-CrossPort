@@ -27,7 +27,9 @@ public sealed record Editor2DWorkspaceState(
     [property: JsonPropertyName("gridVisible")] bool GridVisible = true,
     [property: JsonPropertyName("chainSelectionEnabled")] bool ChainSelectionEnabled = false,
     [property: JsonPropertyName("folders")] IReadOnlyList<Editor2DLayerFolder>? Folders = null,
-    [property: JsonPropertyName("convertLineGroups")] IReadOnlyList<Editor2DConvertLineGroup>? ConvertLineGroups = null)
+    [property: JsonPropertyName("convertLineGroups")] IReadOnlyList<Editor2DConvertLineGroup>? ConvertLineGroups = null,
+    [property: JsonPropertyName("importGroups")] IReadOnlyList<Editor2DImportGroup>? ImportGroups = null,
+    [property: JsonPropertyName("baseUnsupportedEntityTypes")] IReadOnlyList<string>? BaseUnsupportedEntityTypes = null)
 {
     public static Editor2DWorkspaceState Empty { get; } = new(
         new Editor2DPreviewDocument(
