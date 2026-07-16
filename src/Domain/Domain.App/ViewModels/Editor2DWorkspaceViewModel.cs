@@ -591,6 +591,15 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             return false;
         }
 
+        foreach (var name in expressions.Keys)
+        {
+            if (!TryResolve(name, out var resolvedValue) || resolvedValue <= 0)
+            {
+                error = "Enter a positive number or arithmetic expression";
+                return false;
+            }
+        }
+
         var updatedMeasurements = Measurements.Select(item =>
         {
             var itemVariable = item.Id == measurementId ? varName : item.VarName;
