@@ -174,6 +174,34 @@ public sealed class ProjectSessionService(
 
     public void RemoveRecentProject(string projectFilePath) => recentProjectsService.RemoveProject(projectFilePath);
 
+    public ProjectSession ReplaceSessionPath(
+        ProjectSession session,
+        string projectFilePath,
+        string? projectName = null,
+        bool trackInRecentProjects = true)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (string.IsNullOrWhiteSpace(projectFilePath))
+            throw new ArgumentException("A replacement project path is required.", nameof(projectFilePath));
+
+        var normalizedPath = Path.GetFullPath(projectFilePath);
+        if (!Path.GetExtension(normalizedPath).Equals(ProjectExtension, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("The replacement project path must use the .stch extension.", nameof(projectFilePath));
+        if (!File.Exists(normalizedPath))
+            throw new FileNotFoundException("The replacement project file does not exist.", normalizedPath);
+
+        var replacement = session with
+        {
+            ProjectName = string.IsNullOrWhiteSpace(projectName) ? session.ProjectName : projectName.Trim(),
+            ProjectFilePath = normalizedPath,
+            TrackInRecentProjects = trackInRecentProjects,
+        };
+        if (CurrentSession?.SessionId == session.SessionId)
+            CurrentSession = replacement;
+        recentProjectsService.RecordProject(replacement);
+        return replacement;
+    }
+
     private static ProjectSession CreateSession(
         ProjectSessionOrigin origin,
         string projectName,

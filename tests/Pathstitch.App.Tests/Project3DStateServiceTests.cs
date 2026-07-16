@@ -380,6 +380,43 @@ public sealed class Project3DStateServiceTests
         Assert.Equal(editorState.ToolCustomizations, restored.WorkspaceState.ToolCustomizations);
     }
 
+    [Fact]
+    public async Task SaveAsAsync_PreservesSourceArchiveEntriesAndReplacesProjectName()
+    {
+        using var workspace = TestWorkspace.Create();
+        var source = workspace.WriteText(
+            "source.stch",
+            "{\"projectName\":\"Source\",\"templateId\":\"blank\",\"customMetadata\":42}");
+        var target = workspace.GetPath("renamed.stch");
+        var service = new Project3DStateService();
+        await service.SaveAsync(source, Project3DState.Empty);
+        using (var archive = ZipFile.Open(source, ZipArchiveMode.Update))
+        {
+            var entry = archive.CreateEntry("custom/data.bin");
+            await using var stream = entry.Open();
+            await stream.WriteAsync(new byte[] { 1, 2, 3, 4 });
+        }
+        var state = Project3DState.Empty with
+        {
+            WorkspaceState = new EditorWorkspaceState(
+                Editor3DTool.Select,
+                ThreeDOrthographic: false,
+                ShowTwoDWorkspace: false,
+                ActiveEditorMode: EditorMode.Batch),
+        };
+
+        await service.SaveAsAsync(source, target, state);
+
+        using var targetArchive = ZipFile.OpenRead(target);
+        Assert.NotNull(targetArchive.GetEntry("custom/data.bin"));
+        await using var projectStream = targetArchive.GetEntry("project.json")!.Open();
+        using var projectJson = await JsonDocument.ParseAsync(projectStream);
+        Assert.Equal("renamed", projectJson.RootElement.GetProperty("projectName").GetString());
+        Assert.Equal(42, projectJson.RootElement.GetProperty("customMetadata").GetInt32());
+        Assert.Equal(EditorMode.Batch, (await service.LoadAsync(target)).WorkspaceState!.ActiveEditorMode);
+        Assert.Null((await service.LoadAsync(source)).WorkspaceState);
+    }
+
     private sealed class TestWorkspace : IDisposable
     {
         private TestWorkspace(string directory)

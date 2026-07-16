@@ -63,7 +63,14 @@ public sealed class Project3DStateService
         }
     }
 
-    public async Task SaveAsync(string projectFilePath, Project3DState state, CancellationToken cancellationToken = default)
+    public Task SaveAsync(string projectFilePath, Project3DState state, CancellationToken cancellationToken = default)
+        => SaveCoreAsync(projectFilePath, state, projectNameOverride: null, cancellationToken);
+
+    private async Task SaveCoreAsync(
+        string projectFilePath,
+        Project3DState state,
+        string? projectNameOverride,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(projectFilePath))
             return;
@@ -73,6 +80,9 @@ public sealed class Project3DStateService
             ?? new JsonObject();
         var preservedEntries = await ReadPreservedArchiveEntriesAsync(projectFilePath, preserveExistingSourceModel, cancellationToken)
             .ConfigureAwait(false);
+
+        if (!string.IsNullOrWhiteSpace(projectNameOverride))
+            payload["projectName"] = projectNameOverride.Trim();
 
         payload["savedViewportJson"] = state.ViewportJson is null
             ? null
@@ -170,7 +180,66 @@ public sealed class Project3DStateService
             throw;
         }
 
-        File.Move(tempArchivePath, projectFilePath, overwrite: true);
+        try
+        {
+            File.Move(tempArchivePath, projectFilePath, overwrite: true);
+        }
+        finally
+        {
+            TryDeleteFile(tempArchivePath);
+        }
+    }
+
+    public async Task SaveAsAsync(
+        string sourceProjectFilePath,
+        string targetProjectFilePath,
+        Project3DState state,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(sourceProjectFilePath))
+            throw new ArgumentException("A source project path is required.", nameof(sourceProjectFilePath));
+        if (string.IsNullOrWhiteSpace(targetProjectFilePath))
+            throw new ArgumentException("A target project path is required.", nameof(targetProjectFilePath));
+
+        var sourcePath = Path.GetFullPath(sourceProjectFilePath);
+        var targetPath = Path.GetFullPath(targetProjectFilePath);
+        if (!File.Exists(sourcePath))
+            throw new FileNotFoundException("The source project file does not exist.", sourcePath);
+        if (!Path.GetExtension(targetPath).Equals(".stch", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("The target project path must use the .stch extension.", nameof(targetProjectFilePath));
+
+        if (string.Equals(sourcePath, targetPath, StringComparison.OrdinalIgnoreCase))
+        {
+            await SaveCoreAsync(
+                targetPath,
+                state,
+                Path.GetFileNameWithoutExtension(targetPath),
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var targetDirectory = Path.GetDirectoryName(targetPath)!;
+        Directory.CreateDirectory(targetDirectory);
+        var stagingPath = Path.Combine(
+            targetDirectory,
+            $".{Path.GetFileNameWithoutExtension(targetPath)}.{Guid.NewGuid():N}.saveas.stch");
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Copy(sourcePath, stagingPath, overwrite: false);
+            await SaveCoreAsync(
+                stagingPath,
+                state,
+                Path.GetFileNameWithoutExtension(targetPath),
+                cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Move(stagingPath, targetPath, overwrite: true);
+        }
+        finally
+        {
+            TryDeleteFile(stagingPath);
+        }
     }
 
     private static async Task<Project3DStatePayload?> ReadProjectPayloadAsync(string projectFilePath, CancellationToken cancellationToken)
