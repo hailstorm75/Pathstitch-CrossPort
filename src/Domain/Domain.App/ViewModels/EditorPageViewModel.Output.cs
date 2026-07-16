@@ -385,6 +385,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(CanConfirmTwoDMirror));
             OnPropertyChanged(nameof(TwoDMirrorStageHint));
             OnPropertyChanged(nameof(TwoDMirrorObjectSummary));
+            OnPropertyChanged(nameof(HasTwoDMirrorLinkSelection));
             OnPropertyChanged(nameof(TwoDSelectedRectangleCount));
             OnPropertyChanged(nameof(CanExpandTwoDRectangles));
             OnPropertyChanged(nameof(TwoDSelectionSummary));
@@ -797,6 +798,16 @@ public sealed partial class EditorPageViewModel
 
     public bool IsTwoDMirrorToolActive => TwoDActiveTool == Editor2DTool.Mirror;
 
+    public IReadOnlyDictionary<string, Editor2DMirrorLink> MirrorLinks => _twoDWorkspace.MirrorLinks;
+
+    public bool HasTwoDMirrorLinkSelection => _twoDWorkspace.HasMirrorLinkSelection;
+
+    public bool TwoDMirrorKeepLink
+    {
+        get => _twoDMirrorKeepLink;
+        set => SetProperty(ref _twoDMirrorKeepLink, value);
+    }
+
     public bool TwoDMirrorLineMode
     {
         get => _twoDMirrorLineMode;
@@ -867,10 +878,25 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        var completed = CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyMirror(start, end));
+        var completed = CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyMirror(start, end, TwoDMirrorKeepLink));
         if (completed)
+        {
+            OnPropertyChanged(nameof(MirrorLinks));
+            OnPropertyChanged(nameof(HasTwoDMirrorLinkSelection));
             ResetTwoDMirrorStaging();
+        }
         return completed;
+    }
+
+    public bool BreakTwoDMirrorLinks()
+    {
+        if (!_twoDWorkspace.BreakMirrorLinksForSelection())
+            return false;
+
+        OnPropertyChanged(nameof(MirrorLinks));
+        OnPropertyChanged(nameof(HasTwoDMirrorLinkSelection));
+        StatusText = "Broke mirror link";
+        return true;
     }
 
     public void CancelTwoDMirror(bool exitTool = false)

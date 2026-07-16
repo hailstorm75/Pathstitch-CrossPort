@@ -209,6 +209,8 @@ public sealed class EditorPageViewModelModeTests
         viewModel.TwoDMirrorAxisStart = new Editor2DPoint(0, 0);
         viewModel.TwoDMirrorAxisEnd = new Editor2DPoint(0, 10);
 
+        Assert.True(viewModel.TwoDMirrorKeepLink);
+
         Assert.True(viewModel.ConfirmTwoDMirror());
         Assert.Equal(2, viewModel.TwoDDocument!.Paths.Count);
         var copyId = Assert.Single(viewModel.TwoDSelectedPathIds);
@@ -218,6 +220,15 @@ public sealed class EditorPageViewModelModeTests
         Assert.Null(viewModel.TwoDMirrorAxisEnd);
         Assert.False(viewModel.TwoDMirrorLineMode);
         Assert.Equal(Editor2DTool.Mirror, viewModel.TwoDActiveTool);
+        Assert.True(viewModel.TwoDMirrorKeepLink);
+        Assert.True(viewModel.HasTwoDMirrorLinkSelection);
+        Assert.Equal(2, viewModel.MirrorLinks.Count);
+
+        var pathsBeforeBreak = viewModel.TwoDDocument.Paths.ToArray();
+        Assert.True(viewModel.BreakTwoDMirrorLinks());
+        Assert.Empty(viewModel.MirrorLinks);
+        Assert.False(viewModel.HasTwoDMirrorLinkSelection);
+        Assert.Equal(pathsBeforeBreak, viewModel.TwoDDocument.Paths);
 
         viewModel.TwoDMirrorLineMode = true;
         viewModel.TwoDMirrorAxisStart = new Editor2DPoint(1, 1);
@@ -228,6 +239,7 @@ public sealed class EditorPageViewModelModeTests
 
         viewModel.CancelTwoDMirror(exitTool: true);
         Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        Assert.True(viewModel.TwoDMirrorKeepLink);
         viewModel.ClearTwoDMirrorObjects();
         Assert.Empty(viewModel.TwoDSelectedPathIds);
     }

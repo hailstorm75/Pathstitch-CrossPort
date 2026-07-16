@@ -15,6 +15,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private readonly IReferenceImageBackgroundRemovalService? _referenceImageBackgroundRemovalService;
     private readonly Stack<Editor2DWorkspaceState> _undo = new();
     private readonly Stack<Editor2DWorkspaceState> _redo = new();
+    private readonly Dictionary<string, Editor2DMirrorLink> _mirrorLinks = new(StringComparer.Ordinal);
     private Editor2DWorkspaceState _state = Editor2DWorkspaceState.Empty;
     private int _polygonSides = 6;
     private IReadOnlyList<string> _expandedRectanglePathIds = [];
@@ -130,6 +131,15 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool IsSewingHoleToolActive => ActiveTool == Editor2DTool.AddSewingHoles;
 
     public IReadOnlyList<string> SelectedPathIds => _state.SelectedPathIds ?? [];
+
+    /// <summary>
+    /// Session-only mirror metadata. Links intentionally do not participate in
+    /// project serialization or undo/redo snapshots; geometry restores never
+    /// recreate links, and stale entries are pruned when geometry changes.
+    /// </summary>
+    public IReadOnlyDictionary<string, Editor2DMirrorLink> MirrorLinks => _mirrorLinks;
+
+    public bool HasMirrorLinkSelection => SelectedPathIds.Any(_mirrorLinks.ContainsKey);
 
     public IReadOnlyList<Editor2DMeasurement> Measurements => _state.Measurements ?? [];
 
@@ -249,6 +259,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         }
 
         _state = normalized;
+        RemoveMissingMirrorLinks();
         RaiseStateChanged();
     }
 
@@ -488,6 +499,24 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             SelectedMeasurementId = null,
         });
         return deleted;
+    }
+
+    public bool BreakMirrorLinksForSelection()
+    {
+        var linkedPathIds = SelectedPathIds
+            .Where(_mirrorLinks.ContainsKey)
+            .ToArray();
+        if (linkedPathIds.Length == 0)
+            return false;
+
+        var remove = new HashSet<string>(linkedPathIds, StringComparer.Ordinal);
+        foreach (var pathId in linkedPathIds)
+            remove.Add(_mirrorLinks[pathId].PartnerPathId);
+        foreach (var pathId in remove)
+            _mirrorLinks.Remove(pathId);
+
+        RaiseMirrorLinksChanged();
+        return true;
     }
 
     public int ExpandSelectedRectangles()
@@ -1028,6 +1057,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
         _redo.Push(_state);
         _state = _undo.Pop();
+        RemoveMissingMirrorLinks();
         RaiseStateChanged();
         return true;
     }
@@ -1039,6 +1069,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
         _undo.Push(_state);
         _state = _redo.Pop();
+        RemoveMissingMirrorLinks();
         RaiseStateChanged();
         return true;
     }
@@ -1327,6 +1358,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(SnapEnabled));
         OnPropertyChanged(nameof(IsSewingHoleToolActive));
         OnPropertyChanged(nameof(SelectedPathIds));
+        OnPropertyChanged(nameof(HasMirrorLinkSelection));
         OnPropertyChanged(nameof(Measurements));
         OnPropertyChanged(nameof(SelectedMeasurementId));
         OnPropertyChanged(nameof(Layers));
@@ -1344,5 +1376,45 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanPreviewSewingHoles));
         OnPropertyChanged(nameof(CanUndo));
         OnPropertyChanged(nameof(CanRedo));
+    }
+
+    private void AddMirrorLinks(
+        IReadOnlyList<Editor2DPreviewPath> sources,
+        IReadOnlyList<Editor2DPreviewPath> copies,
+        Editor2DPoint axisStart,
+        Editor2DPoint axisEnd)
+    {
+        for (var index = 0; index < Math.Min(sources.Count, copies.Count); index++)
+        {
+            var sourceId = sources[index].Id;
+            var copyId = copies[index].Id;
+            _mirrorLinks[sourceId] = new Editor2DMirrorLink(copyId, axisStart, axisEnd);
+            _mirrorLinks[copyId] = new Editor2DMirrorLink(sourceId, axisStart, axisEnd);
+        }
+        RaiseMirrorLinksChanged();
+    }
+
+    private void RemoveMissingMirrorLinks()
+    {
+        if (_mirrorLinks.Count == 0)
+            return;
+
+        var pathIds = Document.Paths.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
+        var remove = _mirrorLinks
+            .Where(pair => !pathIds.Contains(pair.Key) || !pathIds.Contains(pair.Value.PartnerPathId))
+            .SelectMany(pair => new[] { pair.Key, pair.Value.PartnerPathId })
+            .ToHashSet(StringComparer.Ordinal);
+        if (remove.Count == 0)
+            return;
+
+        foreach (var pathId in remove)
+            _mirrorLinks.Remove(pathId);
+        RaiseMirrorLinksChanged();
+    }
+
+    private void RaiseMirrorLinksChanged()
+    {
+        OnPropertyChanged(nameof(MirrorLinks));
+        OnPropertyChanged(nameof(HasMirrorLinkSelection));
     }
 }

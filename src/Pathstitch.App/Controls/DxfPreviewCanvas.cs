@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
@@ -251,6 +252,7 @@ public sealed class DxfPreviewCanvas : Control
     private readonly MenuItem _reloadFromDiskMenuItem;
     private readonly MenuItem _strokeToFillMenuItem;
     private readonly MenuItem _fillToStrokeMenuItem;
+    private readonly MenuItem _breakMirrorLinkMenuItem;
     private readonly MenuItem _deleteSelectionMenuItem;
     private ref bool _isMovingSelection => ref _interaction.IsMovingSelection;
     private ref bool _isScalingSelection => ref _interaction.IsScalingSelection;
@@ -414,6 +416,13 @@ public sealed class DxfPreviewCanvas : Control
             Command = new RelayCommand(() => ExecuteFillConversion(toFill: false)),
         };
 
+        _breakMirrorLinkMenuItem = new MenuItem
+        {
+            Header = "Break Mirror Link",
+            Command = new RelayCommand(ExecuteBreakMirrorLinkCommand),
+        };
+        AutomationProperties.SetAutomationId(_breakMirrorLinkMenuItem, "editor.canvas.2d.break-mirror-link");
+
         _deleteSelectionMenuItem = new MenuItem
         {
             Header = "Delete",
@@ -437,6 +446,7 @@ public sealed class DxfPreviewCanvas : Control
                 _explodeCompoundMenuItem,
                 _strokeToFillMenuItem,
                 _fillToStrokeMenuItem,
+                _breakMirrorLinkMenuItem,
                 _deleteSelectionMenuItem,
             },
         };
@@ -446,6 +456,13 @@ public sealed class DxfPreviewCanvas : Control
     {
         if (DataContext is EditorPageViewModel viewModel)
             viewModel.DuplicateTwoDSelection();
+        _contextMenu.Close();
+    }
+
+    private void ExecuteBreakMirrorLinkCommand()
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.BreakTwoDMirrorLinks();
         _contextMenu.Close();
     }
 
@@ -4646,6 +4663,8 @@ Selection:
         _explodeCompoundMenuItem.IsVisible = !hasMeasurementSelection && canExplodeCompound;
         _strokeToFillMenuItem.IsVisible = !hasMeasurementSelection && canStrokeToFill;
         _fillToStrokeMenuItem.IsVisible = !hasMeasurementSelection && canFillToStroke;
+        _breakMirrorLinkMenuItem.IsVisible = !hasMeasurementSelection
+            && DataContext is EditorPageViewModel { HasTwoDMirrorLinkSelection: true };
         _deleteSelectionMenuItem.IsVisible = hasMeasurementSelection || hasSelection;
     }
 

@@ -149,6 +149,7 @@ public sealed partial class EditorPageViewModel(
     private string _twoDScaleFactorText = "1";
     private bool _twoDScaleFromCenter = true;
     private bool _twoDMirrorLineMode;
+    private bool _twoDMirrorKeepLink = true;
     private Editor2DPoint? _twoDMirrorAxisStart;
     private Editor2DPoint? _twoDMirrorAxisEnd;
 

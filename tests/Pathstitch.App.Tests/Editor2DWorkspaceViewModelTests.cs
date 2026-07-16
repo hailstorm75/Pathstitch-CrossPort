@@ -379,6 +379,69 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void ApplyMirror_CreatesBidirectionalMetadataAndBreakKeepsGeometry()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var source = new Editor2DPreviewPath("source", "LINE", [new(2, 0), new(4, 0)], false);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [source] });
+        workspace.SetSelection([source.Id]);
+        workspace.ClearHistory();
+        var axisStart = new Editor2DPoint(0, 0);
+        var axisEnd = new Editor2DPoint(0, 10);
+
+        Assert.True(workspace.ApplyMirror(axisStart, axisEnd).IsSuccess);
+
+        var copyId = Assert.Single(workspace.SelectedPathIds);
+        Assert.Equal(2, workspace.MirrorLinks.Count);
+        Assert.Equal(new Editor2DMirrorLink(copyId, axisStart, axisEnd), workspace.MirrorLinks[source.Id]);
+        Assert.Equal(new Editor2DMirrorLink(source.Id, axisStart, axisEnd), workspace.MirrorLinks[copyId]);
+        Assert.True(workspace.HasMirrorLinkSelection);
+        var pathsBeforeBreak = workspace.Document.Paths.ToArray();
+
+        Assert.True(workspace.BreakMirrorLinksForSelection());
+
+        Assert.Empty(workspace.MirrorLinks);
+        Assert.False(workspace.HasMirrorLinkSelection);
+        Assert.Equal(pathsBeforeBreak, workspace.Document.Paths);
+        Assert.False(workspace.BreakMirrorLinksForSelection());
+        Assert.True(workspace.Undo());
+        Assert.Equal([source], workspace.Document.Paths);
+        Assert.False(workspace.Undo());
+    }
+
+    [Fact]
+    public void MirrorLinks_AreOptionalTransientMetadataAndNeverBecomeStale()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var source = new Editor2DPreviewPath("source", "LINE", [new(2, 0), new(4, 0)], false);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [source] });
+        workspace.SetSelection([source.Id]);
+        workspace.ClearHistory();
+
+        Assert.True(workspace.ApplyMirror(new(0, 0), new(0, 10), keepLink: false).IsSuccess);
+        Assert.Empty(workspace.MirrorLinks);
+        Assert.True(workspace.Undo());
+        Assert.True(workspace.Redo());
+        workspace.SetSelection([source.Id]);
+
+        Assert.True(workspace.ApplyMirror(new(0, 0), new(0, 10)).IsSuccess);
+        Assert.Equal(2, workspace.MirrorLinks.Count);
+
+        Assert.True(workspace.Undo());
+        Assert.Empty(workspace.MirrorLinks);
+        Assert.True(workspace.Redo());
+        Assert.Empty(workspace.MirrorLinks);
+
+        workspace.SetSelection([workspace.Document.Paths.Last().Id]);
+        Assert.True(workspace.ApplyMirror(new(0, 0), new(0, 10)).IsSuccess);
+        Assert.Equal(2, workspace.MirrorLinks.Count);
+        Assert.Equal(1, workspace.DeleteSelection());
+        Assert.Empty(workspace.MirrorLinks);
+        Assert.True(workspace.Undo());
+        Assert.Empty(workspace.MirrorLinks);
+    }
+
+    [Fact]
     public void ParametricMeasurement_StoresExpressionAndDrivesEndpoint()
     {
         var workspace = new Editor2DWorkspaceViewModel();

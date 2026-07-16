@@ -198,6 +198,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("TwoDMirrorAxisStart=\"{Binding TwoDMirrorAxisStart, Mode=TwoWay}\"", view, StringComparison.Ordinal);
         Assert.Contains("TwoDMirrorAxisEnd=\"{Binding TwoDMirrorAxisEnd, Mode=TwoWay}\"", view, StringComparison.Ordinal);
         Assert.Contains("editor.2d.mirror.line-mode", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDMirrorKeepLink, Mode=TwoWay", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.mirror.keep-live-link", inspector, StringComparison.Ordinal);
         Assert.Contains("editor.2d.mirror.confirm", inspector, StringComparison.Ordinal);
         Assert.Contains("editor.2d.mirror.cancel", inspector, StringComparison.Ordinal);
         Assert.Contains("OnConfirmTwoDMirrorClicked", handlers, StringComparison.Ordinal);
@@ -206,6 +208,10 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Editor2DGeometry.ReflectPath", canvas, StringComparison.Ordinal);
         Assert.Contains("mirrorViewModel.ConfirmTwoDMirror()", canvas, StringComparison.Ordinal);
         Assert.Contains("mirrorViewModel.CancelTwoDMirror(exitTool: true)", canvas, StringComparison.Ordinal);
+        Assert.Contains("Header = \"Break Mirror Link\"", canvas, StringComparison.Ordinal);
+        Assert.Contains("editor.canvas.2d.break-mirror-link", canvas, StringComparison.Ordinal);
+        Assert.Contains("viewModel.BreakTwoDMirrorLinks()", canvas, StringComparison.Ordinal);
+        Assert.Contains("HasTwoDMirrorLinkSelection: true", canvas, StringComparison.Ordinal);
         Assert.DoesNotContain("MirrorPaths(", canvas, StringComparison.Ordinal);
     }
 

@@ -244,6 +244,8 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDChainSelectionEnabled));
         OnPropertyChanged(nameof(TwoDChainSelectionSummary));
         OnPropertyChanged(nameof(TwoDSelectedPathIds));
+        OnPropertyChanged(nameof(MirrorLinks));
+        OnPropertyChanged(nameof(HasTwoDMirrorLinkSelection));
         OnPropertyChanged(nameof(TwoDMeasurements));
         OnPropertyChanged(nameof(TwoDSelectedMeasurementId));
         OnPropertyChanged(nameof(TwoDLayers));

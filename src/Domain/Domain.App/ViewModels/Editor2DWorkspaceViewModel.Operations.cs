@@ -277,7 +277,10 @@ public sealed partial class Editor2DWorkspaceViewModel
         return Editor2DWorkspaceOperationResult.Success($"Scaled selected geometry by {factor:0.###}");
     }
 
-    public Editor2DWorkspaceOperationResult ApplyMirror(Editor2DPoint axisStart, Editor2DPoint axisEnd)
+    public Editor2DWorkspaceOperationResult ApplyMirror(
+        Editor2DPoint axisStart,
+        Editor2DPoint axisEnd,
+        bool keepLink = true)
     {
         var selected = SelectedPaths();
         if (selected.Count == 0)
@@ -293,6 +296,8 @@ public sealed partial class Editor2DWorkspaceViewModel
                 $"{path.Id}:mirror:{Guid.NewGuid():N}"))
             .ToArray();
         AppendAndSelect(copies);
+        if (keepLink)
+            AddMirrorLinks(selected, copies, axisStart, axisEnd);
         return Editor2DWorkspaceOperationResult.Success(
             $"Mirrored {copies.Length} selected {(copies.Length == 1 ? "entity" : "entities")}");
     }
