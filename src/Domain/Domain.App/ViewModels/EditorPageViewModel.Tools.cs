@@ -519,6 +519,12 @@ public sealed partial class EditorPageViewModel
 
     private bool HandleTwoDEscapeShortcut()
     {
+        if (IsTwoDOffsetToolActive)
+        {
+            CancelTwoDOffset(exitTool: true);
+            return true;
+        }
+
         if (IsTwoDMirrorToolActive)
         {
             CancelTwoDMirror(exitTool: true);

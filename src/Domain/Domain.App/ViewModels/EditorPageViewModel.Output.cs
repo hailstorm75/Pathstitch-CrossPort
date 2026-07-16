@@ -219,6 +219,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
             RefreshDerivedTwoDMeasurements(normalizedDocument);
             SyncTwoDSelectedTextEditorState();
+            QueueTwoDOffsetPreviewRefresh();
 
             if (!_suppressTwoDDocumentPersistence)
             {
@@ -246,12 +247,24 @@ public sealed partial class EditorPageViewModel
                 {
                     ResetTwoDMirrorStaging();
                 }
+                else if (value == Editor2DTool.Offset)
+                {
+                    if (!_isApplyingTwoDWorkspaceState)
+                        QueueTwoDOffsetPreviewRefresh();
+                }
                 return;
             }
 
             if (_twoDWorkspace.ActiveTool == Editor2DTool.Mirror || value == Editor2DTool.Mirror)
                 ResetTwoDMirrorStaging();
+            if (_twoDWorkspace.ActiveTool == Editor2DTool.Offset && value != Editor2DTool.Offset)
+                ClearTwoDOffsetPreview();
             _twoDWorkspace.SetActiveTool(value);
+            if (value == Editor2DTool.Offset)
+            {
+                TwoDOffsetDistanceText = "12";
+                TwoDOffsetSide = "Outward";
+            }
             if (value == Editor2DTool.Move)
                 TwoDMoveCreateCopy = false;
             ResetTwoDMovePointToPoint();
@@ -287,6 +300,8 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(IsTwoDPaperFoldingToolActive));
             OnPropertyChanged(nameof(IsTwoDSewingHoleToolActive));
             OnPropertyChanged(nameof(TwoDToolHint));
+            if (value == Editor2DTool.Offset)
+                QueueTwoDOffsetPreviewRefresh();
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
         }
     }
@@ -417,6 +432,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(CanApplyTwoDGlueTabs));
             OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
             SyncTwoDSelectedTextEditorState();
+            QueueTwoDOffsetPreviewRefresh();
         }
     }
 
@@ -1097,6 +1113,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(HasTwoDCurveOffsetSelection));
             OnPropertyChanged(nameof(CanApplyTwoDOffset));
             OnPropertyChanged(nameof(TwoDOffsetSummary));
+            QueueTwoDOffsetPreviewRefresh();
         }
     }
 
@@ -1110,13 +1127,18 @@ public sealed partial class EditorPageViewModel
                 return;
 
             OnPropertyChanged(nameof(TwoDOffsetSummary));
+            QueueTwoDOffsetPreviewRefresh();
         }
     }
 
     public string TwoDOffsetDistanceText
     {
         get => _twoDOffsetDistanceText;
-        set => SetWorkspaceFacadeValue(_twoDOffsetDistanceText, value ?? string.Empty, updated => _twoDOffsetDistanceText = updated);
+        set
+        {
+            if (SetWorkspaceFacadeValue(_twoDOffsetDistanceText, value ?? string.Empty, updated => _twoDOffsetDistanceText = updated))
+                QueueTwoDOffsetPreviewRefresh();
+        }
     }
 
     public string TwoDOffsetBBoxDistanceText
@@ -1158,6 +1180,113 @@ public sealed partial class EditorPageViewModel
                 ? "Select LINE, LWPOLYLINE, POLYLINE, CIRCLE, or ARC geometry to add an OpenGeometry offset copy."
                 : $"{curveOffsetSelectionCount} offsettable entit{(curveOffsetSelectionCount == 1 ? "y" : "ies")} selected. Open-path offsets follow path direction; closed paths expand or shrink.";
         }
+    }
+
+    public IReadOnlyList<Editor2DPreviewPath> TwoDOffsetPreviewPaths => _twoDOffsetPreviewPaths;
+
+    public bool HasTwoDOffsetPreview => TwoDOffsetPreviewPaths.Count > 0;
+
+    public Task TwoDOffsetPreviewUpdateTask => _twoDOffsetPreviewUpdateTask;
+
+    public Task RefreshTwoDOffsetPreviewAsync()
+    {
+        QueueTwoDOffsetPreviewRefresh();
+        return _twoDOffsetPreviewUpdateTask;
+    }
+
+    public void FlipTwoDOffsetDirection()
+        => TwoDOffsetSide = string.Equals(TwoDOffsetSide, "Outward", StringComparison.Ordinal)
+            ? "Inward"
+            : "Outward";
+
+    public void CancelTwoDOffset(bool exitTool = false)
+    {
+        ClearTwoDOffsetPreview();
+        StatusText = "Offset cancelled";
+        if (exitTool && IsTwoDOffsetToolActive)
+            TwoDActiveTool = Editor2DTool.Select;
+    }
+
+    public async Task<bool> ConfirmTwoDOffsetAsync(CancellationToken cancellationToken = default)
+    {
+        if (!await ApplyTwoDOffsetAsync(cancellationToken).ConfigureAwait(true))
+            return false;
+
+        TwoDActiveTool = Editor2DTool.Select;
+        return true;
+    }
+
+    private void QueueTwoDOffsetPreviewRefresh()
+    {
+        var generation = ++_twoDOffsetPreviewGeneration;
+        _twoDOffsetPreviewCancellation?.Cancel();
+        _twoDOffsetPreviewCancellation = null;
+        SetTwoDOffsetPreview([], null);
+
+        if (!IsTwoDOffsetToolActive || !IsTwoDCurveOffsetMode || !HasTwoDCurveOffsetSelection
+            || !TryParseTwoDOffsetDistance(TwoDOffsetDistanceText, "offset distance", 0.1, out var distance, out _))
+        {
+            _twoDOffsetPreviewUpdateTask = Task.CompletedTask;
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _twoDOffsetPreviewCancellation = cancellation;
+        var outward = string.Equals(TwoDOffsetSide, "Outward", StringComparison.Ordinal);
+        _twoDOffsetPreviewUpdateTask = RefreshTwoDOffsetPreviewCoreAsync(
+            generation, distance, outward, cancellation);
+    }
+
+    private async Task RefreshTwoDOffsetPreviewCoreAsync(
+        long generation,
+        double distance,
+        bool outward,
+        CancellationTokenSource cancellation)
+    {
+        var cancellationToken = cancellation.Token;
+        try
+        {
+            var result = await _twoDWorkspace.BuildCurveOffsetPreviewAsync(
+                _editor2DGeometryKernelService, distance, outward, cancellationToken).ConfigureAwait(true);
+            if (generation != _twoDOffsetPreviewGeneration || cancellationToken.IsCancellationRequested)
+                return;
+            SetTwoDOffsetPreview(result.IsSuccess ? result.Paths : [], result.IsSuccess ? null : result.Error);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (generation == _twoDOffsetPreviewGeneration)
+                SetTwoDOffsetPreview([], ex.Message);
+        }
+        finally
+        {
+            if (ReferenceEquals(_twoDOffsetPreviewCancellation, cancellation))
+                _twoDOffsetPreviewCancellation = null;
+            cancellation.Dispose();
+        }
+    }
+
+    private void ClearTwoDOffsetPreview()
+    {
+        ++_twoDOffsetPreviewGeneration;
+        _twoDOffsetPreviewCancellation?.Cancel();
+        _twoDOffsetPreviewCancellation = null;
+        _twoDOffsetPreviewUpdateTask = Task.CompletedTask;
+        SetTwoDOffsetPreview([], null);
+    }
+
+    private void SetTwoDOffsetPreview(IReadOnlyList<Editor2DPreviewPath> paths, string? error)
+    {
+        var pathsChanged = !_twoDOffsetPreviewPaths.SequenceEqual(paths);
+        var errorChanged = !string.Equals(_twoDOffsetPreviewError, error, StringComparison.Ordinal);
+        if (!pathsChanged && !errorChanged)
+            return;
+        _twoDOffsetPreviewPaths = paths;
+        _twoDOffsetPreviewError = error;
+        OnPropertyChanged(nameof(TwoDOffsetPreviewPaths));
+        OnPropertyChanged(nameof(HasTwoDOffsetPreview));
     }
 
     public string TwoDAddThicknessWidthText
@@ -2017,11 +2146,28 @@ public sealed partial class EditorPageViewModel
             StatusText = errorMessage;
             return false;
         }
+        var outward = string.Equals(TwoDOffsetSide, "Outward", StringComparison.Ordinal);
+        if (IsTwoDOffsetToolActive)
+        {
+            if (_twoDOffsetPreviewUpdateTask.IsCompleted && TwoDOffsetPreviewPaths.Count == 0 && _twoDOffsetPreviewError is null)
+                QueueTwoDOffsetPreviewRefresh();
+            await _twoDOffsetPreviewUpdateTask.WaitAsync(cancellationToken).ConfigureAwait(true);
+            if (TwoDOffsetPreviewPaths.Count == 0)
+            {
+                StatusText = _twoDOffsetPreviewError ?? "OpenGeometry did not produce an offset preview";
+                return false;
+            }
+            var completed = CompleteTwoDWorkspaceOperation(
+                _twoDWorkspace.CommitCurveOffsetPreview(TwoDOffsetPreviewPaths, outward));
+            if (completed)
+                ClearTwoDOffsetPreview();
+            return completed;
+        }
         StatusText = "Offset running through OpenGeometry";
         var result = await _twoDWorkspace.ApplyCurveOffsetAsync(
             _editor2DGeometryKernelService,
             offsetDistance,
-            string.Equals(TwoDOffsetSide, "Outward", StringComparison.Ordinal),
+            outward,
             cancellationToken).ConfigureAwait(true);
         return CompleteTwoDWorkspaceOperation(result);
     }

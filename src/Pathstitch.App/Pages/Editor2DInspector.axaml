@@ -257,8 +257,10 @@
             Foreground="{StaticResource SecondaryTextBrush}"
             Text="Distance (mm)" />
           <TextBox
+            AutomationProperties.AutomationId="editor.2d.offset.distance"
             Width="88"
-            Text="{Binding TwoDOffsetDistanceText, Mode=TwoWay}" />
+            Text="{Binding TwoDOffsetDistanceText, Mode=TwoWay}"
+            KeyDown="OnTwoDOffsetDistanceKeyDown" />
         </StackPanel>
         <StackPanel
           Orientation="Horizontal"
@@ -300,7 +302,29 @@
             Width="88"
             Text="{Binding TwoDOffsetBBoxFilletText, Mode=TwoWay}" />
         </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="6"
+          IsVisible="{Binding IsTwoDCurveOffsetMode}">
+          <Button
+            AutomationProperties.AutomationId="editor.2d.offset.flip"
+            Classes="chip-button"
+            Content="Flip"
+            Click="OnFlipTwoDOffsetClicked" />
+          <Button
+            AutomationProperties.AutomationId="editor.2d.offset.ok"
+            Classes="chip-button"
+            IsEnabled="{Binding CanApplyTwoDOffset}"
+            Content="OK"
+            Click="OnConfirmTwoDOffsetClicked" />
+          <Button
+            AutomationProperties.AutomationId="editor.2d.offset.cancel"
+            Classes="chip-button"
+            Content="Cancel"
+            Click="OnCancelTwoDOffsetClicked" />
+        </StackPanel>
         <Button
+          AutomationProperties.AutomationId="editor.2d.offset.apply"
           Classes="chip-button"
           IsEnabled="{Binding CanApplyTwoDOffset}"
           Content="Apply Offset"

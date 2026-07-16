@@ -140,6 +140,11 @@ public sealed class DxfPreviewCanvas : Control
     public static readonly StyledProperty<string> OffsetSideProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, string>(nameof(OffsetSide), defaultValue: "Outward", defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<IReadOnlyList<Editor2DPreviewPath>> OffsetPreviewPathsProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DPreviewPath>>(
+            nameof(OffsetPreviewPaths),
+            defaultValue: Array.Empty<Editor2DPreviewPath>());
+
     public static readonly StyledProperty<IReadOnlyList<Editor2DPreviewPath>> PatternPreviewPathsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DPreviewPath>>(
             nameof(PatternPreviewPaths),
@@ -209,6 +214,7 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly Pen HoverPathPen = new(new SolidColorBrush(Color.Parse("#8EB3FF")), 2.0);
     private static readonly Pen SelectedPathPen = new(new SolidColorBrush(Color.Parse("#4D7FFF")), 2.4);
     private static readonly Pen PreviewPathPen = new(new SolidColorBrush(Color.Parse("#62E6A7")), 1.8, dashStyle: new DashStyle([4, 3], 0));
+    private static readonly Pen OffsetPreviewPathPen = new(new SolidColorBrush(Color.Parse("#F59E0B")), 1.2, dashStyle: new DashStyle([4, 4], 0));
     private static readonly Pen AutoDimensionPen = new(new SolidColorBrush(Color.Parse("#63D2FF")), 1.2);
     private static readonly Pen ConstrainedRectangleHandlePen = new(new SolidColorBrush(Color.Parse("#8ED7FF")), 1.2);
     private static readonly Pen EditableVertexHandlePen = new(new SolidColorBrush(Color.Parse("#FFFFFF")), 1.0);
@@ -341,6 +347,8 @@ public sealed class DxfPreviewCanvas : Control
             SewingHoleMarginProperty,
             OffsetDistanceTextProperty,
             OffsetSideProperty,
+            OffsetPreviewPathsProperty,
+            PatternPreviewPathsProperty,
             ReferenceImagesProperty,
             ActiveReferenceImageProperty,
             ActiveReferenceImageLockedProperty,
@@ -807,6 +815,12 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(OffsetSideProperty, value);
     }
 
+    public IReadOnlyList<Editor2DPreviewPath> OffsetPreviewPaths
+    {
+        get => GetValue(OffsetPreviewPathsProperty);
+        set => SetValue(OffsetPreviewPathsProperty, value);
+    }
+
     public IReadOnlyList<Editor2DPreviewPath> PatternPreviewPaths
     {
         get => GetValue(PatternPreviewPathsProperty);
@@ -1085,6 +1099,7 @@ public sealed class DxfPreviewCanvas : Control
         DrawPatternPivot(context, size);
         DrawScalePivot(context, size);
         DrawPreviewPaths(context, size);
+        DrawPreviewPaths(context, size, OffsetPreviewPaths, OffsetPreviewPathPen);
         DrawPreviewPaths(context, size, PatternPreviewPaths);
         DrawEditableVertexHandles(context, size, visiblePaths);
         DrawConstrainedRectangleHandles(context, size, visiblePaths);
@@ -1541,7 +1556,7 @@ Selection:
         e.Handled = true;
     }
 
-    protected override void OnKeyDown(KeyEventArgs e)
+    protected override async void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
 
@@ -1569,7 +1584,9 @@ Selection:
                 return;
             }
 
-            if (ActiveTool == Editor2DTool.Mirror && DataContext is EditorPageViewModel mirrorViewModel)
+            if (ActiveTool == Editor2DTool.Offset && DataContext is EditorPageViewModel offsetViewModel)
+                offsetViewModel.CancelTwoDOffset(exitTool: true);
+            else if (ActiveTool == Editor2DTool.Mirror && DataContext is EditorPageViewModel mirrorViewModel)
                 mirrorViewModel.CancelTwoDMirror(exitTool: true);
             else
                 CancelActiveInteraction();
@@ -1613,6 +1630,14 @@ Selection:
             && mirrorViewModel.ConfirmTwoDMirror())
         {
             mirrorViewModel.TwoDActiveTool = Editor2DTool.Select;
+            e.Handled = true;
+        }
+
+        else if (e.Key == Key.Enter
+            && ActiveTool == Editor2DTool.Offset
+            && DataContext is EditorPageViewModel offsetViewModel)
+        {
+            await offsetViewModel.ConfirmTwoDOffsetAsync();
             e.Handled = true;
         }
     }
@@ -1821,12 +1846,15 @@ Selection:
         => DrawPreviewPaths(context, size, PreviewPaths);
 
     private void DrawPreviewPaths(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
+        => DrawPreviewPaths(context, size, paths, PreviewPathPen);
+
+    private void DrawPreviewPaths(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths, Pen pen)
     {
         foreach (var path in paths)
         {
             if (path.Center is Editor2DPoint center && path.Radius is > 0)
             {
-                context.DrawEllipse(null, PreviewPathPen, WorldToScreen(center, size), path.Radius.Value * Zoom, path.Radius.Value * Zoom);
+                context.DrawEllipse(null, pen, WorldToScreen(center, size), path.Radius.Value * Zoom, path.Radius.Value * Zoom);
                 continue;
             }
             if (path.Points.Count < 2)
@@ -1838,7 +1866,7 @@ Selection:
                 geometryContext.LineTo(WorldToScreen(path.Points[index], size));
             if (path.IsClosed)
                 geometryContext.EndFigure(true);
-            context.DrawGeometry(null, PreviewPathPen, geometry);
+            context.DrawGeometry(null, pen, geometry);
         }
     }
 

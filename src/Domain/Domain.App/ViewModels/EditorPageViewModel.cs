@@ -153,6 +153,11 @@ public sealed partial class EditorPageViewModel(
     private bool _twoDMirrorFlipCopy = true;
     private Editor2DPoint? _twoDMirrorAxisStart;
     private Editor2DPoint? _twoDMirrorAxisEnd;
+    private IReadOnlyList<Editor2DPreviewPath> _twoDOffsetPreviewPaths = [];
+    private CancellationTokenSource? _twoDOffsetPreviewCancellation;
+    private Task _twoDOffsetPreviewUpdateTask = Task.CompletedTask;
+    private long _twoDOffsetPreviewGeneration;
+    private string? _twoDOffsetPreviewError;
 
     private bool SetWorkspaceFacadeValue<T>(T current, T value, Action<T> assign, [CallerMemberName] string? propertyName = null)
     {

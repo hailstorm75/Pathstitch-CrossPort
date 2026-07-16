@@ -292,6 +292,33 @@ public abstract class EditorInteractionControlBase : UserControl
             await viewModel.ApplyTwoDOffsetAsync();
     }
 
+    protected void OnFlipTwoDOffsetClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.FlipTwoDOffsetDirection();
+    }
+
+    protected async void OnConfirmTwoDOffsetClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            await viewModel.ConfirmTwoDOffsetAsync();
+    }
+
+    protected void OnCancelTwoDOffsetClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.CancelTwoDOffset(exitTool: true);
+    }
+
+    protected async void OnTwoDOffsetDistanceKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || DataContext is not EditorPageViewModel viewModel)
+            return;
+
+        await viewModel.ConfirmTwoDOffsetAsync();
+        e.Handled = true;
+    }
+
     protected async void OnApplyTwoDAddThicknessClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

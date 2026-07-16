@@ -36,6 +36,7 @@
     SewingHoleMargin="{Binding TwoDSewingHoleMargin, Mode=TwoWay}"
     OffsetDistanceText="{Binding TwoDOffsetDistanceText, Mode=TwoWay}"
     OffsetSide="{Binding TwoDOffsetSide, Mode=TwoWay}"
+    OffsetPreviewPaths="{Binding TwoDOffsetPreviewPaths}"
     PatternPreviewPaths="{Binding TwoDPatternPreviewPaths}"
     ReferenceImages="{Binding TwoDReferenceImages}"
     ActiveReferenceImage="{Binding TwoDActiveReferenceImage}"

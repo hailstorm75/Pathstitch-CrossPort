@@ -319,12 +319,17 @@ public sealed class EditorShellCompositionTests
         Assert.DoesNotContain("ItemsControl", twoD, StringComparison.Ordinal);
         Assert.DoesNotContain("TextBox", twoD, StringComparison.Ordinal);
         Assert.Contains("TwoDOffsetDistanceText", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.offset.flip\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.offset.ok\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.offset.cancel\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("OnTwoDOffsetDistanceKeyDown", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDPolygonSides", inspector, StringComparison.Ordinal);
         Assert.Contains("SewingHoleMargin=\"{Binding TwoDSewingHoleMargin, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
         Assert.Contains("Explode Compound", canvas, StringComparison.Ordinal);
         Assert.Contains("Stroke to Fill", canvas, StringComparison.Ordinal);
         Assert.Contains("Fill to Stroke", canvas, StringComparison.Ordinal);
         Assert.Contains("OffsetDistanceText=\"{Binding TwoDOffsetDistanceText, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
+        Assert.Contains("OffsetPreviewPaths=\"{Binding TwoDOffsetPreviewPaths}\"", twoD, StringComparison.Ordinal);
         Assert.Contains("TwoDSelectedTextFitModeOptions", inspector, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.export-selected-only\"", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDExportSelectedOnly, Mode=TwoWay", inspector, StringComparison.Ordinal);

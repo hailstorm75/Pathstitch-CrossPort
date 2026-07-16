@@ -78,6 +78,93 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task OffsetPreview_RecomputesWithoutMutationAndCommitUsesExactGhost()
+    {
+        var kernel = new RecordingOffsetGeometryKernelService();
+        var viewModel = CreateViewModel(geometryKernelService: kernel);
+        var source = new Editor2DPreviewPath("source", "LINE", [new(0, 0), new(10, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Offset;
+        Assert.Equal("12", viewModel.TwoDOffsetDistanceText);
+        Assert.Equal("Outward", viewModel.TwoDOffsetSide);
+        viewModel.TwoDOffsetDistanceText = "5";
+
+        await viewModel.TwoDOffsetPreviewUpdateTask;
+
+        var firstPreview = Assert.Single(viewModel.TwoDOffsetPreviewPaths);
+        Assert.Single(viewModel.TwoDDocument.Paths);
+        Assert.All(firstPreview.Points, point => Assert.Equal(5, point.Y, 6));
+
+        viewModel.TwoDOffsetDistanceText = "7";
+        await viewModel.TwoDOffsetPreviewUpdateTask;
+        Assert.All(Assert.Single(viewModel.TwoDOffsetPreviewPaths).Points, point => Assert.Equal(7, point.Y, 6));
+
+        viewModel.FlipTwoDOffsetDirection();
+        await viewModel.TwoDOffsetPreviewUpdateTask;
+        var committedGhost = Assert.Single(viewModel.TwoDOffsetPreviewPaths);
+        Assert.Equal("Inward", viewModel.TwoDOffsetSide);
+        Assert.All(committedGhost.Points, point => Assert.Equal(-7, point.Y, 6));
+        var callsBeforeCommit = kernel.CallCount;
+
+        Assert.True(await viewModel.ConfirmTwoDOffsetAsync());
+
+        Assert.Equal(callsBeforeCommit, kernel.CallCount);
+        Assert.Contains(committedGhost, viewModel.TwoDDocument.Paths);
+        Assert.Empty(viewModel.TwoDOffsetPreviewPaths);
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+    }
+
+    [Fact]
+    public async Task OffsetPreview_CancelAndToolExitClearGhostWithoutEditingDocument()
+    {
+        var kernel = new RecordingOffsetGeometryKernelService();
+        var viewModel = CreateViewModel(geometryKernelService: kernel);
+        var source = new Editor2DPreviewPath("source", "LINE", [new(0, 0), new(10, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Offset;
+        await viewModel.TwoDOffsetPreviewUpdateTask;
+        Assert.NotEmpty(viewModel.TwoDOffsetPreviewPaths);
+
+        viewModel.CancelTwoDOffset();
+
+        Assert.Empty(viewModel.TwoDOffsetPreviewPaths);
+        Assert.Equal([source], viewModel.TwoDDocument.Paths);
+
+        await viewModel.RefreshTwoDOffsetPreviewAsync();
+        Assert.NotEmpty(viewModel.TwoDOffsetPreviewPaths);
+
+        viewModel.TwoDActiveTool = Editor2DTool.Select;
+
+        Assert.Empty(viewModel.TwoDOffsetPreviewPaths);
+        Assert.Equal([source], viewModel.TwoDDocument.Paths);
+    }
+
+    [Fact]
+    public async Task OffsetPreview_LatestRequestWinsWhenKernelCompletesOutOfOrder()
+    {
+        var kernel = new DelayedOffsetGeometryKernelService();
+        var viewModel = CreateViewModel(geometryKernelService: kernel);
+        var source = new Editor2DPreviewPath("source", "LINE", [new(0, 0), new(10, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Offset;
+        viewModel.TwoDOffsetDistanceText = "5";
+        viewModel.TwoDOffsetDistanceText = "7";
+
+        Assert.Equal(3, kernel.CallCount);
+        kernel.Complete(2);
+        await viewModel.TwoDOffsetPreviewUpdateTask;
+        kernel.Complete(1);
+        kernel.Complete(0);
+        await Task.Yield();
+
+        Assert.All(Assert.Single(viewModel.TwoDOffsetPreviewPaths).Points, point => Assert.Equal(7, point.Y, 6));
+        Assert.Single(viewModel.TwoDDocument.Paths);
+    }
+
+    [Fact]
     public void RectangularPattern_ExtentPreviewMatchesCommittedSpacing()
     {
         var viewModel = CreateViewModel();
@@ -1084,14 +1171,16 @@ public sealed class EditorPageViewModelModeTests
         IProjectFileDialogService? projectFileDialogService = null,
         IEditorOutputPreviewService? outputPreviewService = null,
         IUnsavedChangesPromptService? unsavedChangesPromptService = null,
-        IEditorImportUnitsPromptService? importUnitsPromptService = null)
-        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService);
+        IEditorImportUnitsPromptService? importUnitsPromptService = null,
+        IEditor2DGeometryKernelService? geometryKernelService = null)
+        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService);
 
     private static EditorPageViewModel CreateViewModel(
         IProjectFileDialogService? projectFileDialogService = null,
         IEditorOutputPreviewService? outputPreviewService = null,
         IUnsavedChangesPromptService? unsavedChangesPromptService = null,
-        IEditorImportUnitsPromptService? importUnitsPromptService = null)
+        IEditorImportUnitsPromptService? importUnitsPromptService = null,
+        IEditor2DGeometryKernelService? geometryKernelService = null)
         => new(
             NullLogger<EditorPageViewModel>.Instance,
             new StubViewportAssetLocator(),
@@ -1099,7 +1188,7 @@ public sealed class EditorPageViewModelModeTests
             projectFileDialogService ?? new StubProjectFileDialogService(),
             new StubOutputLauncherService(),
             outputPreviewService ?? new StubOutputPreviewService(),
-            new Stub2DGeometryKernelService(),
+            geometryKernelService ?? new Stub2DGeometryKernelService(),
             new Stub3DOperationService(),
             new StubGeometryKernelDescriptorProvider(),
             unsavedChangesPromptService: unsavedChangesPromptService,
@@ -1193,6 +1282,70 @@ public sealed class EditorPageViewModelModeTests
             bool offsetOutward,
             CancellationToken cancellationToken = default)
             => Task.FromResult(Editor2DGeometryKernelResult.Success([]));
+
+        public Task<Editor2DGeometryKernelResult> BuildThicknessOutlinesAsync(
+            IReadOnlyList<Editor2DPreviewPath> sourcePaths,
+            double thickness,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(Editor2DGeometryKernelResult.Success([]));
+    }
+
+    private sealed class RecordingOffsetGeometryKernelService : IEditor2DGeometryKernelService
+    {
+        public int CallCount { get; private set; }
+
+        public Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(
+            IReadOnlyList<Editor2DPreviewPath> sourcePaths,
+            double offsetDistance,
+            bool offsetOutward,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CallCount++;
+            var signedDistance = offsetOutward ? offsetDistance : -offsetDistance;
+            var paths = sourcePaths.Select(path => Editor2DGeometry.TranslatePath(
+                path,
+                0,
+                signedDistance,
+                $"{path.Id}:offset-preview:{CallCount}")).ToArray();
+            return Task.FromResult(Editor2DGeometryKernelResult.Success(paths));
+        }
+
+        public Task<Editor2DGeometryKernelResult> BuildThicknessOutlinesAsync(
+            IReadOnlyList<Editor2DPreviewPath> sourcePaths,
+            double thickness,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(Editor2DGeometryKernelResult.Success([]));
+    }
+
+    private sealed class DelayedOffsetGeometryKernelService : IEditor2DGeometryKernelService
+    {
+        private readonly List<(double Distance, bool Outward, IReadOnlyList<Editor2DPreviewPath> Sources, TaskCompletionSource<Editor2DGeometryKernelResult> Completion)> _calls = [];
+
+        public int CallCount => _calls.Count;
+
+        public Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(
+            IReadOnlyList<Editor2DPreviewPath> sourcePaths,
+            double offsetDistance,
+            bool offsetOutward,
+            CancellationToken cancellationToken = default)
+        {
+            var completion = new TaskCompletionSource<Editor2DGeometryKernelResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _calls.Add((offsetDistance, offsetOutward, sourcePaths, completion));
+            return completion.Task;
+        }
+
+        public void Complete(int index)
+        {
+            var call = _calls[index];
+            var signedDistance = call.Outward ? call.Distance : -call.Distance;
+            var paths = call.Sources.Select(path => Editor2DGeometry.TranslatePath(
+                path,
+                0,
+                signedDistance,
+                $"{path.Id}:delayed-offset:{index}")).ToArray();
+            call.Completion.SetResult(Editor2DGeometryKernelResult.Success(paths));
+        }
 
         public Task<Editor2DGeometryKernelResult> BuildThicknessOutlinesAsync(
             IReadOnlyList<Editor2DPreviewPath> sourcePaths,

@@ -83,18 +83,36 @@ public sealed partial class Editor2DWorkspaceViewModel
         bool outward,
         CancellationToken token = default)
     {
-        var sources = SelectedPaths(Editor2DGeometry.IsCurveOffsettablePath);
-        if (sources.Count == 0)
-            return Editor2DWorkspaceOperationResult.Failure("Select line, polyline, circle, or arc geometry before applying Offset");
-        var result = await kernel.BuildCurveOffsetPathsAsync(sources, distance, outward, token).ConfigureAwait(true);
+        var result = await BuildCurveOffsetPreviewAsync(kernel, distance, outward, token).ConfigureAwait(true);
         if (!result.IsSuccess)
             return Editor2DWorkspaceOperationResult.Failure($"OpenGeometry Offset failed: {result.Error ?? "unknown OpenGeometry worker failure"}");
         if (result.Paths.Count == 0)
             return Editor2DWorkspaceOperationResult.Failure("OpenGeometry did not produce an offset path for the selected geometry");
-        AppendAndSelect(result.Paths);
-        return Editor2DWorkspaceOperationResult.Success(result.Paths.Count == 1
+        return CommitCurveOffsetPreview(result.Paths, outward);
+    }
+
+    public async Task<Editor2DGeometryKernelResult> BuildCurveOffsetPreviewAsync(
+        IEditor2DGeometryKernelService kernel,
+        double distance,
+        bool outward,
+        CancellationToken token = default)
+    {
+        var sources = SelectedPaths(Editor2DGeometry.IsCurveOffsettablePath).ToArray();
+        if (sources.Length == 0)
+            return Editor2DGeometryKernelResult.Failure("Select line, polyline, circle, or arc geometry before applying Offset");
+        return await kernel.BuildCurveOffsetPathsAsync(sources, distance, outward, token).ConfigureAwait(true);
+    }
+
+    public Editor2DWorkspaceOperationResult CommitCurveOffsetPreview(
+        IReadOnlyList<Editor2DPreviewPath> previewPaths,
+        bool outward)
+    {
+        if (previewPaths.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("OpenGeometry did not produce an offset path for the selected geometry");
+        AppendAndSelect(previewPaths);
+        return Editor2DWorkspaceOperationResult.Success(previewPaths.Count == 1
             ? $"OpenGeometry created 1 {(outward ? "outward" : "inward")} offset path"
-            : $"OpenGeometry created {result.Paths.Count} {(outward ? "outward" : "inward")} offset paths");
+            : $"OpenGeometry created {previewPaths.Count} {(outward ? "outward" : "inward")} offset paths");
     }
 
     public async Task<Editor2DWorkspaceOperationResult> ApplyBooleanAsync(
