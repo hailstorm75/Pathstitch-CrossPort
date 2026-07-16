@@ -381,7 +381,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("DxfPreviewCanvas", twoD, StringComparison.Ordinal);
         Assert.DoesNotContain("StackPanel", twoD, StringComparison.Ordinal);
         Assert.DoesNotContain("ItemsControl", twoD, StringComparison.Ordinal);
-        Assert.DoesNotContain("TextBox", twoD, StringComparison.Ordinal);
+        Assert.Contains("editor.canvas.2d.gizmo.dimension-input", twoD, StringComparison.Ordinal);
         Assert.Contains("TwoDOffsetDistanceText", inspector, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.offset.flip\"", inspector, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.offset.ok\"", inspector, StringComparison.Ordinal);
@@ -482,6 +482,20 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("ItemsSource=\"{Binding TwoDActiveCornerParameters}\"", inspector, StringComparison.Ordinal);
         Assert.Contains("SelectedCornerParameterId=\"{Binding TwoDSelectedCornerParameterId, Mode=TwoWay}\"", view, StringComparison.Ordinal);
         Assert.Contains("SetCurrentValue(SelectedCornerParameterIdProperty, parameter.Id)", canvas, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TwoDTransformGizmo_ExposesEditablePrecisionOverlayLifecycle()
+    {
+        var view = ReadPage("Editor2DView.axaml");
+        var codeBehind = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DView.axaml.cs");
+
+        Assert.Contains("GizmoDimensionPill", view, StringComparison.Ordinal);
+        Assert.Contains("OnGizmoDimensionInputKeyDown", view, StringComparison.Ordinal);
+        Assert.Contains("TransformPrecisionRequested", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("TryApplyTransformPrecisionInput", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("DismissTransformPrecisionInput", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("DispatcherPriority.Input", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]

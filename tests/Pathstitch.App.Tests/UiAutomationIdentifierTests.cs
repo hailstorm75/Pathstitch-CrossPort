@@ -111,6 +111,9 @@ public sealed class UiAutomationIdentifierTests
         var home = _ui.LoadXaml("src", "Pathstitch.App", "Pages", "HomePageView.axaml");
 
         _ui.FindXamlElementByAutomationId(twoD, "editor.canvas.2d");
+        _ui.FindXamlElementByAutomationId(twoD, "editor.canvas.2d.gizmo.dimension");
+        _ui.FindXamlElementByAutomationId(twoD, "editor.canvas.2d.gizmo.dimension-input");
+        _ui.FindXamlElementByAutomationId(twoD, "editor.canvas.2d.gizmo.dimension-unit");
         _ui.FindXamlElementByAutomationId(threeD, "editor.canvas.3d");
         _ui.FindXamlElementByAutomationId(threeD, "editor.canvas.3d.webview");
         _ui.FindXamlElementByAutomationId(threeD, "editor.dialog.open-3d-model");
