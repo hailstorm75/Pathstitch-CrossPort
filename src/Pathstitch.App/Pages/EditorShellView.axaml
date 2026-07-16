@@ -114,6 +114,25 @@
         AutomationProperties.AutomationId="editor.menu.file"
         Header="_File">
         <MenuItem
+          x:Name="NewProjectMenuItem"
+          AutomationProperties.AutomationId="editor.menu.file.new"
+          Command="{Binding NewProjectCommand}"
+          Header="_New Project"
+          HotKey="Ctrl+N" />
+        <MenuItem
+          x:Name="OpenProjectMenuItem"
+          AutomationProperties.AutomationId="editor.menu.file.open"
+          Command="{Binding OpenProjectCommand}"
+          Header="_Open Project…"
+          HotKey="Ctrl+O" />
+        <MenuItem
+          x:Name="ImportFilesMenuItem"
+          AutomationProperties.AutomationId="editor.menu.file.import"
+          Command="{Binding ImportFilesCommand}"
+          Header="_Import…"
+          HotKey="Ctrl+Shift+I" />
+        <Separator />
+        <MenuItem
           x:Name="SaveMenuItem"
           AutomationProperties.AutomationId="editor.menu.file.save"
           Command="{Binding SaveDocumentCommand}"

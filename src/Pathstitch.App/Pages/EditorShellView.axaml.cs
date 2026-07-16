@@ -18,6 +18,9 @@ public partial class EditorShellView : EditorInteractionControlBase
     public EditorShellView()
     {
         InitializeComponent();
+        NewProjectMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.N);
+        OpenProjectMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.O);
+        ImportFilesMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.I, shift: true);
         SaveMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.S);
         SaveAsMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.S, shift: true);
         SaveAndCloseMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.W, shift: true);
