@@ -36,6 +36,16 @@ internal static class DxfCanvasRotationInteraction
         return (deltaX * deltaX) + (deltaY * deltaY) <= tolerancePixels * tolerancePixels;
     }
 
+    public static bool ShouldCommit(
+        double dragDistancePixels,
+        double minimumDragPixels,
+        double angleDegrees,
+        double minimumAngleDegrees)
+        => double.IsFinite(dragDistancePixels)
+            && double.IsFinite(angleDegrees)
+            && dragDistancePixels >= minimumDragPixels
+            && Math.Abs(angleDegrees) > minimumAngleDegrees;
+
     private static double WrapDegrees(double angleDegrees)
     {
         var wrapped = angleDegrees % 360.0;

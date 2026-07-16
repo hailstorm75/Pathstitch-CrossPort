@@ -13,11 +13,11 @@ internal enum DxfCanvasPressRoute
 }
 internal enum DxfCanvasMoveRoute
 {
-    Pan, MoveSelection, ScaleSelection, RotateSelection, EditVertex, LineDraft, RectangleDraft, CircleDraft,
+    Pan, MoveSelection, ScaleSelection, RotateSelection, TranslateSelection, EditVertex, LineDraft, RectangleDraft, CircleDraft,
     PolygonDraft, TextDraft, PenHandleDrag, PenDraft, MeasurementDraft, DimensionDraft,
     Corner, SewingHoleMargin, OffsetHandle, ToolPreview, Marquee, Hover,
 }
-internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, RotateSelection, EditVertex, PenHandleDrag, Corner, SewingHoleMargin, OffsetHandle, Selection, None }
+internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, RotateSelection, TranslateSelection, EditVertex, PenHandleDrag, Corner, SewingHoleMargin, OffsetHandle, Selection, None }
 internal enum DxfPenCompletion { Open, Closed }
 
 internal static class DxfCanvasPenInteraction
@@ -47,6 +47,18 @@ internal static class DxfCanvasSelectionInteraction
 {
     public static bool ShouldDrawHandles(Editor2DTool activeTool)
         => activeTool is Editor2DTool.Select or Editor2DTool.Scale;
+
+    public static bool ShouldShowTransformGizmo(
+        Editor2DTool activeTool,
+        bool hasSelection,
+        bool hasActiveReferenceImage)
+        => hasSelection
+            && !hasActiveReferenceImage
+            && activeTool is not Editor2DTool.Fillet
+            and not Editor2DTool.Chamfer
+            and not Editor2DTool.Scale
+            and not Editor2DTool.Offset
+            and not Editor2DTool.Pan;
 }
 
 /// <summary>Owns pointer-driven viewport and gesture transitions independently of the control.</summary>
@@ -141,6 +153,7 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (session.IsMovingSelection && session.MoveDocumentSnapshot is not null && session.MoveStartPoint is not null) return DxfCanvasMoveRoute.MoveSelection;
         if (session.IsScalingSelection && session.ScaleDocumentSnapshot is not null && session.ScaleCenterPoint is not null) return DxfCanvasMoveRoute.ScaleSelection;
         if (session.IsRotatingSelection && session.RotateDocumentSnapshot is not null && session.RotatePivot is not null) return DxfCanvasMoveRoute.RotateSelection;
+        if (session.IsTranslatingSelection && session.TranslateDocumentSnapshot is not null && session.TranslatePivot is not null) return DxfCanvasMoveRoute.TranslateSelection;
         if (session.IsEditingVertex && session.EditingVertexPathId is not null) return DxfCanvasMoveRoute.EditVertex;
         if (session.IsDraggingCorner) return DxfCanvasMoveRoute.Corner;
         if (session.IsDraggingSewingHoleMargin) return DxfCanvasMoveRoute.SewingHoleMargin;
@@ -170,6 +183,7 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (session.IsMovingSelection) return DxfCanvasReleaseRoute.MoveSelection;
         if (session.IsScalingSelection) return DxfCanvasReleaseRoute.ScaleSelection;
         if (session.IsRotatingSelection) return DxfCanvasReleaseRoute.RotateSelection;
+        if (session.IsTranslatingSelection) return DxfCanvasReleaseRoute.TranslateSelection;
         if (session.IsEditingVertex) return DxfCanvasReleaseRoute.EditVertex;
         if (session.IsDraggingCorner) return DxfCanvasReleaseRoute.Corner;
         if (session.IsDraggingSewingHoleMargin) return DxfCanvasReleaseRoute.SewingHoleMargin;

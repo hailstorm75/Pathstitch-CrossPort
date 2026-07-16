@@ -179,6 +179,15 @@ public sealed class DxfCanvasCollaboratorTests
         session.IsRotatingSelection = false;
         session.RotateDocumentSnapshot = null;
         session.RotatePivot = null;
+        session.IsTranslatingSelection = true;
+        session.TranslateDocumentSnapshot = Document();
+        session.TranslatePivot = new Editor2DPoint(0, 0);
+        Assert.Equal(DxfCanvasMoveRoute.TranslateSelection, controller.RouteMove(Editor2DTool.Select, true));
+        Assert.Equal(DxfCanvasReleaseRoute.TranslateSelection, controller.RouteRelease(Editor2DTool.Select, true));
+
+        session.IsTranslatingSelection = false;
+        session.TranslateDocumentSnapshot = null;
+        session.TranslatePivot = null;
         session.IsDraggingCorner = true;
         Assert.Equal(DxfCanvasMoveRoute.Corner, controller.RouteMove(Editor2DTool.Fillet, true));
         Assert.Equal(DxfCanvasReleaseRoute.Corner, controller.RouteRelease(Editor2DTool.Fillet, true));
@@ -192,6 +201,24 @@ public sealed class DxfCanvasCollaboratorTests
         session.IsDraggingOffsetHandle = true;
         Assert.Equal(DxfCanvasMoveRoute.OffsetHandle, controller.RouteMove(Editor2DTool.Offset, true));
         Assert.Equal(DxfCanvasReleaseRoute.OffsetHandle, controller.RouteRelease(Editor2DTool.Offset, true));
+    }
+
+    [Theory]
+    [InlineData((int)Editor2DTool.Select, true)]
+    [InlineData((int)Editor2DTool.Move, true)]
+    [InlineData((int)Editor2DTool.Measure, true)]
+    [InlineData((int)Editor2DTool.Fillet, false)]
+    [InlineData((int)Editor2DTool.Chamfer, false)]
+    [InlineData((int)Editor2DTool.Scale, false)]
+    [InlineData((int)Editor2DTool.Offset, false)]
+    [InlineData((int)Editor2DTool.Pan, false)]
+    public void SelectionInteraction_ShowsTransformGizmoOutsideConflictingTools(int toolValue, bool expected)
+    {
+        var tool = (Editor2DTool)toolValue;
+
+        Assert.Equal(expected, DxfCanvasSelectionInteraction.ShouldShowTransformGizmo(tool, true, false));
+        Assert.False(DxfCanvasSelectionInteraction.ShouldShowTransformGizmo(tool, false, false));
+        Assert.False(DxfCanvasSelectionInteraction.ShouldShowTransformGizmo(tool, true, true));
     }
 
     [Fact]
@@ -316,6 +343,94 @@ public sealed class DxfCanvasCollaboratorTests
         Assert.True(DxfCanvasRotationInteraction.IsHandleHit(new Point(handle.X + 6, handle.Y + 8), handle, 10));
         Assert.False(DxfCanvasRotationInteraction.IsHandleHit(new Point(handle.X + 6.1, handle.Y + 8), handle, 10));
         Assert.False(DxfCanvasRotationInteraction.IsHandleHit(handle, handle, -1));
+    }
+
+    [Fact]
+    public void TranslationInteraction_UsesFixedAxisHandleGeometryAndHitPriority()
+    {
+        var handles = DxfCanvasTranslationInteraction.GetHandleGeometry(new Point(200, 150));
+
+        Assert.Equal(new Point(200, 150), handles.Free);
+        Assert.Equal(new Point(270, 150), handles.X);
+        Assert.Equal(new Point(200, 80), handles.Y);
+        Assert.Equal(
+            DxfCanvasTranslationHandle.Free,
+            DxfCanvasTranslationInteraction.HitTest(new Point(206, 158), handles, 10));
+        Assert.Equal(
+            DxfCanvasTranslationHandle.X,
+            DxfCanvasTranslationInteraction.HitTest(new Point(276, 158), handles, 10));
+        Assert.Equal(
+            DxfCanvasTranslationHandle.Y,
+            DxfCanvasTranslationInteraction.HitTest(new Point(206, 72), handles, 10));
+        Assert.Equal(
+            DxfCanvasTranslationHandle.None,
+            DxfCanvasTranslationInteraction.HitTest(new Point(211, 150), handles, 10));
+        Assert.Equal(
+            DxfCanvasTranslationHandle.None,
+            DxfCanvasTranslationInteraction.HitTest(handles.Free, handles, -1));
+    }
+
+    [Theory]
+    [InlineData((int)DxfCanvasTranslationHandle.Free, 12, -8)]
+    [InlineData((int)DxfCanvasTranslationHandle.X, 12, 0)]
+    [InlineData((int)DxfCanvasTranslationHandle.Y, 0, -8)]
+    [InlineData((int)DxfCanvasTranslationHandle.None, 0, 0)]
+    public void TranslationInteraction_ConvertsScreenDeltaToConstrainedWorldDelta(
+        int handleValue,
+        double expectedX,
+        double expectedY)
+    {
+        var handle = (DxfCanvasTranslationHandle)handleValue;
+        var worldDelta = DxfCanvasTranslationInteraction.ScreenToWorldDelta(
+            new Vector(30, 20),
+            zoom: 2.5,
+            handle);
+
+        Assert.Equal(expectedX, worldDelta.X, 8);
+        Assert.Equal(expectedY, worldDelta.Y, 8);
+    }
+
+    [Fact]
+    public void TranslationInteraction_RejectsInvalidZoom()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            DxfCanvasTranslationInteraction.ScreenToWorldDelta(
+                new Vector(1, 1),
+                zoom: 0,
+                DxfCanvasTranslationHandle.Free));
+    }
+
+    [Fact]
+    public void TranslationInteraction_UsesSelectedPointMeanForSharedTransformPivot()
+    {
+        var selected = Path("selected", false, new Editor2DPoint(0, 0), new Editor2DPoint(9, 0), new Editor2DPoint(9, 3));
+        var otherSelected = Path("other", false, new Editor2DPoint(20, 10));
+        var untouched = Path("untouched", false, new Editor2DPoint(-100, -100));
+
+        var found = DxfCanvasTranslationInteraction.TryGetSelectionPivot(
+            [selected, otherSelected, untouched],
+            [selected.Id, otherSelected.Id],
+            out var pivot);
+
+        Assert.True(found);
+        Assert.Equal(9.5, pivot.X, 8);
+        Assert.Equal(3.25, pivot.Y, 8);
+    }
+
+    [Fact]
+    public void TranslationInteraction_RequiresRealDragBeforeCommit()
+    {
+        Assert.False(DxfCanvasTranslationInteraction.ShouldCommit(3.99, 4, new Editor2DPoint(5, 0)));
+        Assert.False(DxfCanvasTranslationInteraction.ShouldCommit(4, 4, new Editor2DPoint(0, 0)));
+        Assert.True(DxfCanvasTranslationInteraction.ShouldCommit(4, 4, new Editor2DPoint(5, 0)));
+    }
+
+    [Fact]
+    public void RotationInteraction_RequiresRealDragAndAngleBeforeCommit()
+    {
+        Assert.False(DxfCanvasRotationInteraction.ShouldCommit(3.99, 4, 10, 0.05));
+        Assert.False(DxfCanvasRotationInteraction.ShouldCommit(4, 4, 0.05, 0.05));
+        Assert.True(DxfCanvasRotationInteraction.ShouldCommit(4, 4, 0.051, 0.05));
     }
 
     [Fact]

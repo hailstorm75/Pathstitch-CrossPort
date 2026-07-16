@@ -29,6 +29,7 @@ public sealed class DxfPreviewCanvas : Control
     private const double ScaleHandleHitTolerance = 12.0;
     private const double RotationHandleHitTolerance = 12.0;
     private const double RotationCommitThresholdDegrees = 0.05;
+    private const double TranslationHandleHitTolerance = 12.0;
     private const double EmptyWorkspaceSpan = 200.0;
     private const double DefaultTextHeight = 10.0;
     private const string DefaultTextValue = "Label";
@@ -233,6 +234,8 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly Pen HoverPathPen = new(new SolidColorBrush(Color.Parse("#8EB3FF")), 2.0);
     private static readonly Pen SelectedPathPen = new(new SolidColorBrush(Color.Parse("#4D7FFF")), 2.4);
     private static readonly Pen RotationGizmoPen = new(new SolidColorBrush(Color.Parse("#3B82F6")), 2.0);
+    private static readonly Pen TranslationXGizmoPen = new(new SolidColorBrush(Color.Parse("#EF4444")), 2.0);
+    private static readonly Pen TranslationYGizmoPen = new(new SolidColorBrush(Color.Parse("#22C55E")), 2.0);
     private static readonly Pen PreviewPathPen = new(new SolidColorBrush(Color.Parse("#62E6A7")), 1.8, dashStyle: new DashStyle([4, 3], 0));
     private static readonly Pen OffsetPreviewPathPen = new(new SolidColorBrush(Color.Parse("#F59E0B")), 1.2, dashStyle: new DashStyle([4, 4], 0));
     private static readonly Pen AutoDimensionPen = new(new SolidColorBrush(Color.Parse("#63D2FF")), 1.2);
@@ -252,6 +255,9 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly IBrush ConstrainedRectangleHandleFillBrush = new SolidColorBrush(Color.Parse("#CC10151F"));
     private static readonly IBrush EditableVertexHandleFillBrush = new SolidColorBrush(Color.Parse("#4D7FFF"));
     private static readonly IBrush RotationGizmoBrush = new SolidColorBrush(Color.Parse("#3B82F6"));
+    private static readonly IBrush TranslationXGizmoBrush = new SolidColorBrush(Color.Parse("#EF4444"));
+    private static readonly IBrush TranslationYGizmoBrush = new SolidColorBrush(Color.Parse("#22C55E"));
+    private static readonly IBrush TranslationFreeGizmoBrush = new SolidColorBrush(Color.Parse("#FACC15"));
     private static readonly IBrush MeasurementPointBrush = new SolidColorBrush(Color.Parse("#7BDCB5"));
     private static readonly IBrush MeasurementTextBrush = new SolidColorBrush(Color.Parse("#DDF9EE"));
     private static readonly IBrush MeasurementLabelFillBrush = new SolidColorBrush(Color.Parse("#C010241D"));
@@ -270,6 +276,7 @@ public sealed class DxfPreviewCanvas : Control
     private readonly DxfCanvasToolCommitter _toolCommitter = new();
     private readonly DxfCanvasSnapResolver _snapResolver = new();
     private readonly Dictionary<string, Bitmap> _referenceImageBitmaps = new(StringComparer.Ordinal);
+    private bool _isCommittingSelectionTransform;
     private readonly MenuItem _expandRectanglesMenuItem;
     private readonly MenuItem _explodeCompoundMenuItem;
     private readonly MenuItem _duplicateSelectionMenuItem;
@@ -287,6 +294,7 @@ public sealed class DxfPreviewCanvas : Control
     private ref bool _isMovingSelection => ref _interaction.IsMovingSelection;
     private ref bool _isScalingSelection => ref _interaction.IsScalingSelection;
     private ref bool _isRotatingSelection => ref _interaction.IsRotatingSelection;
+    private ref bool _isTranslatingSelection => ref _interaction.IsTranslatingSelection;
     private ref bool _isAwaitingSecondaryContextClick => ref _interaction.IsAwaitingSecondaryContextClick;
     private ref bool _isEditingVertex => ref _interaction.IsEditingVertex;
     private ref bool _isDraggingCorner => ref _interaction.IsDraggingCorner;
@@ -298,9 +306,11 @@ public sealed class DxfPreviewCanvas : Control
     private ref Editor2DPreviewDocument? _moveDocumentSnapshot => ref _interaction.MoveDocumentSnapshot;
     private ref Editor2DPreviewDocument? _scaleDocumentSnapshot => ref _interaction.ScaleDocumentSnapshot;
     private ref Editor2DPreviewDocument? _rotateDocumentSnapshot => ref _interaction.RotateDocumentSnapshot;
+    private ref Editor2DPreviewDocument? _translateDocumentSnapshot => ref _interaction.TranslateDocumentSnapshot;
     private ref IReadOnlyList<string> _moveSelectionIds => ref _interaction.MoveSelectionIds;
     private ref IReadOnlyList<string> _scaleSelectionIds => ref _interaction.ScaleSelectionIds;
     private ref IReadOnlyList<string> _rotateSelectionIds => ref _interaction.RotateSelectionIds;
+    private ref IReadOnlyList<string> _translateSelectionIds => ref _interaction.TranslateSelectionIds;
     private ref Editor2DPoint? _moveStartPoint => ref _interaction.MoveStartPoint;
     private ref Editor2DPoint? _scaleCenterPoint => ref _interaction.ScaleCenterPoint;
     private ref double _scaleStartDistance => ref _interaction.ScaleStartDistance;
@@ -308,6 +318,13 @@ public sealed class DxfPreviewCanvas : Control
     private ref Editor2DPoint? _rotatePivot => ref _interaction.RotatePivot;
     private ref Point? _rotateGrabPoint => ref _interaction.RotateGrabPoint;
     private ref double _rotatePreviewDegrees => ref _interaction.RotatePreviewDegrees;
+    private ref double _rotateDragDistancePixels => ref _interaction.RotateDragDistancePixels;
+    private ref Editor2DPoint? _translatePivot => ref _interaction.TranslatePivot;
+    private ref Point? _translateGrabPoint => ref _interaction.TranslateGrabPoint;
+    private ref Editor2DPoint _translatePreviewDelta => ref _interaction.TranslatePreviewDelta;
+    private ref DxfCanvasTranslationHandle _translateHandle => ref _interaction.TranslateHandle;
+    private ref bool _translateCreateCopy => ref _interaction.TranslateCreateCopy;
+    private ref double _translateDragDistancePixels => ref _interaction.TranslateDragDistancePixels;
     private ref string? _editingVertexPathId => ref _interaction.EditingVertexPathId;
     private ref int _editingVertexIndex => ref _interaction.EditingVertexIndex;
     private ref bool _editingVertexIsConstrainedRectangle => ref _interaction.EditingVertexIsConstrainedRectangle;
@@ -1009,12 +1026,15 @@ public sealed class DxfPreviewCanvas : Control
         _isMovingSelection = false;
         _isScalingSelection = false;
         _isRotatingSelection = false;
+        _isTranslatingSelection = false;
         _moveDocumentSnapshot = null;
         _scaleDocumentSnapshot = null;
         _rotateDocumentSnapshot = null;
+        _translateDocumentSnapshot = null;
         _moveSelectionIds = Array.Empty<string>();
         _scaleSelectionIds = Array.Empty<string>();
         _rotateSelectionIds = Array.Empty<string>();
+        _translateSelectionIds = Array.Empty<string>();
         _moveStartPoint = null;
         _scaleCenterPoint = null;
         _scaleStartDistance = 0.0;
@@ -1022,6 +1042,13 @@ public sealed class DxfPreviewCanvas : Control
         _rotatePivot = null;
         _rotateGrabPoint = null;
         _rotatePreviewDegrees = 0.0;
+        _rotateDragDistancePixels = 0.0;
+        _translatePivot = null;
+        _translateGrabPoint = null;
+        _translatePreviewDelta = new Editor2DPoint(0, 0);
+        _translateHandle = DxfCanvasTranslationHandle.None;
+        _translateCreateCopy = false;
+        _translateDragDistancePixels = 0.0;
         _editingVertexPathId = null;
         _editingVertexIndex = 0;
         _editingVertexIsConstrainedRectangle = false;
@@ -1049,6 +1076,20 @@ public sealed class DxfPreviewCanvas : Control
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+
+        if (!_isCommittingSelectionTransform
+            && (change.Property == DocumentProperty
+                || change.Property == SelectedPathIdsProperty
+                || change.Property == ActiveReferenceImageProperty
+                || change.Property == ZoomProperty
+                || change.Property == OffsetXProperty
+                || change.Property == OffsetYProperty)
+            && (_isRotatingSelection || _isTranslatingSelection))
+        {
+            _cancelInteractionOnPointerRelease = true;
+            ResetRotateSelection();
+            ResetTranslateSelection();
+        }
 
         if (change.Property == DocumentProperty)
         {
@@ -1084,10 +1125,11 @@ public sealed class DxfPreviewCanvas : Control
 
         if (change.Property == ActiveToolProperty)
         {
-            if (_isRotatingSelection && ActiveTool != Editor2DTool.Select)
+            if (_isRotatingSelection || _isTranslatingSelection)
             {
                 _cancelInteractionOnPointerRelease = true;
                 ResetRotateSelection();
+                ResetTranslateSelection();
             }
             _cornerToolSessionValue = null;
             if (ActiveTool == Editor2DTool.Move)
@@ -1151,6 +1193,21 @@ public sealed class DxfPreviewCanvas : Control
         DrawReferenceImages(context, size);
         DrawReferenceImageGizmo(context, size);
         var visiblePaths = GetVisiblePaths();
+        if (_isTranslatingSelection
+            && (Math.Abs(_translatePreviewDelta.X) > 1e-12 || Math.Abs(_translatePreviewDelta.Y) > 1e-12))
+        {
+            var translatedPaths = DxfCanvasGeometryEditor.Translate(
+                Document with { Paths = visiblePaths },
+                _translateSelectionIds,
+                _translatePreviewDelta.X,
+                _translatePreviewDelta.Y).Paths;
+            visiblePaths = _translateCreateCopy
+                ? [
+                    .. visiblePaths,
+                    .. translatedPaths.Where(path => _translateSelectionIds.Contains(path.Id, StringComparer.Ordinal)),
+                ]
+                : translatedPaths;
+        }
         if (_isRotatingSelection && _rotatePivot is not null && Math.Abs(_rotatePreviewDegrees) > 1e-12)
         {
             visiblePaths = DxfCanvasGeometryEditor.Rotate(
@@ -1162,6 +1219,7 @@ public sealed class DxfPreviewCanvas : Control
         if (visiblePaths.Count > 0)
             DrawPaperBounds(context, size, Document.Bounds);
         DrawPaths(context, size, visiblePaths);
+        DrawTranslationGizmo(context, size);
         DrawRotationGizmo(context, size);
         DrawPatternPivot(context, size);
         DrawScalePivot(context, size);
@@ -1279,7 +1337,13 @@ public sealed class DxfPreviewCanvas : Control
             return;
         }
 
-        if (ActiveTool == Editor2DTool.Select && TryBeginRotateSelection(point.Position, e.Pointer))
+        if (TryBeginRotateSelection(point.Position, e.Pointer))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (TryBeginTranslateSelection(point.Position, e.Pointer))
         {
             e.Handled = true;
             return;
@@ -1464,6 +1528,7 @@ public sealed class DxfPreviewCanvas : Control
             case DxfCanvasMoveRoute.MoveSelection: ApplyMoveSelection(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.ScaleSelection: ApplyScaleSelection(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.RotateSelection: ApplyRotateSelection(position); e.Handled = true; return;
+            case DxfCanvasMoveRoute.TranslateSelection: ApplyTranslateSelection(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.Corner: ApplyCornerDrag(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.SewingHoleMargin: ApplySewingHoleMarginDrag(position); e.Handled = true; return;
             case DxfCanvasMoveRoute.OffsetHandle: ApplyOffsetHandleDrag(position); e.Handled = true; return;
@@ -1541,8 +1606,14 @@ Hover:
             case DxfCanvasReleaseRoute.ScaleSelection:
                 _isScalingSelection = false; _scaleDocumentSnapshot = null; _scaleSelectionIds = Array.Empty<string>(); _scaleCenterPoint = null; _scaleStartDistance = 0; _scalePreviewFactor = 1; break;
             case DxfCanvasReleaseRoute.RotateSelection:
+                ApplyRotateSelection(e.GetPosition(this));
                 CommitRotateSelection();
                 ResetRotateSelection();
+                break;
+            case DxfCanvasReleaseRoute.TranslateSelection:
+                ApplyTranslateSelection(e.GetPosition(this));
+                CommitTranslateSelection();
+                ResetTranslateSelection();
                 break;
             case DxfCanvasReleaseRoute.Corner:
                 _isDraggingCorner = false; _cornerDragPathId = null; _cornerDragIndex = 0; break;
@@ -1577,6 +1648,17 @@ Selection:
         e.Handled = true;
     }
 
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        if (!_isRotatingSelection && !_isTranslatingSelection)
+            return;
+
+        ResetRotateSelection();
+        ResetTranslateSelection();
+        InvalidateVisual();
+    }
+
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
@@ -1596,6 +1678,13 @@ Selection:
 
         if (Document is null)
             return;
+
+        if (_isRotatingSelection || _isTranslatingSelection)
+        {
+            CancelActiveInteraction();
+            e.Handled = true;
+            return;
+        }
 
         var screenPoint = e.GetPosition(this);
         var wheelDelta = ReversePanDirection ? -e.Delta.Y : e.Delta.Y;
@@ -2014,19 +2103,23 @@ Selection:
     {
         foreach (var measurement in Measurements)
         {
-            if (measurement.IsAutoDimension
-                && !string.IsNullOrWhiteSpace(measurement.EntityPathId)
-                && !SelectedPathIds.Contains(measurement.EntityPathId, StringComparer.Ordinal))
+            var previewMeasurement = GetTransformPreviewMeasurement(measurement);
+            if (previewMeasurement is null)
+                continue;
+
+            if (previewMeasurement.IsAutoDimension
+                && !string.IsNullOrWhiteSpace(previewMeasurement.EntityPathId)
+                && !SelectedPathIds.Contains(previewMeasurement.EntityPathId, StringComparer.Ordinal))
             {
                 continue;
             }
 
-            var start = WorldToScreen(measurement.Start, size);
-            var end = WorldToScreen(measurement.End, size);
-            var isSelectedManualMeasurement = !measurement.IsAutoDimension
-                && string.Equals(measurement.Id, SelectedMeasurementId, StringComparison.Ordinal);
+            var start = WorldToScreen(previewMeasurement.Start, size);
+            var end = WorldToScreen(previewMeasurement.End, size);
+            var isSelectedManualMeasurement = !previewMeasurement.IsAutoDimension
+                && string.Equals(previewMeasurement.Id, SelectedMeasurementId, StringComparison.Ordinal);
             context.DrawLine(
-                measurement.IsAutoDimension
+                previewMeasurement.IsAutoDimension
                     ? AutoDimensionPen
                     : isSelectedManualMeasurement
                         ? SelectedMeasurementPen
@@ -2034,14 +2127,60 @@ Selection:
                 start,
                 end);
 
-            if (!measurement.IsAutoDimension)
+            if (!previewMeasurement.IsAutoDimension)
             {
                 context.DrawEllipse(MeasurementPointBrush, null, start, 3.0, 3.0);
                 context.DrawEllipse(MeasurementPointBrush, null, end, 3.0, 3.0);
             }
 
-            DrawMeasurementLabel(context, measurement, start, end);
+            DrawMeasurementLabel(context, previewMeasurement, start, end);
         }
+    }
+
+    private Editor2DMeasurement? GetTransformPreviewMeasurement(Editor2DMeasurement measurement)
+    {
+        if (string.IsNullOrWhiteSpace(measurement.EntityPathId)
+            || !SelectedPathIds.Contains(measurement.EntityPathId, StringComparer.Ordinal))
+        {
+            return measurement;
+        }
+
+        if (_isRotatingSelection && _rotatePivot is not null)
+        {
+            if (measurement.IsAutoDimension)
+                return null;
+
+            Editor2DPoint Rotate(Editor2DPoint point)
+            {
+                var radians = -_rotatePreviewDegrees * Math.PI / 180.0;
+                var deltaX = point.X - _rotatePivot.X;
+                var deltaY = point.Y - _rotatePivot.Y;
+                return new Editor2DPoint(
+                    _rotatePivot.X + (deltaX * Math.Cos(radians)) - (deltaY * Math.Sin(radians)),
+                    _rotatePivot.Y + (deltaX * Math.Sin(radians)) + (deltaY * Math.Cos(radians)));
+            }
+
+            return measurement with
+            {
+                Start = Rotate(measurement.Start),
+                End = Rotate(measurement.End),
+                RectP1 = measurement.RectP1 is { } rectP1 ? Rotate(rectP1) : null,
+                RectP2 = measurement.RectP2 is { } rectP2 ? Rotate(rectP2) : null,
+            };
+        }
+
+        if (!_isTranslatingSelection || _translateCreateCopy)
+            return measurement;
+
+        Editor2DPoint Translate(Editor2DPoint point)
+            => new(point.X + _translatePreviewDelta.X, point.Y + _translatePreviewDelta.Y);
+        return measurement with
+        {
+            Start = Translate(measurement.Start),
+            End = Translate(measurement.End),
+            RectP1 = measurement.RectP1 is { } translateRectP1 ? Translate(translateRectP1) : null,
+            RectP2 = measurement.RectP2 is { } translateRectP2 ? Translate(translateRectP2) : null,
+        };
     }
 
     private void DrawCornerToolHandles(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
@@ -2410,19 +2549,98 @@ Selection:
         context.DrawText(factorText, labelOrigin);
     }
 
-    private void DrawRotationGizmo(DrawingContext context, Size size)
+    private void DrawTranslationGizmo(DrawingContext context, Size size)
     {
-        if (ActiveTool != Editor2DTool.Select
-            || ActiveReferenceImage is not null
+        if (!ShouldShowSelectionTransformGizmo()
             || Document is null
-            || !TryGetSelectedPathBounds(Document.Paths, out var minX, out var minY, out var maxX, out var maxY))
+            || !DxfCanvasTranslationInteraction.TryGetSelectionPivot(Document.Paths, SelectedPathIds, out var selectionPivot))
         {
             return;
         }
 
-        var pivot = _isRotatingSelection && _rotatePivot is not null
-            ? _rotatePivot
-            : new Editor2DPoint((minX + maxX) / 2.0, (minY + maxY) / 2.0);
+        var basePivot = _isTranslatingSelection && _translatePivot is not null
+            ? _translatePivot
+            : selectionPivot;
+        var livePivot = new Editor2DPoint(
+            basePivot.X + (_isTranslatingSelection ? _translatePreviewDelta.X : 0.0),
+            basePivot.Y + (_isTranslatingSelection ? _translatePreviewDelta.Y : 0.0));
+        var pivotScreen = WorldToScreen(livePivot, size);
+        var handles = DxfCanvasTranslationInteraction.GetHandleGeometry(pivotScreen);
+
+        context.DrawLine(TranslationXGizmoPen, handles.Free, handles.X);
+        context.DrawLine(TranslationYGizmoPen, handles.Free, handles.Y);
+        DrawTranslationArrow(context, handles.X, DxfCanvasTranslationHandle.X);
+        DrawTranslationArrow(context, handles.Y, DxfCanvasTranslationHandle.Y);
+        context.DrawRectangle(
+            TranslationFreeGizmoBrush,
+            EditableVertexHandlePen,
+            new Rect(handles.Free.X - 8.0, handles.Free.Y - 8.0, 16.0, 16.0));
+
+        if (!_isTranslatingSelection || _translateHandle == DxfCanvasTranslationHandle.Free)
+            return;
+
+        var value = _translateHandle == DxfCanvasTranslationHandle.X
+            ? _translatePreviewDelta.X
+            : _translatePreviewDelta.Y;
+        var activeHandle = _translateHandle == DxfCanvasTranslationHandle.X ? handles.X : handles.Y;
+        var valueText = new FormattedText(
+            $"{value:0.00} mm",
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            MeasurementLabelTypeface,
+            11.0,
+            MeasurementTextBrush);
+        var labelOrigin = new Point(activeHandle.X + 12.0, activeHandle.Y - valueText.Height / 2.0);
+        var labelRect = new Rect(labelOrigin.X - 6.0, labelOrigin.Y - 3.0, valueText.Width + 12.0, valueText.Height + 6.0);
+        context.FillRectangle(MeasurementLabelFillBrush, labelRect);
+        context.DrawText(valueText, labelOrigin);
+    }
+
+    private static void DrawTranslationArrow(
+        DrawingContext context,
+        Point tip,
+        DxfCanvasTranslationHandle handle)
+    {
+        var geometry = new StreamGeometry();
+        using (var path = geometry.Open())
+        {
+            if (handle == DxfCanvasTranslationHandle.X)
+            {
+                path.BeginFigure(new Point(tip.X + 7.0, tip.Y), true);
+                path.LineTo(new Point(tip.X - 7.0, tip.Y - 7.0));
+                path.LineTo(new Point(tip.X - 7.0, tip.Y + 7.0));
+            }
+            else
+            {
+                path.BeginFigure(new Point(tip.X, tip.Y - 7.0), true);
+                path.LineTo(new Point(tip.X - 7.0, tip.Y + 7.0));
+                path.LineTo(new Point(tip.X + 7.0, tip.Y + 7.0));
+            }
+            path.EndFigure(true);
+        }
+
+        context.DrawGeometry(
+            handle == DxfCanvasTranslationHandle.X ? TranslationXGizmoBrush : TranslationYGizmoBrush,
+            null,
+            geometry);
+    }
+
+    private void DrawRotationGizmo(DrawingContext context, Size size)
+    {
+        if (!ShouldShowSelectionTransformGizmo()
+            || Document is null
+            || !DxfCanvasTranslationInteraction.TryGetSelectionPivot(Document.Paths, SelectedPathIds, out var selectionPivot))
+        {
+            return;
+        }
+
+        var pivot = _isTranslatingSelection && _translatePivot is not null
+            ? new Editor2DPoint(
+                _translatePivot.X + _translatePreviewDelta.X,
+                _translatePivot.Y + _translatePreviewDelta.Y)
+            : _isRotatingSelection && _rotatePivot is not null
+                ? _rotatePivot
+                : selectionPivot;
         var pivotScreen = WorldToScreen(pivot, size);
         var handleScreen = DxfCanvasRotationInteraction.GetHandlePosition(pivotScreen, _rotatePreviewDegrees);
         context.DrawLine(RotationGizmoPen, pivotScreen, handleScreen);
@@ -3988,15 +4206,13 @@ Selection:
 
     private bool TryBeginRotateSelection(Point screenPoint, IPointer pointer)
     {
-        if (Document is null
-            || ActiveReferenceImage is not null
-            || SelectedPathIds.Count == 0
-            || !TryGetSelectedPathBounds(Document.Paths, out var minX, out var minY, out var maxX, out var maxY))
+        if (!ShouldShowSelectionTransformGizmo()
+            || Document is null
+            || !DxfCanvasTranslationInteraction.TryGetSelectionPivot(Document.Paths, SelectedPathIds, out var pivot))
         {
             return false;
         }
 
-        var pivot = new Editor2DPoint((minX + maxX) / 2.0, (minY + maxY) / 2.0);
         var pivotScreen = WorldToScreen(pivot, Bounds.Size);
         var handleScreen = DxfCanvasRotationInteraction.GetHandlePosition(pivotScreen);
         if (!DxfCanvasRotationInteraction.IsHandleHit(screenPoint, handleScreen, RotationHandleHitTolerance))
@@ -4008,6 +4224,48 @@ Selection:
         _rotatePivot = pivot;
         _rotateGrabPoint = screenPoint;
         _rotatePreviewDegrees = 0.0;
+        _rotateDragDistancePixels = 0.0;
+        _cancelInteractionOnPointerRelease = false;
+        SetCurrentValue(SelectedMeasurementIdProperty, null);
+        pointer.Capture(this);
+        InvalidateVisual();
+        return true;
+    }
+
+    private bool ShouldShowSelectionTransformGizmo()
+        => DxfCanvasSelectionInteraction.ShouldShowTransformGizmo(
+            ActiveTool,
+            SelectedPathIds.Count > 0,
+            ActiveReferenceImage is not null)
+            && !(ActiveTool == Editor2DTool.Move && TwoDMovePointToPointActive);
+
+    private bool TryBeginTranslateSelection(Point screenPoint, IPointer pointer)
+    {
+        if (!ShouldShowSelectionTransformGizmo()
+            || Document is null
+            || !DxfCanvasTranslationInteraction.TryGetSelectionPivot(Document.Paths, SelectedPathIds, out var pivot))
+        {
+            return false;
+        }
+
+        var pivotScreen = WorldToScreen(pivot, Bounds.Size);
+        var handles = DxfCanvasTranslationInteraction.GetHandleGeometry(pivotScreen);
+        var handle = DxfCanvasTranslationInteraction.HitTest(
+            screenPoint,
+            handles,
+            TranslationHandleHitTolerance);
+        if (handle == DxfCanvasTranslationHandle.None)
+            return false;
+
+        _isTranslatingSelection = true;
+        _translateDocumentSnapshot = Document;
+        _translateSelectionIds = SelectedPathIds.ToArray();
+        _translatePivot = pivot;
+        _translateGrabPoint = screenPoint;
+        _translatePreviewDelta = new Editor2DPoint(0, 0);
+        _translateHandle = handle;
+        _translateCreateCopy = ActiveTool == Editor2DTool.Move && TwoDMoveCreateCopy;
+        _translateDragDistancePixels = 0.0;
         _cancelInteractionOnPointerRelease = false;
         SetCurrentValue(SelectedMeasurementIdProperty, null);
         pointer.Capture(this);
@@ -4151,14 +4409,78 @@ Selection:
             pivotScreen,
             _rotateGrabPoint.Value,
             pointerPosition);
+        _rotateDragDistancePixels = ScreenDistance(_rotateGrabPoint.Value, pointerPosition);
         InvalidateVisual();
+    }
+
+    private void ApplyTranslateSelection(Point pointerPosition)
+    {
+        if (_translateGrabPoint is null)
+            return;
+
+        _translatePreviewDelta = DxfCanvasTranslationInteraction.ScreenToWorldDelta(
+            pointerPosition - _translateGrabPoint.Value,
+            Zoom,
+            _translateHandle);
+        _translateDragDistancePixels = ScreenDistance(_translateGrabPoint.Value, pointerPosition);
+        InvalidateVisual();
+    }
+
+    private void CommitTranslateSelection()
+    {
+        if (_translateDocumentSnapshot is null
+            || !DxfCanvasTranslationInteraction.ShouldCommit(
+                _translateDragDistancePixels,
+                PointerDragThreshold,
+                _translatePreviewDelta))
+        {
+            return;
+        }
+
+        var workingDocument = _translateDocumentSnapshot;
+        IReadOnlyList<string> movedSelectionIds = _translateSelectionIds;
+        if (_translateCreateCopy)
+        {
+            var copiedDocument = DuplicateSelectedPaths(
+                workingDocument,
+                _translateSelectionIds,
+                out var copySelectionIds);
+            if (copiedDocument is null)
+                return;
+            workingDocument = copiedDocument;
+            movedSelectionIds = copySelectionIds;
+        }
+
+        var translated = DxfCanvasGeometryEditor.Translate(
+            workingDocument,
+            movedSelectionIds,
+            _translatePreviewDelta.X,
+            _translatePreviewDelta.Y);
+        CommitSelectionTransform(translated, movedSelectionIds);
+    }
+
+    private void ResetTranslateSelection()
+    {
+        _isTranslatingSelection = false;
+        _translateDocumentSnapshot = null;
+        _translateSelectionIds = Array.Empty<string>();
+        _translatePivot = null;
+        _translateGrabPoint = null;
+        _translatePreviewDelta = new Editor2DPoint(0, 0);
+        _translateHandle = DxfCanvasTranslationHandle.None;
+        _translateCreateCopy = false;
+        _translateDragDistancePixels = 0.0;
     }
 
     private void CommitRotateSelection()
     {
         if (_rotateDocumentSnapshot is null
             || _rotatePivot is null
-            || Math.Abs(_rotatePreviewDegrees) <= RotationCommitThresholdDegrees)
+            || !DxfCanvasRotationInteraction.ShouldCommit(
+                _rotateDragDistancePixels,
+                PointerDragThreshold,
+                _rotatePreviewDegrees,
+                RotationCommitThresholdDegrees))
         {
             return;
         }
@@ -4168,8 +4490,23 @@ Selection:
             _rotateSelectionIds,
             _rotatePivot,
             -_rotatePreviewDegrees);
-        SetCurrentValue(DocumentProperty, rotated);
-        SetCurrentValue(SelectedPathIdsProperty, _rotateSelectionIds);
+        CommitSelectionTransform(rotated, _rotateSelectionIds);
+    }
+
+    private void CommitSelectionTransform(
+        Editor2DPreviewDocument document,
+        IReadOnlyList<string> selectedPathIds)
+    {
+        _isCommittingSelectionTransform = true;
+        try
+        {
+            SetCurrentValue(DocumentProperty, document);
+            SetCurrentValue(SelectedPathIdsProperty, selectedPathIds);
+        }
+        finally
+        {
+            _isCommittingSelectionTransform = false;
+        }
     }
 
     private void ResetRotateSelection()
@@ -4180,6 +4517,7 @@ Selection:
         _rotatePivot = null;
         _rotateGrabPoint = null;
         _rotatePreviewDegrees = 0.0;
+        _rotateDragDistancePixels = 0.0;
     }
 
     private void ApplyVertexEdit(Point pointerPosition)

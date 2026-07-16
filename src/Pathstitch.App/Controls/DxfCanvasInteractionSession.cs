@@ -28,6 +28,7 @@ internal sealed class DxfCanvasInteractionSession
     internal bool IsMovingSelection;
     internal bool IsScalingSelection;
     internal bool IsRotatingSelection;
+    internal bool IsTranslatingSelection;
     internal bool IsAwaitingSecondaryContextClick;
     internal bool IsEditingVertex;
     internal bool IsDraggingCorner;
@@ -39,9 +40,11 @@ internal sealed class DxfCanvasInteractionSession
     internal Editor2DPreviewDocument? MoveDocumentSnapshot;
     internal Editor2DPreviewDocument? ScaleDocumentSnapshot;
     internal Editor2DPreviewDocument? RotateDocumentSnapshot;
+    internal Editor2DPreviewDocument? TranslateDocumentSnapshot;
     internal IReadOnlyList<string> MoveSelectionIds = Array.Empty<string>();
     internal IReadOnlyList<string> ScaleSelectionIds = Array.Empty<string>();
     internal IReadOnlyList<string> RotateSelectionIds = Array.Empty<string>();
+    internal IReadOnlyList<string> TranslateSelectionIds = Array.Empty<string>();
     internal bool MoveSelectionCreateCopy;
     internal Editor2DPoint? MoveStartPoint;
     internal Editor2DPoint? ScaleCenterPoint;
@@ -50,6 +53,13 @@ internal sealed class DxfCanvasInteractionSession
     internal Editor2DPoint? RotatePivot;
     internal Point? RotateGrabPoint;
     internal double RotatePreviewDegrees;
+    internal double RotateDragDistancePixels;
+    internal Editor2DPoint? TranslatePivot;
+    internal Point? TranslateGrabPoint;
+    internal Editor2DPoint TranslatePreviewDelta = new(0, 0);
+    internal DxfCanvasTranslationHandle TranslateHandle;
+    internal bool TranslateCreateCopy;
+    internal double TranslateDragDistancePixels;
     internal string? EditingVertexPathId;
     internal int EditingVertexIndex;
     internal bool EditingVertexIsConstrainedRectangle;
@@ -95,6 +105,7 @@ internal sealed class DxfCanvasInteractionSession
         IsMovingSelection = false;
         IsScalingSelection = false;
         IsRotatingSelection = false;
+        IsTranslatingSelection = false;
         IsEditingVertex = false;
         IsDraggingCorner = false;
         IsDraggingSewingHoleMargin = false;
@@ -105,9 +116,11 @@ internal sealed class DxfCanvasInteractionSession
         MoveDocumentSnapshot = null;
         ScaleDocumentSnapshot = null;
         RotateDocumentSnapshot = null;
+        TranslateDocumentSnapshot = null;
         MoveSelectionIds = Array.Empty<string>();
         ScaleSelectionIds = Array.Empty<string>();
         RotateSelectionIds = Array.Empty<string>();
+        TranslateSelectionIds = Array.Empty<string>();
         MoveSelectionCreateCopy = false;
         MoveStartPoint = null;
         ScaleCenterPoint = null;
@@ -116,6 +129,13 @@ internal sealed class DxfCanvasInteractionSession
         RotatePivot = null;
         RotateGrabPoint = null;
         RotatePreviewDegrees = 0;
+        RotateDragDistancePixels = 0;
+        TranslatePivot = null;
+        TranslateGrabPoint = null;
+        TranslatePreviewDelta = new Editor2DPoint(0, 0);
+        TranslateHandle = DxfCanvasTranslationHandle.None;
+        TranslateCreateCopy = false;
+        TranslateDragDistancePixels = 0;
         EditingVertexPathId = null;
         EditingPenPathId = null;
         EditingPenClosed = false;
