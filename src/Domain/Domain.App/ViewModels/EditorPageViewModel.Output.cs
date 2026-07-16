@@ -497,6 +497,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDMirrorStageHint));
             OnPropertyChanged(nameof(TwoDMirrorObjectSummary));
             OnPropertyChanged(nameof(HasTwoDMirrorLinkSelection));
+            OnPropertyChanged(nameof(HasSelectedTwoDImportGroup));
             OnPropertyChanged(nameof(TwoDSelectedRectangleCount));
             OnPropertyChanged(nameof(CanExpandTwoDRectangles));
             OnPropertyChanged(nameof(TwoDSelectionSummary));

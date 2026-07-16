@@ -250,6 +250,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDSelectedPathIds));
         OnPropertyChanged(nameof(MirrorLinks));
         OnPropertyChanged(nameof(HasTwoDMirrorLinkSelection));
+        OnPropertyChanged(nameof(HasSelectedTwoDImportGroup));
         OnPropertyChanged(nameof(TwoDMeasurements));
         OnPropertyChanged(nameof(TwoDSelectedMeasurementId));
         OnPropertyChanged(nameof(TwoDLayers));

@@ -1081,8 +1081,11 @@ public sealed class EditorPageViewModelModeTests
             await ((INavigablePageViewModel)viewModel).LoadAsync(CancellationToken.None);
 
             Assert.Equal(2, viewModel.TwoDDocument!.Paths.Count);
-            Assert.Equal("import-1-1-first", viewModel.TwoDDocument.Paths[0].Id);
-            Assert.Equal("import-2-1-second", viewModel.TwoDDocument.Paths[1].Id);
+            Assert.Equal(2, viewModel.TwoDWorkspace.ImportGroups.Count);
+            Assert.Equal(viewModel.TwoDWorkspace.ImportGroups[0].GeneratedPathIds[0], viewModel.TwoDDocument.Paths[0].Id);
+            Assert.Equal(viewModel.TwoDWorkspace.ImportGroups[1].GeneratedPathIds[0], viewModel.TwoDDocument.Paths[1].Id);
+            Assert.Equal(Path.GetFullPath(firstPath), viewModel.TwoDWorkspace.ImportGroups[0].SourceFilePath);
+            Assert.Equal(Path.GetFullPath(secondPath), viewModel.TwoDWorkspace.ImportGroups[1].SourceFilePath);
             Assert.True(viewModel.TwoDDocument.Paths[1].Points[0].X > viewModel.TwoDDocument.Paths[0].Points[0].X);
         }
         finally
@@ -1143,6 +1146,7 @@ public sealed class EditorPageViewModelModeTests
             var path = Assert.Single(viewModel.TwoDDocument!.Paths);
             Assert.Equal(254, path.Points[1].X, 6);
             Assert.Equal(Path.GetFullPath(dxfPath), prompt.LastInfo?.SourcePath);
+            Assert.Equal(25.4, Assert.Single(viewModel.TwoDWorkspace.ImportGroups).AppliedUnitScale);
         }
         finally
         {

@@ -104,7 +104,7 @@ public sealed partial class EditorPageViewModel
         IReadOnlyList<string> filePaths,
         CancellationToken cancellationToken)
     {
-        var importedDocuments = new List<Editor2DPreviewDocument>();
+        var importedDrawings = new List<Editor2DImportedDrawing>();
         foreach (var filePath in filePaths)
         {
             var importedDocument = await _editorOutputPreviewService
@@ -116,30 +116,98 @@ public sealed partial class EditorPageViewModel
             var units = await _editorOutputPreviewService
                 .InspectImportUnitsAsync(filePath, cancellationToken)
                 .ConfigureAwait(true);
+            var appliedUnitScale = 1.0;
             if (units?.RequiresPrompt == true)
             {
                 var factor = await _importUnitsPromptService
                     .PromptAsync(units, cancellationToken)
                     .ConfigureAwait(true);
-                if (factor is > 0 and not 1.0)
-                    importedDocument = ScaleImportedTwoDDocument(importedDocument, factor.Value);
+                if (factor is > 0)
+                    appliedUnitScale = factor.Value;
             }
-            importedDocuments.Add(importedDocument);
+            if (Math.Abs(appliedUnitScale - 1.0) > 1e-12)
+                importedDocument = ScaleImportedTwoDDocument(importedDocument, appliedUnitScale);
+            if (importedDocument.Paths.Count > 0)
+                importedDrawings.Add(new Editor2DImportedDrawing(
+                    Path.GetFullPath(filePath), appliedUnitScale, importedDocument));
         }
 
-        if (importedDocuments.Count == 0)
+        if (importedDrawings.Count == 0)
             return 0;
 
-        var preserveExisting = TwoDDocument is { Paths.Count: > 0 };
-        var documents = TwoDDocument is { Paths.Count: > 0 } existing
-            ? new[] { existing }.Concat(importedDocuments).ToArray()
-            : importedDocuments.ToArray();
-        SetTwoDDocument(MergeImportedTwoDDocuments(documents, preserveFirstDocument: preserveExisting));
-        StatusText = importedDocuments.Count == 1
-            ? $"Imported drawing: {Path.GetFileName(filePaths[0])}"
-            : $"Imported {importedDocuments.Count} drawings side by side";
+        if (!CompleteTwoDWorkspaceOperation(_twoDWorkspace.AddImportedDrawings(importedDrawings)))
+            return 0;
         MarkDocumentDirty();
-        return importedDocuments.Count;
+        return importedDrawings.Count;
+    }
+
+    public bool HasSelectedTwoDImportGroup => _twoDWorkspace.GetSelectedImportGroups().Count > 0;
+
+    public async Task<bool> ReloadSelectedTwoDImportsFromDiskAsync(CancellationToken cancellationToken = default)
+    {
+        if (!await _importFilesGate.WaitAsync(0, cancellationToken).ConfigureAwait(true))
+            return false;
+        try
+        {
+            return await ReloadSelectedTwoDImportsFromDiskCoreAsync(cancellationToken).ConfigureAwait(true);
+        }
+        finally
+        {
+            _importFilesGate.Release();
+            ImportFilesCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private async Task<bool> ReloadSelectedTwoDImportsFromDiskCoreAsync(CancellationToken cancellationToken)
+    {
+        var groups = _twoDWorkspace.GetSelectedImportGroups();
+        if (groups.Count == 0)
+        {
+            StatusText = "Select imported drawing geometry before reloading from disk";
+            return false;
+        }
+        var expectedState = _twoDWorkspace.State;
+
+        var replacements = new Dictionary<string, Editor2DPreviewDocument>(StringComparer.Ordinal);
+        foreach (var group in groups)
+        {
+            Editor2DPreviewDocument? document;
+            try
+            {
+                document = await _editorOutputPreviewService
+                    .LoadPreviewDocumentAsync(group.SourceFilePath, cancellationToken)
+                    .ConfigureAwait(true);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage = $"Could not reload {Path.GetFileName(group.SourceFilePath)}: {ex.Message}";
+                return false;
+            }
+
+            if (document is not { Paths.Count: > 0 })
+            {
+                ErrorMessage = $"Could not reload {Path.GetFileName(group.SourceFilePath)}";
+                return false;
+            }
+            replacements[group.Id] = Math.Abs(group.AppliedUnitScale - 1.0) > 1e-12
+                ? ScaleImportedTwoDDocument(document, group.AppliedUnitScale)
+                : document;
+        }
+
+        if (!ReferenceEquals(expectedState, _twoDWorkspace.State))
+        {
+            ErrorMessage = "Workspace changed while imported drawings were loading; reload again";
+            return false;
+        }
+        if (!CompleteTwoDWorkspaceOperation(_twoDWorkspace.ReloadImportGroups(replacements)))
+            return false;
+        ErrorMessage = null;
+        MarkDocumentDirty();
+        return true;
     }
 
     private async Task<int> ImportReferenceImagesAsync(
