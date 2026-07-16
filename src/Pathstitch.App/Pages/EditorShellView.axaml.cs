@@ -16,6 +16,11 @@ public partial class EditorShellView : EditorInteractionControlBase
     public EditorShellView()
     {
         InitializeComponent();
+        SaveMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.S);
+        SaveAndCloseMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.W, shift: true);
+        CloseDocumentMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.W);
+        ExportDxfMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.E);
+        ExportSvgMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.E, shift: true);
         Loaded += OnLoaded;
         KeyDown += OnEditorKeyDown;
     }
@@ -149,11 +154,11 @@ public partial class EditorShellView : EditorInteractionControlBase
 
     private void OnEditorKeyDown(object? sender, KeyEventArgs e)
     {
-        var commandModifier = e.KeyModifiers is (KeyModifiers.Control or KeyModifiers.Meta);
-        var commandShiftModifier = (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift)) == (KeyModifiers.Control | KeyModifiers.Shift)
-            || (e.KeyModifiers & (KeyModifiers.Meta | KeyModifiers.Shift)) == (KeyModifiers.Meta | KeyModifiers.Shift);
+        var commandModifier = DesktopPrimaryShortcut.Matches(e.KeyModifiers);
+        var commandShiftModifier = DesktopPrimaryShortcut.Matches(e.KeyModifiers, shift: true);
         var validModifiedShortcut = (e.Key == Key.K && commandModifier)
             || (e.Key == Key.D && commandModifier)
+            || (e.Key == Key.Z && (commandModifier || commandShiftModifier))
             || (e.Key is Key.H or Key.J && commandShiftModifier)
             || (e.Key == Key.G && e.KeyModifiers == KeyModifiers.Shift);
         if (DataContext is not EditorPageViewModel viewModel
@@ -165,6 +170,15 @@ public partial class EditorShellView : EditorInteractionControlBase
         if (e.Key == Key.K && e.KeyModifiers is (KeyModifiers.Control or KeyModifiers.Meta))
         {
             CommandPalette.FocusSearch();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Z && (commandModifier || commandShiftModifier))
+        {
+            var command = commandShiftModifier ? viewModel.RedoCommand : viewModel.UndoCommand;
+            if (command.CanExecute(null))
+                command.Execute(null);
             e.Handled = true;
             return;
         }

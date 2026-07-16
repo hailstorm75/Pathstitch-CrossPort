@@ -114,17 +114,43 @@
         AutomationProperties.AutomationId="editor.menu.file"
         Header="_File">
         <MenuItem
+          x:Name="SaveMenuItem"
           AutomationProperties.AutomationId="editor.menu.file.save"
           Command="{Binding SaveDocumentCommand}"
           Header="_Save"
           HotKey="Ctrl+S" />
         <MenuItem
+          x:Name="SaveAndCloseMenuItem"
           AutomationProperties.AutomationId="editor.menu.file.save-and-close"
           Command="{Binding SaveAndCloseDocumentCommand}"
           Header="Save and _Close"
           HotKey="Ctrl+Shift+W" />
         <Separator />
         <MenuItem
+          AutomationProperties.AutomationId="editor.menu.file.export"
+          Header="_Export">
+          <MenuItem
+            x:Name="ExportDxfMenuItem"
+            AutomationProperties.AutomationId="editor.menu.file.export.dxf"
+            Header="AutoCAD DXF (.dxf)"
+            Command="{Binding ExportDxfCommand}" />
+          <MenuItem
+            x:Name="ExportSvgMenuItem"
+            AutomationProperties.AutomationId="editor.menu.file.export.svg"
+            Header="Scalable Vector Graphics (.svg)"
+            Command="{Binding ExportSvgCommand}" />
+          <MenuItem
+            AutomationProperties.AutomationId="editor.menu.file.export.png"
+            Header="Raster Image (.png)"
+            Command="{Binding ExportPngCommand}" />
+          <MenuItem
+            AutomationProperties.AutomationId="editor.menu.file.export.pdf"
+            Header="Document PDF (.pdf)"
+            Command="{Binding ExportPdfCommand}" />
+        </MenuItem>
+        <Separator />
+        <MenuItem
+          x:Name="CloseDocumentMenuItem"
           AutomationProperties.AutomationId="editor.menu.file.close-document"
           Command="{Binding CloseDocumentCommand}"
           Header="_Close Document"
@@ -135,26 +161,17 @@
         Header="_Edit">
         <MenuItem
           AutomationProperties.AutomationId="editor.menu.edit.undo"
-          Command="{Binding UndoTwoDCommand}"
-          Header="_Undo"
-          HotKey="Ctrl+Z" />
+          Command="{Binding UndoCommand}"
+          Header="_Undo" />
         <MenuItem
           AutomationProperties.AutomationId="editor.menu.edit.redo"
-          Command="{Binding RedoTwoDCommand}"
-          Header="_Redo"
-          HotKey="Ctrl+Shift+Z" />
+          Command="{Binding RedoCommand}"
+          Header="_Redo" />
+        <Separator />
         <MenuItem
-          AutomationProperties.AutomationId="editor.menu.edit.undo-3d"
-          Command="{Binding UndoThreeDBodyMoveActionCommand}"
-          Header="Undo 3D _Move"
-          IsVisible="{Binding IsShowing3DWorkspace}"
-          HotKey="Ctrl+Z" />
-        <MenuItem
-          AutomationProperties.AutomationId="editor.menu.edit.redo-3d"
-          Command="{Binding RedoThreeDBodyMoveActionCommand}"
-          Header="Redo 3D Move"
-          IsVisible="{Binding IsShowing3DWorkspace}"
-          HotKey="Ctrl+Shift+Z" />
+          AutomationProperties.AutomationId="editor.menu.edit.delete"
+          Command="{Binding DeleteCommand}"
+          Header="_Delete" />
       </MenuItem>
       <MenuItem
         AutomationProperties.AutomationId="editor.menu.view"

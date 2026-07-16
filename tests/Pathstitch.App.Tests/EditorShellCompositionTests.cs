@@ -44,6 +44,25 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("HotKey=\"Ctrl+S\"", shell, StringComparison.Ordinal);
         Assert.Contains("HotKey=\"Ctrl+Shift+W\"", shell, StringComparison.Ordinal);
         Assert.Contains("HotKey=\"Ctrl+W\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ExportDxfCommand}\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ExportSvgCommand}\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ExportPngCommand}\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ExportPdfCommand}\"", shell, StringComparison.Ordinal);
+        Assert.Contains("DesktopPrimaryShortcut.Create(Key.E)", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EditMenu_UsesOneModeAwareHistoryPairAndGuardedDelete()
+    {
+        var shell = ReadPage("EditorShellView.axaml");
+
+        Assert.Equal(1, shell.Split("editor.menu.edit.undo\"", StringSplitOptions.None).Length - 1);
+        Assert.Equal(1, shell.Split("editor.menu.edit.redo\"", StringSplitOptions.None).Length - 1);
+        Assert.Contains("Command=\"{Binding UndoCommand}\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding RedoCommand}\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding DeleteCommand}\"", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("editor.menu.edit.undo-3d", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotKey=\"Delete\"", shell, StringComparison.Ordinal);
     }
 
     [Fact]
