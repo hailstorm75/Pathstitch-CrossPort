@@ -2726,6 +2726,19 @@ Selection:
 
         var hoverWorld = ScreenToWorld(_hoverPointerPosition, Zoom);
         var hitToleranceWorld = 12.0 / Math.Max(Zoom, 0.0001);
+        if (DxfCanvasWholeCurveTrimGeometry.TryBuildTarget(
+                document, hoverWorld, hitToleranceWorld, out var wholeCurveTarget))
+        {
+            for (var index = 0; index < wholeCurveTarget.PreviewPoints.Count - 1; index++)
+            {
+                context.DrawLine(
+                    TrimPreviewPen,
+                    WorldToScreen(wholeCurveTarget.PreviewPoints[index], size),
+                    WorldToScreen(wholeCurveTarget.PreviewPoints[index + 1], size));
+            }
+            return;
+        }
+
         if (DxfCanvasCircularTrimGeometry.TryBuildTarget(
                 document, hoverWorld, hitToleranceWorld, out var circularTarget))
         {
@@ -3107,18 +3120,17 @@ Selection:
 
         var worldPoint = ScreenToWorld(screenPoint, Zoom);
         var hitToleranceWorld = 12.0 / Math.Max(Zoom, 0.0001);
+        if (DxfCanvasWholeCurveTrimGeometry.TryBuildTarget(
+                Document, worldPoint, hitToleranceWorld, out var wholeCurveTarget))
+        {
+            ApplyPathReplacement(wholeCurveTarget.PathId, wholeCurveTarget.ReplacementPaths);
+            return;
+        }
+
         if (DxfCanvasCircularTrimGeometry.TryBuildTarget(
                 Document, worldPoint, hitToleranceWorld, out var circularTarget))
         {
-            var request = new DxfCanvasPathReplacementEventArgs(
-                circularTarget.PathId, circularTarget.ReplacementPaths);
-            PathReplacementRequested?.Invoke(request);
-            if (request.Document is null)
-                return;
-            SetCurrentValue(DocumentProperty, request.Document);
-            SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
-            SetCurrentValue(SelectedMeasurementIdProperty, null);
-            InvalidateVisual();
+            ApplyPathReplacement(circularTarget.PathId, circularTarget.ReplacementPaths);
             return;
         }
 
@@ -3130,6 +3142,18 @@ Selection:
             return;
 
         SetCurrentValue(DocumentProperty, nextDocument);
+        SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
+        SetCurrentValue(SelectedMeasurementIdProperty, null);
+        InvalidateVisual();
+    }
+
+    private void ApplyPathReplacement(string sourcePathId, IReadOnlyList<Editor2DPreviewPath> replacements)
+    {
+        var request = new DxfCanvasPathReplacementEventArgs(sourcePathId, replacements);
+        PathReplacementRequested?.Invoke(request);
+        if (request.Document is null)
+            return;
+        SetCurrentValue(DocumentProperty, request.Document);
         SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
         SetCurrentValue(SelectedMeasurementIdProperty, null);
         InvalidateVisual();
