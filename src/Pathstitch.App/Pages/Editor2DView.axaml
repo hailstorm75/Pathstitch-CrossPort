@@ -6,6 +6,14 @@
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:EditorPageViewModel"
   AutomationProperties.AutomationId="editor.workspace.2d">
+  <UserControl.Styles>
+    <Style Selector="Border.dimension-expression-error">
+      <Setter Property="BorderBrush" Value="#FF5C6C" />
+    </Style>
+    <Style Selector="TextBox.dimension-expression-error">
+      <Setter Property="Foreground" Value="#FF7A88" />
+    </Style>
+  </UserControl.Styles>
   <Grid x:Name="WorkspaceRoot" ClipToBounds="True">
   <controls:DxfPreviewCanvas
     x:Name="TwoDPreviewCanvas"
@@ -62,6 +70,42 @@
     PolygonSides="{Binding TwoDPolygonSides, Mode=TwoWay}"
     FrameRequestToken="{Binding TwoDFrameRequestToken}" />
     <Canvas>
+      <Border
+        x:Name="DimensionExpressionPill"
+        AutomationProperties.AutomationId="editor.canvas.2d.dimension-expression"
+        Classes.dimension-expression-error="{Binding HasTwoDMeasurementExpressionError}"
+        Width="150"
+        Padding="6,3"
+        IsVisible="False"
+        Background="{StaticResource InputBackgroundBrush}"
+        BorderBrush="{StaticResource AccentBrush}"
+        BorderThickness="1.5"
+        CornerRadius="4">
+        <Grid RowDefinitions="Auto,Auto" RowSpacing="2">
+          <TextBox
+            x:Name="DimensionExpressionInput"
+            AutomationProperties.AutomationId="editor.canvas.2d.dimension-expression-input"
+            Classes.dimension-expression-error="{Binding HasTwoDMeasurementExpressionError}"
+            MinWidth="0"
+            Padding="0"
+            HorizontalContentAlignment="Right"
+            VerticalContentAlignment="Center"
+            Background="Transparent"
+            BorderThickness="0"
+            FontFamily="Cascadia Mono,Consolas"
+            FontSize="12"
+            TextChanged="OnDimensionExpressionInputTextChanged"
+            KeyDown="OnDimensionExpressionInputKeyDown" />
+          <TextBlock
+            Grid.Row="1"
+            AutomationProperties.AutomationId="editor.canvas.2d.dimension-expression-error"
+            IsVisible="{Binding HasTwoDMeasurementExpressionError}"
+            FontSize="9"
+            Foreground="#FF7A88"
+            TextWrapping="Wrap"
+            Text="{Binding TwoDMeasurementExpressionError}" />
+        </Grid>
+      </Border>
       <Border
         x:Name="GizmoDimensionPill"
         AutomationProperties.AutomationId="editor.canvas.2d.gizmo.dimension"

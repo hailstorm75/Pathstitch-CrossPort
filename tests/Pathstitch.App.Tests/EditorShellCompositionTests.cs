@@ -565,6 +565,30 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void DimensionExpressionEditors_ExposeCommitValidationAndPersistentToolLifecycle()
+    {
+        var view = ReadPage("Editor2DView.axaml");
+        var inspector = ReadPage("Editor2DInspector.axaml");
+        var codeBehind = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DView.axaml.cs");
+        var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+
+        Assert.Contains("editor.canvas.2d.dimension-expression-input", view, StringComparison.Ordinal);
+        Assert.Contains("OnDimensionExpressionInputKeyDown", view, StringComparison.Ordinal);
+        Assert.Contains("HasTwoDMeasurementExpressionError", view, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.dimension.selected-expression", inspector, StringComparison.Ordinal);
+        Assert.Contains("OnTwoDMeasurementExpressionKeyDown", inspector, StringComparison.Ordinal);
+        Assert.Contains("Mode=OneWay", inspector, StringComparison.Ordinal);
+        Assert.Contains("TryCommitTwoDMeasurementExpression", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("TwoDSelectedMeasurementId = null", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("RequestDimensionExpressionInput(referenceMeasurement.Id)", canvas, StringComparison.Ordinal);
+        Assert.Contains("RequestDimensionExpressionInput(attachedMeasurement.Id)", canvas, StringComparison.Ordinal);
+        Assert.Contains("SeedParametricDimension", canvas, StringComparison.Ordinal);
+        Assert.Contains("Driven or reference dimension", inspector, StringComparison.Ordinal);
+        Assert.Contains("TopLevel.GetTopLevel(this)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("e.Handled = shouldConsume", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InspectorHost_ScopesWorkspaceSpecificPanels()
     {
         var host = ReadPage("EditorInspectorHost.axaml");

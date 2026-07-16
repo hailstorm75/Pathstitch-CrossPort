@@ -27,6 +27,12 @@ internal readonly record struct DxfCanvasTransformPrecisionRequest(
     Point Anchor,
     bool Focus);
 
+internal readonly record struct DxfCanvasDimensionExpressionRequest(
+    string MeasurementId,
+    string Text,
+    string RawExpression,
+    Point Anchor);
+
 internal sealed class DxfCanvasSelectionTransformEventArgs(
     Editor2DAffineTransform transform,
     bool createCopy)
@@ -359,6 +365,7 @@ public sealed class DxfPreviewCanvas : Control
     private double _scaleStartFactor = 1.0;
     private DxfCanvasTransformPrecisionState _transformPrecisionState = DxfCanvasTransformPrecisionState.Empty;
     private DxfCanvasTransformPrecisionKind _transformPrecisionKind;
+    private string? _dimensionExpressionEditingId;
     private string _transformPrecisionSelectionKey = string.Empty;
     private readonly MenuItem _expandRectanglesMenuItem;
     private readonly MenuItem _explodeCompoundMenuItem;
@@ -1033,6 +1040,8 @@ public sealed class DxfPreviewCanvas : Control
     public event Action<string, double, double, double, double, double>? ReferenceImageTransformChanged;
     internal event Action<DxfCanvasTransformPrecisionRequest>? TransformPrecisionRequested;
     internal event Action? TransformPrecisionDismissed;
+    internal event Action<DxfCanvasDimensionExpressionRequest>? DimensionExpressionRequested;
+    internal event Action? DimensionExpressionDismissed;
     internal event Action<DxfCanvasSelectionTransformEventArgs>? SelectionTransformRequested;
     internal event Action<DxfCanvasPathReplacementEventArgs>? PathReplacementRequested;
     internal event Action<DxfCanvasReferenceCalibrationRequest>? ReferenceCalibrationRequested;
@@ -1158,6 +1167,7 @@ public sealed class DxfPreviewCanvas : Control
     public void CancelActiveInteraction()
     {
         DismissTransformPrecisionInput();
+        DismissDimensionExpressionInput();
         _contextMenu.Close();
         _cancelInteractionOnPointerRelease = true;
         _isAwaitingSecondaryContextClick = false;
@@ -1225,10 +1235,25 @@ public sealed class DxfPreviewCanvas : Control
     {
         base.OnPropertyChanged(change);
 
+        if (_dimensionExpressionEditingId is { } editingDimensionId
+            && (change.Property == DocumentProperty
+                || change.Property == SelectedPathIdsProperty
+                || (change.Property == SelectedMeasurementIdProperty
+                    && !string.Equals(SelectedMeasurementId, editingDimensionId, StringComparison.Ordinal))
+                || (change.Property == MeasurementsProperty
+                    && !Measurements.Any(item => item.Id.Equals(editingDimensionId, StringComparison.Ordinal)))))
+        {
+            DismissDimensionExpressionInput();
+        }
+
         if (change.Property == SelectedPathIdsProperty)
             HandleTransformPrecisionSelectionChanged();
         else if (change.Property == ActiveToolProperty || change.Property == ActiveReferenceImageProperty)
+        {
             DismissTransformPrecisionInput();
+            if (change.Property == ActiveToolProperty && ActiveTool != Editor2DTool.Dimension)
+                DismissDimensionExpressionInput();
+        }
         else if (change.Property == DocumentProperty && !_isCommittingSelectionTransform)
             DismissTransformPrecisionInput();
 
@@ -3067,18 +3092,19 @@ Selection:
                 return;
             }
 
-            var referenceMeasurement = new Editor2DMeasurement(
+            var referenceMeasurement = SeedParametricDimension(new Editor2DMeasurement(
                 Id: Guid.NewGuid().ToString("N"),
                 Start: _pendingDimensionStart,
                 End: worldPoint,
                 IsAutoDimension: false,
-                DimensionType: "reference");
+                DimensionType: "reference"), driven: true);
             var nextMeasurements = Measurements.ToList();
             nextMeasurements.Add(referenceMeasurement);
             SetCurrentValue(MeasurementsProperty, nextMeasurements.ToArray());
             SetCurrentValue(SelectedMeasurementIdProperty, referenceMeasurement.Id);
             SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
             CancelPendingDimension();
+            RequestDimensionExpressionInput(referenceMeasurement.Id);
             InvalidateVisual();
             return;
         }
@@ -3089,11 +3115,13 @@ Selection:
             var path = Document.Paths.FirstOrDefault(candidate => string.Equals(candidate.Id, hitPathId, StringComparison.Ordinal));
             if (path is not null && TryCreateAttachedDimensionMeasurement(path, worldPoint, out var attachedMeasurement))
             {
+                attachedMeasurement = SeedParametricDimension(attachedMeasurement, driven: false);
                 var nextMeasurements = Measurements.ToList();
                 nextMeasurements.Add(attachedMeasurement);
                 SetCurrentValue(MeasurementsProperty, nextMeasurements.ToArray());
                 SetCurrentValue(SelectedMeasurementIdProperty, attachedMeasurement.Id);
                 SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
+                RequestDimensionExpressionInput(attachedMeasurement.Id);
                 InvalidateVisual();
                 return;
             }
@@ -3103,6 +3131,26 @@ Selection:
         _pendingDimensionEnd = worldPoint;
         SetCurrentValue(SelectedMeasurementIdProperty, null);
         InvalidateVisual();
+    }
+
+    private Editor2DMeasurement SeedParametricDimension(Editor2DMeasurement measurement, bool driven)
+    {
+        var usedNames = Measurements
+            .Select(item => item.VarName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var index = 1;
+        while (usedNames.Contains($"d{index}"))
+            index++;
+        var value = measurement.Distance;
+        return measurement with
+        {
+            VarName = $"d{index}",
+            Expression = value.ToString("R", CultureInfo.InvariantCulture),
+            EvaluatedValue = value,
+            IsParametric = true,
+            Driven = driven,
+        };
     }
 
     private void HandleTrimClick(Point screenPoint)
@@ -4951,6 +4999,38 @@ Selection:
 
         if (exitToSelect)
             SetCurrentValue(ActiveToolProperty, Editor2DTool.Select);
+    }
+
+    internal bool RequestDimensionExpressionInput(string measurementId)
+    {
+        var measurement = Measurements.FirstOrDefault(item =>
+            item.Id == measurementId && !item.IsAutoDimension);
+        if (measurement is null)
+            return false;
+
+        _dimensionExpressionEditingId = measurementId;
+        var rawExpression = measurement.Expression?.Trim() ?? string.Empty;
+        var text = string.IsNullOrWhiteSpace(rawExpression)
+            ? (measurement.EvaluatedValue ?? measurement.Distance)
+                .ToString("0.###", CultureInfo.InvariantCulture)
+            : rawExpression;
+        var midpoint = new Editor2DPoint(
+            (measurement.Start.X + measurement.End.X) / 2.0,
+            (measurement.Start.Y + measurement.End.Y) / 2.0);
+        DimensionExpressionRequested?.Invoke(new DxfCanvasDimensionExpressionRequest(
+            measurementId,
+            text,
+            rawExpression,
+            WorldToScreen(midpoint, Bounds.Size)));
+        return true;
+    }
+
+    internal void DismissDimensionExpressionInput()
+    {
+        if (_dimensionExpressionEditingId is null)
+            return;
+        _dimensionExpressionEditingId = null;
+        DimensionExpressionDismissed?.Invoke();
     }
 
     private void ShowTransformPrecision(

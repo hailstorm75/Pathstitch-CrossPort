@@ -121,6 +121,9 @@ public sealed class UiAutomationIdentifierTests
         _ui.FindXamlElementByAutomationId(twoD, "editor.canvas.2d.gizmo.dimension");
         _ui.FindXamlElementByAutomationId(twoD, "editor.canvas.2d.gizmo.dimension-input");
         _ui.FindXamlElementByAutomationId(twoD, "editor.canvas.2d.gizmo.dimension-unit");
+        _ui.FindXamlElementByAutomationId(twoD, "editor.canvas.2d.dimension-expression");
+        _ui.FindXamlElementByAutomationId(twoD, "editor.canvas.2d.dimension-expression-input");
+        _ui.FindXamlElementByAutomationId(twoD, "editor.canvas.2d.dimension-expression-error");
         _ui.FindXamlElementByAutomationId(threeD, "editor.canvas.3d");
         _ui.FindXamlElementByAutomationId(threeD, "editor.canvas.3d.webview");
         _ui.FindXamlElementByAutomationId(threeD, "editor.dialog.open-3d-model");
@@ -220,6 +223,9 @@ public sealed class UiAutomationIdentifierTests
             "editor.2d.dimension.hint",
             "editor.2d.dimension.formula-hint",
             "editor.2d.dimension.parameters",
+            "editor.2d.dimension.selected-expression",
+            "editor.2d.dimension.selected-expression-error",
+            "editor.2d.dimension.driven",
         };
 
         foreach (var automationId in expectedIds)

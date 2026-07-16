@@ -22,6 +22,7 @@ public sealed partial class EditorPageViewModel
     private bool _twoDTextToolUnderline;
     private string _twoDTextToolFitMode = "None";
     private bool _isHydratingTwoDConvertLineEditor;
+    private string _twoDMeasurementExpressionError = string.Empty;
 
     private sealed record TwoDConvertLineParameterDefinition(
         string Key,
@@ -601,6 +602,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             _twoDWorkspace.SetSelectedMeasurement(normalized);
+            ClearTwoDMeasurementExpressionError();
             OnPropertyChanged();
 
             OnPropertyChanged(nameof(HasTwoDSelectedMeasurement));
@@ -622,18 +624,50 @@ public sealed partial class EditorPageViewModel
         {
             if (string.IsNullOrWhiteSpace(TwoDSelectedMeasurementId))
                 return;
-            if (!_twoDWorkspace.TrySetMeasurementExpression(TwoDSelectedMeasurementId, value ?? string.Empty, out var error))
-            {
-                StatusText = error;
-                return;
-            }
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(TwoDMeasurements));
-            OnPropertyChanged(nameof(TwoDMeasurementSummary));
-            OnPropertyChanged(nameof(TwoDDimensionParameters));
-            Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+            TryCommitTwoDMeasurementExpression(TwoDSelectedMeasurementId, value ?? string.Empty, out _);
         }
     }
+
+    public string TwoDMeasurementExpressionError
+    {
+        get => _twoDMeasurementExpressionError;
+        private set
+        {
+            if (!SetProperty(ref _twoDMeasurementExpressionError, value))
+                return;
+            OnPropertyChanged(nameof(HasTwoDMeasurementExpressionError));
+        }
+    }
+
+    public bool HasTwoDMeasurementExpressionError
+        => !string.IsNullOrWhiteSpace(TwoDMeasurementExpressionError);
+
+    public bool TryCommitTwoDMeasurementExpression(
+        string measurementId,
+        string expression,
+        out string error)
+    {
+        if (!_twoDWorkspace.TrySetMeasurementExpression(measurementId, expression, out error))
+        {
+            TwoDMeasurementExpressionError = error;
+            StatusText = error;
+            return false;
+        }
+
+        ClearTwoDMeasurementExpressionError();
+        StatusText = "Dimension expression updated";
+        if (string.Equals(TwoDSelectedMeasurementId, measurementId, StringComparison.Ordinal))
+            OnPropertyChanged(nameof(TwoDSelectedMeasurementExpressionText));
+        OnPropertyChanged(nameof(TwoDDocument));
+        OnPropertyChanged(nameof(TwoDMeasurements));
+        OnPropertyChanged(nameof(TwoDMeasurementSummary));
+        OnPropertyChanged(nameof(TwoDDimensionParameters));
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+        return true;
+    }
+
+    public void ClearTwoDMeasurementExpressionError()
+        => TwoDMeasurementExpressionError = string.Empty;
 
     public bool TwoDSelectedMeasurementDriven
     {

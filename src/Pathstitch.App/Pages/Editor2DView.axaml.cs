@@ -12,20 +12,39 @@ namespace Pathstitch.App.Pages;
 
 public partial class Editor2DView : EditorInteractionControlBase
 {
+    private string? _dimensionExpressionMeasurementId;
+    private string? _rejectedDimensionExpressionText;
+    private TopLevel? _pointerTopLevel;
+
     public Editor2DView()
     {
         InitializeComponent();
         TwoDPreviewCanvas.ReferenceImageTransformChanged += OnReferenceImageTransformChanged;
         TwoDPreviewCanvas.TransformPrecisionRequested += OnTransformPrecisionRequested;
         TwoDPreviewCanvas.TransformPrecisionDismissed += OnTransformPrecisionDismissed;
+        TwoDPreviewCanvas.DimensionExpressionRequested += OnDimensionExpressionRequested;
+        TwoDPreviewCanvas.DimensionExpressionDismissed += OnDimensionExpressionDismissed;
         TwoDPreviewCanvas.SelectionTransformRequested += OnSelectionTransformRequested;
         TwoDPreviewCanvas.PathReplacementRequested += OnPathReplacementRequested;
         TwoDPreviewCanvas.ReferenceCalibrationRequested += OnReferenceCalibrationRequested;
-        WorkspaceRoot.AddHandler(
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        _pointerTopLevel = TopLevel.GetTopLevel(this);
+        _pointerTopLevel?.AddHandler(
             InputElement.PointerPressedEvent,
             OnWorkspacePointerPressed,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        _pointerTopLevel?.RemoveHandler(InputElement.PointerPressedEvent, OnWorkspacePointerPressed);
+        _pointerTopLevel = null;
     }
 
     private void OnReferenceImageTransformChanged(
@@ -127,6 +146,109 @@ public partial class Editor2DView : EditorInteractionControlBase
         }, DispatcherPriority.Input);
     }
 
+    private void OnDimensionExpressionRequested(DxfCanvasDimensionExpressionRequest request)
+    {
+        _dimensionExpressionMeasurementId = request.MeasurementId;
+        _rejectedDimensionExpressionText = null;
+        DimensionExpressionInput.Text = request.Text;
+        var rawExpression = string.IsNullOrWhiteSpace(request.RawExpression)
+            ? request.Text
+            : request.RawExpression;
+        ToolTip.SetTip(DimensionExpressionInput, rawExpression);
+        AutomationProperties.SetName(
+            DimensionExpressionInput,
+            $"Dimension expression: {rawExpression}");
+        DimensionExpressionPill.IsVisible = true;
+
+        const double width = 150.0;
+        const double estimatedHeight = 50.0;
+        Canvas.SetLeft(
+            DimensionExpressionPill,
+            Math.Clamp(request.Anchor.X - (width / 2.0), 0.0, Math.Max(TwoDPreviewCanvas.Bounds.Width - width, 0.0)));
+        Canvas.SetTop(
+            DimensionExpressionPill,
+            Math.Clamp(request.Anchor.Y - estimatedHeight - 8.0, 0.0, Math.Max(TwoDPreviewCanvas.Bounds.Height - estimatedHeight, 0.0)));
+
+        if (DataContext is Domain.App.ViewModels.EditorPageViewModel viewModel)
+            viewModel.ClearTwoDMeasurementExpressionError();
+        Dispatcher.UIThread.Post(() =>
+        {
+            DimensionExpressionInput.Focus();
+            DimensionExpressionInput.SelectAll();
+        }, DispatcherPriority.Input);
+    }
+
+    private void OnDimensionExpressionDismissed()
+    {
+        _dimensionExpressionMeasurementId = null;
+        _rejectedDimensionExpressionText = null;
+        DimensionExpressionPill.IsVisible = false;
+        if (DataContext is Domain.App.ViewModels.EditorPageViewModel viewModel)
+            viewModel.ClearTwoDMeasurementExpressionError();
+    }
+
+    private void OnDimensionExpressionInputKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter
+            && _dimensionExpressionMeasurementId is { } measurementId
+            && DataContext is Domain.App.ViewModels.EditorPageViewModel viewModel)
+        {
+            if (viewModel.TryCommitTwoDMeasurementExpression(
+                    measurementId,
+                    DimensionExpressionInput.Text ?? string.Empty,
+                    out _))
+            {
+                viewModel.TwoDSelectedMeasurementId = null;
+                TwoDPreviewCanvas.DismissDimensionExpressionInput();
+                TwoDPreviewCanvas.Focus();
+            }
+            else
+            {
+                _rejectedDimensionExpressionText = DimensionExpressionInput.Text ?? string.Empty;
+                DimensionExpressionInput.Focus();
+                DimensionExpressionInput.SelectAll();
+                Dispatcher.UIThread.Post(() =>
+                {
+                    DimensionExpressionInput.Focus();
+                    DimensionExpressionInput.SelectAll();
+                }, DispatcherPriority.Input);
+            }
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key != Key.Escape)
+            return;
+
+        TwoDPreviewCanvas.DismissDimensionExpressionInput();
+        if (DataContext is Domain.App.ViewModels.EditorPageViewModel escapeViewModel)
+        {
+            escapeViewModel.TwoDSelectedMeasurementId = null;
+            escapeViewModel.TwoDActiveTool = Domain.App.Models.Editor2DTool.Select;
+        }
+        TwoDPreviewCanvas.Focus();
+        e.Handled = true;
+    }
+
+    private void OnDimensionExpressionInputTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (sender is not TextBox textBox)
+            return;
+
+        var rawExpression = textBox.Text ?? string.Empty;
+        ToolTip.SetTip(textBox, rawExpression);
+        AutomationProperties.SetName(textBox, $"Dimension expression: {rawExpression}");
+        if (DataContext is Domain.App.ViewModels.EditorPageViewModel viewModel
+            && viewModel.HasTwoDMeasurementExpressionError)
+        {
+            if (!string.Equals(rawExpression, _rejectedDimensionExpressionText, StringComparison.Ordinal))
+            {
+                _rejectedDimensionExpressionText = null;
+                viewModel.ClearTwoDMeasurementExpressionError();
+            }
+        }
+    }
+
     private void OnTransformPrecisionDismissed()
     {
         GizmoDimensionPill.IsVisible = false;
@@ -153,14 +275,25 @@ public partial class Editor2DView : EditorInteractionControlBase
 
     private void OnWorkspacePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!GizmoDimensionPill.IsVisible
-            || e.Source is not Visual source
-            || IsDescendantOf(source, GizmoDimensionPill))
-        {
+        if (e.Source is not Visual source)
             return;
-        }
 
-        TwoDPreviewCanvas.DismissTransformPrecisionInput();
+        if ((DimensionExpressionPill.IsVisible && IsDescendantOf(source, DimensionExpressionPill))
+            || (GizmoDimensionPill.IsVisible && IsDescendantOf(source, GizmoDimensionPill)))
+            return;
+
+        var shouldConsume = IsDescendantOf(source, WorkspaceRoot);
+
+        if (DimensionExpressionPill.IsVisible)
+        {
+            TwoDPreviewCanvas.DismissDimensionExpressionInput();
+            e.Handled = shouldConsume;
+        }
+        if (GizmoDimensionPill.IsVisible)
+        {
+            TwoDPreviewCanvas.DismissTransformPrecisionInput();
+            e.Handled = shouldConsume;
+        }
     }
 
     private void OnGizmoDimensionInputLostFocus(object? sender, RoutedEventArgs e)

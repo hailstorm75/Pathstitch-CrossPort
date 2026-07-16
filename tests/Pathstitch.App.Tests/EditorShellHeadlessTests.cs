@@ -17,6 +17,147 @@ public sealed class EditorShellHeadlessTests
     private readonly HeadlessUiFixture _ui = new();
 
     [Fact]
+    public async Task DimensionExpressionField_InvalidStaysFocusedThenValidCommitsAndKeepsToolActive()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var measurement = new Editor2DMeasurement("dimension", new(0, 0), new(12, 0));
+        viewModel.TwoDMeasurements = [measurement];
+        viewModel.TwoDSelectedMeasurementId = measurement.Id;
+        viewModel.TwoDActiveTool = Editor2DTool.Dimension;
+        viewModel.TwoDWorkspace.ClearHistory();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.Dimension;
+            viewModel.TwoDSelectedMeasurementId = measurement.Id;
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            Assert.True(canvas.RequestDimensionExpressionInput(measurement.Id));
+            viewModel.TwoDWorkspace.ClearHistory();
+        });
+        await _ui.RunAsync(() => { });
+
+        await _ui.RunAsync(() =>
+        {
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            input.Text = "d1";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        });
+        await _ui.RunAsync(() => session.Window.UpdateLayout());
+
+        await _ui.RunAsync(() =>
+        {
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            var pill = _ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression");
+            Assert.True(_ui.IsEffectivelyVisible(pill));
+            Assert.Same(input, TopLevel.GetTopLevel(shell)?.FocusManager?.GetFocusedElement());
+            Assert.True(viewModel.HasTwoDMeasurementExpressionError);
+            Assert.Equal(measurement, Assert.Single(viewModel.TwoDMeasurements));
+            Assert.False(viewModel.TwoDWorkspace.CanUndo);
+
+            input.Text = "5 * 2";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        });
+
+        await _ui.RunAsync(() =>
+        {
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            var pill = _ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression");
+            Assert.False(pill.IsVisible);
+            Assert.True(canvas.IsFocused);
+            Assert.Equal(Editor2DTool.Dimension, viewModel.TwoDActiveTool);
+            Assert.Null(viewModel.TwoDSelectedMeasurementId);
+            var updated = Assert.Single(viewModel.TwoDMeasurements);
+            Assert.Equal("5 * 2", updated.Expression);
+            Assert.Equal(10, updated.Distance, 8);
+            Assert.True(viewModel.TwoDWorkspace.CanUndo);
+        });
+    }
+
+    [Fact]
+    public async Task DimensionExpressionField_EscapeClosesWithoutMutation()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var measurement = new Editor2DMeasurement("dimension", new(0, 0), new(12, 0));
+        viewModel.TwoDMeasurements = [measurement];
+        viewModel.TwoDSelectedMeasurementId = measurement.Id;
+        viewModel.TwoDActiveTool = Editor2DTool.Dimension;
+        viewModel.TwoDWorkspace.ClearHistory();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.Dimension;
+            viewModel.TwoDSelectedMeasurementId = measurement.Id;
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            Assert.True(canvas.RequestDimensionExpressionInput(measurement.Id));
+            viewModel.TwoDWorkspace.ClearHistory();
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            input.Text = "99";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+
+            Assert.False(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+            Assert.True(canvas.IsFocused);
+            Assert.Equal(measurement, Assert.Single(viewModel.TwoDMeasurements));
+            Assert.False(viewModel.TwoDWorkspace.CanUndo);
+            Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+            Assert.Null(viewModel.TwoDSelectedMeasurementId);
+        });
+    }
+
+    [Fact]
+    public async Task SelectedDimensionExpression_EnterUsesFieldValidationAndReturnsFocusAfterSuccess()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var measurement = new Editor2DMeasurement(
+            "dimension", new(0, 0), new(12, 0), VarName: "d1", Expression: "12", IsParametric: true);
+        viewModel.TwoDMeasurements = [measurement];
+        viewModel.TwoDSelectedMeasurementId = measurement.Id;
+        viewModel.TwoDWorkspace.ClearHistory();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.2d.dimension.selected-expression");
+            viewModel.TwoDSelectedMeasurementId = measurement.Id;
+            var driven = _ui.FindByAutomationId<CheckBox>(shell, "editor.2d.dimension.driven");
+            driven.IsChecked = true;
+            Assert.True(viewModel.TwoDSelectedMeasurementDriven);
+            viewModel.TwoDWorkspace.ClearHistory();
+            input.Focus();
+            input.Text = "d1";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+            session.Window.UpdateLayout();
+
+            Assert.True(viewModel.HasTwoDMeasurementExpressionError);
+            Assert.True(input.IsFocused);
+            var unchangedDriven = Assert.Single(viewModel.TwoDMeasurements);
+            Assert.Equal(measurement.Id, unchangedDriven.Id);
+            Assert.Equal(measurement.Expression, unchangedDriven.Expression);
+            Assert.True(unchangedDriven.Driven);
+            Assert.Equal(measurement.Distance, unchangedDriven.Distance, 8);
+            Assert.False(viewModel.TwoDWorkspace.CanUndo);
+
+            input.Text = "3 + 3";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+
+            Assert.False(viewModel.HasTwoDMeasurementExpressionError);
+            Assert.True(_ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d").IsFocused);
+            var updated = Assert.Single(viewModel.TwoDMeasurements);
+            Assert.Equal("3 + 3", updated.Expression);
+            Assert.True(updated.Driven);
+            Assert.Equal(6, updated.EvaluatedValue);
+            Assert.Equal(12, updated.Distance, 8);
+        });
+    }
+
+    [Fact]
     public async Task LiveCanvas_EnterConfirmsStagedScaleExactlyOnce()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();

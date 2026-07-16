@@ -7,6 +7,12 @@
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:EditorPageViewModel"
   AutomationProperties.AutomationId="editor.inspector.2d">
+  <UserControl.Styles>
+    <Style Selector="TextBox.dimension-expression-error">
+      <Setter Property="BorderBrush" Value="#FF5C6C" />
+      <Setter Property="Foreground" Value="#FF7A88" />
+    </Style>
+  </UserControl.Styles>
   <Border
     Padding="10"
     Background="#E6141418"
@@ -36,8 +42,25 @@
           Foreground="{StaticResource SecondaryTextBrush}"
           Text="Selected dimension expression" />
         <TextBox
-          Text="{Binding TwoDSelectedMeasurementExpressionText, Mode=TwoWay}" />
+          x:Name="SelectedDimensionExpressionInput"
+          AutomationProperties.AutomationId="editor.2d.dimension.selected-expression"
+          AutomationProperties.Name="Selected dimension expression"
+          AutomationProperties.HelpText="{Binding TwoDSelectedMeasurementExpressionText}"
+          Classes.dimension-expression-error="{Binding HasTwoDMeasurementExpressionError}"
+          ToolTip.Tip="{Binding TwoDSelectedMeasurementExpressionText}"
+          Text="{Binding TwoDSelectedMeasurementExpressionText, Mode=OneWay}"
+          TextChanged="OnTwoDMeasurementExpressionTextChanged"
+          KeyDown="OnTwoDMeasurementExpressionKeyDown" />
+        <TextBlock
+          AutomationProperties.AutomationId="editor.2d.dimension.selected-expression-error"
+          IsVisible="{Binding HasTwoDMeasurementExpressionError}"
+          FontSize="9"
+          Foreground="#FF7A88"
+          TextWrapping="Wrap"
+          Text="{Binding TwoDMeasurementExpressionError}" />
         <CheckBox
+          AutomationProperties.AutomationId="editor.2d.dimension.driven"
+          AutomationProperties.Name="Driven or reference dimension"
           Content="Driven / reference dimension"
           IsChecked="{Binding TwoDSelectedMeasurementDriven, Mode=TwoWay}" />
       </StackPanel>

@@ -4,9 +4,90 @@ using System.Reflection;
 using Avalonia;
 using Domain.App.Models;
 using Pathstitch.App.Controls;
+using Pathstitch.App.Tests.Fixtures;
 
 public sealed class DxfPreviewCanvasInteractionTests
 {
+    private readonly HeadlessUiFixture _ui = new();
+
+    [Fact]
+    public async Task DimensionClickRouting_TwoPointsCreatesSeededDrivenReference()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var canvas = Canvas(Document([]));
+            var requests = 0;
+            canvas.DimensionExpressionRequested += _ => requests++;
+
+            InvokeDimensionClick(canvas, Screen(canvas, new(10, 0)));
+            Assert.Empty(canvas.Measurements);
+            InvokeDimensionClick(canvas, Screen(canvas, new(30, 0)));
+
+            var measurement = Assert.Single(canvas.Measurements);
+            Assert.Equal("reference", measurement.DimensionType);
+            Assert.Equal("d1", measurement.VarName);
+            Assert.True(measurement.IsParametric);
+            Assert.True(measurement.Driven);
+            Assert.Equal(measurement.Distance.ToString("R", System.Globalization.CultureInfo.InvariantCulture), measurement.Expression);
+            Assert.Equal(measurement.Distance, measurement.EvaluatedValue);
+            Assert.Equal(1, requests);
+        });
+    }
+
+    [Theory]
+    [InlineData("LINE")]
+    [InlineData("CIRCLE")]
+    public async Task DimensionClickRouting_EntityCreatesSeededDrivingAttachment(string entityType)
+    {
+        await _ui.RunAsync(() =>
+        {
+            var path = entityType == "LINE"
+                ? new Editor2DPreviewPath("source", "LINE", [new(0, 0), new(20, 0)], false)
+                : new Editor2DPreviewPath(
+                    "source", "CIRCLE", Editor2DGeometry.BuildCirclePoints(new(40, 0), 10), true,
+                    Center: new(40, 0), Radius: 10);
+            var existing = new Editor2DMeasurement(
+                "existing", new(0, 20), new(5, 20), VarName: "d1", Expression: "5",
+                IsParametric: true, EvaluatedValue: 5);
+            var canvas = Canvas(Document([path]));
+            canvas.Measurements = [existing];
+            var worldClick = entityType == "LINE" ? new Editor2DPoint(10, 0) : new Editor2DPoint(50, 0);
+
+            InvokeDimensionClick(canvas, Screen(canvas, worldClick));
+
+            var measurement = Assert.Single(canvas.Measurements, item => item.Id != existing.Id);
+            Assert.Equal(path.Id, measurement.EntityPathId);
+            Assert.Equal(entityType == "LINE" ? "length" : "radius", measurement.DimensionType);
+            Assert.Equal("d2", measurement.VarName);
+            Assert.True(measurement.IsParametric);
+            Assert.False(measurement.Driven);
+            Assert.Equal(measurement.Distance, measurement.EvaluatedValue);
+        });
+    }
+
+    private static DxfPreviewCanvas Canvas(Editor2DPreviewDocument document)
+    {
+        var canvas = new DxfPreviewCanvas { Document = document, SnapEnabled = false, Zoom = 1 };
+        canvas.Arrange(new Rect(0, 0, 400, 300));
+        return canvas;
+    }
+
+    private static Point Screen(DxfPreviewCanvas canvas, Editor2DPoint point)
+        => DxfCanvasViewportTransform.WorldToScreen(point, canvas.Bounds.Size, canvas.Zoom, canvas.OffsetX, canvas.OffsetY);
+
+    private static void InvokeDimensionClick(DxfPreviewCanvas canvas, Point point)
+        => typeof(DxfPreviewCanvas)
+            .GetMethod("HandleDimensionClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(canvas, [point]);
+
+    private static Editor2DPreviewDocument Document(IReadOnlyList<Editor2DPreviewPath> paths)
+        => new(
+            paths,
+            new Editor2DBounds(-100, -100, 100, 100),
+            paths.GroupBy(path => path.EntityType, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),
+            []);
+
     [Fact]
     public void PenClick_FirstAnchorClosesAndLastAnchorFinishesOpenPath()
     {

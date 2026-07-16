@@ -2,11 +2,72 @@ using System.Reflection;
 using Avalonia;
 using Domain.App.Models;
 using Pathstitch.App.Controls;
+using Pathstitch.App.Tests.Fixtures;
 
 namespace Pathstitch.App.Tests;
 
 public sealed class DxfCanvasCollaboratorTests
 {
+    private readonly HeadlessUiFixture _ui = new();
+
+    [Fact]
+    public async Task DimensionExpressionRequest_PreservesRawTextAndDismissesExplicitly()
+    {
+        var measurement = new Editor2DMeasurement(
+            "dimension",
+            new Editor2DPoint(0, 0),
+            new Editor2DPoint(25.4, 0),
+            VarName: "d1",
+            Expression: "1 inch",
+            IsParametric: true,
+            EvaluatedValue: 25.4);
+        await _ui.RunAsync(() =>
+        {
+            var canvas = new DxfPreviewCanvas { Measurements = [measurement] };
+            DxfCanvasDimensionExpressionRequest? requested = null;
+            var dismissed = false;
+            canvas.DimensionExpressionRequested += request => requested = request;
+            canvas.DimensionExpressionDismissed += () => dismissed = true;
+
+            Assert.True(canvas.RequestDimensionExpressionInput(measurement.Id));
+            Assert.NotNull(requested);
+            Assert.Equal(measurement.Id, requested.Value.MeasurementId);
+            Assert.Equal("1 inch", requested.Value.Text);
+            Assert.Equal("1 inch", requested.Value.RawExpression);
+
+            canvas.DismissDimensionExpressionInput();
+            Assert.True(dismissed);
+        });
+    }
+
+    [Fact]
+    public async Task DimensionExpressionRequest_DismissesWhenTargetOrWorkspaceContextChanges()
+    {
+        var measurement = new Editor2DMeasurement(
+            "dimension", new(0, 0), new(10, 0), VarName: "d1", Expression: "10",
+            IsParametric: true, EvaluatedValue: 10);
+        await _ui.RunAsync(() =>
+        {
+            var canvas = new DxfPreviewCanvas { Measurements = [measurement] };
+            var dismissals = 0;
+            canvas.DimensionExpressionDismissed += () => dismissals++;
+
+            Assert.True(canvas.RequestDimensionExpressionInput(measurement.Id));
+            canvas.Measurements = [];
+            Assert.Equal(1, dismissals);
+
+            canvas.Measurements = [measurement];
+            Assert.True(canvas.RequestDimensionExpressionInput(measurement.Id));
+            canvas.SelectedPathIds = ["other"];
+            Assert.Equal(2, dismissals);
+
+            canvas.SelectedPathIds = [];
+            Assert.True(canvas.RequestDimensionExpressionInput(measurement.Id));
+            canvas.Document = Editor2DWorkspaceState.Empty.Document;
+            Assert.Equal(3, dismissals);
+        });
+    }
+
     [Fact]
     public void ViewportTransform_RoundTripsWorldCoordinatesAndCalculatesStableGridStep()
     {
