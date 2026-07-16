@@ -4324,6 +4324,7 @@ Selection:
                 SetCurrentValue(SelectedPathIdsProperty, viewModel.TwoDSelectedPathIds);
                 SetCurrentValue(CornerParametersProperty, viewModel.TwoDCornerParameters);
                 SetCurrentValue(MeasurementsProperty, viewModel.TwoDMeasurements);
+                RequestDimensionExpressionInput($"{newPathId}:width");
             }
         }
         else
@@ -5013,7 +5014,8 @@ Selection:
     internal bool RequestDimensionExpressionInput(string measurementId)
     {
         var measurement = Measurements.FirstOrDefault(item =>
-            item.Id == measurementId && !item.IsAutoDimension);
+            item.Id == measurementId
+            && (!item.IsAutoDimension || IsRectanglePrecisionMeasurement(item)));
         if (measurement is null)
             return false;
 
@@ -5033,6 +5035,11 @@ Selection:
             WorldToScreen(midpoint, Bounds.Size)));
         return true;
     }
+
+    private static bool IsRectanglePrecisionMeasurement(Editor2DMeasurement measurement)
+        => measurement.IsAutoDimension
+           && (measurement.DimensionType?.Trim().Equals("width", StringComparison.OrdinalIgnoreCase) == true
+               || measurement.DimensionType?.Trim().Equals("height", StringComparison.OrdinalIgnoreCase) == true);
 
     internal void DismissDimensionExpressionInput()
     {

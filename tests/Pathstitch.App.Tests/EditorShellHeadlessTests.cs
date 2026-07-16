@@ -1,6 +1,8 @@
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
@@ -15,6 +17,218 @@ namespace Pathstitch.App.Tests;
 public sealed class EditorShellHeadlessTests
 {
     private readonly HeadlessUiFixture _ui = new();
+
+    [Fact]
+    public async Task RectanglePrecision_TabCyclesWidthToHeight_InvalidStaysThenEnterFinishes()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document;
+        var pathId = string.Empty;
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.SketchRectangle;
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            var method = typeof(DxfPreviewCanvas).GetMethod(
+                "HandleSketchRectangleClick",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            Point Screen(Editor2DPoint point) => DxfCanvasViewportTransform.WorldToScreen(
+                point, canvas.Bounds.Size, canvas.Zoom, canvas.OffsetX, canvas.OffsetY);
+            method.Invoke(canvas, [Screen(new(20, 10))]);
+            method.Invoke(canvas, [Screen(new(0, 0))]);
+            pathId = Assert.Single(viewModel.TwoDDocument!.Paths).Id;
+            Assert.True(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+            viewModel.TwoDWorkspace.ClearHistory();
+        });
+        await _ui.RunAsync(() => { });
+        await _ui.RunAsync(() => { });
+
+        await _ui.RunAsync(() =>
+        {
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            Assert.Equal("20", input.Text);
+            Assert.True(input.IsFocused);
+            input.Text = "30";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
+        });
+        await _ui.RunAsync(() => { });
+        await _ui.RunAsync(() => { });
+
+        await _ui.RunAsync(() =>
+        {
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            Assert.Equal(30, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:width").Distance, 8);
+            Assert.Equal("10", input.Text);
+            Assert.Equal($"{pathId}:height", viewModel.TwoDSelectedMeasurementId);
+            Assert.True(input.IsFocused);
+
+            input.Text = "sqrt(";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
+        });
+        await _ui.RunAsync(() => session.Window.UpdateLayout());
+
+        await _ui.RunAsync(() =>
+        {
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            Assert.True(viewModel.HasTwoDMeasurementExpressionError);
+            Assert.True(input.IsFocused);
+            Assert.True(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+            Assert.Equal(10, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:height").Distance, 8);
+
+            input.Text = "12";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
+        });
+
+        await _ui.RunAsync(() =>
+        {
+            Assert.Equal(30, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:width").Distance, 8);
+            Assert.Equal(12, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:height").Distance, 8);
+            Assert.False(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+            Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+            Assert.Null(viewModel.TwoDSelectedMeasurementId);
+            Assert.True(_ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d").IsFocused);
+        });
+    }
+
+    [Fact]
+    public async Task RectanglePrecision_EnterCommitsWidthAndFinishes()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var pathId = viewModel.CreateTwoDRectangle(new(20, 10), new(0, 0))!;
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.SketchRectangle;
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            Assert.True(canvas.RequestDimensionExpressionInput($"{pathId}:width"));
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            input.Text = "25";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+
+            Assert.Equal(25, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:width").Distance, 8);
+            Assert.Equal(10, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:height").Distance, 8);
+            Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+            Assert.False(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+        });
+    }
+
+    [Fact]
+    public async Task RectanglePrecision_EscapeKeepsUncommittedDimensionsAndReturnsSelect()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var pathId = viewModel.CreateTwoDRectangle(new(0, 0), new(20, 10))!;
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.SketchRectangle;
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            Assert.True(canvas.RequestDimensionExpressionInput($"{pathId}:width"));
+            viewModel.TwoDWorkspace.ClearHistory();
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            input.Text = "30";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
+        });
+        await _ui.RunAsync(() => { });
+        await _ui.RunAsync(() => { });
+
+        await _ui.RunAsync(() =>
+        {
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            Assert.Equal(30, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:width").Distance, 8);
+            Assert.Equal(10, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:height").Distance, 8);
+            input.Text = "99";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+
+            Assert.Equal(30, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:width").Distance, 8);
+            Assert.Equal(10, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:height").Distance, 8);
+            Assert.True(viewModel.TwoDWorkspace.CanUndo);
+            Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+            Assert.Null(viewModel.TwoDSelectedMeasurementId);
+            Assert.False(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+
+            Assert.True(viewModel.TwoDWorkspace.Undo());
+            Assert.Equal(20, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:width").Distance, 8);
+            Assert.Equal(10, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:height").Distance, 8);
+            Assert.False(viewModel.TwoDWorkspace.CanUndo);
+        });
+    }
+
+    [Fact]
+    public async Task RectanglePrecision_OutsideCanvasClickDismissesToSelectWithoutMutation()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var pathId = viewModel.CreateTwoDRectangle(new(0, 0), new(20, 10))!;
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.SketchRectangle;
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            Assert.True(canvas.RequestDimensionExpressionInput($"{pathId}:width"));
+            viewModel.TwoDSelectedMeasurementId = $"{pathId}:width";
+            viewModel.TwoDWorkspace.ClearHistory();
+            var click = canvas.TranslatePoint(
+                new Point(Math.Max(canvas.Bounds.Width - 8, 1), Math.Max(canvas.Bounds.Height - 8, 1)),
+                session.Window)!.Value;
+
+            session.Window.MouseDown(click, MouseButton.Left, RawInputModifiers.None);
+            session.Window.MouseUp(click, MouseButton.Left, RawInputModifiers.None);
+
+            Assert.False(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+            Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+            Assert.Null(viewModel.TwoDSelectedMeasurementId);
+            Assert.True(canvas.IsFocused);
+            Assert.Equal(20, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:width").Distance, 8);
+            Assert.Equal(10, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:height").Distance, 8);
+            Assert.Single(viewModel.TwoDDocument!.Paths);
+            Assert.False(viewModel.TwoDWorkspace.CanUndo);
+        });
+    }
+
+    [Fact]
+    public async Task ManualDimension_OutsideCanvasClickOnlyDismissesEditor()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var measurement = new Editor2DMeasurement(
+            "manual", new(0, 0), new(10, 0), VarName: "d1", Expression: "10",
+            IsParametric: true, EvaluatedValue: 10);
+        viewModel.TwoDMeasurements = [measurement];
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.Dimension;
+            viewModel.TwoDSelectedMeasurementId = measurement.Id;
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            Assert.True(canvas.RequestDimensionExpressionInput(measurement.Id));
+            viewModel.TwoDWorkspace.ClearHistory();
+            var click = canvas.TranslatePoint(
+                new Point(Math.Max(canvas.Bounds.Width - 8, 1), Math.Max(canvas.Bounds.Height - 8, 1)),
+                session.Window)!.Value;
+
+            session.Window.MouseDown(click, MouseButton.Left, RawInputModifiers.None);
+            session.Window.MouseUp(click, MouseButton.Left, RawInputModifiers.None);
+
+            Assert.False(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
+            Assert.Equal(Editor2DTool.Dimension, viewModel.TwoDActiveTool);
+            Assert.Equal(measurement.Id, viewModel.TwoDSelectedMeasurementId);
+            Assert.Equal(measurement, Assert.Single(viewModel.TwoDMeasurements));
+            Assert.False(viewModel.TwoDWorkspace.CanUndo);
+        });
+    }
 
     [Fact]
     public async Task ReferenceImageDepthSegments_UpdateDepthAndHistoryByStableAutomationId()

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -171,6 +172,8 @@ public partial class Editor2DView : EditorInteractionControlBase
 
         if (DataContext is Domain.App.ViewModels.EditorPageViewModel viewModel)
             viewModel.ClearTwoDMeasurementExpressionError();
+        DimensionExpressionInput.Focus();
+        DimensionExpressionInput.SelectAll();
         Dispatcher.UIThread.Post(() =>
         {
             DimensionExpressionInput.Focus();
@@ -189,29 +192,67 @@ public partial class Editor2DView : EditorInteractionControlBase
 
     private void OnDimensionExpressionInputKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Tab
+            && _dimensionExpressionMeasurementId is { } tabMeasurementId
+            && DataContext is Domain.App.ViewModels.EditorPageViewModel tabViewModel
+            && TryGetRectanglePrecisionMeasurement(tabViewModel, tabMeasurementId, out var tabMeasurement))
+        {
+            e.Handled = true;
+            if (!tabViewModel.TryCommitTwoDMeasurementExpression(
+                    tabMeasurementId,
+                    DimensionExpressionInput.Text ?? string.Empty,
+                    out _))
+            {
+                _rejectedDimensionExpressionText = DimensionExpressionInput.Text ?? string.Empty;
+                KeepDimensionExpressionInputFocused();
+                return;
+            }
+
+            if (!tabMeasurement.DimensionType!.Trim().Equals("width", StringComparison.OrdinalIgnoreCase))
+            {
+                FinishDimensionExpressionInput(tabViewModel);
+                return;
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                var height = tabViewModel.TwoDMeasurements.FirstOrDefault(item =>
+                    item.IsAutoDimension
+                    && string.Equals(item.EntityPathId, tabMeasurement.EntityPathId, StringComparison.Ordinal)
+                    && item.DimensionType?.Trim().Equals("height", StringComparison.OrdinalIgnoreCase) == true);
+                if (height is null || !TwoDPreviewCanvas.RequestDimensionExpressionInput(height.Id))
+                {
+                    FinishDimensionExpressionInput(tabViewModel);
+                    return;
+                }
+                tabViewModel.TwoDSelectedMeasurementId = height.Id;
+            }, DispatcherPriority.Input);
+            return;
+        }
+
         if (e.Key == Key.Enter
             && _dimensionExpressionMeasurementId is { } measurementId
             && DataContext is Domain.App.ViewModels.EditorPageViewModel viewModel)
         {
+            var isRectanglePrecision = TryGetRectanglePrecisionMeasurement(viewModel, measurementId, out _);
             if (viewModel.TryCommitTwoDMeasurementExpression(
                     measurementId,
                     DimensionExpressionInput.Text ?? string.Empty,
                     out _))
             {
-                viewModel.TwoDSelectedMeasurementId = null;
-                TwoDPreviewCanvas.DismissDimensionExpressionInput();
-                TwoDPreviewCanvas.Focus();
+                if (isRectanglePrecision)
+                    FinishDimensionExpressionInput(viewModel);
+                else
+                {
+                    viewModel.TwoDSelectedMeasurementId = null;
+                    TwoDPreviewCanvas.DismissDimensionExpressionInput();
+                    TwoDPreviewCanvas.Focus();
+                }
             }
             else
             {
                 _rejectedDimensionExpressionText = DimensionExpressionInput.Text ?? string.Empty;
-                DimensionExpressionInput.Focus();
-                DimensionExpressionInput.SelectAll();
-                Dispatcher.UIThread.Post(() =>
-                {
-                    DimensionExpressionInput.Focus();
-                    DimensionExpressionInput.SelectAll();
-                }, DispatcherPriority.Input);
+                KeepDimensionExpressionInputFocused();
             }
             e.Handled = true;
             return;
@@ -228,6 +269,35 @@ public partial class Editor2DView : EditorInteractionControlBase
         }
         TwoDPreviewCanvas.Focus();
         e.Handled = true;
+    }
+
+    private static bool TryGetRectanglePrecisionMeasurement(
+        Domain.App.ViewModels.EditorPageViewModel viewModel,
+        string measurementId,
+        out Domain.App.Models.Editor2DMeasurement measurement)
+    {
+        measurement = viewModel.TwoDMeasurements.FirstOrDefault(item =>
+            item.Id == measurementId
+            && item.IsAutoDimension
+            && (item.DimensionType?.Trim().Equals("width", StringComparison.OrdinalIgnoreCase) == true
+                || item.DimensionType?.Trim().Equals("height", StringComparison.OrdinalIgnoreCase) == true))!;
+        return measurement is not null;
+    }
+
+    private void KeepDimensionExpressionInputFocused()
+        => Dispatcher.UIThread.Post(() =>
+        {
+            DimensionExpressionInput.Focus();
+            DimensionExpressionInput.SelectAll();
+        }, DispatcherPriority.Input);
+
+    private void FinishDimensionExpressionInput(
+        Domain.App.ViewModels.EditorPageViewModel viewModel)
+    {
+        TwoDPreviewCanvas.DismissDimensionExpressionInput();
+        viewModel.TwoDSelectedMeasurementId = null;
+        viewModel.TwoDActiveTool = Domain.App.Models.Editor2DTool.Select;
+        TwoDPreviewCanvas.Focus();
     }
 
     private void OnDimensionExpressionInputTextChanged(object? sender, TextChangedEventArgs e)
@@ -286,7 +356,14 @@ public partial class Editor2DView : EditorInteractionControlBase
 
         if (DimensionExpressionPill.IsVisible)
         {
-            TwoDPreviewCanvas.DismissDimensionExpressionInput();
+            var expressionViewModel = DataContext as Domain.App.ViewModels.EditorPageViewModel;
+            var isRectanglePrecision = _dimensionExpressionMeasurementId is { } measurementId
+                && expressionViewModel is not null
+                && TryGetRectanglePrecisionMeasurement(expressionViewModel, measurementId, out _);
+            if (isRectanglePrecision)
+                FinishDimensionExpressionInput(expressionViewModel!);
+            else
+                TwoDPreviewCanvas.DismissDimensionExpressionInput();
             e.Handled = shouldConsume;
         }
         if (GizmoDimensionPill.IsVisible)

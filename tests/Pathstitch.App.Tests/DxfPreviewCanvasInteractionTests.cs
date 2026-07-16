@@ -11,6 +11,34 @@ public sealed class DxfPreviewCanvasInteractionTests
     private readonly HeadlessUiFixture _ui = new();
 
     [Fact]
+    public async Task RectangleClickRouting_ReverseRectangleRequestsAutoWidthPrecision()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+            viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document;
+            var canvas = Canvas(viewModel.TwoDDocument!);
+            canvas.DataContext = viewModel;
+            DxfCanvasDimensionExpressionRequest? request = null;
+            canvas.DimensionExpressionRequested += value => request = value;
+
+            InvokeRectangleClick(canvas, Screen(canvas, new(20, 10)));
+            Assert.Empty(viewModel.TwoDDocument!.Paths);
+            InvokeRectangleClick(canvas, Screen(canvas, new(0, 0)));
+
+            var path = Assert.Single(viewModel.TwoDDocument!.Paths);
+            Assert.Equal(0, viewModel.TwoDDocument.Bounds.MinX, 8);
+            Assert.Equal(0, viewModel.TwoDDocument.Bounds.MinY, 8);
+            Assert.Equal(20, viewModel.TwoDDocument.Bounds.MaxX, 8);
+            Assert.Equal(10, viewModel.TwoDDocument.Bounds.MaxY, 8);
+            Assert.NotNull(request);
+            Assert.Equal($"{path.Id}:width", request.Value.MeasurementId);
+            Assert.Equal("20", request.Value.Text);
+            Assert.True(viewModel.TwoDMeasurements.Single(item => item.Id == request.Value.MeasurementId).IsAutoDimension);
+        });
+    }
+
+    [Fact]
     public async Task DimensionClickRouting_TwoPointsCreatesSeededDrivenReference()
     {
         await _ui.RunAsync(() =>
@@ -78,6 +106,11 @@ public sealed class DxfPreviewCanvasInteractionTests
     private static void InvokeDimensionClick(DxfPreviewCanvas canvas, Point point)
         => typeof(DxfPreviewCanvas)
             .GetMethod("HandleDimensionClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(canvas, [point]);
+
+    private static void InvokeRectangleClick(DxfPreviewCanvas canvas, Point point)
+        => typeof(DxfPreviewCanvas)
+            .GetMethod("HandleSketchRectangleClick", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(canvas, [point]);
 
     private static Editor2DPreviewDocument Document(IReadOnlyList<Editor2DPreviewPath> paths)
