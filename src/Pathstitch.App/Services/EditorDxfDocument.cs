@@ -71,23 +71,27 @@ internal static class EditorDxfDocument
         AppendPair(builder, 9, "$ACADVER");
         AppendPair(builder, 1, AcadVersionCode(options?.NormalizedDxfVersion ?? Editor2DExportOptions.Defaults.DxfVersion));
         AppendPair(builder, 0, "ENDSEC");
+        if (document.Paths.Any(static path => path.IsConstruction))
+            AppendConstructionTables(builder);
         AppendPair(builder, 0, "SECTION");
         AppendPair(builder, 2, "ENTITIES");
 
         foreach (var path in document.Paths)
         {
+            var entityLayerName = path.IsConstruction ? "CONSTRUCTION" : layerName;
             if (string.Equals(path.EntityType, "TEXT", StringComparison.OrdinalIgnoreCase)
                 && path.Start is Editor2DPoint textStart
                 && !string.IsNullOrWhiteSpace(path.Text))
             {
                 AppendText(
                     builder,
-                    layerName,
+                    entityLayerName,
                     textStart,
                     path.Text!,
                     path.TextHeight ?? 5.0,
                     path.RotationDegrees ?? 0.0,
-                    path.WidthFactor ?? 1.0);
+                    path.WidthFactor ?? 1.0,
+                    path.IsConstruction);
                 continue;
             }
 
@@ -96,7 +100,7 @@ internal static class EditorDxfDocument
                 && path.Radius is double circleRadius
                 && circleRadius > 1e-9)
             {
-                AppendCircle(builder, layerName, circleCenter, circleRadius);
+                AppendCircle(builder, entityLayerName, circleCenter, circleRadius, path.IsConstruction);
                 continue;
             }
 
@@ -107,16 +111,24 @@ internal static class EditorDxfDocument
                 && path.EndAngleDegrees is double endAngleDegrees
                 && arcRadius > 1e-9)
             {
-                AppendArc(builder, layerName, arcCenter, arcRadius, startAngleDegrees, endAngleDegrees);
+                AppendArc(
+                    builder,
+                    entityLayerName,
+                    arcCenter,
+                    arcRadius,
+                    startAngleDegrees,
+                    endAngleDegrees,
+                    path.IsConstruction);
                 continue;
             }
 
             AppendLwPolyline(
                 builder,
-                layerName,
+                entityLayerName,
                 new DxfPolyline(
                     path.Points.Select(static point => new DxfPoint(point.X, point.Y)).ToArray(),
-                    path.IsClosed));
+                    path.IsClosed),
+                path.IsConstruction);
         }
 
         AppendPair(builder, 0, "ENDSEC");
@@ -776,13 +788,52 @@ internal static class EditorDxfDocument
             : null;
     }
 
-    private static void AppendLwPolyline(StringBuilder builder, string layerName, DxfPolyline polyline)
+    private static void AppendConstructionTables(StringBuilder builder)
+    {
+        AppendPair(builder, 0, "SECTION");
+        AppendPair(builder, 2, "TABLES");
+
+        AppendPair(builder, 0, "TABLE");
+        AppendPair(builder, 2, "LTYPE");
+        AppendPair(builder, 70, "1");
+        AppendPair(builder, 0, "LTYPE");
+        AppendPair(builder, 2, "DASHED");
+        AppendPair(builder, 70, "0");
+        AppendPair(builder, 3, "Dashed __ __ __");
+        AppendPair(builder, 72, "65");
+        AppendPair(builder, 73, "2");
+        AppendPair(builder, 40, "0.75");
+        AppendPair(builder, 49, "0.5");
+        AppendPair(builder, 74, "0");
+        AppendPair(builder, 49, "-0.25");
+        AppendPair(builder, 74, "0");
+        AppendPair(builder, 0, "ENDTAB");
+
+        AppendPair(builder, 0, "TABLE");
+        AppendPair(builder, 2, "LAYER");
+        AppendPair(builder, 70, "1");
+        AppendPair(builder, 0, "LAYER");
+        AppendPair(builder, 2, "CONSTRUCTION");
+        AppendPair(builder, 70, "0");
+        AppendPair(builder, 62, "8");
+        AppendPair(builder, 6, "DASHED");
+        AppendPair(builder, 0, "ENDTAB");
+
+        AppendPair(builder, 0, "ENDSEC");
+    }
+
+    private static void AppendLwPolyline(
+        StringBuilder builder,
+        string layerName,
+        DxfPolyline polyline,
+        bool isConstruction = false)
     {
         if (polyline.Points.Count < 2)
             return;
 
         AppendPair(builder, 0, "LWPOLYLINE");
         AppendPair(builder, 8, layerName);
+        AppendConstructionEntityStyle(builder, isConstruction);
         AppendPair(builder, 90, polyline.Points.Count.ToString(CultureInfo.InvariantCulture));
         AppendPair(builder, 70, (polyline.IsClosed ? 1 : 0).ToString(CultureInfo.InvariantCulture));
 
@@ -793,10 +844,16 @@ internal static class EditorDxfDocument
         }
     }
 
-    private static void AppendCircle(StringBuilder builder, string layerName, Editor2DPoint center, double radius)
+    private static void AppendCircle(
+        StringBuilder builder,
+        string layerName,
+        Editor2DPoint center,
+        double radius,
+        bool isConstruction = false)
     {
         AppendPair(builder, 0, "CIRCLE");
         AppendPair(builder, 8, layerName);
+        AppendConstructionEntityStyle(builder, isConstruction);
         AppendPair(builder, 10, Format(center.X));
         AppendPair(builder, 20, Format(center.Y));
         AppendPair(builder, 40, Format(radius));
@@ -808,10 +865,12 @@ internal static class EditorDxfDocument
         Editor2DPoint center,
         double radius,
         double startAngleDegrees,
-        double endAngleDegrees)
+        double endAngleDegrees,
+        bool isConstruction = false)
     {
         AppendPair(builder, 0, "ARC");
         AppendPair(builder, 8, layerName);
+        AppendConstructionEntityStyle(builder, isConstruction);
         AppendPair(builder, 10, Format(center.X));
         AppendPair(builder, 20, Format(center.Y));
         AppendPair(builder, 40, Format(radius));
@@ -826,10 +885,12 @@ internal static class EditorDxfDocument
         string text,
         double height,
         double rotationDegrees,
-        double widthFactor)
+        double widthFactor,
+        bool isConstruction = false)
     {
         AppendPair(builder, 0, "TEXT");
         AppendPair(builder, 8, layerName);
+        AppendConstructionEntityStyle(builder, isConstruction);
         AppendPair(builder, 10, Format(start.X));
         AppendPair(builder, 20, Format(start.Y));
         AppendPair(builder, 40, Format(Math.Max(height, 0.1)));
@@ -838,6 +899,15 @@ internal static class EditorDxfDocument
         AppendPair(builder, 1, text);
         if (Math.Abs(rotationDegrees) > 1e-9)
             AppendPair(builder, 50, Format(rotationDegrees));
+    }
+
+    private static void AppendConstructionEntityStyle(StringBuilder builder, bool isConstruction)
+    {
+        if (!isConstruction)
+            return;
+
+        AppendPair(builder, 6, "DASHED");
+        AppendPair(builder, 62, "8");
     }
 
     private static DxfPoint[] BuildTextBoundsPoints(DxfPoint start, string text, double height, double rotationDegrees, double widthFactor)

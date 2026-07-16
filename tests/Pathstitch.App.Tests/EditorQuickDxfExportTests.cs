@@ -206,6 +206,89 @@ public sealed class EditorQuickDxfExportTests
     }
 
     [Fact]
+    public async Task DxfWriter_ExportsConstructionPathsOnDashedGrayConstructionLayer()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-construction-{Guid.NewGuid():N}.dxf");
+        try
+        {
+            var document = new Editor2DPreviewDocument(
+                [
+                    new Editor2DPreviewPath("normal", "LINE", [new(0, 0), new(10, 0)], false),
+                    new Editor2DPreviewPath(
+                        "construction",
+                        "LINE",
+                        [new(0, 2), new(10, 2)],
+                        false,
+                        IsConstruction: true),
+                    new Editor2DPreviewPath(
+                        "construction-circle",
+                        "CIRCLE",
+                        [],
+                        true,
+                        Center: new(2, 4),
+                        Radius: 1,
+                        IsConstruction: true),
+                    new Editor2DPreviewPath(
+                        "construction-arc",
+                        "ARC",
+                        [],
+                        false,
+                        Center: new(5, 4),
+                        Radius: 1,
+                        StartAngleDegrees: 0,
+                        EndAngleDegrees: 90,
+                        IsConstruction: true),
+                    new Editor2DPreviewPath(
+                        "construction-text",
+                        "TEXT",
+                        [],
+                        false,
+                        Start: new(7, 4),
+                        Text: "reference",
+                        TextHeight: 1,
+                        IsConstruction: true),
+                ],
+                new Editor2DBounds(0, 0, 10, 5),
+                new Dictionary<string, int> { ["LINE"] = 2, ["CIRCLE"] = 1, ["ARC"] = 1, ["TEXT"] = 1 },
+                []);
+
+            await new DxfOutputPreviewService().SavePreviewDocumentAsync(document, outputPath);
+
+            var dxf = await File.ReadAllTextAsync(outputPath);
+            Assert.Contains("0\nLTYPE\n2\nDASHED\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("3\nDashed __ __ __\n72\n65\n73\n2\n40\n0.75\n49\n0.5\n74\n0\n49\n-0.25\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("0\nLAYER\n2\nCONSTRUCTION\n70\n0\n62\n8\n6\nDASHED\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("0\nLWPOLYLINE\n8\nCONSTRUCTION\n6\nDASHED\n62\n8\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("0\nLWPOLYLINE\n8\nEDITED_OUTPUT\n90\n2\n", dxf, StringComparison.Ordinal);
+            Assert.Equal(4, dxf.Split("8\nCONSTRUCTION\n6\nDASHED\n62\n8\n", StringSplitOptions.None).Length - 1);
+        }
+        finally
+        {
+            File.Delete(outputPath);
+        }
+    }
+
+    [Fact]
+    public async Task DxfWriter_NormalDocumentDoesNotAddConstructionTablesOrEntityStyle()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-normal-{Guid.NewGuid():N}.dxf");
+        try
+        {
+            await new DxfOutputPreviewService().SavePreviewDocumentAsync(CreateDocument(), outputPath);
+
+            var dxf = await File.ReadAllTextAsync(outputPath);
+            Assert.DoesNotContain("\nLTYPE\n", dxf, StringComparison.Ordinal);
+            Assert.DoesNotContain("\nCONSTRUCTION\n", dxf, StringComparison.Ordinal);
+            Assert.DoesNotContain("\nDASHED\n", dxf, StringComparison.Ordinal);
+            Assert.DoesNotContain("\n62\n8\n", dxf, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(outputPath);
+        }
+    }
+
+    [Fact]
     public async Task PngWriter_UsesRequestedLongestEdgeAndTransparency()
     {
         var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-png-export-{Guid.NewGuid():N}.png");
