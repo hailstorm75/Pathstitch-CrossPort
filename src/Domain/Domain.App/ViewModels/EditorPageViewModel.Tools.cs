@@ -8,6 +8,8 @@ public sealed partial class EditorPageViewModel
 {
     private IReadOnlyList<EditorToolDescriptor> _toolDescriptors = EditorToolCatalog.All;
     private IReadOnlyList<EditorSidebarToolItemViewModel> _sidebarTools = CreateSidebarTools(EditorToolCatalog.All);
+    private readonly IReadOnlyList<EditorSidebarToolItemViewModel> _commandPaletteOnlyItems =
+        CreateSidebarTools(EditorCommandPaletteCatalog.SearchOnly);
     private string _commandSearchQuery = string.Empty;
     private bool _isToolbarCustomizationMode;
 
@@ -45,6 +47,7 @@ public sealed partial class EditorPageViewModel
                 return SidebarTools;
 
             return SidebarTools
+                .Concat(_commandPaletteOnlyItems.Where(item => item.Mode == ActiveEditorMode))
                 .Where(item => item.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || item.Hint.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || item.Key.Contains(query, StringComparison.OrdinalIgnoreCase)
@@ -168,7 +171,8 @@ public sealed partial class EditorPageViewModel
         if (item is null)
             return;
 
-        ActivateSidebarItem(item.Key);
+        if (!ActivateCommandPaletteOnlyItem(item.Identifier))
+            ActivateSidebarItem(item.Key);
         CommandSearchQuery = string.Empty;
     }
 
@@ -462,6 +466,30 @@ public sealed partial class EditorPageViewModel
             case EditorSidebarAction.FlipSelectionVertical:
                 FlipTwoDSelection(horizontal: false);
                 break;
+        }
+    }
+
+    private bool ActivateCommandPaletteOnlyItem(string identifier)
+    {
+        if (!IsShowingTwoDWorkspace)
+            return false;
+
+        switch (identifier)
+        {
+            case EditorCommandPaletteCatalog.ToggleGridIdentifier:
+                ToggleTwoDGrid();
+                return true;
+            case EditorCommandPaletteCatalog.ToggleSnappingIdentifier:
+                ToggleTwoDSnapping();
+                return true;
+            case EditorCommandPaletteCatalog.ToggleChainSelectionIdentifier:
+                ToggleTwoDChainSelection();
+                return true;
+            case EditorCommandPaletteCatalog.ZoomToFitIdentifier:
+                FrameTwoDToContent();
+                return true;
+            default:
+                return false;
         }
     }
 

@@ -629,6 +629,107 @@ public sealed class EditorPageViewModelModeTests
         Assert.Empty(viewModel.CommandSearchResults);
     }
 
+    [Theory]
+    [InlineData("grid", EditorCommandPaletteCatalog.ToggleGridIdentifier)]
+    [InlineData("snapping", EditorCommandPaletteCatalog.ToggleSnappingIdentifier)]
+    [InlineData("chain selection", EditorCommandPaletteCatalog.ToggleChainSelectionIdentifier)]
+    [InlineData("zoom to fit", EditorCommandPaletteCatalog.ZoomToFitIdentifier)]
+    [InlineData("view.snap", EditorCommandPaletteCatalog.ToggleSnappingIdentifier)]
+    [InlineData("view", EditorCommandPaletteCatalog.ToggleGridIdentifier)]
+    public async Task CommandSearch_FindsTwoDViewCommandsByLabelIdentifierAndCategory(string query, string identifier)
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+
+        viewModel.CommandSearchQuery = query;
+
+        Assert.Contains(viewModel.CommandSearchResults, item => item.Identifier == identifier);
+    }
+
+    [Fact]
+    public async Task CommandSearch_TwoDViewCommandsDispatchExistingActionsAndClearQuery()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        viewModel.TwoDWorkspace.SetDocument(new Editor2DPreviewDocument(
+            [],
+            new Editor2DBounds(0, 0, 10, 10),
+            new Dictionary<string, int>(),
+            []));
+        var initialGrid = viewModel.TwoDGridVisible;
+        var initialSnapping = viewModel.TwoDSnapEnabled;
+        var initialChainSelection = viewModel.TwoDChainSelectionEnabled;
+        var initialFrameRequest = viewModel.TwoDFrameRequestToken;
+
+        Activate("grid", EditorCommandPaletteCatalog.ToggleGridIdentifier);
+        Assert.NotEqual(initialGrid, viewModel.TwoDGridVisible);
+        Activate("snapping", EditorCommandPaletteCatalog.ToggleSnappingIdentifier);
+        Assert.NotEqual(initialSnapping, viewModel.TwoDSnapEnabled);
+        Activate("chain selection", EditorCommandPaletteCatalog.ToggleChainSelectionIdentifier);
+        Assert.NotEqual(initialChainSelection, viewModel.TwoDChainSelectionEnabled);
+        Activate("zoom to fit", EditorCommandPaletteCatalog.ZoomToFitIdentifier);
+        Assert.Equal(initialFrameRequest + 1, viewModel.TwoDFrameRequestToken);
+
+        void Activate(string query, string identifier)
+        {
+            viewModel.CommandSearchQuery = query;
+            Assert.Contains(viewModel.CommandSearchResults, item => item.Identifier == identifier);
+            viewModel.ActivateCommandSearchItem(identifier);
+            Assert.Equal(string.Empty, viewModel.CommandSearchQuery);
+        }
+    }
+
+    [Theory]
+    [InlineData(EditorMode.ThreeD)]
+    [InlineData(EditorMode.Batch)]
+    public async Task CommandSearch_TwoDViewCommandsAreUnavailableOutsideTwoD(EditorMode mode)
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(mode);
+
+        viewModel.CommandSearchQuery = "toggle";
+
+        Assert.DoesNotContain(
+            viewModel.CommandSearchResults,
+            item => EditorCommandPaletteCatalog.SearchOnly.Any(command => command.Identifier == item.Identifier));
+    }
+
+    [Fact]
+    public async Task CommandSearch_ModeChangeRemovesTwoDViewCommandsAndRefreshesEmptyState()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        viewModel.CommandSearchQuery = "toggle grid";
+        Assert.Contains(
+            viewModel.CommandSearchResults,
+            item => item.Identifier == EditorCommandPaletteCatalog.ToggleGridIdentifier);
+        var changes = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+
+        await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
+
+        Assert.Empty(viewModel.CommandSearchResults);
+        Assert.True(viewModel.IsCommandSearchEmpty);
+        Assert.Contains(nameof(EditorPageViewModel.CommandSearchResults), changes);
+        Assert.Contains(nameof(EditorPageViewModel.IsCommandSearchEmpty), changes);
+    }
+
+    [Fact]
+    public async Task CommandSearch_ViewCommandsDoNotChangeToolRailContents()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+
+        var railIdentifiers = viewModel.SidebarTools.Select(item => item.Identifier).ToArray();
+
+        Assert.Equal(
+            EditorToolCatalog.ForMode(EditorMode.TwoD).Select(item => item.Identifier),
+            railIdentifiers);
+        Assert.DoesNotContain(
+            railIdentifiers,
+            identifier => EditorCommandPaletteCatalog.SearchOnly.Any(command => command.Identifier == identifier));
+    }
+
     [Fact]
     public void WorkspaceState_RoundTripsToolCustomizationByStableIdentifier()
     {

@@ -1438,6 +1438,7 @@ public sealed partial class EditorPageViewModel
             SyncSidebarToolStates();
             OnPropertyChanged(nameof(SidebarTools));
             OnPropertyChanged(nameof(CommandSearchResults));
+            OnPropertyChanged(nameof(IsCommandSearchEmpty));
             OnPropertyChanged(nameof(ActiveToolLabel));
             OnPropertyChanged(nameof(IsShowingTwoDWorkspace));
             OnPropertyChanged(nameof(IsShowing3DWorkspace));
