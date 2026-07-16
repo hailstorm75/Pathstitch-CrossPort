@@ -69,6 +69,9 @@ public sealed partial class EditorPageViewModel
             SaveDocumentAsCommand.NotifyCanExecuteChanged();
             SaveAndCloseDocumentCommand.NotifyCanExecuteChanged();
             CloseDocumentCommand.NotifyCanExecuteChanged();
+            NewProjectCommand.NotifyCanExecuteChanged();
+            OpenProjectCommand.NotifyCanExecuteChanged();
+            ImportFilesCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -105,7 +108,11 @@ public sealed partial class EditorPageViewModel
     public override bool IsLoading
     {
         get => _isLoading;
-        set => SetProperty(ref _isLoading, value);
+        set
+        {
+            if (SetProperty(ref _isLoading, value))
+                ImportFilesCommand.NotifyCanExecuteChanged();
+        }
     }
 
     protected override ValueTask<bool> LoadParametersAsync(IReadOnlyDictionary<string, object> parameters, CancellationToken cancellationToken)
@@ -219,77 +226,13 @@ public sealed partial class EditorPageViewModel
 
         if (_pendingTwoDFilePaths.Count > 0)
         {
-            var importedDocuments = new List<Editor2DPreviewDocument>();
-            foreach (var filePath in _pendingTwoDFilePaths)
-            {
-                var importedDocument = await _editorOutputPreviewService
-                    .LoadPreviewDocumentAsync(filePath, token)
-                    .ConfigureAwait(true);
-                if (importedDocument is not null)
-                {
-                    var units = await _editorOutputPreviewService
-                        .InspectImportUnitsAsync(filePath, token)
-                        .ConfigureAwait(true);
-                    if (units?.RequiresPrompt == true)
-                    {
-                        var factor = await _importUnitsPromptService
-                            .PromptAsync(units, token)
-                            .ConfigureAwait(true);
-                        if (factor is > 0 and not 1.0)
-                            importedDocument = ScaleImportedTwoDDocument(importedDocument, factor.Value);
-                    }
-                }
-                if (importedDocument is not null)
-                    importedDocuments.Add(importedDocument);
-            }
-
-            if (importedDocuments.Count > 0)
-            {
-                SetTwoDDocument(MergeImportedTwoDDocuments(importedDocuments));
-                StatusText = importedDocuments.Count == 1
-                    ? $"Imported drawing: {Path.GetFileName(_pendingTwoDFilePaths[0])}"
-                    : $"Imported {importedDocuments.Count} drawings side by side";
-                MarkDocumentDirty();
-            }
+            await ImportTwoDDrawingsAsync(_pendingTwoDFilePaths, token).ConfigureAwait(true);
             _pendingTwoDFilePaths = [];
         }
 
         if (_pendingReferenceImagePaths.Count > 0)
         {
-            var importedCount = 0;
-            foreach (var imagePath in _pendingReferenceImagePaths)
-            {
-                try
-                {
-                    var bytes = await File.ReadAllBytesAsync(imagePath, token).ConfigureAwait(true);
-                    if (!Editor2DReferenceImageMetadata.TryReadPixelSize(bytes, out var pixelWidth, out var pixelHeight))
-                        continue;
-
-                    if (!TwoDWorkspace.IsInitialized)
-                        TwoDDocument = Editor2DWorkspaceState.Empty.Document;
-                    _twoDWorkspace.ImportReferenceImage(
-                        Path.GetFileName(imagePath),
-                        Convert.ToBase64String(bytes),
-                        pixelWidth,
-                        pixelHeight);
-                    importedCount++;
-                }
-                catch (IOException)
-                {
-                    // Keep opening the workspace when one queued image is unavailable.
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    // Keep opening the workspace when one queued image is inaccessible.
-                }
-            }
-
-            if (importedCount > 0)
-            {
-                RefreshTwoDLayerFacade();
-                StatusText = $"Imported {importedCount} reference image(s)";
-                MarkDocumentDirty();
-            }
+            await ImportReferenceImagesAsync(_pendingReferenceImagePaths, token).ConfigureAwait(true);
             _pendingReferenceImagePaths = [];
         }
     }
@@ -324,7 +267,8 @@ public sealed partial class EditorPageViewModel
     }
 
     private static Editor2DPreviewDocument MergeImportedTwoDDocuments(
-        IReadOnlyList<Editor2DPreviewDocument> documents)
+        IReadOnlyList<Editor2DPreviewDocument> documents,
+        bool preserveFirstDocument = false)
     {
         if (documents.Count == 1)
             return documents[0];
@@ -333,11 +277,20 @@ public sealed partial class EditorPageViewModel
         var paths = new List<Editor2DPreviewPath>();
         var entityCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var unsupported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var cursorX = 0.0;
+        var cursorX = preserveFirstDocument ? documents[0].Bounds.MaxX + gap : 0.0;
 
         for (var documentIndex = 0; documentIndex < documents.Count; documentIndex++)
         {
             var document = documents[documentIndex];
+            if (documentIndex == 0 && preserveFirstDocument)
+            {
+                paths.AddRange(document.Paths);
+                foreach (var (entityType, count) in document.EntityCounts)
+                    entityCounts[entityType] = count;
+                foreach (var entityType in document.UnsupportedEntityTypes)
+                    unsupported.Add(entityType);
+                continue;
+            }
             var offsetX = cursorX - document.Bounds.MinX;
             var offsetY = -document.Bounds.MinY;
             for (var pathIndex = 0; pathIndex < document.Paths.Count; pathIndex++)

@@ -15,6 +15,7 @@ public sealed partial class EditorPageViewModel
     private int _documentDirtyTrackingSuppressionCount;
     private bool _isDirty;
     private bool _isSaving;
+    private NavigationChangeRequestMessage? _preapprovedNavigationRequest;
 
     public bool IsDirty
     {
@@ -40,6 +41,9 @@ public sealed partial class EditorPageViewModel
             SaveDocumentAsCommand.NotifyCanExecuteChanged();
             SaveAndCloseDocumentCommand.NotifyCanExecuteChanged();
             CloseDocumentCommand.NotifyCanExecuteChanged();
+            NewProjectCommand.NotifyCanExecuteChanged();
+            OpenProjectCommand.NotifyCanExecuteChanged();
+            ImportFilesCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -208,7 +212,7 @@ public sealed partial class EditorPageViewModel
             switch (result)
             {
                 case UnsavedChangesPromptResult.Save:
-                    return await SaveDocumentCoreAsync(cancellationToken).ConfigureAwait(true);
+                    return await SaveDocumentCoreAsync(cancellationToken).ConfigureAwait(true) && !IsDirty;
                 case UnsavedChangesPromptResult.Discard:
                     return true;
                 case UnsavedChangesPromptResult.Cancel:
@@ -224,6 +228,19 @@ public sealed partial class EditorPageViewModel
 
     protected override void BeforePageLeave(object recipient, BeforeNavigationChangeMessage message)
     {
+        if (ReferenceEquals(message.Request, _preapprovedNavigationRequest))
+        {
+            _preapprovedNavigationRequest = null;
+            if (!message.HasReceivedResponse)
+            {
+                var approved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                approved.SetResult(false);
+                message.Reply(approved);
+            }
+
+            return;
+        }
+
         if (message.HasReceivedResponse)
             return;
 

@@ -63,6 +63,15 @@ public sealed class ProjectSessionService(
         ProjectTemplateDefinition? template = null,
         CancellationToken cancellationToken = default)
     {
+        var session = await PrepareCreateTemplateProjectAsync(projectName, template, cancellationToken).ConfigureAwait(false);
+        return session is null ? null : ActivateSession(session);
+    }
+
+    public async Task<ProjectSession?> PrepareCreateTemplateProjectAsync(
+        string? projectName = null,
+        ProjectTemplateDefinition? template = null,
+        CancellationToken cancellationToken = default)
+    {
         var resolvedTemplate = template ?? Templates[0];
         var resolvedName = ResolveProjectName(projectName, resolvedTemplate);
         var suggestedFileName = EnsureProjectExtension(resolvedName);
@@ -84,21 +93,28 @@ public sealed class ProjectSessionService(
 
         await File.WriteAllTextAsync(projectPath, payload, cancellationToken).ConfigureAwait(false);
 
-        return SetCurrentSession(CreateSession(
+        return CreateSession(
             ProjectSessionOrigin.Created,
             resolvedName,
             projectPath,
-            resolvedTemplate));
+            resolvedTemplate);
     }
 
     public async Task<ProjectSession?> OpenTemplateProjectAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var session = await PrepareOpenTemplateProjectAsync(cancellationToken).ConfigureAwait(false);
+        return session is null ? null : ActivateSession(session);
+    }
+
+    public async Task<ProjectSession?> PrepareOpenTemplateProjectAsync(
         CancellationToken cancellationToken = default)
     {
         var projectPath = await projectFileDialogService
             .PickExistingProjectFileAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return await OpenProjectAsync(projectPath, ProjectSessionOrigin.Opened, cancellationToken).ConfigureAwait(false);
+        return await PrepareOpenProjectAsync(projectPath, ProjectSessionOrigin.Opened, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ProjectLaunchRequest?> OpenWorkspaceFilesAsync(CancellationToken cancellationToken = default)
@@ -145,7 +161,9 @@ public sealed class ProjectSessionService(
 
         if (projectFiles.Length == 1)
         {
-            var session = await OpenProjectAsync(projectFiles[0], ProjectSessionOrigin.Opened, cancellationToken).ConfigureAwait(false);
+            var session = await PrepareOpenProjectAsync(projectFiles[0], ProjectSessionOrigin.Opened, cancellationToken).ConfigureAwait(false);
+            if (session is not null)
+                ActivateSession(session);
             return session is null
                 ? null
                 : new ProjectLaunchRequest(session, sourceModelFiles) { PendingTwoDFilePaths = twoDFilePaths, PendingReferenceImagePaths = referenceImagePaths };
@@ -159,6 +177,7 @@ public sealed class ProjectSessionService(
                     ? twoDFilePaths
                     : referenceImagePaths;
             var session = await CreateImportedWorkspaceSessionAsync(sessionSeedPaths, cancellationToken).ConfigureAwait(false);
+            ActivateSession(session);
             return new ProjectLaunchRequest(session, sourceModelFiles) { PendingTwoDFilePaths = twoDFilePaths, PendingReferenceImagePaths = referenceImagePaths };
         }
 
@@ -169,7 +188,16 @@ public sealed class ProjectSessionService(
         string projectFilePath,
         CancellationToken cancellationToken = default)
     {
-        return await OpenProjectAsync(projectFilePath, ProjectSessionOrigin.Opened, cancellationToken).ConfigureAwait(false);
+        var session = await PrepareOpenProjectAsync(projectFilePath, ProjectSessionOrigin.Opened, cancellationToken).ConfigureAwait(false);
+        return session is null ? null : ActivateSession(session);
+    }
+
+    public ProjectSession ActivateSession(ProjectSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        CurrentSession = session;
+        recentProjectsService.RecordProject(session);
+        return session;
     }
 
     public void RemoveRecentProject(string projectFilePath) => recentProjectsService.RemoveProject(projectFilePath);
@@ -219,14 +247,12 @@ public sealed class ProjectSessionService(
             TrackInRecentProjects: trackInRecentProjects);
     }
 
-    private ProjectSession SetCurrentSession(ProjectSession session)
-    {
-        CurrentSession = session;
-        recentProjectsService.RecordProject(session);
-        return session;
-    }
+    public Task<ProjectSession?> PrepareOpenProjectAsync(
+        string? projectPath,
+        CancellationToken cancellationToken = default)
+        => PrepareOpenProjectAsync(projectPath, ProjectSessionOrigin.Opened, cancellationToken);
 
-    private async Task<ProjectSession?> OpenProjectAsync(
+    private async Task<ProjectSession?> PrepareOpenProjectAsync(
         string? projectPath,
         ProjectSessionOrigin origin,
         CancellationToken cancellationToken)
@@ -240,11 +266,11 @@ public sealed class ProjectSessionService(
             ? Path.GetFileNameWithoutExtension(projectPath)
             : metadata.ProjectName;
 
-        return SetCurrentSession(CreateSession(
+        return CreateSession(
             origin,
             resolvedName,
             projectPath,
-            resolvedTemplate));
+            resolvedTemplate);
     }
 
     private async Task<ProjectSession> CreateImportedWorkspaceSessionAsync(
@@ -275,12 +301,12 @@ public sealed class ProjectSessionService(
 
         await File.WriteAllTextAsync(projectPath, payload, cancellationToken).ConfigureAwait(false);
 
-        return SetCurrentSession(CreateSession(
+        return CreateSession(
             ProjectSessionOrigin.Imported,
             projectName,
             projectPath,
             resolvedTemplate,
-            trackInRecentProjects: false));
+            trackInRecentProjects: false);
     }
 
     private static async Task<ProjectMetadata> ReadProjectMetadataAsync(string projectPath, CancellationToken cancellationToken)

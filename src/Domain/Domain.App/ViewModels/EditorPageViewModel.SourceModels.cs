@@ -189,7 +189,6 @@ public sealed partial class EditorPageViewModel
         _stepTopology = result.StepTopology;
         ViewportJsonContent = result.ViewportJson;
         SetDistortionData(string.Empty);
-        ClearTwoDState();
         ActiveEditorMode = EditorMode.ThreeD;
         ResetProjectionSelection();
         IsPlaneSelectionActive = IsPlaneToolActive;
