@@ -168,6 +168,9 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public bool IsSewingHoleToolActive => ActiveTool == Editor2DTool.AddSewingHoles;
 
+    public bool IsSewingHoleInspectorVisible
+        => IsSewingHoleToolActive || SewingHoleOperations.Count > 0;
+
     public IReadOnlyList<string> SelectedPathIds => _state.SelectedPathIds ?? [];
 
     /// <summary>
@@ -2074,6 +2077,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveTool));
         OnPropertyChanged(nameof(SnapEnabled));
         OnPropertyChanged(nameof(IsSewingHoleToolActive));
+        OnPropertyChanged(nameof(IsSewingHoleInspectorVisible));
         OnPropertyChanged(nameof(SelectedPathIds));
         OnPropertyChanged(nameof(SewingUsesRadialSideVocabulary));
         OnPropertyChanged(nameof(SewingSideOptionItems));

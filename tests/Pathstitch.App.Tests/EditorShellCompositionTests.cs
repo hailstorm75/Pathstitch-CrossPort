@@ -533,6 +533,20 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void SewingInspector_ExposesSelectModeOperationReentry()
+    {
+        var inspector = ReadPage("Editor2DInspector.axaml");
+
+        Assert.Contains("IsVisible=\"{Binding IsSewingHoleInspectorVisible}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding SewingHoleOperations}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("SelectedItem=\"{Binding SelectedSewingHoleOperation, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.sewing.inspector", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.sewing.operation", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.sewing.preview", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.sewing.commit", inspector, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InspectorHost_ScopesWorkspaceSpecificPanels()
     {
         var host = ReadPage("EditorInspectorHost.axaml");

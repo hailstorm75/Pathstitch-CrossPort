@@ -76,6 +76,57 @@ public sealed class SewingHoleWorkflowTests
     }
 
     [Fact]
+    public void Workspace_SelectModeReentryIsVisibleAndReplacementIsOneUndoStep()
+    {
+        var workspace = CreateWorkspace(Line("source", 0, 0, 12, 0));
+        Assert.True(workspace.IsSewingHoleInspectorVisible);
+        Assert.True(workspace.RefreshSewingHolePreview());
+        Assert.True(workspace.CommitSewingHolePreview());
+        var originalOperation = Assert.Single(workspace.SewingHoleOperations);
+        var originalDocument = workspace.Document;
+
+        workspace.SetActiveTool(Editor2DTool.Select);
+
+        Assert.False(workspace.IsSewingHoleToolActive);
+        Assert.True(workspace.IsSewingHoleInspectorVisible);
+        workspace.SelectedSewingHoleOperation = null;
+        workspace.SelectedSewingHoleOperation = originalOperation;
+        Assert.Equal(["source"], workspace.SelectedPathIds);
+        Assert.True(workspace.HasSewingHolePreview);
+
+        workspace.ClearHistory();
+        workspace.SewingHolePitch = 3;
+        Assert.True(workspace.CommitSewingHolePreview());
+
+        var edited = Assert.Single(workspace.SewingHoleOperations);
+        Assert.Equal(originalOperation.Id, edited.Id);
+        Assert.Equal(3, edited.Parameters.Pitch);
+        Assert.True(workspace.CanUndo);
+        Assert.True(workspace.Undo());
+        Assert.False(workspace.CanUndo);
+        var restored = Assert.Single(workspace.SewingHoleOperations);
+        Assert.Equal(originalOperation.Id, restored.Id);
+        Assert.Equal(originalOperation.SourcePathIds, restored.SourcePathIds);
+        Assert.Equal(originalOperation.GeneratedPathIds, restored.GeneratedPathIds);
+        Assert.Equal(originalOperation.Parameters.Pitch, restored.Parameters.Pitch);
+        Assert.Equal(originalDocument.Paths, workspace.Document.Paths);
+    }
+
+    [Fact]
+    public void Workspace_BlankSelectHidesSewingInspectorUntilToolActivation()
+    {
+        var workspace = CreateWorkspace(Line("source", 0, 0, 12, 0));
+        workspace.SetActiveTool(Editor2DTool.Select);
+
+        Assert.Empty(workspace.SewingHoleOperations);
+        Assert.False(workspace.IsSewingHoleInspectorVisible);
+
+        workspace.SetActiveTool(Editor2DTool.AddSewingHoles);
+
+        Assert.True(workspace.IsSewingHoleInspectorVisible);
+    }
+
+    [Fact]
     public void Workspace_ReEditsPatternSideAndSaddleSpacingWithoutDuplicatingOperation()
     {
         var workspace = CreateWorkspace(Line("source", 0, 0, 12, 0));
@@ -241,6 +292,11 @@ public sealed class SewingHoleWorkflowTests
         Assert.Contains("OnPreviewSewingHolesClicked", inspector, StringComparison.Ordinal);
         Assert.Contains("OnCommitSewingHolesClicked", inspector, StringComparison.Ordinal);
         Assert.Contains("SelectedSewingHoleOperation", inspector, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsSewingHoleInspectorVisible}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.sewing.inspector", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.sewing.operation", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.sewing.preview", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.sewing.commit", inspector, StringComparison.Ordinal);
         Assert.Contains("PreviewPaths=\"{Binding TwoDWorkspace.SewingHolePreviewPaths}\"", viewport, StringComparison.Ordinal);
     }
 

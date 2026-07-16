@@ -195,6 +195,22 @@ public sealed class UiAutomationIdentifierTests
     }
 
     [Fact]
+    public void SewingInspector_ExposesStableReentryIdentifiers()
+    {
+        var inspector = _ui.LoadXaml("src", "Pathstitch.App", "Pages", "Editor2DInspector.axaml");
+        var expectedIds = new[]
+        {
+            "editor.2d.sewing.inspector",
+            "editor.2d.sewing.operation",
+            "editor.2d.sewing.preview",
+            "editor.2d.sewing.commit",
+        };
+
+        foreach (var automationId in expectedIds)
+            _ui.FindXamlElementByAutomationId(inspector, automationId);
+    }
+
+    [Fact]
     public void CatalogToolButtons_BindAutomationIdToStableDescriptorIdentifier()
     {
         var rail = _ui.LoadXaml("src", "Pathstitch.App", "Pages", "EditorToolRail.axaml");

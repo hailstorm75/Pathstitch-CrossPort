@@ -168,7 +168,8 @@
         x:DataType="viewModels:Editor2DWorkspaceViewModel"
         DataContext="{Binding TwoDWorkspace}"
         Spacing="8"
-        IsVisible="{Binding IsSewingHoleToolActive}">
+        IsVisible="{Binding IsSewingHoleInspectorVisible}"
+        AutomationProperties.AutomationId="editor.2d.sewing.inspector">
         <TextBlock FontSize="11" Foreground="{StaticResource PrimaryTextBrush}" Text="Add Holes / Sewing" />
         <TextBlock
           FontSize="10"
@@ -178,7 +179,8 @@
         <ComboBox
           ItemsSource="{Binding SewingHoleOperations}"
           SelectedItem="{Binding SelectedSewingHoleOperation, Mode=TwoWay}"
-          PlaceholderText="Edit committed sewing operation">
+          PlaceholderText="Edit committed sewing operation"
+          AutomationProperties.AutomationId="editor.2d.sewing.operation">
           <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="models:Editor2DSewingHoleOperation">
               <TextBlock Text="{Binding DisplayName}" />
@@ -262,12 +264,14 @@
             Classes="chip-button"
             IsEnabled="{Binding CanPreviewSewingHoles}"
             Content="Preview"
-            Click="OnPreviewSewingHolesClicked" />
+            Click="OnPreviewSewingHolesClicked"
+            AutomationProperties.AutomationId="editor.2d.sewing.preview" />
           <Button
             Classes="chip-button"
             IsEnabled="{Binding CanCommitSewingHoles}"
             Content="Commit Holes"
-            Click="OnCommitSewingHolesClicked" />
+            Click="OnCommitSewingHolesClicked"
+            AutomationProperties.AutomationId="editor.2d.sewing.commit" />
         </StackPanel>
       </StackPanel>
       <StackPanel
