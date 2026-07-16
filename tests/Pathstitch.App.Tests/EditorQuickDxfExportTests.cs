@@ -499,10 +499,12 @@ public sealed class EditorQuickDxfExportTests
                 outputPath,
                 new Editor2DExportOptions(PngLongestEdge: 256, PngTransparent: true));
 
-            using var bitmap = SKBitmap.Decode(outputPath);
-            Assert.Equal(256, bitmap.Width);
-            Assert.Equal(128, bitmap.Height);
-            Assert.Equal(0, bitmap.GetPixel(0, 127).Alpha);
+            using (var bitmap = SKBitmap.Decode(outputPath))
+            {
+                Assert.Equal(256, bitmap.Width);
+                Assert.Equal(128, bitmap.Height);
+                Assert.Equal(0, bitmap.GetPixel(0, 127).Alpha);
+            }
         }
         finally
         {
