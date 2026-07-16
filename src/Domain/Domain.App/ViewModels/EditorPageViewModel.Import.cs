@@ -65,7 +65,7 @@ public sealed partial class EditorPageViewModel
             if (sourcePaths.Length > 0)
                 await OpenSourceModelsAsync(sourcePaths, cancellationToken).ConfigureAwait(true);
             if (drawingPaths.Length > 0)
-                await ImportTwoDDrawingsAsync(drawingPaths, cancellationToken).ConfigureAwait(true);
+                await RouteImportedTwoDDrawingsAsync(drawingPaths, cancellationToken).ConfigureAwait(true);
             if (imagePaths.Length > 0)
                 await ImportReferenceImagesAsync(imagePaths, cancellationToken).ConfigureAwait(true);
         }
@@ -139,6 +139,36 @@ public sealed partial class EditorPageViewModel
             return 0;
         MarkDocumentDirty();
         return importedDrawings.Count;
+    }
+
+    private async Task<int> RouteImportedTwoDDrawingsAsync(
+        IReadOnlyList<string> filePaths,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var paths = filePaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (paths.Length == 0)
+            return 0;
+
+        if (ActiveEditorMode == EditorMode.Batch || paths.Length >= 5)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var added = _batchWorkspace.AddFiles(paths);
+            await SetActiveEditorModeAsync(EditorMode.Batch, CancellationToken.None).ConfigureAwait(true);
+            StatusText = added == 1
+                ? "Queued 1 drawing for batch processing"
+                : $"Queued {added} drawings for batch processing";
+            return added;
+        }
+
+        var imported = await ImportTwoDDrawingsAsync(paths, cancellationToken).ConfigureAwait(true);
+        if (imported > 0)
+            await SetActiveEditorModeAsync(EditorMode.TwoD, CancellationToken.None).ConfigureAwait(true);
+        return imported;
     }
 
     public bool HasSelectedTwoDImportGroup => _twoDWorkspace.GetSelectedImportGroups().Count > 0;

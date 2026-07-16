@@ -226,7 +226,7 @@ public sealed partial class EditorPageViewModel
 
         if (_pendingTwoDFilePaths.Count > 0)
         {
-            await ImportTwoDDrawingsAsync(_pendingTwoDFilePaths, token).ConfigureAwait(true);
+            await RouteImportedTwoDDrawingsAsync(_pendingTwoDFilePaths, token).ConfigureAwait(true);
             _pendingTwoDFilePaths = [];
         }
 
