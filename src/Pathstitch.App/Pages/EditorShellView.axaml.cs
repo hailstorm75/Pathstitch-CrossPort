@@ -92,6 +92,24 @@ public partial class EditorShellView : EditorInteractionControlBase
             viewModel.ToggleTwoDChainSelection();
     }
 
+    private void OnZoomInClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ZoomTwoDIn();
+    }
+
+    private void OnZoomOutClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ZoomTwoDOut();
+    }
+
+    private void OnZoomToFitClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.FrameTwoDToContent();
+    }
+
     private async void OnAboutClicked(object? sender, RoutedEventArgs e)
     {
         if (TopLevel.GetTopLevel(this) is not Window owner)

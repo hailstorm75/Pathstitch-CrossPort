@@ -348,6 +348,8 @@ public static class EditorCommandPaletteCatalog
     public const string ToggleGridIdentifier = "view.grid";
     public const string ToggleSnappingIdentifier = "view.snap";
     public const string ToggleChainSelectionIdentifier = "view.chainSelect";
+    public const string ZoomInIdentifier = "view.zoomIn";
+    public const string ZoomOutIdentifier = "view.zoomOut";
     public const string ZoomToFitIdentifier = "view.zoomFit";
 
     public static IReadOnlyList<EditorToolDescriptor> SearchOnly { get; } =
@@ -355,6 +357,8 @@ public static class EditorCommandPaletteCatalog
         TwoDCommand(ToggleGridIdentifier, "Toggle Grid", "Show or hide the 2D grid.", "Shift+G"),
         TwoDCommand(ToggleSnappingIdentifier, "Toggle Snapping", "Enable or disable 2D snapping.", "N"),
         TwoDCommand(ToggleChainSelectionIdentifier, "Toggle Chain Selection", "Enable or disable connected-path selection.", "A"),
+        TwoDCommand(ZoomInIdentifier, "Zoom In", "Increase the 2D viewport zoom.", "Ctrl+="),
+        TwoDCommand(ZoomOutIdentifier, "Zoom Out", "Decrease the 2D viewport zoom.", "Ctrl+-"),
         TwoDCommand(ZoomToFitIdentifier, "Zoom to Fit", "Frame all visible 2D content.", null),
     ];
 

@@ -47,6 +47,22 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void ViewMenu_OffersLegacyTwoDZoomControls()
+    {
+        var shell = ReadPage("EditorShellView.axaml");
+
+        Assert.Contains("editor.menu.view.zoom-in", shell, StringComparison.Ordinal);
+        Assert.Contains("editor.menu.view.zoom-out", shell, StringComparison.Ordinal);
+        Assert.Contains("editor.menu.view.zoom-to-fit", shell, StringComparison.Ordinal);
+        Assert.Contains("Click=\"OnZoomInClicked\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Click=\"OnZoomOutClicked\"", shell, StringComparison.Ordinal);
+        Assert.Contains("Click=\"OnZoomToFitClicked\"", shell, StringComparison.Ordinal);
+        Assert.Contains("HotKey=\"Ctrl+OemPlus\"", shell, StringComparison.Ordinal);
+        Assert.Contains("HotKey=\"Ctrl+OemMinus\"", shell, StringComparison.Ordinal);
+        Assert.Contains("HotKey=\"Ctrl+D0\"", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void HelpMenu_ExposesAnAboutDialogForAppParity()
     {
         var shell = ReadPage("EditorShellView.axaml");

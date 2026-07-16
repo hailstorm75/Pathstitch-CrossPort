@@ -915,6 +915,8 @@ public sealed class EditorPageViewModelModeTests
     [InlineData("grid", EditorCommandPaletteCatalog.ToggleGridIdentifier)]
     [InlineData("snapping", EditorCommandPaletteCatalog.ToggleSnappingIdentifier)]
     [InlineData("chain selection", EditorCommandPaletteCatalog.ToggleChainSelectionIdentifier)]
+    [InlineData("zoom in", EditorCommandPaletteCatalog.ZoomInIdentifier)]
+    [InlineData("zoom out", EditorCommandPaletteCatalog.ZoomOutIdentifier)]
     [InlineData("zoom to fit", EditorCommandPaletteCatalog.ZoomToFitIdentifier)]
     [InlineData("view.snap", EditorCommandPaletteCatalog.ToggleSnappingIdentifier)]
     [InlineData("view", EditorCommandPaletteCatalog.ToggleGridIdentifier)]
@@ -942,6 +944,9 @@ public sealed class EditorPageViewModelModeTests
         var initialSnapping = viewModel.TwoDSnapEnabled;
         var initialChainSelection = viewModel.TwoDChainSelectionEnabled;
         var initialFrameRequest = viewModel.TwoDFrameRequestToken;
+        viewModel.TwoDViewportZoom = 2.0;
+        viewModel.TwoDViewportOffsetX = 12.0;
+        viewModel.TwoDViewportOffsetY = -8.0;
 
         Activate("grid", EditorCommandPaletteCatalog.ToggleGridIdentifier);
         Assert.NotEqual(initialGrid, viewModel.TwoDGridVisible);
@@ -949,6 +954,14 @@ public sealed class EditorPageViewModelModeTests
         Assert.NotEqual(initialSnapping, viewModel.TwoDSnapEnabled);
         Activate("chain selection", EditorCommandPaletteCatalog.ToggleChainSelectionIdentifier);
         Assert.NotEqual(initialChainSelection, viewModel.TwoDChainSelectionEnabled);
+        Activate("zoom in", EditorCommandPaletteCatalog.ZoomInIdentifier);
+        Assert.Equal(2.5, viewModel.TwoDViewportZoom, 8);
+        Assert.Equal(15.0, viewModel.TwoDViewportOffsetX, 8);
+        Assert.Equal(-10.0, viewModel.TwoDViewportOffsetY, 8);
+        Activate("zoom out", EditorCommandPaletteCatalog.ZoomOutIdentifier);
+        Assert.Equal(2.0, viewModel.TwoDViewportZoom, 8);
+        Assert.Equal(12.0, viewModel.TwoDViewportOffsetX, 8);
+        Assert.Equal(-8.0, viewModel.TwoDViewportOffsetY, 8);
         Activate("zoom to fit", EditorCommandPaletteCatalog.ZoomToFitIdentifier);
         Assert.Equal(initialFrameRequest + 1, viewModel.TwoDFrameRequestToken);
 

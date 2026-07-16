@@ -157,6 +157,28 @@
           HotKey="Ctrl+Shift+Z" />
       </MenuItem>
       <MenuItem
+        AutomationProperties.AutomationId="editor.menu.view"
+        Header="_View">
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.view.zoom-in"
+          Header="Zoom _In"
+          HotKey="Ctrl+OemPlus"
+          IsEnabled="{Binding IsShowingTwoDWorkspace}"
+          Click="OnZoomInClicked" />
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.view.zoom-out"
+          Header="Zoom _Out"
+          HotKey="Ctrl+OemMinus"
+          IsEnabled="{Binding IsShowingTwoDWorkspace}"
+          Click="OnZoomOutClicked" />
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.view.zoom-to-fit"
+          Header="Zoom to _Fit"
+          HotKey="Ctrl+D0"
+          IsEnabled="{Binding IsShowingTwoDWorkspace}"
+          Click="OnZoomToFitClicked" />
+      </MenuItem>
+      <MenuItem
         AutomationProperties.AutomationId="editor.menu.help"
         Header="_Help">
         <MenuItem

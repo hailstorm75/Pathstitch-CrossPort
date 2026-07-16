@@ -2432,6 +2432,25 @@ public sealed partial class EditorPageViewModel
         TwoDFrameRequestToken++;
     }
 
+    public void ZoomTwoDIn() => ZoomTwoDViewport(1.25);
+
+    public void ZoomTwoDOut() => ZoomTwoDViewport(0.8);
+
+    private void ZoomTwoDViewport(double factor)
+    {
+        if (!HasTwoDWorkspaceDocument || !double.IsFinite(factor) || factor <= 0.0)
+            return;
+
+        var currentZoom = TwoDViewportZoom > 0.0 ? TwoDViewportZoom : 1.0;
+        var nextZoom = Math.Clamp(currentZoom * factor, 0.02, 2000.0);
+        var appliedFactor = nextZoom / currentZoom;
+
+        // Offsets scale with zoom so the world point at the viewport center stays fixed.
+        TwoDViewportOffsetX *= appliedFactor;
+        TwoDViewportOffsetY *= appliedFactor;
+        TwoDViewportZoom = nextZoom;
+    }
+
     private void ApplyGeneratedOutput(string? outputPath)
     {
         if (string.IsNullOrWhiteSpace(outputPath))

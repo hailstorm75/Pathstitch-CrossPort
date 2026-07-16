@@ -485,6 +485,12 @@ public sealed partial class EditorPageViewModel
             case EditorCommandPaletteCatalog.ToggleChainSelectionIdentifier:
                 ToggleTwoDChainSelection();
                 return true;
+            case EditorCommandPaletteCatalog.ZoomInIdentifier:
+                ZoomTwoDIn();
+                return true;
+            case EditorCommandPaletteCatalog.ZoomOutIdentifier:
+                ZoomTwoDOut();
+                return true;
             case EditorCommandPaletteCatalog.ZoomToFitIdentifier:
                 FrameTwoDToContent();
                 return true;
