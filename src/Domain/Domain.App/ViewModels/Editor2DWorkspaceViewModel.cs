@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Domain.App.Models;
 using Domain.App.Services;
+using System.Collections.ObjectModel;
 using System.Globalization;
 
 namespace Domain.App.ViewModels;
@@ -33,6 +34,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private double _viewportOffsetX;
     private double _viewportOffsetY;
     private int _frameRequestToken;
+    private readonly ObservableCollection<string> _sewingSideOptionItems = ["Left", "Right", "Both"];
+    private bool _sewingUsesRadialSideVocabulary;
     private string _convertLineStyle = "dashed";
     private readonly Dictionary<string, string> _convertLineParameterText = new(StringComparer.OrdinalIgnoreCase);
     private string _offsetMode = "Curve";
@@ -231,9 +234,42 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool CanCommitSewingHoles => HasSewingHolePreview;
     public IReadOnlyList<Editor2DSewingCornerMode> SewingCornerModes { get; } = Enum.GetValues<Editor2DSewingCornerMode>();
     public IReadOnlyList<Editor2DSewingDistributionMode> SewingDistributionModes { get; } = Enum.GetValues<Editor2DSewingDistributionMode>();
+    public IReadOnlyList<Editor2DSewingPattern> SewingPatterns { get; } = Enum.GetValues<Editor2DSewingPattern>();
+    public IReadOnlyList<Editor2DSewingSide> SewingSides { get; } = Enum.GetValues<Editor2DSewingSide>();
     public double SewingHoleDiameter { get => SewingHoleParameters.Diameter; set => UpdateSewingParameters(p => p with { Diameter = Math.Max(0.02, value) }); }
     public double SewingHolePitch { get => SewingHoleParameters.Pitch; set => UpdateSewingParameters(p => p with { Pitch = Math.Max(0.1, value) }); }
-    public double SewingHoleMargin { get => SewingHoleParameters.Margin; set => UpdateSewingParameters(p => p with { Margin = value }); }
+    public double SewingHoleMargin { get => SewingHoleParameters.Margin; set => UpdateSewingParameters(p => p with { Margin = Math.Max(0, value) }); }
+    public Editor2DSewingPattern SewingPattern { get => SewingHoleParameters.Pattern; set => UpdateSewingParameters(p => p with { Pattern = value }); }
+    public Editor2DSewingSide SewingSide { get => SewingHoleParameters.Side; set => UpdateSewingParameters(p => p with { Side = value }); }
+    public double SewingSaddleSpacing { get => SewingHoleParameters.SaddleSpacing; set => UpdateSewingParameters(p => p with { SaddleSpacing = Math.Max(0, value) }); }
+    public bool IsSaddleSewingPattern => SewingPattern == Editor2DSewingPattern.Saddle;
+    public bool SewingUsesRadialSideVocabulary
+        => UsesRadialSewingSideVocabulary(SelectedPathIds);
+    public IReadOnlyList<string> SewingSideOptionItems => _sewingSideOptionItems;
+    public string SewingSideSelection
+    {
+        get => SewingSide switch
+        {
+            Editor2DSewingSide.Left when SewingUsesRadialSideVocabulary => "Inner",
+            Editor2DSewingSide.Right when SewingUsesRadialSideVocabulary => "Outer",
+            Editor2DSewingSide.Left => "Left",
+            Editor2DSewingSide.Right => "Right",
+            _ => "Both",
+        };
+        set
+        {
+            var side = value?.Trim() switch
+            {
+                "Outer" => Editor2DSewingSide.Right,
+                "Inner" => Editor2DSewingSide.Left,
+                "Left" => Editor2DSewingSide.Left,
+                "Right" => Editor2DSewingSide.Right,
+                "Both" => Editor2DSewingSide.Both,
+                _ => SewingSide,
+            };
+            SewingSide = side;
+        }
+    }
     public Editor2DSewingCornerMode SewingCornerMode { get => SewingHoleParameters.CornerMode; set => UpdateSewingParameters(p => p with { CornerMode = value }); }
     public double SewingCornerClearance { get => SewingHoleParameters.CornerClearance; set => UpdateSewingParameters(p => p with { CornerClearance = Math.Max(0, value) }); }
     public bool SewingAvoidanceEnabled { get => SewingHoleParameters.AvoidanceEnabled; set => UpdateSewingParameters(p => p with { AvoidanceEnabled = value }); }
@@ -324,6 +360,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public void SetSelection(IReadOnlyList<string> selectedPathIds)
     {
         ClearSewingHolePreview();
+        var usedRadialVocabulary = SewingUsesRadialSideVocabulary;
         var editableIds = Layers
             .Where(layer => layer.IsVisible && !layer.IsLocked)
             .SelectMany(layer => layer.PathIds)
@@ -340,7 +377,25 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         Apply(
             _state with { SelectedPathIds = normalized },
             recordHistory: false);
+        if (usedRadialVocabulary != SewingUsesRadialSideVocabulary)
+        {
+            SewingSide = SewingSide switch
+            {
+                Editor2DSewingSide.Left => Editor2DSewingSide.Right,
+                Editor2DSewingSide.Right => Editor2DSewingSide.Left,
+                _ => SewingSide,
+            };
+        }
         OnPropertyChanged(nameof(CanPreviewSewingHoles));
+    }
+
+    private bool UsesRadialSewingSideVocabulary(IReadOnlyList<string> selectedPathIds)
+    {
+        var selectedIds = selectedPathIds.ToHashSet(StringComparer.Ordinal);
+        var sources = Document.Paths.Where(path => selectedIds.Contains(path.Id)).ToArray();
+        return sources.Length > 0
+            && sources.All(path => !path.EntityType.Equals("LINE", StringComparison.OrdinalIgnoreCase)
+                && path.Points.Count < 2);
     }
 
     public void SetMeasurements(
@@ -1461,10 +1516,23 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private static Editor2DSewingHoleParameters NormalizeSewingParameters(Editor2DSewingHoleParameters? parameters)
     {
         var value = parameters ?? Editor2DSewingHoleParameters.Default;
+        var side = value.Side;
+        if (value.Margin < 0)
+        {
+            side = side switch
+            {
+                Editor2DSewingSide.Left => Editor2DSewingSide.Right,
+                Editor2DSewingSide.Right => Editor2DSewingSide.Left,
+                _ => side,
+            };
+        }
         return value with
         {
             Diameter = Math.Max(0.02, value.Diameter),
             Pitch = Math.Max(0.1, value.Pitch),
+            Margin = Math.Abs(value.Margin),
+            Side = side,
+            SaddleSpacing = Math.Max(0, value.SaddleSpacing),
             CornerClearance = Math.Max(0, value.CornerClearance),
             AvoidanceClearance = Math.Max(0, value.AvoidanceClearance),
             AvoidPathIds = (value.AvoidPathIds ?? []).Distinct(StringComparer.Ordinal).ToArray(),
@@ -1480,6 +1548,11 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(SewingHoleDiameter));
         OnPropertyChanged(nameof(SewingHolePitch));
         OnPropertyChanged(nameof(SewingHoleMargin));
+        OnPropertyChanged(nameof(SewingPattern));
+        OnPropertyChanged(nameof(SewingSide));
+        OnPropertyChanged(nameof(SewingSideSelection));
+        OnPropertyChanged(nameof(SewingSaddleSpacing));
+        OnPropertyChanged(nameof(IsSaddleSewingPattern));
         OnPropertyChanged(nameof(SewingCornerMode));
         OnPropertyChanged(nameof(SewingCornerClearance));
         OnPropertyChanged(nameof(SewingAvoidanceEnabled));
@@ -1518,6 +1591,14 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     private void RaiseStateChanged()
     {
+        var usesRadialVocabulary = SewingUsesRadialSideVocabulary;
+        if (usesRadialVocabulary != _sewingUsesRadialSideVocabulary)
+        {
+            _sewingUsesRadialSideVocabulary = usesRadialVocabulary;
+            _sewingSideOptionItems[0] = usesRadialVocabulary ? "Outer" : "Left";
+            _sewingSideOptionItems[1] = usesRadialVocabulary ? "Inner" : "Right";
+        }
+
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(Document));
         OnPropertyChanged(nameof(IsInitialized));
@@ -1525,6 +1606,9 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(SnapEnabled));
         OnPropertyChanged(nameof(IsSewingHoleToolActive));
         OnPropertyChanged(nameof(SelectedPathIds));
+        OnPropertyChanged(nameof(SewingUsesRadialSideVocabulary));
+        OnPropertyChanged(nameof(SewingSideOptionItems));
+        OnPropertyChanged(nameof(SewingSideSelection));
         OnPropertyChanged(nameof(HasMirrorLinkSelection));
         OnPropertyChanged(nameof(Measurements));
         OnPropertyChanged(nameof(SelectedMeasurementId));

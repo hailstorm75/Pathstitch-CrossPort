@@ -178,6 +178,60 @@ public sealed class EditorShellHeadlessTests
     }
 
     [Fact]
+    public async Task LiveShell_SewingPatternSideAndSaddleControlsTrackWorkspaceState()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            var line = new Editor2DPreviewPath(
+                "line",
+                "LINE",
+                [new Editor2DPoint(0, 0), new Editor2DPoint(20, 0)],
+                false);
+            viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [line] };
+            viewModel.TwoDSelectedPathIds = [line.Id];
+            viewModel.ActivateSidebarItem("add-sewing-holes");
+            session.Window.UpdateLayout();
+
+            var pattern = _ui.FindByAutomationId<ComboBox>(shell, "editor.sewing.pattern");
+            var side = _ui.FindByAutomationId<ComboBox>(shell, "editor.sewing.side");
+            var saddleSpacing = _ui.FindByAutomationId<AutomationSafeNumericUpDown>(shell, "editor.sewing.saddle-spacing");
+
+            Assert.Equal(Editor2DSewingPattern.Single, pattern.SelectedItem);
+            Assert.Equal(["Left", "Right", "Both"], Assert.IsAssignableFrom<IEnumerable<string>>(side.ItemsSource));
+            Assert.Equal("Left", side.SelectedItem);
+            Assert.False(_ui.IsEffectivelyVisible(saddleSpacing));
+            Assert.Equal(3.0m, saddleSpacing.Value);
+
+            viewModel.TwoDWorkspace.SewingPattern = Editor2DSewingPattern.Saddle;
+            session.Window.UpdateLayout();
+            Assert.Equal(Editor2DSewingPattern.Saddle, pattern.SelectedItem);
+            Assert.True(_ui.IsEffectivelyVisible(saddleSpacing));
+
+            var circle = new Editor2DPreviewPath(
+                "circle",
+                "CIRCLE",
+                [],
+                true,
+                Center: new Editor2DPoint(0, 0),
+                Radius: 10);
+            viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [circle] };
+            viewModel.TwoDSelectedPathIds = [circle.Id];
+            session.Window.UpdateLayout();
+
+            Assert.Equal(["Outer", "Inner", "Both"], Assert.IsAssignableFrom<IEnumerable<string>>(side.ItemsSource));
+            Assert.Equal("Outer", viewModel.TwoDWorkspace.SewingSideSelection);
+            Assert.Equal(Editor2DSewingSide.Right, viewModel.TwoDWorkspace.SewingSide);
+            viewModel.TwoDWorkspace.SewingSideSelection = "Inner";
+            Assert.Equal(Editor2DSewingSide.Left, viewModel.TwoDWorkspace.SewingSide);
+        });
+    }
+
+    [Fact]
     public async Task LiveShell_NarrowWindowKeepsEveryTwoDToolInVerticalScrollableRailWithoutHorizontalOverflow()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();

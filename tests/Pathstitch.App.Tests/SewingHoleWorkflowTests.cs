@@ -76,6 +76,91 @@ public sealed class SewingHoleWorkflowTests
     }
 
     [Fact]
+    public void Workspace_ReEditsPatternSideAndSaddleSpacingWithoutDuplicatingOperation()
+    {
+        var workspace = CreateWorkspace(Line("source", 0, 0, 12, 0));
+        Assert.True(workspace.RefreshSewingHolePreview());
+        Assert.True(workspace.CommitSewingHolePreview());
+        var original = Assert.Single(workspace.SewingHoleOperations);
+        var originalGeneratedIds = original.GeneratedPathIds.ToArray();
+
+        Assert.True(workspace.BeginEditSewingHoleOperation(original.Id));
+        var singlePreviewCount = workspace.SewingHolePreviewCount;
+        workspace.SewingPattern = Editor2DSewingPattern.Saddle;
+        Assert.True(workspace.SewingHolePreviewCount > singlePreviewCount);
+        workspace.SewingSide = Editor2DSewingSide.Right;
+        workspace.SewingSaddleSpacing = 5.5;
+        Assert.True(workspace.HasSewingHolePreview);
+        Assert.True(workspace.CommitSewingHolePreview());
+
+        var edited = Assert.Single(workspace.SewingHoleOperations);
+        Assert.Equal(original.Id, edited.Id);
+        Assert.Equal(Editor2DSewingPattern.Saddle, edited.Parameters.Pattern);
+        Assert.Equal(Editor2DSewingSide.Right, edited.Parameters.Side);
+        Assert.Equal(5.5, edited.Parameters.SaddleSpacing);
+        Assert.DoesNotContain(
+            workspace.Document.Paths,
+            path => originalGeneratedIds.Contains(path.Id) && !edited.GeneratedPathIds.Contains(path.Id));
+    }
+
+    [Fact]
+    public void Workspace_NormalizesLegacyNegativeMarginsAndPreservesBothSide()
+    {
+        var source = Line("source", 0, 0, 12, 0);
+        var operation = new Editor2DSewingHoleOperation(
+            "operation",
+            [source.Id],
+            [],
+            new Editor2DSewingHoleParameters(Margin: -3, Side: Editor2DSewingSide.Right));
+        var workspace = new Editor2DWorkspaceViewModel();
+
+        workspace.Apply(new Editor2DWorkspaceState(
+            Document(source),
+            SewingHoleParameters: new Editor2DSewingHoleParameters(Margin: -2, Side: Editor2DSewingSide.Left),
+            SewingHoleOperations: [operation]));
+
+        Assert.Equal(2, workspace.SewingHoleMargin);
+        Assert.Equal(Editor2DSewingSide.Right, workspace.SewingSide);
+        var normalizedOperation = Assert.Single(workspace.SewingHoleOperations);
+        Assert.Equal(3, normalizedOperation.Parameters.Margin);
+        Assert.Equal(Editor2DSewingSide.Left, normalizedOperation.Parameters.Side);
+
+        workspace.Apply(workspace.State with
+        {
+            SewingHoleParameters = new Editor2DSewingHoleParameters(Margin: -4, Side: Editor2DSewingSide.Both),
+        });
+        Assert.Equal(4, workspace.SewingHoleMargin);
+        Assert.Equal(Editor2DSewingSide.Both, workspace.SewingSide);
+    }
+
+    [Fact]
+    public void Workspace_SelectionTransitionsPreserveAdaptiveSideMeaning()
+    {
+        var line = Line("line", 0, 0, 12, 0);
+        var circle = new Editor2DPreviewPath(
+            "circle", "CIRCLE", [], true, Center: new Editor2DPoint(0, 0), Radius: 10);
+        var workspace = CreateWorkspace(line, circle);
+
+        workspace.SewingSide = Editor2DSewingSide.Left;
+        Assert.Equal("Left", workspace.SewingSideSelection);
+        Assert.False(workspace.SewingUsesRadialSideVocabulary);
+        workspace.SetSelection([circle.Id]);
+        Assert.True(workspace.SewingUsesRadialSideVocabulary);
+        Assert.Equal(Editor2DSewingSide.Right, workspace.SewingSide);
+        Assert.Equal("Outer", workspace.SewingSideSelection);
+
+        workspace.SewingSideSelection = "Inner";
+        workspace.SetSelection([line.Id]);
+        Assert.Equal(Editor2DSewingSide.Right, workspace.SewingSide);
+        Assert.Equal("Right", workspace.SewingSideSelection);
+
+        workspace.SewingSide = Editor2DSewingSide.Both;
+        workspace.SetSelection([circle.Id]);
+        Assert.Equal(Editor2DSewingSide.Both, workspace.SewingSide);
+        Assert.Equal("Both", workspace.SewingSideSelection);
+    }
+
+    [Fact]
     public async Task ProjectPersistence_RoundTripsEditableSewingParametersAndOperationLinks()
     {
         var workspace = CreateWorkspace(
@@ -86,7 +171,10 @@ public sealed class SewingHoleWorkflowTests
         workspace.SetSelection(["source"]);
         workspace.SewingHoleDiameter = 1.25;
         workspace.SewingHolePitch = 3.5;
-        workspace.SewingHoleMargin = -2;
+        workspace.SewingHoleMargin = 2;
+        workspace.SewingPattern = Editor2DSewingPattern.Saddle;
+        workspace.SewingSide = Editor2DSewingSide.Right;
+        workspace.SewingSaddleSpacing = 4.5;
         workspace.SewingCornerMode = Editor2DSewingCornerMode.AvoidCorners;
         workspace.SewingCornerClearance = 1.5;
         workspace.SewingSymmetricDistribution = false;
@@ -102,10 +190,16 @@ public sealed class SewingHoleWorkflowTests
             var restored = new Editor2DWorkspaceViewModel();
             restored.Apply(restoredProject.TwoDWorkspaceState!, recordHistory: false);
 
+            Assert.Equal(Editor2DSewingPattern.Saddle, restored.SewingPattern);
+            Assert.Equal(Editor2DSewingSide.Right, restored.SewingSide);
+            Assert.Equal(4.5, restored.SewingSaddleSpacing);
             var operation = Assert.Single(restored.SewingHoleOperations);
             Assert.Equal(1.25, operation.Parameters.Diameter);
             Assert.Equal(3.5, operation.Parameters.Pitch);
-            Assert.Equal(-2, operation.Parameters.Margin);
+            Assert.Equal(2, operation.Parameters.Margin);
+            Assert.Equal(Editor2DSewingPattern.Saddle, operation.Parameters.Pattern);
+            Assert.Equal(Editor2DSewingSide.Right, operation.Parameters.Side);
+            Assert.Equal(4.5, operation.Parameters.SaddleSpacing);
             Assert.Equal(Editor2DSewingCornerMode.AvoidCorners, operation.Parameters.CornerMode);
             Assert.Equal(1.5, operation.Parameters.CornerClearance);
             Assert.False(operation.Parameters.SymmetricDistribution);
@@ -113,6 +207,9 @@ public sealed class SewingHoleWorkflowTests
             Assert.Equal(["keepout"], operation.Parameters.AvoidPathIds);
             Assert.True(restored.BeginEditSewingHoleOperation(operation.Id));
             Assert.True(restored.HasSewingHolePreview);
+            Assert.Equal(Editor2DSewingPattern.Saddle, restored.SewingPattern);
+            Assert.Equal(Editor2DSewingSide.Right, restored.SewingSide);
+            Assert.Equal(4.5, restored.SewingSaddleSpacing);
         }
         finally
         {
@@ -130,6 +227,15 @@ public sealed class SewingHoleWorkflowTests
         Assert.Contains("SewingHolePitch", inspector, StringComparison.Ordinal);
         Assert.Contains("SewingHoleMargin", inspector, StringComparison.Ordinal);
         Assert.Contains("SewingCornerMode", inspector, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding SewingPatterns}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("SelectedItem=\"{Binding SewingPattern, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding SewingSideOptionItems}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("SelectedItem=\"{Binding SewingSideSelection, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsSaddleSewingPattern}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("Value=\"{Binding SewingSaddleSpacing, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.sewing.pattern", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.sewing.side", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.sewing.saddle-spacing", inspector, StringComparison.Ordinal);
         Assert.Contains("SewingAvoidanceEnabled", inspector, StringComparison.Ordinal);
         Assert.Contains("SewingSymmetricDistribution", inspector, StringComparison.Ordinal);
         Assert.Contains("OnPreviewSewingHolesClicked", inspector, StringComparison.Ordinal);

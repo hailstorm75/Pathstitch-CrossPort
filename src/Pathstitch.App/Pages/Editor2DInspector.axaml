@@ -189,6 +189,35 @@
             ItemsSource="{Binding SewingCornerModes}"
             SelectedItem="{Binding SewingCornerMode, Mode=TwoWay}" />
         </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock VerticalAlignment="Center" Text="Pattern Style" />
+          <ComboBox
+            Width="150"
+            ItemsSource="{Binding SewingPatterns}"
+            SelectedItem="{Binding SewingPattern, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.sewing.pattern" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock VerticalAlignment="Center" Text="Side" />
+          <ComboBox
+            Width="180"
+            ItemsSource="{Binding SewingSideOptionItems}"
+            SelectedItem="{Binding SewingSideSelection, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.sewing.side" />
+        </StackPanel>
+        <Grid
+          ColumnDefinitions="Auto,*"
+          ColumnSpacing="10"
+          IsVisible="{Binding IsSaddleSewingPattern}">
+          <TextBlock VerticalAlignment="Center" Text="Saddle Row Distance (mm)" />
+          <controls:AutomationSafeNumericUpDown
+            Grid.Column="1"
+            AutomationProperties.AutomationId="editor.sewing.saddle-spacing"
+            MinWidth="160"
+            Minimum="0"
+            Increment="0.5"
+            Value="{Binding SewingSaddleSpacing, Mode=TwoWay}" />
+        </Grid>
         <CheckBox Content="Symmetric distribution" IsChecked="{Binding SewingSymmetricDistribution, Mode=TwoWay}" />
         <CheckBox Content="Keep pitch within range" IsChecked="{Binding SewingVariableSpacingEnabled, Mode=TwoWay}" />
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4" IsVisible="{Binding SewingVariableSpacingEnabled}">
