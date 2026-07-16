@@ -850,7 +850,8 @@
       </StackPanel>
       <StackPanel
         Spacing="8"
-        IsVisible="{Binding IsTwoDConvertLinesToolActive}">
+        IsVisible="{Binding IsTwoDConvertLinesInspectorVisible}"
+        AutomationProperties.AutomationId="editor.2d.convert-lines.inspector">
         <TextBlock
           FontSize="10"
           Foreground="{StaticResource PrimaryTextBrush}"
@@ -859,7 +860,8 @@
           FontSize="10"
           TextWrapping="Wrap"
           Foreground="{StaticResource SecondaryTextBrush}"
-          Text="{Binding TwoDConvertLineSummary}" />
+          Text="{Binding TwoDConvertLineSummary}"
+          AutomationProperties.AutomationId="editor.2d.convert-lines.summary" />
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock
             VerticalAlignment="Center"
@@ -869,8 +871,13 @@
           <ComboBox
             Width="140"
             ItemsSource="{Binding TwoDConvertLineStyleOptions}"
-            SelectedItem="{Binding TwoDConvertLineStyle, Mode=TwoWay}" />
+            SelectedItem="{Binding TwoDConvertLineStyle, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.convert-lines.style" />
         </StackPanel>
+        <controls:Editor2DConvertLinePreview
+          Height="56"
+          Paths="{Binding TwoDConvertLinePreviewPaths}"
+          AutomationProperties.AutomationId="editor.2d.convert-lines.preview" />
         <StackPanel
           Orientation="Horizontal"
           Spacing="8"
@@ -883,7 +890,9 @@
             Text="{Binding TwoDConvertLineFirstParameterLabel}" />
           <TextBox
             Width="88"
-            Text="{Binding TwoDConvertLineFirstParameterText, Mode=TwoWay}" />
+            Text="{Binding TwoDConvertLineFirstParameterText, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.convert-lines.parameter-1"
+            AutomationProperties.Name="{Binding TwoDConvertLineFirstParameterLabel}" />
         </StackPanel>
         <StackPanel
           Orientation="Horizontal"
@@ -897,7 +906,9 @@
             Text="{Binding TwoDConvertLineSecondParameterLabel}" />
           <TextBox
             Width="88"
-            Text="{Binding TwoDConvertLineSecondParameterText, Mode=TwoWay}" />
+            Text="{Binding TwoDConvertLineSecondParameterText, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.convert-lines.parameter-2"
+            AutomationProperties.Name="{Binding TwoDConvertLineSecondParameterLabel}" />
         </StackPanel>
         <StackPanel
           Orientation="Horizontal"
@@ -911,12 +922,15 @@
             Text="{Binding TwoDConvertLineThirdParameterLabel}" />
           <TextBox
             Width="88"
-            Text="{Binding TwoDConvertLineThirdParameterText, Mode=TwoWay}" />
+            Text="{Binding TwoDConvertLineThirdParameterText, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.convert-lines.parameter-3"
+            AutomationProperties.Name="{Binding TwoDConvertLineThirdParameterLabel}" />
         </StackPanel>
         <Button
           Classes="chip-button"
           IsEnabled="{Binding CanApplyTwoDConvertLines}"
-          Content="Apply Conversion"
+          Content="{Binding TwoDConvertLineActionLabel}"
+          AutomationProperties.AutomationId="editor.2d.convert-lines.action"
           Click="OnApplyTwoDConvertLinesClicked" />
       </StackPanel>
       <StackPanel

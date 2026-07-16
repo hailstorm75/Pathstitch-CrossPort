@@ -105,6 +105,67 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public void ConvertLines_ReentryLoadsGroupAndSupportsLiveStyleWithStagedParameters()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("convert-source", "LINE", [new(0, 0), new(30, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.ConvertLines;
+        viewModel.TwoDConvertLineStyle = "dotted";
+        viewModel.TwoDConvertLineFirstParameterText = "7";
+        viewModel.TwoDConvertLineSecondParameterText = "0.75";
+
+        Assert.True(viewModel.ApplyTwoDConvertLines());
+        var convertedGroup = Assert.Single(viewModel.TwoDWorkspace.ConvertLineGroups);
+        var generatedId = Assert.Single(convertedGroup.Sources).GeneratedPathIds[0];
+
+        viewModel.TwoDSelectedPathIds = [];
+        viewModel.TwoDActiveTool = Editor2DTool.Select;
+        viewModel.TwoDConvertLineStyle = "wave";
+        Assert.False(viewModel.IsTwoDConvertLinesInspectorVisible);
+
+        viewModel.TwoDSelectedPathIds = [generatedId];
+
+        Assert.True(viewModel.HasSingleTwoDConvertedLineGroupSelection);
+        Assert.True(viewModel.IsTwoDConvertLinesInspectorVisible);
+        Assert.Equal("Update Lines", viewModel.TwoDConvertLineActionLabel);
+        Assert.Equal("dotted", viewModel.TwoDConvertLineStyle);
+        Assert.Equal("7", viewModel.TwoDConvertLineFirstParameterText);
+        Assert.Equal("0.75", viewModel.TwoDConvertLineSecondParameterText);
+        Assert.NotEmpty(viewModel.TwoDConvertLinePreviewPaths);
+
+        viewModel.TwoDConvertLineStyle = "zigzag";
+
+        var liveRestyledGroup = Assert.Single(viewModel.TwoDWorkspace.ConvertLineGroups);
+        Assert.Equal(convertedGroup.Id, liveRestyledGroup.Id);
+        Assert.Equal("zigzag", liveRestyledGroup.Style);
+        Assert.Equal(6, liveRestyledGroup.Settings["wavelength"]);
+        var liveRestyledDocument = viewModel.TwoDDocument;
+
+        viewModel.TwoDConvertLineFirstParameterText = "9";
+
+        Assert.Equal(6, Assert.Single(viewModel.TwoDWorkspace.ConvertLineGroups).Settings["wavelength"]);
+        Assert.Same(liveRestyledDocument, viewModel.TwoDDocument);
+
+        Assert.True(viewModel.ApplyTwoDConvertLines());
+        Assert.Equal(9, Assert.Single(viewModel.TwoDWorkspace.ConvertLineGroups).Settings["wavelength"]);
+    }
+
+    [Fact]
+    public void ConvertLines_ToolChangeNotifiesInspectorVisibility()
+    {
+        var viewModel = CreateViewModel();
+        var changes = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+
+        viewModel.TwoDActiveTool = Editor2DTool.ConvertLines;
+
+        Assert.True(viewModel.IsTwoDConvertLinesInspectorVisible);
+        Assert.Contains(nameof(EditorPageViewModel.IsTwoDConvertLinesInspectorVisible), changes);
+    }
+
+    [Fact]
     public async Task OffsetPreview_RecomputesWithoutMutationAndCommitUsesExactGhost()
     {
         var kernel = new RecordingOffsetGeometryKernelService();

@@ -499,6 +499,23 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void ConvertLinesInspector_ExposesReentryPreviewAndEditableBindings()
+    {
+        var inspector = ReadPage("Editor2DInspector.axaml");
+
+        Assert.Contains("IsVisible=\"{Binding IsTwoDConvertLinesInspectorVisible}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding TwoDConvertLineStyleOptions}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("SelectedItem=\"{Binding TwoDConvertLineStyle, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("<controls:Editor2DConvertLinePreview", inspector, StringComparison.Ordinal);
+        Assert.Contains("Paths=\"{Binding TwoDConvertLinePreviewPaths}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding TwoDConvertLineFirstParameterText, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding TwoDConvertLineSecondParameterText, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding TwoDConvertLineThirdParameterText, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("Content=\"{Binding TwoDConvertLineActionLabel}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"{Binding CanApplyTwoDConvertLines}\"", inspector, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InspectorHost_ScopesWorkspaceSpecificPanels()
     {
         var host = ReadPage("EditorInspectorHost.axaml");

@@ -210,6 +210,7 @@ public sealed partial class EditorPageViewModel
             TwoDActiveTool = state.ActiveTool;
             TwoDPolygonSides = state.PolygonSides;
             TwoDSelectedPathIds = state.SelectedPathIds ?? [];
+            SyncTwoDConvertLineEditorFromSelection();
             TwoDMeasurements = state.Measurements ?? [];
             TwoDSelectedMeasurementId = state.SelectedMeasurementId;
             ApplyTwoDViewportState(
@@ -293,6 +294,12 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDActiveCornerLabel));
         OnPropertyChanged(nameof(TwoDCornerValueLabel));
         OnPropertyChanged(nameof(IsTwoDConvertLinesToolActive));
+        OnPropertyChanged(nameof(HasSingleTwoDConvertedLineGroupSelection));
+        OnPropertyChanged(nameof(IsTwoDConvertLinesInspectorVisible));
+        OnPropertyChanged(nameof(TwoDConvertLineActionLabel));
+        OnPropertyChanged(nameof(CanApplyTwoDConvertLines));
+        OnPropertyChanged(nameof(TwoDConvertLineSummary));
+        OnPropertyChanged(nameof(TwoDConvertLinePreviewPaths));
         OnPropertyChanged(nameof(IsTwoDOffsetToolActive));
         OnPropertyChanged(nameof(IsTwoDAddThicknessToolActive));
         OnPropertyChanged(nameof(IsTwoDCleanupToolActive));

@@ -21,6 +21,7 @@ public sealed partial class EditorPageViewModel
     private bool _twoDTextToolItalic;
     private bool _twoDTextToolUnderline;
     private string _twoDTextToolFitMode = "None";
+    private bool _isHydratingTwoDConvertLineEditor;
 
     private sealed record TwoDConvertLineParameterDefinition(
         string Key,
@@ -322,6 +323,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDActiveCornerLabel));
             OnPropertyChanged(nameof(TwoDCornerValueLabel));
             OnPropertyChanged(nameof(IsTwoDConvertLinesToolActive));
+            OnPropertyChanged(nameof(IsTwoDConvertLinesInspectorVisible));
             OnPropertyChanged(nameof(IsTwoDOffsetToolActive));
             OnPropertyChanged(nameof(IsTwoDAddThicknessToolActive));
             OnPropertyChanged(nameof(IsTwoDCleanupToolActive));
@@ -473,6 +475,7 @@ public sealed partial class EditorPageViewModel
                 ResetTwoDMovePointToPoint();
             TwoDPatternGuidePathId = null;
             OnPropertyChanged();
+            SyncTwoDConvertLineEditorFromSelection();
 
             OnPropertyChanged(nameof(HasTwoDSelection));
             OnPropertyChanged(nameof(TwoDSelectionCount));
@@ -1049,6 +1052,11 @@ public sealed partial class EditorPageViewModel
 
     public bool IsTwoDConvertLinesToolActive => TwoDActiveTool == Editor2DTool.ConvertLines;
 
+    public bool HasSingleTwoDConvertedLineGroupSelection => GetSelectedTwoDConvertLineGroup() is not null;
+
+    public bool IsTwoDConvertLinesInspectorVisible
+        => IsTwoDConvertLinesToolActive || HasSingleTwoDConvertedLineGroupSelection;
+
     public bool IsTwoDOffsetToolActive => TwoDActiveTool == Editor2DTool.Offset;
 
     public bool IsTwoDAddThicknessToolActive => TwoDActiveTool == Editor2DTool.AddThickness;
@@ -1127,18 +1135,29 @@ public sealed partial class EditorPageViewModel
                 return;
 
             NotifyTwoDConvertLineParameterStateChanged();
+            if (!_isHydratingTwoDConvertLineEditor && GetSelectedTwoDConvertLineGroup() is { } group)
+                RestyleSelectedTwoDConvertLineGroup(group);
         }
     }
 
     public bool HasTwoDConvertibleLineSelection => GetTwoDConvertibleSelectionCount() > 0;
 
-    public bool CanApplyTwoDConvertLines => HasTwoDConvertibleLineSelection;
+    public bool CanApplyTwoDConvertLines
+        => HasSingleTwoDConvertedLineGroupSelection || HasTwoDConvertibleLineSelection;
+
+    public string TwoDConvertLineActionLabel
+        => HasSingleTwoDConvertedLineGroupSelection ? "Update Lines" : "Convert Selection";
+
+    public IReadOnlyList<Editor2DPreviewPath> TwoDConvertLinePreviewPaths
+        => BuildTwoDConvertLinePreviewPaths();
 
     public string TwoDConvertLineSummary
     {
         get
         {
             var convertibleSelectionCount = GetTwoDConvertibleSelectionCount();
+            if (GetSelectedTwoDConvertLineGroup() is { } group)
+                return $"Editing converted {group.Style} group from {group.Sources.Count} original entit{(group.Sources.Count == 1 ? "y" : "ies")}. Style changes update immediately; parameter changes apply with Update Lines.";
             return convertibleSelectionCount == 0
                 ? "Select LINE, LWPOLYLINE, or POLYLINE geometry to apply a native pattern conversion."
                 : $"{convertibleSelectionCount} convertible entit{(convertibleSelectionCount == 1 ? "y" : "ies")} selected. Apply {TwoDConvertLineStyle} geometry to replace the current linework.";
@@ -2446,7 +2465,10 @@ public sealed partial class EditorPageViewModel
             return false;
         }
 
-        return CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyConvertedLines(TwoDConvertLineStyle, settings));
+        var selectedGroup = GetSelectedTwoDConvertLineGroup();
+        return CompleteTwoDWorkspaceOperation(selectedGroup is null
+            ? _twoDWorkspace.ApplyConvertedLines(TwoDConvertLineStyle, settings)
+            : _twoDWorkspace.RestyleConvertedLines(selectedGroup.Id, TwoDConvertLineStyle, settings));
     }
 
     private bool ApplyTwoDBoundingBoxOffset()
@@ -3039,6 +3061,84 @@ public sealed partial class EditorPageViewModel
             : string.Empty;
     }
 
+    private Editor2DConvertLineGroup? GetSelectedTwoDConvertLineGroup()
+    {
+        var groups = TwoDSelectedPathIds
+            .Select(_twoDWorkspace.FindConvertLineGroupForPath)
+            .Where(static group => group is not null)
+            .Cast<Editor2DConvertLineGroup>()
+            .DistinctBy(static group => group.Id, StringComparer.Ordinal)
+            .ToArray();
+        return groups.Length == 1 ? groups[0] : null;
+    }
+
+    private void SyncTwoDConvertLineEditorFromSelection()
+    {
+        var group = GetSelectedTwoDConvertLineGroup();
+        if (group is not null)
+        {
+            _isHydratingTwoDConvertLineEditor = true;
+            try
+            {
+                _twoDConvertLineStyle = NormalizeTwoDConvertLineStyle(group.Style);
+                var definitions = GetTwoDConvertLineParameterDefinitions(_twoDConvertLineStyle);
+                foreach (var definition in definitions)
+                {
+                    if (!group.Settings.TryGetValue(definition.Key, out var value))
+                        value = definition.DefaultValue;
+                    _twoDConvertLineParameterText[BuildTwoDConvertLineParameterMapKey(
+                        _twoDConvertLineStyle,
+                        definition.Key)] = FormatTwoDConvertLineValue(value, definition.IsInteger);
+                }
+            }
+            finally
+            {
+                _isHydratingTwoDConvertLineEditor = false;
+            }
+        }
+
+        NotifyTwoDConvertLineParameterStateChanged();
+        OnPropertyChanged(nameof(HasSingleTwoDConvertedLineGroupSelection));
+        OnPropertyChanged(nameof(IsTwoDConvertLinesInspectorVisible));
+    }
+
+    private void RestyleSelectedTwoDConvertLineGroup(Editor2DConvertLineGroup group)
+    {
+        if (!TryResolveTwoDConvertLineSettings(out var settings, out var errorMessage))
+        {
+            StatusText = errorMessage;
+            return;
+        }
+
+        CompleteTwoDWorkspaceOperation(
+            _twoDWorkspace.RestyleConvertedLines(group.Id, TwoDConvertLineStyle, settings));
+    }
+
+    private IReadOnlyList<Editor2DPreviewPath> BuildTwoDConvertLinePreviewPaths()
+    {
+        var definitions = GetTwoDConvertLineParameterDefinitions(TwoDConvertLineStyle);
+        var settings = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < definitions.Length; index++)
+        {
+            var definition = definitions[index];
+            var raw = GetTwoDConvertLineParameterText(index);
+            if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+                && !double.TryParse(raw, NumberStyles.Float, CultureInfo.CurrentCulture, out value))
+            {
+                value = definition.DefaultValue;
+            }
+            value = Math.Max(value, definition.MinimumValue);
+            settings[definition.Key] = definition.IsInteger ? Math.Round(value) : value;
+        }
+
+        var source = new Editor2DPreviewPath(
+            "convert-preview-source",
+            "LINE",
+            [new Editor2DPoint(0, 0), new Editor2DPoint(40, 0)],
+            false);
+        return _twoDWorkspace.BuildConvertedLinePreview(source, TwoDConvertLineStyle, settings);
+    }
+
     private string GetTwoDConvertLineParameterText(int index)
     {
         var definitions = GetTwoDConvertLineParameterDefinitions(TwoDConvertLineStyle);
@@ -3082,6 +3182,9 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDConvertLineFirstParameterText));
         OnPropertyChanged(nameof(TwoDConvertLineSecondParameterText));
         OnPropertyChanged(nameof(TwoDConvertLineThirdParameterText));
+        OnPropertyChanged(nameof(TwoDConvertLinePreviewPaths));
+        OnPropertyChanged(nameof(TwoDConvertLineActionLabel));
+        OnPropertyChanged(nameof(CanApplyTwoDConvertLines));
     }
 
     private bool TryResolveTwoDConvertLineSettings(

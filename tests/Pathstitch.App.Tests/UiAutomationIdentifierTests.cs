@@ -151,6 +151,26 @@ public sealed class UiAutomationIdentifierTests
     }
 
     [Fact]
+    public void ConvertLinesInspector_ExposesStableEditorIdentifiers()
+    {
+        var inspector = _ui.LoadXaml("src", "Pathstitch.App", "Pages", "Editor2DInspector.axaml");
+        var expectedIds = new[]
+        {
+            "editor.2d.convert-lines.inspector",
+            "editor.2d.convert-lines.summary",
+            "editor.2d.convert-lines.style",
+            "editor.2d.convert-lines.preview",
+            "editor.2d.convert-lines.parameter-1",
+            "editor.2d.convert-lines.parameter-2",
+            "editor.2d.convert-lines.parameter-3",
+            "editor.2d.convert-lines.action",
+        };
+
+        foreach (var automationId in expectedIds)
+            _ui.FindXamlElementByAutomationId(inspector, automationId);
+    }
+
+    [Fact]
     public void CatalogToolButtons_BindAutomationIdToStableDescriptorIdentifier()
     {
         var rail = _ui.LoadXaml("src", "Pathstitch.App", "Pages", "EditorToolRail.axaml");
