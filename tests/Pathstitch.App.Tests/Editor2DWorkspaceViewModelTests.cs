@@ -270,6 +270,49 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void ApplyScale_UsesCenterCornerAndCustomPivots()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var source = new Editor2DPreviewPath("source", "LINE", [new(2, 4), new(6, 8)], false);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [source] });
+        workspace.SetSelection([source.Id]);
+
+        Assert.True(workspace.ApplyScale(2, fromCenter: true).IsSuccess);
+        Assert.Equal(new Editor2DPoint(0, 2), workspace.Document.Paths[0].Points[0]);
+        Assert.Equal(new Editor2DPoint(8, 10), workspace.Document.Paths[0].Points[1]);
+
+        workspace.Undo();
+        Assert.True(workspace.ApplyScale(2, fromCenter: false).IsSuccess);
+        Assert.Equal(new Editor2DPoint(2, 4), workspace.Document.Paths[0].Points[0]);
+        Assert.Equal(new Editor2DPoint(10, 12), workspace.Document.Paths[0].Points[1]);
+
+        workspace.Undo();
+        Assert.True(workspace.ApplyScale(0.5, fromCenter: true, new Editor2DPoint(0, 0)).IsSuccess);
+        Assert.Equal(new Editor2DPoint(1, 2), workspace.Document.Paths[0].Points[0]);
+        Assert.Equal(new Editor2DPoint(3, 4), workspace.Document.Paths[0].Points[1]);
+    }
+
+    [Fact]
+    public void ApplyScale_UpdatesCircleAndTextSizeMetadata()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var circle = new Editor2DPreviewPath(
+            "circle", "CIRCLE", [new(1, 0), new(-1, 0)], true,
+            Center: new Editor2DPoint(0, 0), Radius: 1);
+        var text = new Editor2DPreviewPath(
+            "text", "TEXT", [new(2, 0), new(4, 0)], false,
+            Start: new Editor2DPoint(2, 0), Text: "A", TextHeight: 2);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [circle, text] });
+        workspace.SetSelection([circle.Id, text.Id]);
+
+        Assert.True(workspace.ApplyScale(3, fromCenter: true, new Editor2DPoint(0, 0)).IsSuccess);
+
+        Assert.Equal(3, workspace.Document.Paths[0].Radius);
+        Assert.Equal(6, workspace.Document.Paths[1].TextHeight);
+        Assert.Equal(new Editor2DPoint(6, 0), workspace.Document.Paths[1].Start);
+    }
+
+    [Fact]
     public void ParametricMeasurement_StoresExpressionAndDrivesEndpoint()
     {
         var workspace = new Editor2DWorkspaceViewModel();

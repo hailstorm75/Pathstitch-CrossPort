@@ -636,6 +636,26 @@ public static class Editor2DGeometry
         };
     }
 
+    public static Editor2DPreviewPath ScalePath(Editor2DPreviewPath path, Editor2DPoint pivot, double factor, string? id = null)
+    {
+        Editor2DPoint Transform(Editor2DPoint point) => new(
+            pivot.X + ((point.X - pivot.X) * factor),
+            pivot.Y + ((point.Y - pivot.Y) * factor));
+
+        var scaledPoints = path.Points.Select(Transform).ToArray();
+        return path with
+        {
+            Id = id ?? path.Id,
+            Start = path.Start is Editor2DPoint start ? Transform(start) : null,
+            Center = path.Center is Editor2DPoint center ? Transform(center) : null,
+            Radius = path.Radius is double radius ? radius * factor : null,
+            TextHeight = path.TextHeight is double textHeight ? textHeight * factor : null,
+            Points = scaledPoints,
+            BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(anchor, Transform)).ToArray(),
+            IsAxisAlignedRectangle = IsAxisAlignedRectangle(scaledPoints, path.IsClosed),
+        };
+    }
+
     public static Editor2DPreviewPath RotatePath(Editor2DPreviewPath path, Editor2DPoint pivot, double angleDegrees, string? id = null)
     {
         var rotatedStart = path.Start is Editor2DPoint start

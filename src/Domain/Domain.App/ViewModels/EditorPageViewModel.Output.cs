@@ -375,6 +375,7 @@ public sealed partial class EditorPageViewModel
 
             OnPropertyChanged(nameof(HasTwoDSelection));
             OnPropertyChanged(nameof(TwoDSelectionCount));
+            OnPropertyChanged(nameof(CanApplyTwoDScale));
             OnPropertyChanged(nameof(TwoDSelectedRectangleCount));
             OnPropertyChanged(nameof(CanExpandTwoDRectangles));
             OnPropertyChanged(nameof(TwoDSelectionSummary));
@@ -705,6 +706,34 @@ public sealed partial class EditorPageViewModel
 
     public bool IsTwoDScaleToolActive => TwoDActiveTool == Editor2DTool.Scale;
 
+    public string TwoDScaleFactorText
+    {
+        get => _twoDScaleFactorText;
+        set
+        {
+            if (!SetWorkspaceFacadeValue(_twoDScaleFactorText, value ?? string.Empty, updated => _twoDScaleFactorText = updated))
+                return;
+            OnPropertyChanged(nameof(CanApplyTwoDScale));
+        }
+    }
+
+    public bool TwoDScaleFromCenter
+    {
+        get => _twoDScaleFromCenter;
+        set
+        {
+            if (!SetWorkspaceFacadeValue(_twoDScaleFromCenter, value, updated => _twoDScaleFromCenter = updated))
+                return;
+            OnPropertyChanged(nameof(TwoDScalePivotSummary));
+        }
+    }
+
+    public bool CanApplyTwoDScale
+        => HasTwoDSelection
+            && TryParseTwoDPrecisionValue(TwoDScaleFactorText, out var factor)
+            && double.IsFinite(factor)
+            && factor > 0.0;
+
     public Editor2DPoint? TwoDScalePivot
     {
         get => _twoDScalePivot;
@@ -726,7 +755,22 @@ public sealed partial class EditorPageViewModel
 
     public string TwoDScalePivotSummary => TwoDScalePivot is { } pivot
         ? $"Pivot: ({pivot.X:0.###}, {pivot.Y:0.###})"
-        : "Pivot: selection center";
+        : TwoDScaleFromCenter
+            ? "Pivot: selection center"
+            : "Pivot: selection lower-left corner";
+
+    public bool ApplyTwoDScale()
+    {
+        if (!TryParseTwoDPrecisionValue(TwoDScaleFactorText, out var factor)
+            || !double.IsFinite(factor)
+            || factor <= 0.0)
+        {
+            StatusText = "Enter a positive finite scale factor";
+            return false;
+        }
+
+        return CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyScale(factor, TwoDScaleFromCenter, TwoDScalePivot));
+    }
 
     public void PickTwoDScalePivot()
     {
@@ -1576,7 +1620,7 @@ public sealed partial class EditorPageViewModel
         Editor2DTool.Pan => "Pan tool: left-drag to move the 2D workspace. Mouse wheel zoom stays available on every tool.",
         Editor2DTool.Measure => "Measure tool: click once to place the start point, click again to place the end point, and press Escape to cancel the in-progress measurement.",
         Editor2DTool.Dimension => "Dimension tool: click a line to place an attached length dimension, click a circle or arc to place an attached radius dimension, or click empty space twice for a reference distance. Press Escape to cancel an in-progress reference dimension.",
-        Editor2DTool.Scale => "Scale tool: select entities, pick an optional pivot, then drag the corner handle.",
+        Editor2DTool.Scale => "Scale tool: select entities, choose center or corner scaling, pick an optional custom pivot, then drag the handle or enter an exact factor.",
         Editor2DTool.Mirror => "Mirror tool: select entities, click once to place the mirror axis start, then click again to place the axis end and mirror the selection.",
         Editor2DTool.Offset => "Offset tool: keep geometry selected, choose Curve or BBox mode in the lower 2D panel, and apply an OpenGeometry offset copy. Open paths offset relative to their point order.",
         Editor2DTool.AddThickness => "Add Thickness tool: thicken selected open line or polyline centerlines into closed OpenGeometry outlines, or process every eligible open centerline when nothing is selected.",

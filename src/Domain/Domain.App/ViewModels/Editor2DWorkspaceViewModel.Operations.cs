@@ -246,6 +246,37 @@ public sealed partial class Editor2DWorkspaceViewModel
         return Editor2DWorkspaceOperationResult.Success("Applied precise 2D transform");
     }
 
+    public Editor2DWorkspaceOperationResult ApplyScale(double factor, bool fromCenter, Editor2DPoint? customPivot = null)
+    {
+        var selected = SelectedPaths();
+        if (selected.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("Select one or more 2D entities before applying Scale");
+        if (!double.IsFinite(factor) || factor <= 0.0)
+            return Editor2DWorkspaceOperationResult.Failure("Enter a positive finite scale factor");
+
+        var points = selected.SelectMany(path => path.Points).ToArray();
+        if (points.Length == 0)
+            return Editor2DWorkspaceOperationResult.Failure("The selected geometry has no editable bounds");
+
+        var minX = points.Min(point => point.X);
+        var minY = points.Min(point => point.Y);
+        var pivot = customPivot ?? (fromCenter
+            ? new Editor2DPoint((minX + points.Max(point => point.X)) / 2.0, (minY + points.Max(point => point.Y)) / 2.0)
+            : new Editor2DPoint(minX, minY));
+        var selectedIds = selected.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
+        var transformed = Document.Paths
+            .Select(path => selectedIds.Contains(path.Id)
+                ? Editor2DGeometry.ScalePath(path, pivot, factor, path.Id)
+                : path)
+            .ToArray();
+        Edit(state => state with
+        {
+            Document = state.Document with { Paths = transformed },
+            SelectedPathIds = SelectedPathIds.ToArray(),
+        });
+        return Editor2DWorkspaceOperationResult.Success($"Scaled selected geometry by {factor:0.###}");
+    }
+
     public Editor2DWorkspaceOperationResult ApplyPathPattern(string guidePathId, int copyCount, double spacing)
     {
         var guide = Document.Paths.FirstOrDefault(path => path.Id == guidePathId);

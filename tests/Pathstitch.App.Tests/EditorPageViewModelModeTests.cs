@@ -151,6 +151,28 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public void ExactScaleFactor_ValidatesAndAppliesThroughWorkspace()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(2, 4), new(6, 8)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+        viewModel.TwoDScaleFromCenter = false;
+        viewModel.TwoDScaleFactorText = "2";
+
+        Assert.True(viewModel.CanApplyTwoDScale);
+        Assert.True(viewModel.ApplyTwoDScale());
+        Assert.Equal(new Editor2DPoint(2, 4), viewModel.TwoDDocument!.Paths[0].Points[0]);
+        Assert.Equal(new Editor2DPoint(10, 12), viewModel.TwoDDocument.Paths[0].Points[1]);
+
+        viewModel.TwoDScaleFactorText = "0";
+        Assert.False(viewModel.CanApplyTwoDScale);
+        Assert.False(viewModel.ApplyTwoDScale());
+        Assert.Equal("Enter a positive finite scale factor", viewModel.StatusText);
+    }
+
+    [Fact]
     public void MoveCopyMode_ResetsWhenMoveToolActivates()
     {
         var viewModel = CreateViewModel();

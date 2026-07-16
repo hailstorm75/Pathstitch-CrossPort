@@ -354,6 +354,12 @@ public abstract class EditorInteractionControlBase : UserControl
             viewModel.PickTwoDScalePivot();
     }
 
+    protected void OnApplyTwoDScaleClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ApplyTwoDScale();
+    }
+
     protected void OnApplyTwoDPaperFoldingCreasesClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

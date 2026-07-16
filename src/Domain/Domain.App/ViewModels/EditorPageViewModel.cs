@@ -146,6 +146,8 @@ public sealed partial class EditorPageViewModel(
     private string _twoDPrecisionRotationText = "0";
     private Editor2DPoint? _twoDScalePivot;
     private bool _twoDScalePivotPicking;
+    private string _twoDScaleFactorText = "1";
+    private bool _twoDScaleFromCenter = true;
 
     private bool SetWorkspaceFacadeValue<T>(T current, T value, Action<T> assign, [CallerMemberName] string? propertyName = null)
     {

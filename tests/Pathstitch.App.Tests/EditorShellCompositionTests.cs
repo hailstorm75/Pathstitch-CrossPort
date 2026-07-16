@@ -175,6 +175,18 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void TwoDScaleInspector_ExposesExactFactorAndPivotMode()
+    {
+        var inspector = ReadPage("Editor2DInspector.axaml");
+
+        Assert.Contains("TwoDScaleFromCenter, Mode=TwoWay", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDScaleFactorText, Mode=TwoWay", inspector, StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"{Binding CanApplyTwoDScale}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("OnApplyTwoDScaleClicked", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.scale.apply", inspector, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TwoDMovePointToPointState_IsBoundToCanvasAndInspector()
     {
         var twoD = ReadPage("Editor2DView.axaml");
