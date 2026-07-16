@@ -66,6 +66,7 @@ public sealed partial class EditorPageViewModel
             SelectedBodyOffsetZText = "0";
             BodyMoveStepText = "1";
             SaveDocumentCommand.NotifyCanExecuteChanged();
+            SaveDocumentAsCommand.NotifyCanExecuteChanged();
             SaveAndCloseDocumentCommand.NotifyCanExecuteChanged();
             CloseDocumentCommand.NotifyCanExecuteChanged();
         }

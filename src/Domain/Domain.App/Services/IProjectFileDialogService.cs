@@ -6,6 +6,9 @@ public interface IProjectFileDialogService
 
     Task<string?> PickNewProjectFileAsync(string suggestedFileName, CancellationToken cancellationToken = default);
 
+    Task<string?> PickProjectSaveAsFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+        => PickNewProjectFileAsync(suggestedFileName, cancellationToken);
+
     Task<IReadOnlyList<string>> PickWorkspaceFilesAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<string>> PickSourceModelFilesAsync(CancellationToken cancellationToken = default);

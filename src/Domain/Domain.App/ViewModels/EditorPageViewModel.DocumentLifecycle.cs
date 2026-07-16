@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using Domain.App.Models;
 using Domain.App.Services;
 using Domain.MVVM.Navigation;
 using Microsoft.Extensions.Logging;
@@ -36,12 +37,15 @@ public sealed partial class EditorPageViewModel
                 return;
 
             SaveDocumentCommand.NotifyCanExecuteChanged();
+            SaveDocumentAsCommand.NotifyCanExecuteChanged();
             SaveAndCloseDocumentCommand.NotifyCanExecuteChanged();
             CloseDocumentCommand.NotifyCanExecuteChanged();
         }
     }
 
     private bool CanSaveDocument() => ProjectSession is not null && IsDirty && !IsSaving;
+
+    private bool CanSaveDocumentAs() => ProjectSession is not null && !IsSaving;
 
     private bool CanSaveAndCloseDocument() => ProjectSession is not null && !IsSaving;
 
@@ -50,6 +54,85 @@ public sealed partial class EditorPageViewModel
     [RelayCommand(CanExecute = nameof(CanSaveDocument))]
     public async Task SaveDocumentAsync()
         => await SaveDocumentCoreAsync(CancellationToken.None).ConfigureAwait(true);
+
+    [RelayCommand(CanExecute = nameof(CanSaveDocumentAs))]
+    public async Task SaveDocumentAsAsync()
+    {
+        var currentSession = ProjectSession;
+        if (currentSession is null)
+            return;
+
+        var selectedPath = await _projectFileDialogService
+            .PickProjectSaveAsFileAsync($"{ProjectName}.stch", CancellationToken.None)
+            .ConfigureAwait(true);
+        if (string.IsNullOrWhiteSpace(selectedPath))
+            return;
+
+        var targetPath = Path.GetFullPath(selectedPath);
+        if (string.IsNullOrEmpty(Path.GetExtension(targetPath)))
+            targetPath += ".stch";
+        if (!Path.GetExtension(targetPath).Equals(".stch", StringComparison.OrdinalIgnoreCase))
+        {
+            ErrorMessage = "Save As requires a .stch project file.";
+            return;
+        }
+
+        var stateBeingSaved = CaptureProjectState();
+        var revisionBeingSaved = _documentRevision;
+        IsSaving = true;
+        ErrorMessage = null;
+        StatusText = "Saving project as";
+        try
+        {
+            await _project3DStateService.SaveAsAsync(
+                currentSession.ProjectFilePath,
+                targetPath,
+                stateBeingSaved,
+                CancellationToken.None).ConfigureAwait(true);
+            var replacementName = Path.GetFileNameWithoutExtension(targetPath);
+            var replacement = _projectSessionService?.ReplaceSessionPath(
+                currentSession,
+                targetPath,
+                replacementName,
+                trackInRecentProjects: true)
+                ?? currentSession with
+                {
+                    ProjectName = replacementName,
+                    ProjectFilePath = targetPath,
+                    TrackInRecentProjects = true,
+                };
+            AdoptSaveAsSession(replacement);
+            _savedDocumentRevision = revisionBeingSaved;
+            RefreshDocumentDirtyState();
+            StatusText = IsDirty ? "Project saved as; newer changes remain" : "Project saved as";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save project as {ProjectPath}", targetPath);
+            StatusText = "Project Save As failed";
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private void AdoptSaveAsSession(ProjectSession replacement)
+    {
+        if (!SetProperty(ref _projectSession, replacement, nameof(ProjectSession)))
+            return;
+        using var dirtyTrackingSuppression = SuppressDocumentDirtyTracking();
+        ProjectName = replacement.ProjectName;
+        ProjectTitle = replacement.ProjectName;
+        ProjectSubtitle = replacement.ProjectFilePath;
+        Template = replacement.Template;
+        SessionOrigin = replacement.Origin;
+        SaveDocumentCommand.NotifyCanExecuteChanged();
+        SaveDocumentAsCommand.NotifyCanExecuteChanged();
+        SaveAndCloseDocumentCommand.NotifyCanExecuteChanged();
+        CloseDocumentCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand(CanExecute = nameof(CanSaveAndCloseDocument))]
     public async Task SaveAndCloseDocumentAsync()

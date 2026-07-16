@@ -21,7 +21,8 @@ public sealed partial class EditorPageViewModel(
     IReferenceImageTraceService? referenceImageTraceService = null,
     IReferenceImageBackgroundRemovalService? referenceImageBackgroundRemovalService = null,
     IUnsavedChangesPromptService? unsavedChangesPromptService = null,
-    IEditorImportUnitsPromptService? importUnitsPromptService = null) : BasePageViewModel(logger)
+    IEditorImportUnitsPromptService? importUnitsPromptService = null,
+    ProjectSessionService? projectSessionService = null) : BasePageViewModel(logger)
 {
     private static readonly HashSet<string> SupportedSourceModelExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -42,6 +43,7 @@ public sealed partial class EditorPageViewModel(
     private readonly IEditorOutputPreviewService _editorOutputPreviewService = editorOutputPreviewService;
     private readonly IProjectFileDialogService _projectFileDialogService = projectFileDialogService;
     private readonly Project3DStateService _project3DStateService = project3DStateService;
+    private readonly ProjectSessionService? _projectSessionService = projectSessionService;
     private readonly IUnsavedChangesPromptService _unsavedChangesPromptService =
         unsavedChangesPromptService ?? CancelUnsavedChangesPromptService.Instance;
     private readonly IEditorImportUnitsPromptService _importUnitsPromptService =

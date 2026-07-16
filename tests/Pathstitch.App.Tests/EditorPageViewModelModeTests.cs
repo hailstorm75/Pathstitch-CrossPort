@@ -1368,15 +1368,17 @@ public sealed class EditorPageViewModelModeTests
         IEditorOutputPreviewService? outputPreviewService = null,
         IUnsavedChangesPromptService? unsavedChangesPromptService = null,
         IEditorImportUnitsPromptService? importUnitsPromptService = null,
-        IEditor2DGeometryKernelService? geometryKernelService = null)
-        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService);
+        IEditor2DGeometryKernelService? geometryKernelService = null,
+        ProjectSessionService? projectSessionService = null)
+        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService);
 
     private static EditorPageViewModel CreateViewModel(
         IProjectFileDialogService? projectFileDialogService = null,
         IEditorOutputPreviewService? outputPreviewService = null,
         IUnsavedChangesPromptService? unsavedChangesPromptService = null,
         IEditorImportUnitsPromptService? importUnitsPromptService = null,
-        IEditor2DGeometryKernelService? geometryKernelService = null)
+        IEditor2DGeometryKernelService? geometryKernelService = null,
+        ProjectSessionService? projectSessionService = null)
         => new(
             NullLogger<EditorPageViewModel>.Instance,
             new StubViewportAssetLocator(),
@@ -1388,7 +1390,8 @@ public sealed class EditorPageViewModelModeTests
             new Stub3DOperationService(),
             new StubGeometryKernelDescriptorProvider(),
             unsavedChangesPromptService: unsavedChangesPromptService,
-            importUnitsPromptService: importUnitsPromptService);
+            importUnitsPromptService: importUnitsPromptService,
+            projectSessionService: projectSessionService);
 
     private sealed class StubViewportAssetLocator : IEditorViewportAssetLocator
     {

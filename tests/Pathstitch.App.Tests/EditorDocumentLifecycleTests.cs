@@ -79,6 +79,66 @@ public sealed class EditorDocumentLifecycleTests
         Assert.Equal(EditorMode.Batch, persisted.WorkspaceState?.ActiveEditorMode);
     }
 
+    [Fact]
+    public async Task SaveAs_RetargetsWithoutResetAndFutureSaveUsesNewProject()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-save-as-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var sourcePath = Path.Combine(directory, "source.stch");
+            var targetPath = Path.Combine(directory, "renamed.stch");
+            await File.WriteAllTextAsync(sourcePath, "{\"projectName\":\"Source\",\"templateId\":\"blank\"}");
+            await new Project3DStateService().SaveAsync(sourcePath, Project3DState.Empty);
+            var dialog = new SaveAsDialogService(targetPath);
+            var sessionService = new ProjectSessionService(
+                dialog,
+                new RecentProjectsService(Path.Combine(directory, "recent.json")));
+            var session = Assert.IsType<ProjectSession>(await sessionService.OpenRecentProjectAsync(sourcePath));
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+                projectFileDialogService: dialog,
+                projectSessionService: sessionService);
+            Assert.True(await viewModel.ConfigureParametersAsync(
+                new Dictionary<string, object> { [EditorNavigationParameterKeys.ProjectSession] = session },
+                CancellationToken.None));
+            await ((INavigablePageViewModel)viewModel).LoadAsync(CancellationToken.None);
+            await viewModel.SetActiveEditorModeAsync(EditorMode.Batch);
+
+            await viewModel.SaveDocumentAsAsync();
+
+            Assert.False(viewModel.IsDirty);
+            Assert.Equal(targetPath, viewModel.ProjectSession!.ProjectFilePath);
+            Assert.Equal("renamed", viewModel.ProjectName);
+            Assert.Equal(targetPath, viewModel.ProjectSubtitle);
+            Assert.Equal(targetPath, sessionService.CurrentSession!.ProjectFilePath);
+            Assert.Equal(EditorMode.Batch, (await new Project3DStateService().LoadAsync(targetPath)).WorkspaceState!.ActiveEditorMode);
+            Assert.Null((await new Project3DStateService().LoadAsync(sourcePath)).WorkspaceState);
+
+            await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+            await viewModel.SaveDocumentAsync();
+            Assert.Equal(EditorMode.TwoD, (await new Project3DStateService().LoadAsync(targetPath)).WorkspaceState!.ActiveEditorMode);
+            Assert.Null((await new Project3DStateService().LoadAsync(sourcePath)).WorkspaceState);
+            viewModel.Dispose();
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SaveAs_CancelLeavesSessionAndDirtyRevisionUntouched()
+    {
+        await using var fixture = await LifecycleFixture.CreateAsync();
+        await fixture.ViewModel.SetActiveEditorModeAsync(EditorMode.Batch);
+        var originalSession = fixture.ViewModel.ProjectSession;
+
+        await fixture.ViewModel.SaveDocumentAsAsync();
+
+        Assert.Same(originalSession, fixture.ViewModel.ProjectSession);
+        Assert.True(fixture.ViewModel.IsDirty);
+    }
+
     private static async Task<bool> PreviewNavigationAsync(EditorPageViewModel viewModel)
     {
         var message = new BeforeNavigationChangeMessage(
@@ -117,6 +177,16 @@ public sealed class EditorDocumentLifecycleTests
             CallCount++;
             return Task.FromResult(result);
         }
+    }
+
+    private sealed class SaveAsDialogService(string? saveAsPath) : IProjectFileDialogService
+    {
+        public Task<string?> PickExistingProjectFileAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+        public Task<string?> PickNewProjectFileAsync(string suggestedFileName, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+        public Task<string?> PickProjectSaveAsFileAsync(string suggestedFileName, CancellationToken cancellationToken = default) => Task.FromResult(saveAsPath);
+        public Task<IReadOnlyList<string>> PickWorkspaceFilesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<IReadOnlyList<string>> PickSourceModelFilesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<string?> PickSourceModelFileAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
     }
 
     private sealed class LifecycleFixture : IAsyncDisposable
