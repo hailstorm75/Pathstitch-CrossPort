@@ -666,6 +666,40 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task UnifiedMenuCommands_RouteHistoryDeleteAndExportByMode()
+    {
+        var viewModel = CreateViewModelForTests();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        viewModel.TwoDWorkspace.ClearHistory();
+        var path = new Editor2DPreviewPath("menu-line", "LINE", [new(0, 0), new(5, 0)], false);
+        viewModel.TwoDDocument = viewModel.TwoDDocument! with { Paths = [path] };
+        viewModel.TwoDSelectedPathIds = [path.Id];
+
+        Assert.True(viewModel.UndoCommand.CanExecute(null));
+        Assert.True(viewModel.DeleteCommand.CanExecute(null));
+        Assert.True(viewModel.ExportDxfCommand.CanExecute(null));
+        viewModel.DeleteCommand.Execute(null);
+        Assert.Empty(viewModel.TwoDDocument!.Paths);
+        viewModel.UndoCommand.Execute(null);
+        Assert.Equal(path.Id, Assert.Single(viewModel.TwoDDocument.Paths).Id);
+
+        await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
+        Assert.False(viewModel.DeleteCommand.CanExecute(null));
+        Assert.False(viewModel.ExportDxfCommand.CanExecute(null));
+        viewModel.ThreeDWorkspace.ReplaceBodies([new Body3D(0, "body", [])], "{}", "body.obj");
+        viewModel.ActivateMoveTool();
+        viewModel.SelectBodyFromPanel(0);
+        viewModel.NudgeSelectedBody(axis: 0, direction: 1);
+        Assert.True(viewModel.UndoCommand.CanExecute(null));
+        viewModel.UndoCommand.Execute(null);
+        Assert.Empty(viewModel.BodyOffsets);
+
+        await viewModel.SetActiveEditorModeAsync(EditorMode.Batch);
+        Assert.False(viewModel.UndoCommand.CanExecute(null));
+        Assert.False(viewModel.RedoCommand.CanExecute(null));
+    }
+
+    [Fact]
     public async Task EditingTwoDDocument_NotifiesLayersPanelWithUpdatedMembership()
     {
         var viewModel = CreateViewModel();

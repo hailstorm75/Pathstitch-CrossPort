@@ -229,6 +229,7 @@ public sealed partial class EditorPageViewModel
             RefreshDerivedTwoDMeasurements(normalizedDocument);
             SyncTwoDSelectedTextEditorState();
             QueueTwoDOffsetPreviewRefresh();
+            NotifyMenuCommands();
 
             if (!_suppressTwoDDocumentPersistence)
             {
@@ -505,6 +506,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDPaperFoldingSummary));
             SyncTwoDSelectedTextEditorState();
             QueueTwoDOffsetPreviewRefresh();
+            NotifyMenuCommands();
         }
     }
 
@@ -559,6 +561,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDSelectedMeasurementExpressionText));
             OnPropertyChanged(nameof(TwoDSelectedMeasurementDriven));
             OnPropertyChanged(nameof(TwoDMeasurementSummary));
+            NotifyMenuCommands();
         }
     }
 
@@ -1949,6 +1952,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(ShowMeasurePanel));
             OnPropertyChanged(nameof(ShowUnfoldPanel));
             OnPropertyChanged(nameof(ShowOutputPanel));
+            NotifyMenuCommands();
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
         }
     }

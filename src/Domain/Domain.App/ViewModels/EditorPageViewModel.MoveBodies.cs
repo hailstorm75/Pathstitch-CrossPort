@@ -429,6 +429,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(CanRedoThreeDBodyMove));
         UndoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
         RedoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
+        NotifyMenuCommands();
     }
 
     private void ClearBodyMoveHistory()
@@ -439,6 +440,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(CanRedoThreeDBodyMove));
         UndoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
         RedoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
+        NotifyMenuCommands();
     }
 
     private void ApplyBodyMoveHistory(IReadOnlyList<BodyOffset3D> offsets, string status)
@@ -462,6 +464,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(CanRedoThreeDBodyMove));
         UndoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
         RedoThreeDBodyMoveActionCommand.NotifyCanExecuteChanged();
+        NotifyMenuCommands();
     }
 
     [RelayCommand(CanExecute = nameof(CanUndoThreeDBodyMove))]

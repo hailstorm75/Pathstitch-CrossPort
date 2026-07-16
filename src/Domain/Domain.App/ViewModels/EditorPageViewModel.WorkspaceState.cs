@@ -232,6 +232,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(CanRedoTwoDWorkspace));
         UndoTwoDCommand.NotifyCanExecuteChanged();
         RedoTwoDCommand.NotifyCanExecuteChanged();
+        NotifyMenuCommands();
     }
 
     private void NotifyTwoDWorkspaceFacadeProperties()
