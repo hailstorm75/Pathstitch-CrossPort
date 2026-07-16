@@ -578,6 +578,43 @@
           Click="OnApplyTwoDScaleClicked"
           AutomationProperties.AutomationId="editor.2d.scale.apply" />
       </StackPanel>
+      <StackPanel Spacing="8" IsVisible="{Binding IsTwoDMirrorToolActive}">
+        <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Mirror" />
+        <CheckBox
+          Content="Mirror Line mode"
+          IsChecked="{Binding TwoDMirrorLineMode, Mode=TwoWay}"
+          AutomationProperties.AutomationId="editor.2d.mirror.line-mode" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="Objects mode selects geometry. Mirror Line mode picks an existing line or two axis points."
+          TextWrapping="Wrap" />
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+          <TextBlock Text="{Binding TwoDMirrorObjectSummary}" />
+          <Button Grid.Column="1" Classes="chip-button" Content="Clear" Click="OnClearTwoDMirrorObjectsClicked" />
+          <TextBlock Grid.Row="1" Text="{Binding TwoDMirrorAxisSummary}" />
+          <Button Grid.Row="1" Grid.Column="1" Classes="chip-button" Content="Clear" Click="OnClearTwoDMirrorAxisClicked" />
+        </Grid>
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDMirrorStageHint}"
+          TextWrapping="Wrap" />
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+          <Button
+            Classes="chip-button"
+            IsEnabled="{Binding CanConfirmTwoDMirror}"
+            Content="OK"
+            Click="OnConfirmTwoDMirrorClicked"
+            AutomationProperties.AutomationId="editor.2d.mirror.confirm" />
+          <Button
+            Grid.Column="1"
+            Classes="chip-button"
+            Content="Cancel"
+            Click="OnCancelTwoDMirrorClicked"
+            AutomationProperties.AutomationId="editor.2d.mirror.cancel" />
+        </Grid>
+      </StackPanel>
       <StackPanel
         Spacing="8"
         IsVisible="{Binding IsTwoDPaperFoldingToolActive}">

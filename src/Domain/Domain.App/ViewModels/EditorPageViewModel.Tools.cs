@@ -519,6 +519,12 @@ public sealed partial class EditorPageViewModel
 
     private bool HandleTwoDEscapeShortcut()
     {
+        if (IsTwoDMirrorToolActive)
+        {
+            CancelTwoDMirror(exitTool: true);
+            return true;
+        }
+
         if (HasTwoDSelectedMeasurement)
         {
             ClearTwoDSelectedMeasurement();

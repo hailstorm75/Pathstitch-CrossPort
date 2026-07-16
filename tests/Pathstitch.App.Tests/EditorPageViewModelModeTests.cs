@@ -173,6 +173,88 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public void MirrorStaging_TracksModeAxisHintsAndToolSessionReset()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(2, 0), new(4, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Mirror;
+
+        Assert.Equal("Switch to Mirror Line, then pick the axis.", viewModel.TwoDMirrorStageHint);
+        viewModel.TwoDMirrorLineMode = true;
+        Assert.Equal("Click a line (or two points) for the mirror axis.", viewModel.TwoDMirrorStageHint);
+        viewModel.TwoDMirrorAxisStart = new Editor2DPoint(0, 0);
+        Assert.Equal("Click the second axis point.", viewModel.TwoDMirrorStageHint);
+        viewModel.TwoDMirrorAxisEnd = new Editor2DPoint(0, 10);
+        Assert.True(viewModel.CanConfirmTwoDMirror);
+
+        viewModel.TwoDActiveTool = Editor2DTool.Select;
+
+        Assert.False(viewModel.TwoDMirrorLineMode);
+        Assert.Null(viewModel.TwoDMirrorAxisStart);
+        Assert.Null(viewModel.TwoDMirrorAxisEnd);
+        Assert.Equal([source.Id], viewModel.TwoDSelectedPathIds);
+    }
+
+    [Fact]
+    public void ConfirmAndCancelMirror_ApplyCopyAndResetOnlyTransientState()
+    {
+        var viewModel = CreateViewModel();
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(2, 0), new(4, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Mirror;
+        viewModel.TwoDMirrorLineMode = true;
+        viewModel.TwoDMirrorAxisStart = new Editor2DPoint(0, 0);
+        viewModel.TwoDMirrorAxisEnd = new Editor2DPoint(0, 10);
+
+        Assert.True(viewModel.ConfirmTwoDMirror());
+        Assert.Equal(2, viewModel.TwoDDocument!.Paths.Count);
+        var copyId = Assert.Single(viewModel.TwoDSelectedPathIds);
+        Assert.StartsWith("shape:mirror:", copyId, StringComparison.Ordinal);
+        Assert.Equal(new Editor2DPoint(-2, 0), viewModel.TwoDDocument.Paths.Single(path => path.Id == copyId).Points[0]);
+        Assert.Null(viewModel.TwoDMirrorAxisStart);
+        Assert.Null(viewModel.TwoDMirrorAxisEnd);
+        Assert.False(viewModel.TwoDMirrorLineMode);
+        Assert.Equal(Editor2DTool.Mirror, viewModel.TwoDActiveTool);
+
+        viewModel.TwoDMirrorLineMode = true;
+        viewModel.TwoDMirrorAxisStart = new Editor2DPoint(1, 1);
+        viewModel.TwoDMirrorAxisEnd = new Editor2DPoint(2, 2);
+        viewModel.CancelTwoDMirror(exitTool: false);
+        Assert.Equal([copyId], viewModel.TwoDSelectedPathIds);
+        Assert.Equal(Editor2DTool.Mirror, viewModel.TwoDActiveTool);
+
+        viewModel.CancelTwoDMirror(exitTool: true);
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        viewModel.ClearTwoDMirrorObjects();
+        Assert.Empty(viewModel.TwoDSelectedPathIds);
+    }
+
+    [Fact]
+    public async Task MirrorEscape_CancelsStagingAndReturnsToSelectWithoutClearingObjects()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(2, 0), new(4, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Mirror;
+        viewModel.TwoDMirrorLineMode = true;
+        viewModel.TwoDMirrorAxisStart = new Editor2DPoint(0, 0);
+        viewModel.TwoDMirrorAxisEnd = new Editor2DPoint(0, 10);
+
+        Assert.True(viewModel.TryActivateEditorShortcut("escape"));
+
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        Assert.Equal([source.Id], viewModel.TwoDSelectedPathIds);
+        Assert.False(viewModel.TwoDMirrorLineMode);
+        Assert.Null(viewModel.TwoDMirrorAxisStart);
+        Assert.Null(viewModel.TwoDMirrorAxisEnd);
+    }
+
+    [Fact]
     public void MoveCopyMode_ResetsWhenMoveToolActivates()
     {
         var viewModel = CreateViewModel();

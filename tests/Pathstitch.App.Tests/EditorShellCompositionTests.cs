@@ -187,6 +187,29 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void TwoDMirrorStaging_IsBoundToCanvasAndInspector()
+    {
+        var view = ReadPage("Editor2DView.axaml");
+        var inspector = ReadPage("Editor2DInspector.axaml");
+        var handlers = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorInteractionControlBase.cs");
+        var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+
+        Assert.Contains("TwoDMirrorLineMode=\"{Binding TwoDMirrorLineMode, Mode=TwoWay}\"", view, StringComparison.Ordinal);
+        Assert.Contains("TwoDMirrorAxisStart=\"{Binding TwoDMirrorAxisStart, Mode=TwoWay}\"", view, StringComparison.Ordinal);
+        Assert.Contains("TwoDMirrorAxisEnd=\"{Binding TwoDMirrorAxisEnd, Mode=TwoWay}\"", view, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.mirror.line-mode", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.mirror.confirm", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.mirror.cancel", inspector, StringComparison.Ordinal);
+        Assert.Contains("OnConfirmTwoDMirrorClicked", handlers, StringComparison.Ordinal);
+        Assert.Contains("OnCancelTwoDMirrorClicked", handlers, StringComparison.Ordinal);
+        Assert.Contains("if (!TwoDMirrorLineMode)", canvas, StringComparison.Ordinal);
+        Assert.Contains("Editor2DGeometry.ReflectPath", canvas, StringComparison.Ordinal);
+        Assert.Contains("mirrorViewModel.ConfirmTwoDMirror()", canvas, StringComparison.Ordinal);
+        Assert.Contains("mirrorViewModel.CancelTwoDMirror(exitTool: true)", canvas, StringComparison.Ordinal);
+        Assert.DoesNotContain("MirrorPaths(", canvas, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TwoDMovePointToPointState_IsBoundToCanvasAndInspector()
     {
         var twoD = ReadPage("Editor2DView.axaml");

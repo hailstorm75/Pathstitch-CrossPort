@@ -360,6 +360,30 @@ public abstract class EditorInteractionControlBase : UserControl
             viewModel.ApplyTwoDScale();
     }
 
+    protected void OnClearTwoDMirrorObjectsClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ClearTwoDMirrorObjects();
+    }
+
+    protected void OnClearTwoDMirrorAxisClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ClearTwoDMirrorAxis();
+    }
+
+    protected void OnConfirmTwoDMirrorClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ConfirmTwoDMirror();
+    }
+
+    protected void OnCancelTwoDMirrorClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.CancelTwoDMirror();
+    }
+
     protected void OnApplyTwoDPaperFoldingCreasesClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorPageViewModel viewModel)

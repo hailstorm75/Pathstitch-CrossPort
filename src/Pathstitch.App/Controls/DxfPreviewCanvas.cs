@@ -100,6 +100,15 @@ public sealed class DxfPreviewCanvas : Control
     public static readonly StyledProperty<bool> ScalePivotPickingProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(ScalePivotPicking), defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<bool> TwoDMirrorLineModeProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(TwoDMirrorLineMode), defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<Editor2DPoint?> TwoDMirrorAxisStartProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DPoint?>(nameof(TwoDMirrorAxisStart), defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<Editor2DPoint?> TwoDMirrorAxisEndProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, Editor2DPoint?>(nameof(TwoDMirrorAxisEnd), defaultBindingMode: BindingMode.TwoWay);
+
     public static readonly StyledProperty<IReadOnlyList<string>> SelectedPathIdsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<string>>(
             nameof(SelectedPathIds),
@@ -283,8 +292,6 @@ public sealed class DxfPreviewCanvas : Control
     private ref DxfCanvasInteractionSession.PenDragControl _pendingPenDragControl => ref _interaction.PendingPenDragControl;
     private ref string? _editingMeasurementId => ref _interaction.EditingMeasurementId;
     private ref bool _editingMeasurementStart => ref _interaction.EditingMeasurementStart;
-    private ref Editor2DPoint? _pendingMirrorAxisStart => ref _interaction.PendingMirrorAxisStart;
-    private ref Editor2DPoint? _pendingMirrorAxisEnd => ref _interaction.PendingMirrorAxisEnd;
     private ref Editor2DPoint? _pendingMeasurementStart => ref _interaction.PendingMeasurementStart;
     private ref Editor2DPoint? _pendingMeasurementEnd => ref _interaction.PendingMeasurementEnd;
     private ref Editor2DPoint? _pendingDimensionStart => ref _interaction.PendingDimensionStart;
@@ -319,6 +326,9 @@ public sealed class DxfPreviewCanvas : Control
             TwoDMoveCreateCopyProperty,
             TwoDMovePointToPointActiveProperty,
             TwoDMovePointToPointSourceProperty,
+            TwoDMirrorLineModeProperty,
+            TwoDMirrorAxisStartProperty,
+            TwoDMirrorAxisEndProperty,
             SelectedPathIdsProperty,
             HiddenPathIdsProperty,
             PreviewPathsProperty,
@@ -714,6 +724,24 @@ public sealed class DxfPreviewCanvas : Control
     {
         get => GetValue(ScalePivotPickingProperty);
         set => SetValue(ScalePivotPickingProperty, value);
+    }
+
+    public bool TwoDMirrorLineMode
+    {
+        get => GetValue(TwoDMirrorLineModeProperty);
+        set => SetValue(TwoDMirrorLineModeProperty, value);
+    }
+
+    public Editor2DPoint? TwoDMirrorAxisStart
+    {
+        get => GetValue(TwoDMirrorAxisStartProperty);
+        set => SetValue(TwoDMirrorAxisStartProperty, value);
+    }
+
+    public Editor2DPoint? TwoDMirrorAxisEnd
+    {
+        get => GetValue(TwoDMirrorAxisEndProperty);
+        set => SetValue(TwoDMirrorAxisEndProperty, value);
     }
 
     public IReadOnlyList<string> SelectedPathIds
@@ -1332,7 +1360,6 @@ public sealed class DxfPreviewCanvas : Control
             case DxfCanvasMoveRoute.TextDraft: _pendingTextEnd = ResolvePlacementPoint(position); break;
             case DxfCanvasMoveRoute.PenHandleDrag: UpdatePendingPenHandle(position); e.Handled = true; break;
             case DxfCanvasMoveRoute.PenDraft: _pendingPenHoverPoint = ResolvePlacementPoint(position, _pendingPenAnchors.LastOrDefault()?.Point, allowOrthogonal: _pendingPenAnchors.Count > 0); break;
-            case DxfCanvasMoveRoute.MirrorDraft: _pendingMirrorAxisEnd = ResolvePlacementPoint(position); break;
             case DxfCanvasMoveRoute.MeasurementDraft: _pendingMeasurementEnd = ResolvePlacementPoint(position, _pendingMeasurementStart, allowOrthogonal: true); break;
             case DxfCanvasMoveRoute.DimensionDraft: _pendingDimensionEnd = ResolvePlacementPoint(position, _pendingDimensionStart, allowOrthogonal: true); break;
             case DxfCanvasMoveRoute.ToolPreview: InvalidateVisual(); return;
@@ -1515,7 +1542,10 @@ Selection:
                 return;
             }
 
-            CancelActiveInteraction();
+            if (ActiveTool == Editor2DTool.Mirror && DataContext is EditorPageViewModel mirrorViewModel)
+                mirrorViewModel.CancelTwoDMirror(exitTool: true);
+            else
+                CancelActiveInteraction();
             e.Handled = true;
             return;
         }
@@ -1547,6 +1577,15 @@ Selection:
         if (e.Key == Key.Enter && ActiveTool == Editor2DTool.Pen)
         {
             CommitPendingPenPath(isClosed: false);
+            e.Handled = true;
+        }
+
+        else if (e.Key == Key.Enter
+            && ActiveTool == Editor2DTool.Mirror
+            && DataContext is EditorPageViewModel mirrorViewModel
+            && mirrorViewModel.ConfirmTwoDMirror())
+        {
+            mirrorViewModel.TwoDActiveTool = Editor2DTool.Select;
             e.Handled = true;
         }
     }
@@ -2128,14 +2167,32 @@ Selection:
 
     private void DrawLiveMirrorAxis(DrawingContext context, Size size)
     {
-        if (_pendingMirrorAxisStart is not Editor2DPoint start || _pendingMirrorAxisEnd is not Editor2DPoint end)
+        if (TwoDMirrorAxisStart is not Editor2DPoint start)
             return;
 
         var startScreen = WorldToScreen(start, size);
-        var endScreen = WorldToScreen(end, size);
-        context.DrawLine(HoverPathPen, startScreen, endScreen);
         context.DrawEllipse(LiveMeasurementPointBrush, null, startScreen, 4.0, 4.0);
+        if (TwoDMirrorAxisEnd is not Editor2DPoint end)
+            return;
+
+        var endScreen = WorldToScreen(end, size);
+        var delta = endScreen - startScreen;
+        var length = Math.Sqrt((delta.X * delta.X) + (delta.Y * delta.Y));
+        if (length <= 1e-6)
+            return;
+        var extension = Math.Sqrt((size.Width * size.Width) + (size.Height * size.Height));
+        var unit = delta / length;
+        context.DrawLine(HoverPathPen, startScreen - (unit * extension), endScreen + (unit * extension));
         context.DrawEllipse(LiveMeasurementPointBrush, null, endScreen, 4.0, 4.0);
+
+        if (Document is null || SelectedPathIds.Count == 0)
+            return;
+        var selected = SelectedPathIds.ToHashSet(StringComparer.Ordinal);
+        var mirrored = Document.Paths
+            .Where(path => selected.Contains(path.Id))
+            .Select(path => Editor2DGeometry.ReflectPath(path, start, end))
+            .ToArray();
+        DrawPreviewPaths(context, size, mirrored);
     }
 
     private void DrawScaleGizmo(DrawingContext context, Size size, IReadOnlyList<Editor2DPreviewPath> paths)
@@ -3540,36 +3597,38 @@ Selection:
         if (Document is null)
             return;
 
-        if (_pendingMirrorAxisStart is not null)
+        if (!TwoDMirrorLineMode)
         {
-            var axisEnd = ResolvePlacementPoint(screenPoint);
-            if (DistanceBetween(_pendingMirrorAxisStart, axisEnd) <= 1e-6)
-            {
-                _pendingMirrorAxisEnd = axisEnd;
-                InvalidateVisual();
-                return;
-            }
-
-            var mirroredDocument = MirrorPaths(Document, SelectedPathIds, _pendingMirrorAxisStart, axisEnd);
-            SetCurrentValue(DocumentProperty, mirroredDocument);
+            ApplyClickSelection(HitTestPathId(screenPoint), keyModifiers.HasFlag(KeyModifiers.Shift));
             SetCurrentValue(SelectedMeasurementIdProperty, null);
-            CancelPendingMirror();
             InvalidateVisual();
             return;
         }
 
         var hitPathId = HitTestPathId(screenPoint);
-        if (SelectedPathIds.Count == 0 || keyModifiers.HasFlag(KeyModifiers.Shift))
+        var hitPath = Document.Paths.FirstOrDefault(path => string.Equals(path.Id, hitPathId, StringComparison.Ordinal));
+        if (hitPath is not null
+            && !SelectedPathIds.Contains(hitPath.Id, StringComparer.Ordinal)
+            && hitPath.EntityType.Equals("LINE", StringComparison.OrdinalIgnoreCase)
+            && hitPath.Points.Count >= 2)
         {
-            ApplyClickSelection(hitPathId, keyModifiers.HasFlag(KeyModifiers.Shift));
+            SetCurrentValue(TwoDMirrorAxisStartProperty, hitPath.Start ?? hitPath.Points[0]);
+            SetCurrentValue(TwoDMirrorAxisEndProperty, hitPath.Points[^1]);
             SetCurrentValue(SelectedMeasurementIdProperty, null);
             InvalidateVisual();
             return;
         }
 
-        var axisStart = ResolvePlacementPoint(screenPoint);
-        _pendingMirrorAxisStart = axisStart;
-        _pendingMirrorAxisEnd = axisStart;
+        var point = ResolvePlacementPoint(screenPoint);
+        if (TwoDMirrorAxisStart is null || TwoDMirrorAxisEnd is not null)
+        {
+            SetCurrentValue(TwoDMirrorAxisStartProperty, point);
+            SetCurrentValue(TwoDMirrorAxisEndProperty, null);
+        }
+        else if (DistanceBetween(TwoDMirrorAxisStart, point) > 1e-6)
+        {
+            SetCurrentValue(TwoDMirrorAxisEndProperty, point);
+        }
         SetCurrentValue(SelectedMeasurementIdProperty, null);
         InvalidateVisual();
     }
@@ -4532,8 +4591,8 @@ Selection:
 
     private void CancelPendingMirror()
     {
-        _pendingMirrorAxisStart = null;
-        _pendingMirrorAxisEnd = null;
+        SetCurrentValue(TwoDMirrorAxisStartProperty, null);
+        SetCurrentValue(TwoDMirrorAxisEndProperty, null);
     }
 
     private void CancelMarqueeSelection()
@@ -4769,118 +4828,6 @@ Selection:
         Editor2DPoint center,
         double factor)
         => DxfCanvasGeometryEditor.Scale(document, selectedIds, center, factor);
-
-    private static Editor2DPreviewDocument MirrorPaths(
-        Editor2DPreviewDocument document,
-        IReadOnlyList<string> selectedIds,
-        Editor2DPoint axisStart,
-        Editor2DPoint axisEnd)
-    {
-        var selectedIdSet = new HashSet<string>(selectedIds, StringComparer.Ordinal);
-        var nextPaths = document.Paths
-            .Select(path =>
-            {
-                if (!selectedIdSet.Contains(path.Id))
-                    return path;
-
-                var mirroredStart = path.Start is Editor2DPoint start
-                    ? ReflectPoint(start, axisStart, axisEnd)
-                    : null;
-                var mirroredCenter = path.Center is Editor2DPoint center
-                    ? ReflectPoint(center, axisStart, axisEnd)
-                    : null;
-                var mirroredRotation = path.RotationDegrees;
-                var mirroredWidthFactor = path.WidthFactor;
-
-                if (path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase)
-                    && path.Start is Editor2DPoint textStart
-                    && path.RotationDegrees is double rotationDegrees)
-                {
-                    var directionPoint = new Editor2DPoint(
-                        textStart.X + Math.Cos(rotationDegrees * Math.PI / 180.0),
-                        textStart.Y + Math.Sin(rotationDegrees * Math.PI / 180.0));
-                    var mirroredDirectionPoint = ReflectPoint(directionPoint, axisStart, axisEnd);
-                    var resolvedMirroredStart = mirroredStart ?? ReflectPoint(textStart, axisStart, axisEnd);
-                    mirroredRotation = Math.Atan2(
-                        mirroredDirectionPoint.Y - resolvedMirroredStart.Y,
-                        mirroredDirectionPoint.X - resolvedMirroredStart.X) * 180.0 / Math.PI;
-                    mirroredWidthFactor = -(path.WidthFactor ?? 1.0);
-                }
-
-                var mirroredPoints = path.Points
-                    .Select(point => ReflectPoint(point, axisStart, axisEnd))
-                    .ToArray();
-
-                if (path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase)
-                    && mirroredStart is Editor2DPoint resolvedTextStart)
-                {
-                    mirroredPoints = Editor2DGeometry.BuildTextBoundsPoints(
-                        resolvedTextStart,
-                        path.Text,
-                        path.TextHeight ?? 5.0,
-                        mirroredRotation ?? 0.0,
-                        mirroredWidthFactor ?? 1.0);
-                }
-
-                var mirroredStartAngle = path.StartAngleDegrees;
-                var mirroredEndAngle = path.EndAngleDegrees;
-                if (path.EntityType.Equals("ARC", StringComparison.OrdinalIgnoreCase)
-                    && path.Center is Editor2DPoint originalCenter
-                    && path.Radius is double radius
-                    && path.StartAngleDegrees is double startAngleDegrees
-                    && path.EndAngleDegrees is double endAngleDegrees
-                    && mirroredCenter is Editor2DPoint resolvedMirroredCenter)
-                {
-                    var originalArcStart = PointOnCircle(originalCenter, radius, startAngleDegrees);
-                    var originalArcEnd = PointOnCircle(originalCenter, radius, endAngleDegrees);
-                    var mirroredArcStart = ReflectPoint(originalArcStart, axisStart, axisEnd);
-                    var mirroredArcEnd = ReflectPoint(originalArcEnd, axisStart, axisEnd);
-                    mirroredStartAngle = NormalizeAngleDegrees(Math.Atan2(
-                        mirroredArcEnd.Y - resolvedMirroredCenter.Y,
-                        mirroredArcEnd.X - resolvedMirroredCenter.X) * 180.0 / Math.PI);
-                    mirroredEndAngle = NormalizeAngleDegrees(Math.Atan2(
-                        mirroredArcStart.Y - resolvedMirroredCenter.Y,
-                        mirroredArcStart.X - resolvedMirroredCenter.X) * 180.0 / Math.PI);
-                }
-
-                return path with
-                {
-                    Start = mirroredStart,
-                    Center = mirroredCenter,
-                    RotationDegrees = mirroredRotation,
-                    WidthFactor = mirroredWidthFactor,
-                    StartAngleDegrees = mirroredStartAngle,
-                    EndAngleDegrees = mirroredEndAngle,
-                    Points = mirroredPoints,
-                    BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(
-                        anchor, point => ReflectPoint(point, axisStart, axisEnd))).ToArray(),
-                    IsAxisAlignedRectangle = Editor2DGeometry.IsAxisAlignedRectangle(mirroredPoints, path.IsClosed),
-                };
-            })
-            .ToArray();
-        return CreateUpdatedDocument(document, nextPaths);
-    }
-
-    private static Editor2DPoint ScalePoint(Editor2DPoint point, Editor2DPoint center, double factor)
-        => new(
-            center.X + ((point.X - center.X) * factor),
-            center.Y + ((point.Y - center.Y) * factor));
-
-    private static Editor2DPoint ReflectPoint(Editor2DPoint point, Editor2DPoint axisStart, Editor2DPoint axisEnd)
-    {
-        var deltaX = axisEnd.X - axisStart.X;
-        var deltaY = axisEnd.Y - axisStart.Y;
-        var lengthSquared = (deltaX * deltaX) + (deltaY * deltaY);
-        if (lengthSquared <= 1e-9)
-            return point;
-
-        var projectedFactor = ((point.X - axisStart.X) * deltaX + (point.Y - axisStart.Y) * deltaY) / lengthSquared;
-        var projectedX = axisStart.X + (projectedFactor * deltaX);
-        var projectedY = axisStart.Y + (projectedFactor * deltaY);
-        return new Editor2DPoint(
-            (2.0 * projectedX) - point.X,
-            (2.0 * projectedY) - point.Y);
-    }
 
     private static Editor2DPreviewDocument CreateUpdatedDocument(
         Editor2DPreviewDocument document,

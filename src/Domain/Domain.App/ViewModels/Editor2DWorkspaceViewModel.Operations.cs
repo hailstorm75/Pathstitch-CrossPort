@@ -277,6 +277,26 @@ public sealed partial class Editor2DWorkspaceViewModel
         return Editor2DWorkspaceOperationResult.Success($"Scaled selected geometry by {factor:0.###}");
     }
 
+    public Editor2DWorkspaceOperationResult ApplyMirror(Editor2DPoint axisStart, Editor2DPoint axisEnd)
+    {
+        var selected = SelectedPaths();
+        if (selected.Count == 0)
+            return Editor2DWorkspaceOperationResult.Failure("Select one or more 2D entities before applying Mirror");
+        if (Distance(axisStart, axisEnd) <= 1e-8)
+            return Editor2DWorkspaceOperationResult.Failure("Pick two distinct points for the mirror axis");
+
+        var copies = selected
+            .Select(path => Editor2DGeometry.ReflectPath(
+                path,
+                axisStart,
+                axisEnd,
+                $"{path.Id}:mirror:{Guid.NewGuid():N}"))
+            .ToArray();
+        AppendAndSelect(copies);
+        return Editor2DWorkspaceOperationResult.Success(
+            $"Mirrored {copies.Length} selected {(copies.Length == 1 ? "entity" : "entities")}");
+    }
+
     public Editor2DWorkspaceOperationResult ApplyPathPattern(string guidePathId, int copyCount, double spacing)
     {
         var guide = Document.Paths.FirstOrDefault(path => path.Id == guidePathId);

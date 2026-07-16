@@ -236,9 +236,15 @@ public sealed partial class EditorPageViewModel
                     TwoDMoveCreateCopy = false;
                     ResetTwoDMovePointToPoint();
                 }
+                else if (value == Editor2DTool.Mirror)
+                {
+                    ResetTwoDMirrorStaging();
+                }
                 return;
             }
 
+            if (_twoDWorkspace.ActiveTool == Editor2DTool.Mirror || value == Editor2DTool.Mirror)
+                ResetTwoDMirrorStaging();
             _twoDWorkspace.SetActiveTool(value);
             if (value == Editor2DTool.Move)
                 TwoDMoveCreateCopy = false;
@@ -376,6 +382,9 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(HasTwoDSelection));
             OnPropertyChanged(nameof(TwoDSelectionCount));
             OnPropertyChanged(nameof(CanApplyTwoDScale));
+            OnPropertyChanged(nameof(CanConfirmTwoDMirror));
+            OnPropertyChanged(nameof(TwoDMirrorStageHint));
+            OnPropertyChanged(nameof(TwoDMirrorObjectSummary));
             OnPropertyChanged(nameof(TwoDSelectedRectangleCount));
             OnPropertyChanged(nameof(CanExpandTwoDRectangles));
             OnPropertyChanged(nameof(TwoDSelectionSummary));
@@ -787,6 +796,115 @@ public sealed partial class EditorPageViewModel
     }
 
     public bool IsTwoDMirrorToolActive => TwoDActiveTool == Editor2DTool.Mirror;
+
+    public bool TwoDMirrorLineMode
+    {
+        get => _twoDMirrorLineMode;
+        set
+        {
+            if (_twoDMirrorLineMode == value)
+                return;
+            _twoDMirrorLineMode = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TwoDMirrorStageHint));
+        }
+    }
+
+    public Editor2DPoint? TwoDMirrorAxisStart
+    {
+        get => _twoDMirrorAxisStart;
+        set
+        {
+            if (Equals(_twoDMirrorAxisStart, value))
+                return;
+            _twoDMirrorAxisStart = value;
+            OnPropertyChanged();
+            NotifyTwoDMirrorStageChanged();
+        }
+    }
+
+    public Editor2DPoint? TwoDMirrorAxisEnd
+    {
+        get => _twoDMirrorAxisEnd;
+        set
+        {
+            if (Equals(_twoDMirrorAxisEnd, value))
+                return;
+            _twoDMirrorAxisEnd = value;
+            OnPropertyChanged();
+            NotifyTwoDMirrorStageChanged();
+        }
+    }
+
+    public string TwoDMirrorStageHint
+        => !HasTwoDSelection
+            ? "Objects mode: click shapes to mirror."
+            : !TwoDMirrorLineMode && TwoDMirrorAxisStart is null
+                ? "Switch to Mirror Line, then pick the axis."
+                : TwoDMirrorLineMode && TwoDMirrorAxisStart is null
+                    ? "Click a line (or two points) for the mirror axis."
+                    : TwoDMirrorAxisEnd is null
+                        ? "Click the second axis point."
+                        : "Adjust options, then Confirm Mirror.";
+
+    public string TwoDMirrorObjectSummary
+        => $"Objects: {TwoDSelectionCount}";
+
+    public string TwoDMirrorAxisSummary
+        => TwoDMirrorAxisEnd is null ? "Mirror line: —" : "Mirror line: set";
+
+    public bool CanConfirmTwoDMirror
+        => HasTwoDSelection
+            && TwoDMirrorAxisStart is { } start
+            && TwoDMirrorAxisEnd is { } end
+            && Math.Sqrt(Math.Pow(end.X - start.X, 2) + Math.Pow(end.Y - start.Y, 2)) > 1e-8;
+
+    public bool ConfirmTwoDMirror()
+    {
+        if (TwoDMirrorAxisStart is not { } start || TwoDMirrorAxisEnd is not { } end)
+        {
+            StatusText = "Select objects and pick a valid mirror axis";
+            return false;
+        }
+
+        var completed = CompleteTwoDWorkspaceOperation(_twoDWorkspace.ApplyMirror(start, end));
+        if (completed)
+            ResetTwoDMirrorStaging();
+        return completed;
+    }
+
+    public void CancelTwoDMirror(bool exitTool = false)
+    {
+        ResetTwoDMirrorStaging();
+        if (exitTool && IsTwoDMirrorToolActive)
+            TwoDActiveTool = Editor2DTool.Select;
+    }
+
+    public void ClearTwoDMirrorObjects() => TwoDSelectedPathIds = [];
+
+    public void ClearTwoDMirrorAxis()
+    {
+        TwoDMirrorAxisStart = null;
+        TwoDMirrorAxisEnd = null;
+    }
+
+    private void ResetTwoDMirrorStaging()
+    {
+        _twoDMirrorLineMode = false;
+        _twoDMirrorAxisStart = null;
+        _twoDMirrorAxisEnd = null;
+        OnPropertyChanged(nameof(TwoDMirrorLineMode));
+        OnPropertyChanged(nameof(TwoDMirrorAxisStart));
+        OnPropertyChanged(nameof(TwoDMirrorAxisEnd));
+        NotifyTwoDMirrorStageChanged();
+    }
+
+    private void NotifyTwoDMirrorStageChanged()
+    {
+        OnPropertyChanged(nameof(TwoDMirrorStageHint));
+        OnPropertyChanged(nameof(CanConfirmTwoDMirror));
+        OnPropertyChanged(nameof(TwoDMirrorAxisSummary));
+    }
 
     public bool IsTwoDTrimToolActive => TwoDActiveTool == Editor2DTool.Trim;
 

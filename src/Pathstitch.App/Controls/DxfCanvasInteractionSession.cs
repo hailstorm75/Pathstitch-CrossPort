@@ -65,8 +65,6 @@ internal sealed class DxfCanvasInteractionSession
     internal PenDragControl PendingPenDragControl = PenDragControl.Anchor;
     internal string? EditingMeasurementId;
     internal bool EditingMeasurementStart;
-    internal Editor2DPoint? PendingMirrorAxisStart;
-    internal Editor2DPoint? PendingMirrorAxisEnd;
     internal Editor2DPoint? PendingMeasurementStart;
     internal Editor2DPoint? PendingMeasurementEnd;
     internal Editor2DPoint? PendingDimensionStart;
@@ -125,8 +123,6 @@ internal sealed class DxfCanvasInteractionSession
         PendingPenDragControl = PenDragControl.Anchor;
         EditingMeasurementId = null;
         EditingMeasurementStart = false;
-        PendingMirrorAxisStart = null;
-        PendingMirrorAxisEnd = null;
         PendingMeasurementStart = null;
         PendingMeasurementEnd = null;
         PendingDimensionStart = null;

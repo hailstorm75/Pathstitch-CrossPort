@@ -694,6 +694,89 @@ public static class Editor2DGeometry
         };
     }
 
+    public static Editor2DPreviewPath ReflectPath(
+        Editor2DPreviewPath path,
+        Editor2DPoint axisStart,
+        Editor2DPoint axisEnd,
+        string? id = null)
+    {
+        Editor2DPoint Transform(Editor2DPoint point)
+            => ReflectPoint(point, axisStart, axisEnd);
+
+        var reflectedStart = path.Start is Editor2DPoint start ? Transform(start) : null;
+        var reflectedCenter = path.Center is Editor2DPoint center ? Transform(center) : null;
+        var reflectedRotation = path.RotationDegrees;
+        var reflectedWidthFactor = path.WidthFactor;
+        if (path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase)
+            && path.Start is Editor2DPoint textStart
+            && path.RotationDegrees is double rotationDegrees)
+        {
+            var directionPoint = new Editor2DPoint(
+                textStart.X + Math.Cos(rotationDegrees * Math.PI / 180.0),
+                textStart.Y + Math.Sin(rotationDegrees * Math.PI / 180.0));
+            var reflectedDirectionPoint = Transform(directionPoint);
+            var resolvedStart = reflectedStart ?? Transform(textStart);
+            reflectedRotation = Math.Atan2(
+                reflectedDirectionPoint.Y - resolvedStart.Y,
+                reflectedDirectionPoint.X - resolvedStart.X) * 180.0 / Math.PI;
+            reflectedWidthFactor = -(path.WidthFactor ?? 1.0);
+        }
+
+        var reflectedPoints = path.Points.Select(Transform).ToArray();
+        var reflectedStartAngle = path.StartAngleDegrees;
+        var reflectedEndAngle = path.EndAngleDegrees;
+        if (path.EntityType.Equals("ARC", StringComparison.OrdinalIgnoreCase)
+            && path.Center is Editor2DPoint originalCenter
+            && path.Radius is double radius
+            && path.StartAngleDegrees is double startAngleDegrees
+            && path.EndAngleDegrees is double endAngleDegrees
+            && reflectedCenter is Editor2DPoint resolvedCenter)
+        {
+            var originalArcStart = new Editor2DPoint(
+                originalCenter.X + radius * Math.Cos(startAngleDegrees * Math.PI / 180.0),
+                originalCenter.Y + radius * Math.Sin(startAngleDegrees * Math.PI / 180.0));
+            var originalArcEnd = new Editor2DPoint(
+                originalCenter.X + radius * Math.Cos(endAngleDegrees * Math.PI / 180.0),
+                originalCenter.Y + radius * Math.Sin(endAngleDegrees * Math.PI / 180.0));
+            var reflectedArcStart = Transform(originalArcStart);
+            var reflectedArcEnd = Transform(originalArcEnd);
+            reflectedStartAngle = NormalizeAngleDegrees(Math.Atan2(
+                reflectedArcEnd.Y - resolvedCenter.Y,
+                reflectedArcEnd.X - resolvedCenter.X) * 180.0 / Math.PI);
+            reflectedEndAngle = NormalizeAngleDegrees(Math.Atan2(
+                reflectedArcStart.Y - resolvedCenter.Y,
+                reflectedArcStart.X - resolvedCenter.X) * 180.0 / Math.PI);
+        }
+
+        return path with
+        {
+            Id = id ?? path.Id,
+            Start = reflectedStart,
+            Center = reflectedCenter,
+            RotationDegrees = reflectedRotation,
+            WidthFactor = reflectedWidthFactor,
+            StartAngleDegrees = reflectedStartAngle,
+            EndAngleDegrees = reflectedEndAngle,
+            Points = reflectedPoints,
+            BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(anchor, Transform)).ToArray(),
+            IsAxisAlignedRectangle = IsAxisAlignedRectangle(reflectedPoints, path.IsClosed),
+        };
+    }
+
+    public static Editor2DPoint ReflectPoint(Editor2DPoint point, Editor2DPoint axisStart, Editor2DPoint axisEnd)
+    {
+        var deltaX = axisEnd.X - axisStart.X;
+        var deltaY = axisEnd.Y - axisStart.Y;
+        var lengthSquared = (deltaX * deltaX) + (deltaY * deltaY);
+        if (lengthSquared <= 1e-9)
+            return point;
+
+        var projectedFactor = (((point.X - axisStart.X) * deltaX) + ((point.Y - axisStart.Y) * deltaY)) / lengthSquared;
+        var projectedX = axisStart.X + (projectedFactor * deltaX);
+        var projectedY = axisStart.Y + (projectedFactor * deltaY);
+        return new Editor2DPoint((2.0 * projectedX) - point.X, (2.0 * projectedY) - point.Y);
+    }
+
     public static double CalculateSignedLineDimensionOffset(
         Editor2DPoint start,
         Editor2DPoint end,

@@ -148,6 +148,9 @@ public sealed partial class EditorPageViewModel(
     private bool _twoDScalePivotPicking;
     private string _twoDScaleFactorText = "1";
     private bool _twoDScaleFromCenter = true;
+    private bool _twoDMirrorLineMode;
+    private Editor2DPoint? _twoDMirrorAxisStart;
+    private Editor2DPoint? _twoDMirrorAxisEnd;
 
     private bool SetWorkspaceFacadeValue<T>(T current, T value, Action<T> assign, [CallerMemberName] string? propertyName = null)
     {

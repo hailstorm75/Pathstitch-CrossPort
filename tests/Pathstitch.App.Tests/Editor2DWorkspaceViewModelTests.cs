@@ -313,6 +313,72 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void ApplyMirror_PreservesSourcesAndSelectsReflectedCopies()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var line = new Editor2DPreviewPath(
+            "line", "LINE", [new(2, 1), new(4, 3)], false,
+            BezierAnchors: [new(new(2, 1), new(1, 1), new(3, 1))]);
+        var circle = new Editor2DPreviewPath(
+            "circle", "CIRCLE", [new(3, 0), new(1, 0)], true,
+            Center: new Editor2DPoint(2, 0), Radius: 1);
+        var arc = new Editor2DPreviewPath(
+            "arc", "ARC", [new(1, 0), new(0, 1)], false,
+            Center: new Editor2DPoint(0, 0), Radius: 1,
+            StartAngleDegrees: 0, EndAngleDegrees: 90);
+        var text = new Editor2DPreviewPath(
+            "text", "TEXT", [new(2, 0), new(4, 0), new(4, 2), new(2, 2)], true,
+            Start: new Editor2DPoint(2, 0), Text: "A", TextHeight: 2,
+            RotationDegrees: 0, WidthFactor: 1);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [line, circle, arc, text] });
+        workspace.SetSelection([line.Id, circle.Id, arc.Id, text.Id]);
+
+        var result = workspace.ApplyMirror(new Editor2DPoint(0, -10), new Editor2DPoint(0, 10));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(8, workspace.Document.Paths.Count);
+        Assert.Equal([line, circle, arc, text], workspace.Document.Paths.Take(4));
+        Assert.Equal(4, workspace.SelectedPathIds.Count);
+        Assert.All(workspace.SelectedPathIds, id => Assert.Contains(":mirror:", id, StringComparison.Ordinal));
+
+        var mirroredLine = workspace.Document.Paths.Single(path => path.Id.StartsWith("line:mirror:", StringComparison.Ordinal));
+        Assert.Equal(new Editor2DPoint(-2, 1), mirroredLine.Points[0]);
+        Assert.Equal(new Editor2DPoint(-1, 1), mirroredLine.BezierAnchors![0].HandleIn);
+        Assert.Equal(new Editor2DPoint(-3, 1), mirroredLine.BezierAnchors[0].HandleOut);
+
+        var mirroredCircle = workspace.Document.Paths.Single(path => path.Id.StartsWith("circle:mirror:", StringComparison.Ordinal));
+        Assert.Equal(new Editor2DPoint(-2, 0), mirroredCircle.Center);
+        Assert.Equal(1, mirroredCircle.Radius);
+
+        var mirroredArc = workspace.Document.Paths.Single(path => path.Id.StartsWith("arc:mirror:", StringComparison.Ordinal));
+        Assert.Equal(90, mirroredArc.StartAngleDegrees!.Value, 6);
+        Assert.Equal(180, mirroredArc.EndAngleDegrees!.Value, 6);
+
+        var mirroredText = workspace.Document.Paths.Single(path => path.Id.StartsWith("text:mirror:", StringComparison.Ordinal));
+        Assert.Equal(new Editor2DPoint(-2, 0), mirroredText.Start);
+        Assert.Equal(180, mirroredText.RotationDegrees!.Value, 6);
+        Assert.Equal(-1, mirroredText.WidthFactor);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal([line, circle, arc, text], workspace.Document.Paths);
+    }
+
+    [Fact]
+    public void ApplyMirror_RejectsMissingSelectionAndDegenerateAxisWithoutHistory()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var line = new Editor2DPreviewPath("line", "LINE", [new(0, 0), new(1, 0)], false);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [line] });
+        workspace.ClearHistory();
+
+        Assert.False(workspace.ApplyMirror(new(0, 0), new(0, 1)).IsSuccess);
+        workspace.SetSelection([line.Id]);
+        Assert.False(workspace.ApplyMirror(new(0, 0), new(0, 0)).IsSuccess);
+        Assert.Single(workspace.Document.Paths);
+        Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
     public void ParametricMeasurement_StoresExpressionAndDrivesEndpoint()
     {
         var workspace = new Editor2DWorkspaceViewModel();

@@ -14,7 +14,7 @@ internal enum DxfCanvasPressRoute
 internal enum DxfCanvasMoveRoute
 {
     Pan, MoveSelection, ScaleSelection, EditVertex, LineDraft, RectangleDraft, CircleDraft,
-    PolygonDraft, TextDraft, PenHandleDrag, PenDraft, MirrorDraft, MeasurementDraft, DimensionDraft,
+    PolygonDraft, TextDraft, PenHandleDrag, PenDraft, MeasurementDraft, DimensionDraft,
     Corner, SewingHoleMargin, OffsetHandle, ToolPreview, Marquee, Hover,
 }
 internal enum DxfCanvasReleaseRoute { Cancel, Pan, Context, MoveSelection, ScaleSelection, EditVertex, PenHandleDrag, Corner, SewingHoleMargin, OffsetHandle, Selection, None }
@@ -151,7 +151,6 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         if (tool == Editor2DTool.SketchText && session.PendingTextStart is not null) return DxfCanvasMoveRoute.TextDraft;
         if (tool == Editor2DTool.Pen && capturedByCanvas && session.PendingPenDragAnchorIndex is not null) return DxfCanvasMoveRoute.PenHandleDrag;
         if (tool == Editor2DTool.Pen && session.PendingPenAnchors.Count > 0) return DxfCanvasMoveRoute.PenDraft;
-        if (tool == Editor2DTool.Mirror && session.PendingMirrorAxisStart is not null) return DxfCanvasMoveRoute.MirrorDraft;
         if (tool == Editor2DTool.Measure && session.PendingMeasurementStart is not null) return DxfCanvasMoveRoute.MeasurementDraft;
         if (tool == Editor2DTool.Dimension && session.PendingDimensionStart is not null) return DxfCanvasMoveRoute.DimensionDraft;
         if (tool is Editor2DTool.Trim or Editor2DTool.Fillet or Editor2DTool.Chamfer) return DxfCanvasMoveRoute.ToolPreview;
