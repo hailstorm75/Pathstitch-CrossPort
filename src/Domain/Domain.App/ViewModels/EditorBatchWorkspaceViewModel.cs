@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO.Compression;
+using System.Xml;
+using System.Xml.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Domain.App.Models;
 using Domain.App.Services;
@@ -43,7 +45,11 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     public bool ExportSelectedOnly
     {
         get => _exportSelectedOnly;
-        set => SetProperty(ref _exportSelectedOnly, value);
+        set
+        {
+            if (SetProperty(ref _exportSelectedOnly, value))
+                OnPropertyChanged(nameof(CanExport));
+        }
     }
 
     public IReadOnlyList<EditorBatchExportFormat> ExportFormats { get; } = Enum.GetValues<EditorBatchExportFormat>();
@@ -71,10 +77,10 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     public bool CanRun => !IsRunning && Items.Count > 0;
 
     public bool CanExport => !IsRunning && Items.Any(item =>
-        Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase));
+        (!ExportSelectedOnly || item.IsSelected) && IsSupportedDrawingInput(item.FilePath));
 
     public bool CanOperateSelected => !IsRunning && Items.Any(item =>
-        item.IsSelected && Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase));
+        item.IsSelected && IsSupportedDrawingInput(item.FilePath));
 
     public int SelectedItemCount => Items.Count(item => item.IsSelected);
 
@@ -94,23 +100,33 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     }
 
     public bool AddFile(string path)
+        => AddFiles([path]) == 1;
+
+    public int AddFiles(IReadOnlyList<string> paths)
     {
-        if (string.IsNullOrWhiteSpace(path))
-            return false;
+        var existing = Items.Select(item => item.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var accepted = paths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => Path.GetFullPath(path.Trim().Trim('"')))
+            .Where(path => Path.GetExtension(path).Equals(".stch", StringComparison.OrdinalIgnoreCase)
+                           || IsSupportedDrawingInput(path))
+            .Where(existing.Add)
+            .ToArray();
+        if (accepted.Length == 0)
+            return 0;
 
-        var fullPath = Path.GetFullPath(path.Trim().Trim('"'));
-        var extension = Path.GetExtension(fullPath);
-        if (!(extension.Equals(".stch", StringComparison.OrdinalIgnoreCase)
-              || extension.Equals(".dxf", StringComparison.OrdinalIgnoreCase))
-            || Items.Any(item => string.Equals(item.FilePath, fullPath, StringComparison.OrdinalIgnoreCase)))
+        foreach (var fullPath in accepted)
         {
-            return false;
+            var item = new EditorBatchItem(fullPath);
+            item.PropertyChanged += OnItemPropertyChanged;
+            Items.Add(item);
         }
-
-        Items.Add(new EditorBatchItem(fullPath));
         Summary = $"{Items.Count} file(s) queued.";
         OnPropertyChanged(nameof(CanRun));
-        return true;
+        OnPropertyChanged(nameof(CanExport));
+        OnPropertyChanged(nameof(CanOperateSelected));
+        OnPropertyChanged(nameof(SelectedItemCount));
+        return accepted.Length;
     }
 
     public bool AddProject(string path) => AddFile(path);
@@ -133,9 +149,13 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         if (item is null)
             return;
 
+        item.PropertyChanged -= OnItemPropertyChanged;
         Items.Remove(item);
         Summary = Items.Count == 0 ? "No files queued." : $"{Items.Count} file(s) queued.";
         OnPropertyChanged(nameof(CanRun));
+        OnPropertyChanged(nameof(CanExport));
+        OnPropertyChanged(nameof(CanOperateSelected));
+        OnPropertyChanged(nameof(SelectedItemCount));
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -158,8 +178,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                 {
                     await ValidateInputAsync(item.FilePath, cancellationToken).ConfigureAwait(false);
                     item.Status = EditorBatchItemStatus.Succeeded;
-                    item.Message = Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)
-                        ? "Valid DXF input"
+                    item.Message = IsSupportedDrawingInput(item.FilePath)
+                        ? $"Valid {Path.GetExtension(item.FilePath).TrimStart('.').ToUpperInvariant()} input"
                         : "Valid Pathstitch project";
                     succeeded++;
                 }
@@ -188,10 +208,10 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             return;
 
         IsRunning = true;
-        var firstDxf = Items.First(item => (!ExportSelectedOnly || item.IsSelected)
-            && Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase));
+        var firstDrawing = Items.First(item => (!ExportSelectedOnly || item.IsSelected)
+            && IsSupportedDrawingInput(item.FilePath));
         var outputDirectory = string.IsNullOrWhiteSpace(OutputDirectory)
-            ? Path.Combine(Path.GetDirectoryName(firstDxf.FilePath)!, "batch-output")
+            ? Path.Combine(Path.GetDirectoryName(firstDrawing.FilePath)!, "batch-output")
             : Path.GetFullPath(OutputDirectory.Trim().Trim('"'));
         Directory.CreateDirectory(outputDirectory);
         var succeeded = 0;
@@ -199,7 +219,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         try
         {
             foreach (var item in Items.Where(item => (!ExportSelectedOnly || item.IsSelected)
-                && Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
+                && IsSupportedDrawingInput(item.FilePath)))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 item.Status = EditorBatchItemStatus.Running;
@@ -208,7 +228,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                 {
                     var document = item.Document
                         ?? await outputPreviewService.LoadPreviewDocumentAsync(item.FilePath, cancellationToken).ConfigureAwait(false)
-                        ?? throw new InvalidDataException("DXF preview could not be loaded.");
+                        ?? throw new InvalidDataException("Drawing preview could not be loaded.");
                     var extension = SelectedExportFormat switch
                     {
                         EditorBatchExportFormat.Svg => ".svg",
@@ -259,7 +279,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         try
         {
             foreach (var item in Items.Where(item => item.IsSelected
-                && Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
+                && IsSupportedDrawingInput(item.FilePath)))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 item.Status = EditorBatchItemStatus.Running;
@@ -268,7 +288,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                 {
                     var source = item.Document
                         ?? await outputPreviewService.LoadPreviewDocumentAsync(item.FilePath, cancellationToken).ConfigureAwait(false)
-                        ?? throw new InvalidDataException("DXF preview could not be loaded.");
+                        ?? throw new InvalidDataException("Drawing preview could not be loaded.");
                     var result = await geometryKernel.BuildCurveOffsetPathsAsync(
                         source.Paths, distance, offsetOutward: true, cancellationToken).ConfigureAwait(false);
                     if (!result.IsSuccess || result.Paths.Count == 0)
@@ -314,7 +334,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         try
         {
             foreach (var item in Items.Where(item => item.IsSelected
-                && Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)))
+                && IsSupportedDrawingInput(item.FilePath)))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 item.Status = EditorBatchItemStatus.Running;
@@ -323,7 +343,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                 {
                     var source = item.Document
                         ?? await outputPreviewService.LoadPreviewDocumentAsync(item.FilePath, cancellationToken).ConfigureAwait(false)
-                        ?? throw new InvalidDataException("DXF preview could not be loaded.");
+                        ?? throw new InvalidDataException("Drawing preview could not be loaded.");
                     var holes = Editor2DSewingHoleGeometry.BuildPreview(
                         source,
                         source.Paths.Select(path => path.Id).ToArray(),
@@ -368,11 +388,25 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         if (!File.Exists(path))
             throw new FileNotFoundException("Batch input file was not found.", path);
 
-        if (Path.GetExtension(path).Equals(".dxf", StringComparison.OrdinalIgnoreCase))
+        if (IsSupportedDrawingInput(path))
         {
             var info = new FileInfo(path);
             if (info.Length == 0)
-                throw new InvalidDataException("DXF input is empty.");
+                throw new InvalidDataException("Drawing input is empty.");
+            if (Path.GetExtension(path).Equals(".svg", StringComparison.OrdinalIgnoreCase))
+            {
+                await using var svgStream = File.OpenRead(path);
+                try
+                {
+                    var svg = await XDocument.LoadAsync(svgStream, LoadOptions.None, cancellationToken).ConfigureAwait(false);
+                    if (!string.Equals(svg.Root?.Name.LocalName, "svg", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("SVG input does not contain an svg root element.");
+                }
+                catch (XmlException exception)
+                {
+                    throw new InvalidDataException("SVG input is malformed.", exception);
+                }
+            }
             return;
         }
 
@@ -394,5 +428,21 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                 throw new InvalidDataException("File is not a Pathstitch project archive or JSON seed.");
             }
         }
+    }
+
+    private static bool IsSupportedDrawingInput(string path)
+    {
+        var extension = Path.GetExtension(path);
+        return extension.Equals(".dxf", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".svg", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(EditorBatchItem.IsSelected))
+            return;
+        OnPropertyChanged(nameof(CanExport));
+        OnPropertyChanged(nameof(CanOperateSelected));
+        OnPropertyChanged(nameof(SelectedItemCount));
     }
 }

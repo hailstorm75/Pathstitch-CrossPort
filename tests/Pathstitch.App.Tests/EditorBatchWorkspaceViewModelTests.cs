@@ -34,14 +34,101 @@ public sealed class EditorBatchWorkspaceViewModelTests
     }
 
     [Fact]
-    public void Queue_AcceptsDxfAndProjectsAndRejectsDuplicates()
+    public void Queue_AcceptsDxfSvgAndProjectsAndRejectsDuplicates()
     {
         var workspace = new EditorBatchWorkspaceViewModel();
 
+        Assert.True(workspace.AddFile("drawing.svg"));
+        Assert.True(workspace.Items[0].IsSelected);
+        Assert.True(workspace.CanExport);
+        Assert.True(workspace.CanOperateSelected);
         Assert.True(workspace.AddFile("drawing.dxf"));
         Assert.True(workspace.AddFile("one.stch"));
         Assert.False(workspace.AddFile("one.stch"));
-        Assert.Equal(2, workspace.Items.Count);
+        Assert.Equal(3, workspace.Items.Count);
+    }
+
+    [Fact]
+    public async Task RunAsync_ValidatesSvgInputs()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-batch-{Guid.NewGuid():N}.svg");
+        await File.WriteAllTextAsync(path, "<svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M0 0 L10 0\"/></svg>");
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel();
+            Assert.True(workspace.AddFile(path));
+
+            await workspace.RunAsync();
+
+            Assert.Equal(EditorBatchItemStatus.Succeeded, workspace.Items[0].Status);
+            Assert.Equal("Valid SVG input", workspace.Items[0].Message);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_RejectsMalformedNonemptySvg()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-batch-{Guid.NewGuid():N}.svg");
+        await File.WriteAllTextAsync(path, "<svg><path>");
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel();
+            Assert.True(workspace.AddFile(path));
+
+            await workspace.RunAsync();
+
+            Assert.Equal(EditorBatchItemStatus.Failed, workspace.Items[0].Status);
+            Assert.Contains("malformed", workspace.Items[0].Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task SvgInput_LoadsThroughPreviewServiceAndOffsetsLikeDxf()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-batch-{Guid.NewGuid():N}.svg");
+        var preview = new RecordingPreviewService();
+        var workspace = new EditorBatchWorkspaceViewModel();
+        Assert.True(workspace.AddFile(path));
+
+        await workspace.ApplyOffsetAsync(preview, new StubOffsetGeometryKernel(), 2.0);
+
+        Assert.Equal([Path.GetFullPath(path)], preview.LoadedPaths);
+        Assert.NotNull(workspace.Items[0].Document);
+        Assert.Equal(EditorBatchItemStatus.Succeeded, workspace.Items[0].Status);
+    }
+
+    [Fact]
+    public async Task SvgInput_LoadsAndExportsThroughSamePreviewPipelineAsDxf()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchSvg", Guid.NewGuid().ToString("N"));
+        var input = Path.Combine(directory, "drawing.svg");
+        var output = Path.Combine(directory, "out");
+        var preview = new RecordingPreviewService();
+        var workspace = new EditorBatchWorkspaceViewModel { OutputDirectory = output };
+        try
+        {
+            Assert.True(workspace.AddFile(input));
+
+            await workspace.ExportDxfAsync(preview);
+
+            Assert.Equal([Path.GetFullPath(input)], preview.LoadedPaths);
+            Assert.Single(preview.SavedPaths);
+            Assert.EndsWith("drawing-batch.dxf", preview.SavedPaths[0], StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(EditorBatchItemStatus.Succeeded, workspace.Items[0].Status);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]
@@ -252,5 +339,39 @@ public sealed class EditorBatchWorkspaceViewModelTests
             double thickness,
             CancellationToken cancellationToken = default)
             => Task.FromResult(Editor2DGeometryKernelResult.Success(sourcePaths));
+    }
+
+    private sealed class RecordingPreviewService : IEditorOutputPreviewService
+    {
+        private static readonly Editor2DPreviewDocument Preview = new(
+            [new Editor2DPreviewPath("line", "LINE", [new(0, 0), new(10, 0)], false)],
+            new Editor2DBounds(0, 0, 10, 0),
+            new Dictionary<string, int> { ["LINE"] = 1 },
+            []);
+
+        public List<string> LoadedPaths { get; } = [];
+        public List<string> SavedPaths { get; } = [];
+
+        public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(
+            string outputPath,
+            CancellationToken cancellationToken = default)
+        {
+            LoadedPaths.Add(outputPath);
+            return Task.FromResult<Editor2DPreviewDocument?>(Preview);
+        }
+
+        public Task SavePreviewDocumentAsync(
+            Editor2DPreviewDocument document,
+            string outputPath,
+            CancellationToken cancellationToken = default)
+        {
+            SavedPaths.Add(outputPath);
+            return Task.CompletedTask;
+        }
+
+        public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(
+            string outputPath,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<EditorGeneratedOutputSummary?>(null);
     }
 }
