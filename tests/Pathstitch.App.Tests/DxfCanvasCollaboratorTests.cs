@@ -285,7 +285,9 @@ public sealed class DxfCanvasCollaboratorTests
     [Fact]
     public void MeasurementEditing_MovesOnlyRequestedEndpoint()
     {
-        var measurement = new Editor2DMeasurement("m", new(0, 0), new(10, 0));
+        var measurement = new Editor2DMeasurement(
+            "m", new(0, 0), new(10, 0), VarName: "d1", Expression: "10",
+            IsParametric: true, EvaluatedValue: 10);
 
         var movedStart = DxfCanvasMeasurementEditing.MoveEndpoint(measurement, new(2, 3), start: true);
         var movedEnd = DxfCanvasMeasurementEditing.MoveEndpoint(measurement, new(12, 4), start: false);
@@ -294,6 +296,8 @@ public sealed class DxfCanvasCollaboratorTests
         Assert.Equal(measurement.End, movedStart.End);
         Assert.Equal(measurement.Start, movedEnd.Start);
         Assert.Equal(new Editor2DPoint(12, 4), movedEnd.End);
+        Assert.Null(movedStart.EvaluatedValue);
+        Assert.Null(movedEnd.EvaluatedValue);
     }
 
     [Fact]

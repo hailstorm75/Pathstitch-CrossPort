@@ -38,7 +38,8 @@ public sealed class Editor2DSelectionTransformTests
         var untouched = Line("untouched", 10, 0, 12, 0);
         var attached = new Editor2DMeasurement(
             "attached", new(0, 2), new(2, 2), EntityPathId: selected.Id,
-            DimensionType: "length", RectP1: new(0, 0), RectP2: new(2, 2));
+            DimensionType: "length", RectP1: new(0, 0), RectP2: new(2, 2),
+            VarName: "d1", Expression: "2", IsParametric: true, EvaluatedValue: 2);
         var automatic = new Editor2DMeasurement(
             "automatic", new(0, -2), new(2, -2), IsAutoDimension: true, EntityPathId: selected.Id);
         var free = new Editor2DMeasurement("free", new(20, 20), new(21, 20));
@@ -61,6 +62,7 @@ public sealed class Editor2DSelectionTransformTests
         AssertPoint(new(7, 1), movedMeasurement.End);
         AssertPoint(new(5, -1), movedMeasurement.RectP1!);
         AssertPoint(new(7, 1), movedMeasurement.RectP2!);
+        Assert.Null(movedMeasurement.EvaluatedValue);
         Assert.Equal(automatic, workspace.Measurements.Single(item => item.Id == automatic.Id));
         Assert.Equal(free, workspace.Measurements.Single(item => item.Id == free.Id));
         Assert.Equal(

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Domain.App.Models;
 
 public enum Editor2DTool
@@ -73,7 +75,8 @@ public sealed record Editor2DMeasurement(
     string? VarName = null,
     string? Expression = null,
     bool Driven = false,
-    bool IsParametric = false)
+    bool IsParametric = false,
+    [property: JsonPropertyName("evaluatedValue")] double? EvaluatedValue = null)
 {
     public double Distance
         => Math.Sqrt(Math.Pow(End.X - Start.X, 2) + Math.Pow(End.Y - Start.Y, 2));

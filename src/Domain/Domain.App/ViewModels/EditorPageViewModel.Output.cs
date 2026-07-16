@@ -580,7 +580,8 @@ public sealed partial class EditorPageViewModel
                     NumberStyles.Float,
                     CultureInfo.InvariantCulture,
                     out _);
-                var value = measurement.Distance.ToString("0.00", CultureInfo.InvariantCulture);
+                var value = (measurement.EvaluatedValue ?? measurement.Distance)
+                    .ToString("0.00", CultureInfo.InvariantCulture);
                 return new Editor2DDimensionParameterItem(
                     measurement.Id,
                     measurement.VarName!,
@@ -2982,6 +2983,7 @@ public sealed partial class EditorPageViewModel
             {
                 Start = start,
                 End = end,
+                EvaluatedValue = null,
             });
         }
 

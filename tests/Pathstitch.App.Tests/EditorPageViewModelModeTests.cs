@@ -141,7 +141,7 @@ public sealed class EditorPageViewModelModeTests
 
         Assert.Equal("5.00", viewModel.TwoDDimensionParameters[0].ValueDisplay);
         Assert.Equal("10.00", viewModel.TwoDDimensionParameters[1].ValueDisplay);
-        Assert.Equal("(20.00)", viewModel.TwoDDimensionParameters[2].ValueDisplay);
+        Assert.Equal("(15.00)", viewModel.TwoDDimensionParameters[2].ValueDisplay);
         Assert.True(notifications > 0);
         Assert.True(viewModel.UndoTwoDWorkspace());
         Assert.Equal("10.00", viewModel.TwoDDimensionParameters[0].ValueDisplay);
@@ -154,7 +154,7 @@ public sealed class EditorPageViewModelModeTests
         viewModel.TwoDSelectedMeasurementExpressionText = "d2";
         Assert.Equal(beforeInvalid, viewModel.TwoDMeasurements);
         Assert.False(viewModel.CanUndoTwoDWorkspace);
-        Assert.Contains("positive number or arithmetic expression", viewModel.StatusText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("circular dependency", viewModel.StatusText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

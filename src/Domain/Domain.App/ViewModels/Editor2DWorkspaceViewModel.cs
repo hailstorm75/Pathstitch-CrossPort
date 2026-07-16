@@ -340,12 +340,17 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public bool CanRedo => _redo.Count > 0;
 
-    public void Apply(Editor2DWorkspaceState state, bool recordHistory = true)
+    public void Apply(
+        Editor2DWorkspaceState state,
+        bool recordHistory = true,
+        bool rebuildMeasurementCaches = true)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (recordHistory && ReferenceEquals(state.ConvertLineGroups, _state.ConvertLineGroups))
             state = DetachEditedConvertLineGroups(state);
-        var normalized = Normalize(state);
+        var normalized = Normalize(
+            state,
+            rebuildMeasurementCaches && !ReferenceEquals(state.Measurements, _state.Measurements));
         if (Equals(_state, normalized))
             return;
 
@@ -530,7 +535,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         bool recordHistory = true)
         => Apply(
             _state with { Measurements = measurements, SelectedMeasurementId = selectedMeasurementId },
-            recordHistory);
+            recordHistory,
+            rebuildMeasurementCaches: false);
 
     public void SetSelectedMeasurement(string? selectedMeasurementId)
         => Apply(_state with { SelectedMeasurementId = selectedMeasurementId }, recordHistory: false);
@@ -546,87 +552,15 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         }
 
         var normalized = expression.Trim();
-        var expressions = Measurements
-            .Where(item => !string.IsNullOrWhiteSpace(item.VarName))
-            .ToDictionary(item => item.VarName!, item => item.Expression ?? item.Distance.ToString(CultureInfo.InvariantCulture), StringComparer.OrdinalIgnoreCase);
         var varName = measurement.VarName;
         if (string.IsNullOrWhiteSpace(varName))
             varName = NextDimensionVariableName();
-        expressions[varName] = normalized;
-
-        var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        var resolving = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        bool TryResolve(string name, out double resolved)
-        {
-            if (values.TryGetValue(name, out resolved)) return true;
-            if (!expressions.TryGetValue(name, out var candidate) || !resolving.Add(name))
-            {
-                resolved = 0;
-                return false;
-            }
-
-            var dependencies = Editor2DDimensionExpression.ReferencedVariables(candidate);
-            var variables = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            foreach (var dependency in dependencies)
-            {
-                if (!TryResolve(dependency, out var dependencyValue))
-                {
-                    resolving.Remove(name);
-                    resolved = 0;
-                    return false;
-                }
-                variables[dependency] = dependencyValue;
-            }
-
-            var success = Editor2DDimensionExpression.TryEvaluate(candidate, variables, out resolved)
-                && double.IsFinite(resolved);
-            resolving.Remove(name);
-            if (success) values[name] = resolved;
-            return success;
-        }
-
-        if (!TryResolve(varName, out var value) || value <= 0)
-        {
-            error = "Enter a positive number or arithmetic expression";
+        var trial = Measurements.Select(item => item.Id == measurementId
+            ? item with { Expression = normalized, VarName = varName, IsParametric = true }
+            : item).ToArray();
+        if (!TryResolveMeasurementGraph(trial, out var values, out error))
             return false;
-        }
-
-        foreach (var name in expressions.Keys)
-        {
-            if (!TryResolve(name, out var resolvedValue) || resolvedValue <= 0)
-            {
-                error = "Enter a positive number or arithmetic expression";
-                return false;
-            }
-        }
-
-        var updatedMeasurements = Measurements.Select(item =>
-        {
-            var itemVariable = item.Id == measurementId ? varName : item.VarName;
-            if (string.IsNullOrWhiteSpace(itemVariable) || !values.TryGetValue(itemVariable, out var itemValue))
-                return item;
-
-            var updated = item with
-            {
-                Expression = item.Id == measurementId ? normalized : item.Expression,
-                VarName = item.Id == measurementId ? varName : item.VarName,
-                IsParametric = item.Id == measurementId || item.IsParametric,
-            };
-            if (updated.Driven)
-                return updated;
-
-            var dx = item.End.X - item.Start.X;
-            var dy = item.End.Y - item.Start.Y;
-            var length = Math.Sqrt((dx * dx) + (dy * dy));
-            var unitX = length > 1e-9 ? dx / length : 1.0;
-            var unitY = length > 1e-9 ? dy / length : 0.0;
-            return updated with
-            {
-                End = new Editor2DPoint(
-                    item.Start.X + (unitX * itemValue),
-                    item.Start.Y + (unitY * itemValue)),
-            };
-        }).ToArray();
+        var updatedMeasurements = ApplyResolvedMeasurementValues(trial, values, updateEndpoints: true);
 
         SetMeasurements(
             updatedMeasurements,
@@ -639,13 +573,126 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         var measurement = Measurements.FirstOrDefault(item => item.Id == measurementId && !item.IsAutoDimension);
         if (measurement is null)
             return false;
+        var varName = string.IsNullOrWhiteSpace(measurement.VarName)
+            ? NextDimensionVariableName()
+            : measurement.VarName!;
+        var expression = string.IsNullOrWhiteSpace(measurement.Expression)
+            ? measurement.Distance.ToString("R", CultureInfo.InvariantCulture)
+            : measurement.Expression!;
+        var trial = Measurements.Select(item => item.Id == measurementId
+            ? item with
+            {
+                Driven = driven,
+                IsParametric = true,
+                VarName = varName,
+                Expression = expression,
+            }
+            : item).ToArray();
+        if (!TryResolveMeasurementGraph(trial, out var values, out _))
+            return false;
         SetMeasurements(
-            Measurements.Select(item => item.Id == measurementId
-                ? item with { Driven = driven, IsParametric = true }
-                : item).ToArray(),
+            ApplyResolvedMeasurementValues(trial, values, updateEndpoints: true),
             measurementId);
         return true;
     }
+
+    private static bool TryResolveMeasurementGraph(
+        IReadOnlyList<Editor2DMeasurement> measurements,
+        out IReadOnlyDictionary<string, double> values,
+        out string error)
+    {
+        var expressions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in measurements.Where(item => !string.IsNullOrWhiteSpace(item.VarName)))
+        {
+            var candidate = item.Expression ?? item.Distance.ToString("R", CultureInfo.InvariantCulture);
+            if (!expressions.TryAdd(item.VarName!, candidate))
+            {
+                values = new Dictionary<string, double>();
+                error = $"Duplicate dimension variable '{item.VarName}'.";
+                return false;
+            }
+        }
+
+        var resolvedValues = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var resolving = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var resolutionError = string.Empty;
+        bool TryResolve(string name, out double resolved)
+        {
+            if (resolvedValues.TryGetValue(name, out resolved)) return true;
+            if (!expressions.TryGetValue(name, out var candidate))
+            {
+                resolutionError = $"Unknown variable '{name}'.";
+                resolved = 0.0;
+                return false;
+            }
+            if (!resolving.Add(name))
+            {
+                resolutionError = $"Circular dependency involving '{name}'.";
+                resolved = 0.0;
+                return false;
+            }
+            if (!Editor2DDimensionExpression.TryGetReferencedVariables(candidate, out var dependencies, out resolutionError))
+            {
+                resolving.Remove(name);
+                resolved = 0.0;
+                return false;
+            }
+            var variables = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            foreach (var dependency in dependencies)
+            {
+                if (!TryResolve(dependency, out var dependencyValue))
+                {
+                    resolving.Remove(name);
+                    resolved = 0.0;
+                    return false;
+                }
+                variables[dependency] = dependencyValue;
+            }
+            var success = Editor2DDimensionExpression.TryEvaluate(candidate, variables, out resolved, out resolutionError);
+            resolving.Remove(name);
+            if (!success) return false;
+            if (!double.IsFinite(resolved) || resolved <= 0.0)
+            {
+                resolutionError = $"Dimension variable '{name}' must be positive and finite.";
+                return false;
+            }
+            resolvedValues[name] = resolved;
+            return true;
+        }
+
+        foreach (var name in expressions.Keys)
+        {
+            if (TryResolve(name, out _)) continue;
+            values = resolvedValues;
+            error = resolutionError;
+            return false;
+        }
+        values = resolvedValues;
+        error = string.Empty;
+        return true;
+    }
+
+    private static Editor2DMeasurement[] ApplyResolvedMeasurementValues(
+        IReadOnlyList<Editor2DMeasurement> measurements,
+        IReadOnlyDictionary<string, double> values,
+        bool updateEndpoints)
+        => measurements.Select(item =>
+        {
+            if (string.IsNullOrWhiteSpace(item.VarName) || !values.TryGetValue(item.VarName, out var value))
+                return item with { EvaluatedValue = null };
+            var updated = item with { EvaluatedValue = value };
+            if (!updateEndpoints || updated.Driven)
+                return updated;
+            var dx = item.End.X - item.Start.X;
+            var dy = item.End.Y - item.Start.Y;
+            var length = Math.Sqrt((dx * dx) + (dy * dy));
+            var unitX = length > 1e-9 ? dx / length : 1.0;
+            var unitY = length > 1e-9 ? dy / length : 0.0;
+            return updated with
+            {
+                End = new Editor2DPoint(item.Start.X + (unitX * value), item.Start.Y + (unitY * value)),
+            };
+        }).ToArray();
 
     private string NextDimensionVariableName()
     {
@@ -815,6 +862,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                     PlacementAngleDegrees = measurement.PlacementAngleDegrees is { } placementAngle
                         ? transform.TransformDirectionDegrees(placementAngle)
                         : null,
+                    EvaluatedValue = null,
                 }
                 : measurement).ToArray();
         var cornerParameters = CornerParameters.Select(parameter => selectedIds.Contains(parameter.PathId)
@@ -846,14 +894,16 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             };
         }).Where(group => group is not null).Cast<Editor2DConvertLineGroup>().ToArray();
 
-        Apply(_state with
-        {
-            Document = RebuildDocument(Document, paths),
-            SelectedPathIds = SelectedPathIds.ToArray(),
-            Measurements = measurements,
-            CornerParameters = cornerParameters,
-            ConvertLineGroups = convertLineGroups,
-        });
+        Apply(
+            _state with
+            {
+                Document = RebuildDocument(Document, paths),
+                SelectedPathIds = SelectedPathIds.ToArray(),
+                Measurements = measurements,
+                CornerParameters = cornerParameters,
+                ConvertLineGroups = convertLineGroups,
+            },
+            rebuildMeasurementCaches: false);
         return true;
     }
 
@@ -1670,7 +1720,9 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanRedo));
     }
 
-    private static Editor2DWorkspaceState Normalize(Editor2DWorkspaceState state)
+    private static Editor2DWorkspaceState Normalize(
+        Editor2DWorkspaceState state,
+        bool rebuildMeasurementCaches = true)
     {
         var pathIds = state.Document.Paths.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
         var selectedPathIds = (state.SelectedPathIds ?? [])
@@ -1679,7 +1731,17 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             .ToArray();
         var measurements = (state.Measurements ?? [])
             .Where(measurement => measurement.EntityPathId is null || pathIds.Contains(measurement.EntityPathId))
+            .Select(measurement => measurement.EvaluatedValue is { } cached
+                && (!double.IsFinite(cached) || cached <= 0.0)
+                    ? measurement with { EvaluatedValue = null }
+                    : measurement)
             .ToArray();
+        if (rebuildMeasurementCaches)
+        {
+            measurements = TryResolveMeasurementGraph(measurements, out var values, out _)
+                ? ApplyResolvedMeasurementValues(measurements, values, updateEndpoints: false)
+                : measurements.Select(measurement => measurement with { EvaluatedValue = null }).ToArray();
+        }
         var selectedMeasurementId = measurements.Any(item => item.Id == state.SelectedMeasurementId)
             ? state.SelectedMeasurementId
             : null;
