@@ -1141,6 +1141,21 @@ public sealed partial class EditorPageViewModel
         }
     }
 
+    public bool TwoDOffsetConstruction
+    {
+        get => _twoDOffsetConstruction;
+        set
+        {
+            if (!SetWorkspaceFacadeValue(_twoDOffsetConstruction, value, updated => _twoDOffsetConstruction = updated))
+                return;
+            OnPropertyChanged(nameof(TwoDOffsetGeometryTypeLabel));
+            OnPropertyChanged(nameof(TwoDOffsetSummary));
+            QueueTwoDOffsetPreviewRefresh();
+        }
+    }
+
+    public string TwoDOffsetGeometryTypeLabel => TwoDOffsetConstruction ? "Construction" : "Normal";
+
     public string TwoDOffsetBBoxDistanceText
     {
         get => _twoDOffsetBBoxDistanceText;
@@ -1247,7 +1262,11 @@ public sealed partial class EditorPageViewModel
         try
         {
             var result = await _twoDWorkspace.BuildCurveOffsetPreviewAsync(
-                _editor2DGeometryKernelService, distance, outward, cancellationToken).ConfigureAwait(true);
+                _editor2DGeometryKernelService,
+                distance,
+                outward,
+                cancellationToken,
+                construction: TwoDOffsetConstruction).ConfigureAwait(true);
             if (generation != _twoDOffsetPreviewGeneration || cancellationToken.IsCancellationRequested)
                 return;
             SetTwoDOffsetPreview(result.IsSuccess ? result.Paths : [], result.IsSuccess ? null : result.Error);
@@ -2168,7 +2187,8 @@ public sealed partial class EditorPageViewModel
             _editor2DGeometryKernelService,
             offsetDistance,
             outward,
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            construction: TwoDOffsetConstruction).ConfigureAwait(true);
         return CompleteTwoDWorkspaceOperation(result);
     }
 

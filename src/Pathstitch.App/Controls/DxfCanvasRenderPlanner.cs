@@ -9,6 +9,7 @@ internal enum DxfCanvasPathVisualRole
 {
     Open,
     Closed,
+    Construction,
     Hovered,
     Selected,
 }
@@ -36,7 +37,9 @@ internal sealed class DxfCanvasRenderPlanner
             ? DxfCanvasPathVisualRole.Selected
             : string.Equals(path.Id, hoveredPathId, StringComparison.Ordinal)
                 ? DxfCanvasPathVisualRole.Hovered
-                : path.IsClosed
-                    ? DxfCanvasPathVisualRole.Closed
-                    : DxfCanvasPathVisualRole.Open;
+                : path.IsConstruction
+                    ? DxfCanvasPathVisualRole.Construction
+                    : path.IsClosed
+                        ? DxfCanvasPathVisualRole.Closed
+                        : DxfCanvasPathVisualRole.Open;
 }

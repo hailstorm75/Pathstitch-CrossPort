@@ -39,7 +39,8 @@ public sealed class WorkspaceSemanticRoundTripTests
                 "cut-line",
                 "LINE",
                 [new Editor2DPoint(0, 0), new Editor2DPoint(20, 0)],
-                false);
+                false,
+                IsConstruction: true);
             var layer = new Editor2DLayer("cut", "Cut", [path.Id], IsVisible: true, IsLocked: false);
             var measurement = new Editor2DMeasurement("measure", path.Points[0], path.Points[1]);
             var twoD = Editor2DWorkspaceState.Empty with
@@ -91,6 +92,7 @@ public sealed class WorkspaceSemanticRoundTripTests
             Assert.Equal(selectedFace, Assert.Single(restored.ThreeDWorkspaceState.SelectedFaces));
             Assert.Equal(offset, Assert.Single(restored.ThreeDWorkspaceState.BodyOffsets));
             Assert.Equal(path.Id, Assert.Single(restored.TwoDWorkspaceState!.SelectedPathIds!));
+            Assert.True(Assert.Single(restored.TwoDWorkspaceState.Document.Paths).IsConstruction);
             Assert.Equal(layer.Id, Assert.Single(restored.TwoDWorkspaceState.Layers!).Id);
             Assert.Equal(measurement.Id, restored.TwoDWorkspaceState.SelectedMeasurementId);
             Assert.Equal(exportContext, restored.GeneratedOutputContext);

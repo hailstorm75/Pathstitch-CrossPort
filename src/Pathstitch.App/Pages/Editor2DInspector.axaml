@@ -279,6 +279,20 @@
         <StackPanel
           Orientation="Horizontal"
           Spacing="8"
+          IsVisible="{Binding IsTwoDCurveOffsetMode}">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Geometry type" />
+          <ToggleSwitch
+            AutomationProperties.AutomationId="editor.2d.offset.construction"
+            Content="{Binding TwoDOffsetGeometryTypeLabel}"
+            IsChecked="{Binding TwoDOffsetConstruction, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
           IsVisible="{Binding IsTwoDBBoxOffsetMode}">
           <TextBlock
             VerticalAlignment="Center"

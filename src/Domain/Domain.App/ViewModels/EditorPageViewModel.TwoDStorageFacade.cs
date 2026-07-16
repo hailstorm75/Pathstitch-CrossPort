@@ -45,6 +45,7 @@ public sealed partial class EditorPageViewModel
     private string _twoDOffsetDistanceText { get => _twoDWorkspace.OffsetDistanceText; set => _twoDWorkspace.OffsetDistanceText = value; }
     private string _twoDOffsetBBoxDistanceText { get => _twoDWorkspace.OffsetBBoxDistanceText; set => _twoDWorkspace.OffsetBBoxDistanceText = value; }
     private string _twoDOffsetBBoxFilletText { get => _twoDWorkspace.OffsetBBoxFilletText; set => _twoDWorkspace.OffsetBBoxFilletText = value; }
+    private bool _twoDOffsetConstruction { get => _twoDWorkspace.OffsetConstruction; set => _twoDWorkspace.OffsetConstruction = value; }
     private string _twoDAddThicknessWidthText { get => _twoDWorkspace.AddThicknessWidthText; set => _twoDWorkspace.AddThicknessWidthText = value; }
     private string _twoDCleanupToleranceText { get => _twoDWorkspace.CleanupToleranceText; set => _twoDWorkspace.CleanupToleranceText = value; }
     private string _twoDPatternMode { get => _twoDWorkspace.PatternMode; set => _twoDWorkspace.PatternMode = value; }

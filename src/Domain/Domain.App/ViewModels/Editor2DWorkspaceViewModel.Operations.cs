@@ -81,9 +81,10 @@ public sealed partial class Editor2DWorkspaceViewModel
         IEditor2DGeometryKernelService kernel,
         double distance,
         bool outward,
-        CancellationToken token = default)
+        CancellationToken token = default,
+        bool construction = false)
     {
-        var result = await BuildCurveOffsetPreviewAsync(kernel, distance, outward, token).ConfigureAwait(true);
+        var result = await BuildCurveOffsetPreviewAsync(kernel, distance, outward, token, construction).ConfigureAwait(true);
         if (!result.IsSuccess)
             return Editor2DWorkspaceOperationResult.Failure($"OpenGeometry Offset failed: {result.Error ?? "unknown OpenGeometry worker failure"}");
         if (result.Paths.Count == 0)
@@ -95,12 +96,16 @@ public sealed partial class Editor2DWorkspaceViewModel
         IEditor2DGeometryKernelService kernel,
         double distance,
         bool outward,
-        CancellationToken token = default)
+        CancellationToken token = default,
+        bool construction = false)
     {
         var sources = SelectedPaths(Editor2DGeometry.IsCurveOffsettablePath).ToArray();
         if (sources.Length == 0)
             return Editor2DGeometryKernelResult.Failure("Select line, polyline, circle, or arc geometry before applying Offset");
-        return await kernel.BuildCurveOffsetPathsAsync(sources, distance, outward, token).ConfigureAwait(true);
+        var result = await kernel.BuildCurveOffsetPathsAsync(sources, distance, outward, token).ConfigureAwait(true);
+        return result.IsSuccess
+            ? result with { Paths = result.Paths.Select(path => path with { IsConstruction = construction }).ToArray() }
+            : result;
     }
 
     public Editor2DWorkspaceOperationResult CommitCurveOffsetPreview(
@@ -109,10 +114,62 @@ public sealed partial class Editor2DWorkspaceViewModel
     {
         if (previewPaths.Count == 0)
             return Editor2DWorkspaceOperationResult.Failure("OpenGeometry did not produce an offset path for the selected geometry");
-        AppendAndSelect(previewPaths);
+        CommitOffsetPreviewPaths(previewPaths);
         return Editor2DWorkspaceOperationResult.Success(previewPaths.Count == 1
             ? $"OpenGeometry created 1 {(outward ? "outward" : "inward")} offset path"
             : $"OpenGeometry created {previewPaths.Count} {(outward ? "outward" : "inward")} offset paths");
+    }
+
+    private void CommitOffsetPreviewPaths(IReadOnlyList<Editor2DPreviewPath> previewPaths)
+    {
+        var constructionIds = previewPaths
+            .Where(path => path.IsConstruction)
+            .Select(path => path.Id)
+            .ToArray();
+        if (constructionIds.Length == 0)
+        {
+            AppendAndSelect(previewPaths);
+            return;
+        }
+
+        var layers = Layers.OrderBy(layer => layer.Order).ToList();
+        var constructionIndex = layers.FindIndex(layer =>
+            layer.Kind == Editor2DLayerKind.Geometry
+            && string.Equals(layer.Name, "CONSTRUCTION", StringComparison.OrdinalIgnoreCase));
+        if (constructionIndex < 0)
+        {
+            var layerId = layers.Any(layer => string.Equals(layer.Id, "layer-construction", StringComparison.Ordinal))
+                ? $"layer-construction-{Guid.NewGuid():N}"
+                : "layer-construction";
+            layers.Add(new Editor2DLayer(
+                layerId,
+                "CONSTRUCTION",
+                constructionIds,
+                Order: layers.Count,
+                ColorHex: "#808080"));
+        }
+        else
+        {
+            layers[constructionIndex] = layers[constructionIndex] with
+            {
+                Name = "CONSTRUCTION",
+                ColorHex = "#808080",
+                PathIds = layers[constructionIndex].PathIds
+                    .Concat(constructionIds)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray(),
+            };
+        }
+
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, Document.Paths.Concat(previewPaths).ToArray()),
+            IsInitialized = true,
+            SelectedPathIds = previewPaths.Select(path => path.Id).ToArray(),
+            SelectedMeasurementId = null,
+            Layers = layers,
+            ActiveLayerId = ActiveLayerId,
+        });
     }
 
     public async Task<Editor2DWorkspaceOperationResult> ApplyBooleanAsync(

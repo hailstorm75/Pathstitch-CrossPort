@@ -100,6 +100,11 @@ public sealed class EditorPageViewModelModeTests
         await viewModel.TwoDOffsetPreviewUpdateTask;
         Assert.All(Assert.Single(viewModel.TwoDOffsetPreviewPaths).Points, point => Assert.Equal(7, point.Y, 6));
 
+        viewModel.TwoDOffsetConstruction = true;
+        await viewModel.TwoDOffsetPreviewUpdateTask;
+        Assert.Equal("Construction", viewModel.TwoDOffsetGeometryTypeLabel);
+        Assert.True(Assert.Single(viewModel.TwoDOffsetPreviewPaths).IsConstruction);
+
         viewModel.FlipTwoDOffsetDirection();
         await viewModel.TwoDOffsetPreviewUpdateTask;
         var committedGhost = Assert.Single(viewModel.TwoDOffsetPreviewPaths);
@@ -111,6 +116,10 @@ public sealed class EditorPageViewModelModeTests
 
         Assert.Equal(callsBeforeCommit, kernel.CallCount);
         Assert.Contains(committedGhost, viewModel.TwoDDocument.Paths);
+        Assert.True(committedGhost.IsConstruction);
+        var constructionLayer = Assert.Single(viewModel.TwoDLayers, layer => layer.Name == "CONSTRUCTION");
+        Assert.Equal("#808080", constructionLayer.ColorHex);
+        Assert.Contains(committedGhost.Id, constructionLayer.PathIds);
         Assert.Empty(viewModel.TwoDOffsetPreviewPaths);
         Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
     }

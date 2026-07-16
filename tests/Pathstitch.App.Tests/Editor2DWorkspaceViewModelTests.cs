@@ -434,6 +434,43 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void OffsetConstruction_UsesCaseInsensitiveGrayLayerAndUndoRedoIsAtomic()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var source = new Editor2DPreviewPath("source", "LINE", [new(0, 0), new(10, 0)], false);
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [source] });
+        var constructionLayer = workspace.CreateLayer("construction");
+        var activeLayer = workspace.CreateLayer("Details");
+        var constructionPath = new Editor2DPreviewPath(
+            "offset-construction", "LINE", [new(0, 5), new(10, 5)], false, IsConstruction: true);
+
+        var result = workspace.CommitCurveOffsetPreview([constructionPath], outward: true);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(activeLayer.Id, workspace.ActiveLayerId);
+        var reused = Assert.Single(workspace.Layers, layer =>
+            string.Equals(layer.Name, "CONSTRUCTION", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(constructionLayer.Id, reused.Id);
+        Assert.Equal("CONSTRUCTION", reused.Name);
+        Assert.Equal("#808080", reused.ColorHex);
+        Assert.Contains(constructionPath.Id, reused.PathIds);
+        Assert.DoesNotContain(constructionPath.Id, workspace.Layers.Single(layer => layer.Id == activeLayer.Id).PathIds);
+        Assert.True(Assert.Single(workspace.Document.Paths, path => path.Id == constructionPath.Id).IsConstruction);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal(activeLayer.Id, workspace.ActiveLayerId);
+        Assert.DoesNotContain(workspace.Document.Paths, path => path.Id == constructionPath.Id);
+        var undoneLayer = workspace.Layers.Single(layer => layer.Id == constructionLayer.Id);
+        Assert.Equal("construction", undoneLayer.Name);
+        Assert.Empty(undoneLayer.PathIds);
+
+        Assert.True(workspace.Redo());
+        Assert.Equal(activeLayer.Id, workspace.ActiveLayerId);
+        Assert.True(workspace.Document.Paths.Single(path => path.Id == constructionPath.Id).IsConstruction);
+        Assert.Contains(constructionPath.Id, workspace.Layers.Single(layer => layer.Id == constructionLayer.Id).PathIds);
+    }
+
+    [Fact]
     public void ApplyMirror_RejectsMissingSelectionAndDegenerateAxisWithoutHistory()
     {
         var workspace = new Editor2DWorkspaceViewModel();

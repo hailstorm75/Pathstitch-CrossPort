@@ -43,13 +43,29 @@ public sealed class DxfCanvasCollaboratorTests
     {
         var open = Path("open", false, new(0, 0), new(10, 0));
         var closed = Path("closed", true, new(0, 0), new(10, 0), new(10, 10));
+        var construction = Path("construction", false, new(0, 5), new(10, 5)) with { IsConstruction = true };
         var planner = new DxfCanvasRenderPlanner();
-        var document = Document(open, closed);
+        var document = Document(open, closed, construction);
 
-        Assert.Equal([open], planner.VisiblePaths(document, ["closed"]));
+        Assert.Equal([open, construction], planner.VisiblePaths(document, ["closed"]));
         Assert.Equal(DxfCanvasPathVisualRole.Selected, planner.ResolvePathRole(open, new HashSet<string> { "open" }, "open"));
         Assert.Equal(DxfCanvasPathVisualRole.Hovered, planner.ResolvePathRole(open, new HashSet<string>(), "open"));
         Assert.Equal(DxfCanvasPathVisualRole.Closed, planner.ResolvePathRole(closed, new HashSet<string>(), null));
+        Assert.Equal(DxfCanvasPathVisualRole.Construction, planner.ResolvePathRole(construction, new HashSet<string>(), null));
+        Assert.Equal(DxfCanvasPathVisualRole.Hovered, planner.ResolvePathRole(construction, new HashSet<string>(), "construction"));
+        Assert.Equal(DxfCanvasPathVisualRole.Selected, planner.ResolvePathRole(construction, new HashSet<string> { "construction" }, "construction"));
+    }
+
+    [Fact]
+    public void Canvas_DefinesDashedGrayPenForUnselectedConstructionPaths()
+    {
+        var source = File.ReadAllText(RepositoryFile(
+            "src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs"));
+
+        Assert.Contains("Color.Parse(\"#8A909B\")", source, StringComparison.Ordinal);
+        Assert.Contains("1.2, dashStyle: new DashStyle([6, 4], 0)", source, StringComparison.Ordinal);
+        Assert.Contains("DxfCanvasPathVisualRole.Construction => ConstructionPathPen", source, StringComparison.Ordinal);
+        Assert.Contains("path.IsConstruction ? null", source, StringComparison.Ordinal);
     }
 
     [Fact]

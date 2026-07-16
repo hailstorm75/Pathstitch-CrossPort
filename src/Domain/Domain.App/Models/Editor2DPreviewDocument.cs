@@ -55,7 +55,8 @@ public sealed record Editor2DPreviewPath(
     bool IsItalic = false,
     bool IsUnderline = false,
     IReadOnlyList<Editor2DBezierAnchor>? BezierAnchors = null,
-    bool IsFilled = false);
+    bool IsFilled = false,
+    bool IsConstruction = false);
 
 public sealed record Editor2DMeasurement(
     string Id,

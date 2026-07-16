@@ -211,6 +211,7 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly Pen PaperBorderPen = new(new SolidColorBrush(Color.Parse("#243042")), 1);
     private static readonly Pen ClosedPathPen = new(new SolidColorBrush(Color.Parse("#E8ECF6")), 1.4);
     private static readonly Pen OpenPathPen = new(new SolidColorBrush(Color.Parse("#F5B35C")), 1.4);
+    private static readonly Pen ConstructionPathPen = new(new SolidColorBrush(Color.Parse("#8A909B")), 1.2, dashStyle: new DashStyle([6, 4], 0));
     private static readonly Pen HoverPathPen = new(new SolidColorBrush(Color.Parse("#8EB3FF")), 2.0);
     private static readonly Pen SelectedPathPen = new(new SolidColorBrush(Color.Parse("#4D7FFF")), 2.4);
     private static readonly Pen PreviewPathPen = new(new SolidColorBrush(Color.Parse("#62E6A7")), 1.8, dashStyle: new DashStyle([4, 3], 0));
@@ -1832,15 +1833,19 @@ Selection:
             SelectedPathIds,
             _hoveredPathId,
             point => WorldToScreen(point, size),
-            role => role switch
-            {
-                DxfCanvasPathVisualRole.Selected => SelectedPathPen,
-                DxfCanvasPathVisualRole.Hovered => HoverPathPen,
-                DxfCanvasPathVisualRole.Closed => ClosedPathPen,
-                _ => OpenPathPen,
-            },
-            path => path.IsFilled ? FilledPathBrush : null,
+            ResolvePathPen,
+            path => path.IsConstruction ? null : path.IsFilled ? FilledPathBrush : null,
             (path, pen) => TryDrawSemanticPrimitive(context, size, path, pen));
+
+    internal static Pen ResolvePathPen(DxfCanvasPathVisualRole role)
+        => role switch
+        {
+            DxfCanvasPathVisualRole.Selected => SelectedPathPen,
+            DxfCanvasPathVisualRole.Hovered => HoverPathPen,
+            DxfCanvasPathVisualRole.Construction => ConstructionPathPen,
+            DxfCanvasPathVisualRole.Closed => ClosedPathPen,
+            _ => OpenPathPen,
+        };
 
     private void DrawPreviewPaths(DrawingContext context, Size size)
         => DrawPreviewPaths(context, size, PreviewPaths);

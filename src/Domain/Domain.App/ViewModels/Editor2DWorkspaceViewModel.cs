@@ -39,6 +39,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private string _offsetDistanceText = "12";
     private string _offsetBBoxDistanceText = "12";
     private string _offsetBBoxFilletText = "0";
+    private bool _offsetConstruction;
     private string _addThicknessWidthText = "3";
     private string _cleanupToleranceText = "0.1";
     private string _patternMode = "Rectangular";
@@ -102,6 +103,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     internal string OffsetDistanceText { get => _offsetDistanceText; set => SetProperty(ref _offsetDistanceText, value); }
     internal string OffsetBBoxDistanceText { get => _offsetBBoxDistanceText; set => SetProperty(ref _offsetBBoxDistanceText, value); }
     internal string OffsetBBoxFilletText { get => _offsetBBoxFilletText; set => SetProperty(ref _offsetBBoxFilletText, value); }
+    internal bool OffsetConstruction { get => _offsetConstruction; set => SetProperty(ref _offsetConstruction, value); }
     internal string AddThicknessWidthText { get => _addThicknessWidthText; set => SetProperty(ref _addThicknessWidthText, value); }
     internal string CleanupToleranceText { get => _cleanupToleranceText; set => SetProperty(ref _cleanupToleranceText, value); }
     internal string PatternMode { get => _patternMode; set => SetProperty(ref _patternMode, value); }

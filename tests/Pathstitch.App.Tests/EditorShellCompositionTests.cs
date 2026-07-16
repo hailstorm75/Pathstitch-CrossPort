@@ -338,6 +338,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.offset.flip\"", inspector, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.offset.ok\"", inspector, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.offset.cancel\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.offset.construction\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("IsChecked=\"{Binding TwoDOffsetConstruction, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
         Assert.Contains("OnTwoDOffsetDistanceKeyDown", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDPolygonSides", inspector, StringComparison.Ordinal);
         Assert.Contains("SewingHoleMargin=\"{Binding TwoDSewingHoleMargin, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
