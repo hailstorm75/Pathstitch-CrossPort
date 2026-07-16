@@ -252,6 +252,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(HasTwoDMirrorLinkSelection));
         OnPropertyChanged(nameof(HasSelectedTwoDImportGroup));
         OnPropertyChanged(nameof(TwoDMeasurements));
+        OnPropertyChanged(nameof(TwoDDimensionParameters));
         OnPropertyChanged(nameof(TwoDSelectedMeasurementId));
         OnPropertyChanged(nameof(TwoDLayers));
         OnPropertyChanged(nameof(TwoDActiveLayerId));

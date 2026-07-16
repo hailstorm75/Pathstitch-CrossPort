@@ -947,6 +947,61 @@
       </StackPanel>
       <StackPanel
         Spacing="8"
+        IsVisible="{Binding IsTwoDDimensionToolActive}"
+        AutomationProperties.AutomationId="editor.2d.dimension.inspector">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="Dimension" />
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="Click a line for length, a circle for radius, or two points for a distance. Type a value or formula and press Enter."
+          AutomationProperties.AutomationId="editor.2d.dimension.hint" />
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource MutedTextBrush}"
+          Text="Formulas: 20*2, d1*0.5+10, (d1+d2)/2."
+          AutomationProperties.AutomationId="editor.2d.dimension.formula-hint" />
+        <ItemsControl
+          ItemsSource="{Binding TwoDDimensionParameters}"
+          AutomationProperties.AutomationId="editor.2d.dimension.parameters">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="models:Editor2DDimensionParameterItem">
+              <Grid
+                ColumnDefinitions="Auto,*,Auto"
+                ColumnSpacing="6"
+                Margin="0,2"
+                AutomationProperties.AutomationId="{Binding Name, StringFormat=editor.2d.dimension.parameter.{0}}">
+                <TextBlock
+                  MinWidth="24"
+                  FontFamily="Cascadia Mono,Consolas"
+                  FontWeight="Bold"
+                  Foreground="{StaticResource AccentBrush}"
+                  Text="{Binding Name}" />
+                <TextBlock
+                  Grid.Column="1"
+                  FontFamily="Cascadia Mono,Consolas"
+                  FontSize="10"
+                  Foreground="{StaticResource SecondaryTextBrush}"
+                  TextTrimming="CharacterEllipsis"
+                  Text="{Binding ExpressionDisplay}" />
+                <TextBlock
+                  Grid.Column="2"
+                  FontFamily="Cascadia Mono,Consolas"
+                  FontSize="10"
+                  FontWeight="SemiBold"
+                  Foreground="{StaticResource PrimaryTextBrush}"
+                  Text="{Binding ValueDisplay}" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
         IsVisible="{Binding IsTwoDTextInspectorVisible}">
         <TextBlock
           FontSize="10"

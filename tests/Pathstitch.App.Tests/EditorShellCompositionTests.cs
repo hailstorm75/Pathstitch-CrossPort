@@ -547,6 +547,22 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void DimensionInspector_ExposesHintsAndLiveParameterTable()
+    {
+        var inspector = ReadPage("Editor2DInspector.axaml");
+
+        Assert.Contains("IsVisible=\"{Binding IsTwoDDimensionToolActive}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding TwoDDimensionParameters}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding ExpressionDisplay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding ValueDisplay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("StringFormat=editor.2d.dimension.parameter.{0}", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.dimension.inspector", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.dimension.hint", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.dimension.formula-hint", inspector, StringComparison.Ordinal);
+        Assert.Contains("editor.2d.dimension.parameters", inspector, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InspectorHost_ScopesWorkspaceSpecificPanels()
     {
         var host = ReadPage("EditorInspectorHost.axaml");

@@ -105,6 +105,93 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public void DimensionParameters_RefreshForDependenciesDrivenStateAndHistory()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.TwoDActiveTool = Editor2DTool.Dimension;
+        viewModel.TwoDMeasurements =
+        [
+            new("first", new(0, 0), new(10, 0), VarName: "d1", Expression: "10", IsParametric: true),
+            new("second", new(0, 10), new(20, 10), VarName: "d2", Expression: "d1 * 2", IsParametric: true),
+            new("driven", new(0, 15), new(20, 15), VarName: "d4", Expression: "d1 * 3", Driven: true, IsParametric: true),
+            new("manual", new(0, 20), new(3, 20)),
+            new("auto", new(0, 30), new(4, 30), IsAutoDimension: true, VarName: "d3", Expression: "4", IsParametric: true),
+        ];
+        viewModel.TwoDSelectedMeasurementId = "first";
+        viewModel.TwoDWorkspace.ClearHistory();
+        var notifications = 0;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(viewModel.TwoDDimensionParameters))
+                notifications++;
+        };
+
+        var initial = viewModel.TwoDDimensionParameters;
+
+        Assert.Equal(["d1", "d2", "d4"], initial.Select(item => item.Name).ToArray());
+        Assert.Equal(string.Empty, initial[0].ExpressionDisplay);
+        Assert.Equal("10.00", initial[0].ValueDisplay);
+        Assert.Equal("= d1 * 2", initial[1].ExpressionDisplay);
+        Assert.Equal("20.00", initial[1].ValueDisplay);
+        Assert.False(initial[1].IsDriven);
+        Assert.Equal("(20.00)", initial[2].ValueDisplay);
+        Assert.True(initial[2].IsDriven);
+
+        viewModel.TwoDSelectedMeasurementExpressionText = "5";
+
+        Assert.Equal("5.00", viewModel.TwoDDimensionParameters[0].ValueDisplay);
+        Assert.Equal("10.00", viewModel.TwoDDimensionParameters[1].ValueDisplay);
+        Assert.Equal("(20.00)", viewModel.TwoDDimensionParameters[2].ValueDisplay);
+        Assert.True(notifications > 0);
+        Assert.True(viewModel.UndoTwoDWorkspace());
+        Assert.Equal("10.00", viewModel.TwoDDimensionParameters[0].ValueDisplay);
+        Assert.True(viewModel.RedoTwoDWorkspace());
+        Assert.Equal("5.00", viewModel.TwoDDimensionParameters[0].ValueDisplay);
+
+        viewModel.TwoDWorkspace.ClearHistory();
+        viewModel.TwoDSelectedMeasurementId = "first";
+        var beforeInvalid = viewModel.TwoDMeasurements.ToArray();
+        viewModel.TwoDSelectedMeasurementExpressionText = "d2";
+        Assert.Equal(beforeInvalid, viewModel.TwoDMeasurements);
+        Assert.False(viewModel.CanUndoTwoDWorkspace);
+        Assert.Contains("positive number or arithmetic expression", viewModel.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DimensionParameters_RebuildFromPersistedMeasurementState()
+    {
+        var measurement = new Editor2DMeasurement(
+            "dimension", new(0, 0), new(12, 0), VarName: "d1", Expression: "6 * 2",
+            Driven: true, IsParametric: true);
+        var projectPath = Path.Combine(Path.GetTempPath(), $"dimension-table-{Guid.NewGuid():N}.stch");
+        try
+        {
+            var state = Editor2DWorkspaceState.Empty with { Measurements = [measurement] };
+            var service = new Project3DStateService();
+            await service.SaveAsync(projectPath, Project3DState.Empty with { TwoDWorkspaceState = state });
+
+            var restored = await service.LoadAsync(projectPath);
+            var restoredMeasurement = Assert.Single(restored.TwoDWorkspaceState!.Measurements!);
+            Assert.Equal(measurement.VarName, restoredMeasurement.VarName);
+            Assert.Equal(measurement.Expression, restoredMeasurement.Expression);
+            Assert.Equal(measurement.Driven, restoredMeasurement.Driven);
+            Assert.Equal(measurement.IsParametric, restoredMeasurement.IsParametric);
+
+            var viewModel = CreateViewModel();
+            viewModel.TwoDMeasurements = [restoredMeasurement];
+            var row = Assert.Single(viewModel.TwoDDimensionParameters);
+            Assert.Equal("d1", row.Name);
+            Assert.Equal("= 6 * 2", row.ExpressionDisplay);
+            Assert.Equal("(12.00)", row.ValueDisplay);
+        }
+        finally
+        {
+            if (File.Exists(projectPath))
+                File.Delete(projectPath);
+        }
+    }
+
+    [Fact]
     public void ConvertLines_ReentryLoadsGroupAndSupportsLiveStyleWithStagedParameters()
     {
         var viewModel = CreateViewModel();

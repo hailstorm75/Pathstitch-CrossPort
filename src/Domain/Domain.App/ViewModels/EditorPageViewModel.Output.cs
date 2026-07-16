@@ -562,9 +562,33 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDMeasurementSummary));
             OnPropertyChanged(nameof(TwoDSelectedMeasurementExpressionText));
             OnPropertyChanged(nameof(TwoDSelectedMeasurementDriven));
+            OnPropertyChanged(nameof(TwoDDimensionParameters));
             OnPropertyChanged(nameof(TwoDToolHint));
         }
     }
+
+    public IReadOnlyList<Editor2DDimensionParameterItem> TwoDDimensionParameters
+        => TwoDMeasurements
+            .Where(static measurement => !measurement.IsAutoDimension
+                && measurement.IsParametric
+                && !string.IsNullOrWhiteSpace(measurement.VarName))
+            .Select(static measurement =>
+            {
+                var expression = measurement.Expression?.Trim() ?? string.Empty;
+                var isNumericLiteral = double.TryParse(
+                    expression,
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out _);
+                var value = measurement.Distance.ToString("0.00", CultureInfo.InvariantCulture);
+                return new Editor2DDimensionParameterItem(
+                    measurement.Id,
+                    measurement.VarName!,
+                    string.IsNullOrWhiteSpace(expression) || isNumericLiteral ? string.Empty : $"= {expression}",
+                    measurement.Driven ? $"({value})" : value,
+                    measurement.Driven);
+            })
+            .ToArray();
 
     public string? TwoDSelectedMeasurementId
     {
@@ -603,7 +627,9 @@ public sealed partial class EditorPageViewModel
                 return;
             }
             OnPropertyChanged();
+            OnPropertyChanged(nameof(TwoDMeasurements));
             OnPropertyChanged(nameof(TwoDMeasurementSummary));
+            OnPropertyChanged(nameof(TwoDDimensionParameters));
             Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
         }
     }
@@ -617,8 +643,10 @@ public sealed partial class EditorPageViewModel
                 || !_twoDWorkspace.SetMeasurementDriven(TwoDSelectedMeasurementId, value))
                 return;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(TwoDMeasurements));
             OnPropertyChanged(nameof(TwoDSelectedMeasurementExpressionText));
             OnPropertyChanged(nameof(TwoDMeasurementSummary));
+            OnPropertyChanged(nameof(TwoDDimensionParameters));
             Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
         }
     }

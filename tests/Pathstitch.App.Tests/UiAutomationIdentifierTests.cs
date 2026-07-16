@@ -211,6 +211,24 @@ public sealed class UiAutomationIdentifierTests
     }
 
     [Fact]
+    public void DimensionInspector_ExposesStableParameterIdentifiers()
+    {
+        var inspector = _ui.LoadXaml("src", "Pathstitch.App", "Pages", "Editor2DInspector.axaml");
+        var expectedIds = new[]
+        {
+            "editor.2d.dimension.inspector",
+            "editor.2d.dimension.hint",
+            "editor.2d.dimension.formula-hint",
+            "editor.2d.dimension.parameters",
+        };
+
+        foreach (var automationId in expectedIds)
+            _ui.FindXamlElementByAutomationId(inspector, automationId);
+
+        _ui.FindXamlElementByAutomationId(inspector, "{Binding Name, StringFormat=editor.2d.dimension.parameter.{0}}");
+    }
+
+    [Fact]
     public void CatalogToolButtons_BindAutomationIdToStableDescriptorIdentifier()
     {
         var rail = _ui.LoadXaml("src", "Pathstitch.App", "Pages", "EditorToolRail.axaml");
