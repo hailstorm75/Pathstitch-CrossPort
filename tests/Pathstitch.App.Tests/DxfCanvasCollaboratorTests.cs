@@ -401,6 +401,51 @@ public sealed class DxfCanvasCollaboratorTests
     }
 
     [Fact]
+    public void TransformPrecision_TranslationTotalsProduceIncrementalAxisCorrections()
+    {
+        var state = DxfCanvasTransformPrecisionState.Empty;
+
+        Assert.True(state.TryApplyTranslationTotal(DxfCanvasPrecisionAxis.X, "12.50", out state, out var firstX));
+        Assert.Equal(12.5, firstX, 8);
+        Assert.True(state.TryApplyTranslationTotal(DxfCanvasPrecisionAxis.X, "15.25", out state, out var secondX));
+        Assert.Equal(2.75, secondX, 8);
+        Assert.True(state.TryApplyTranslationTotal(DxfCanvasPrecisionAxis.Y, "-4", out state, out var firstY));
+        Assert.Equal(-4, firstY, 8);
+        Assert.Equal(15.25, state.AppliedX, 8);
+        Assert.Equal(-4, state.AppliedY, 8);
+    }
+
+    [Fact]
+    public void TransformPrecision_RotationWrapsAbsoluteTargetAndResetsWithSelection()
+    {
+        var state = new DxfCanvasTransformPrecisionState(3, -2, 350);
+
+        Assert.True(state.TryApplyAbsoluteRotation("730", out var next, out var correction));
+        Assert.Equal(-340, correction, 8);
+        Assert.Equal(10, next.CumulativeRotation, 8);
+        Assert.Equal(DxfCanvasTransformPrecisionState.Empty, next.ResetForSelection());
+        Assert.Equal(350, DxfCanvasTransformPrecisionState.WrapRotation(-10), 8);
+        Assert.Equal(10, DxfCanvasTransformPrecisionState.WrapRotation(730), 8);
+        Assert.Equal(10, state.RecordRotationDrag(20).CumulativeRotation, 8);
+        Assert.Equal(12.5, state.RecordTranslationDrag(DxfCanvasPrecisionAxis.X, 12.5).AppliedX, 8);
+    }
+
+    [Fact]
+    public void TransformPrecision_FormatsInvariantValuesAndRejectsInvalidInputWithoutMutation()
+    {
+        var state = new DxfCanvasTransformPrecisionState(1, 2, 45);
+
+        Assert.Equal("12.50", DxfCanvasTransformPrecisionState.FormatTranslation(12.5));
+        Assert.Equal("350.0", DxfCanvasTransformPrecisionState.FormatRotation(-10));
+        Assert.False(state.TryApplyTranslationTotal(DxfCanvasPrecisionAxis.X, "not-a-number", out var translationNext, out var translationCorrection));
+        Assert.False(state.TryApplyAbsoluteRotation("Infinity", out var rotationNext, out var rotationCorrection));
+        Assert.Equal(state, translationNext);
+        Assert.Equal(state, rotationNext);
+        Assert.Equal(0, translationCorrection);
+        Assert.Equal(0, rotationCorrection);
+    }
+
+    [Fact]
     public void TranslationInteraction_UsesSelectedPointMeanForSharedTransformPivot()
     {
         var selected = Path("selected", false, new Editor2DPoint(0, 0), new Editor2DPoint(9, 0), new Editor2DPoint(9, 3));
