@@ -236,7 +236,8 @@ public sealed class Project3DStateServiceTests
             RotationDegrees: 17,
             Opacity: 0.35,
             CalibrationUnitsPerPixel: 0.25,
-            TraceThreshold: 0.72);
+            TraceThreshold: 0.72,
+            Depth: Editor2DReferenceImageDepth.Front);
         var referenceLayer = new Editor2DLayer(
             referenceImage.Id,
             "Pattern reference",

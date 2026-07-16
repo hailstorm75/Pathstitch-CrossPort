@@ -1280,6 +1280,18 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool SetReferenceImageOpacity(string layerId, double opacity)
         => UpdateReferenceImage(layerId, image => image with { Opacity = Math.Clamp(opacity, 0.0, 1.0) });
 
+    public bool SetReferenceImageDepth(string layerId, Editor2DReferenceImageDepth depth)
+    {
+        if (!Enum.IsDefined(depth))
+            return false;
+
+        var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId && candidate.IsReferenceImage);
+        if (layer?.ReferenceImage is null || layer.IsLocked || layer.ReferenceImage.Depth == depth)
+            return false;
+
+        return UpdateReferenceImage(layerId, image => image with { Depth = depth });
+    }
+
     public bool RemoveReferenceImageBackground(string layerId)
     {
         var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId && candidate.IsReferenceImage);
@@ -2182,6 +2194,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                 ? image.CalibrationUnitsPerPixel
                 : image.Width / image.PixelWidth,
             TraceThreshold = Math.Clamp(image.TraceThreshold, 0.0, 1.0),
+            Depth = Enum.IsDefined(image.Depth) ? image.Depth : Editor2DReferenceImageDepth.Back,
         };
     }
 

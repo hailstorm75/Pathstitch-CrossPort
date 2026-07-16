@@ -8,6 +8,16 @@ public enum Editor2DLayerKind
     ReferenceImage = 1,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<Editor2DReferenceImageDepth>))]
+public enum Editor2DReferenceImageDepth
+{
+    [JsonStringEnumMemberName("back")]
+    Back = 0,
+
+    [JsonStringEnumMemberName("front")]
+    Front = 1,
+}
+
 public sealed record Editor2DReferenceImage(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("fileName")] string FileName,
@@ -23,9 +33,16 @@ public sealed record Editor2DReferenceImage(
     [property: JsonPropertyName("calibrationUnitsPerPixel")] double CalibrationUnitsPerPixel = 1.0,
     [property: JsonPropertyName("traceThreshold")] double TraceThreshold = 0.5,
     [property: JsonPropertyName("originalDataBase64")] string? OriginalDataBase64 = null,
-    [property: JsonPropertyName("backgroundRemoved")] bool BackgroundRemoved = false)
+    [property: JsonPropertyName("backgroundRemoved")] bool BackgroundRemoved = false,
+    [property: JsonPropertyName("depth")] Editor2DReferenceImageDepth Depth = Editor2DReferenceImageDepth.Back)
 {
     public string SizeSummary => $"{Width:0.###} × {Height:0.###} units";
+
+    [JsonIgnore]
+    public bool IsBack => Depth == Editor2DReferenceImageDepth.Back;
+
+    [JsonIgnore]
+    public bool IsFront => Depth == Editor2DReferenceImageDepth.Front;
 }
 
 public sealed record Editor2DLayer(

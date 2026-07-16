@@ -214,6 +214,12 @@ public sealed partial class EditorPageViewModel
             RefreshTwoDLayerFacade();
     }
 
+    public void SetTwoDReferenceImageDepth(string layerId, Editor2DReferenceImageDepth depth)
+    {
+        if (_twoDWorkspace.SetReferenceImageDepth(layerId, depth))
+            RefreshTwoDLayerFacade();
+    }
+
     public void AdjustTwoDReferenceTraceThreshold(string layerId, double delta)
     {
         var image = GetReferenceImage(layerId);
