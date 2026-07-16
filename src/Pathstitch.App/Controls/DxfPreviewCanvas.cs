@@ -14,6 +14,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using Domain.App.Models;
+using Domain.App.Services;
 using Domain.App.ViewModels;
 
 namespace Pathstitch.App.Controls;
@@ -215,6 +216,11 @@ public sealed class DxfPreviewCanvas : Control
             defaultValue: 6,
             defaultBindingMode: BindingMode.TwoWay);
 
+    public static readonly StyledProperty<double> RectangleFilletRadiusProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, double>(
+            nameof(RectangleFilletRadius),
+            defaultValue: 0.0);
+
     private static readonly Pen MinorGridPen = new(new SolidColorBrush(Color.Parse("#13161D")), 1);
     private static readonly Pen MajorGridPen = new(new SolidColorBrush(Color.Parse("#1D2430")), 1);
     private static readonly Pen AxisPen = new(new SolidColorBrush(Color.Parse("#2D3B55")), 1.25);
@@ -369,7 +375,8 @@ public sealed class DxfPreviewCanvas : Control
             ZoomProperty,
             OffsetXProperty,
             OffsetYProperty,
-            PolygonSidesProperty);
+            PolygonSidesProperty,
+            RectangleFilletRadiusProperty);
         ClipToBoundsProperty.OverrideDefaultValue<DxfPreviewCanvas>(true);
         FocusableProperty.OverrideDefaultValue<DxfPreviewCanvas>(true);
     }
@@ -916,6 +923,12 @@ public sealed class DxfPreviewCanvas : Control
     {
         get => GetValue(PolygonSidesProperty);
         set => SetValue(PolygonSidesProperty, value);
+    }
+
+    public double RectangleFilletRadius
+    {
+        get => GetValue(RectangleFilletRadiusProperty);
+        set => SetValue(RectangleFilletRadiusProperty, value);
     }
 
     public void FrameToDocument()
@@ -2116,12 +2129,16 @@ Selection:
         if (_pendingRectangleStart is not Editor2DPoint startModel || _pendingRectangleEnd is not Editor2DPoint endModel)
             return;
 
-        var rectanglePoints = BuildRectanglePoints(startModel, endModel);
+        var preview = Editor2DRectangleCreationService.Create(
+            "rectangle-preview", startModel, endModel, RectangleFilletRadius);
+        if (preview is null)
+            return;
+        var rectanglePoints = preview.Path.Points;
         var geometry = new StreamGeometry();
         using (var geometryContext = geometry.Open())
         {
             geometryContext.BeginFigure(WorldToScreen(rectanglePoints[0], size), false);
-            for (var pointIndex = 1; pointIndex < rectanglePoints.Length; pointIndex++)
+            for (var pointIndex = 1; pointIndex < rectanglePoints.Count; pointIndex++)
                 geometryContext.LineTo(WorldToScreen(rectanglePoints[pointIndex], size));
 
             geometryContext.EndFigure(true);
@@ -3512,12 +3529,26 @@ Selection:
         }
 
         var startPoint = _pendingRectangleStart;
-        var nextDocument = AddRectangleToDocument(startPoint, worldPoint);
-        if (nextDocument is not null)
+        if (DataContext is EditorPageViewModel viewModel)
         {
-            SetCurrentValue(DocumentProperty, nextDocument);
-            var newPathId = nextDocument.Paths[^1].Id;
-            SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
+            var newPathId = viewModel.CreateTwoDRectangle(startPoint, worldPoint);
+            if (newPathId is not null)
+            {
+                SetCurrentValue(DocumentProperty, viewModel.TwoDDocument);
+                SetCurrentValue(SelectedPathIdsProperty, viewModel.TwoDSelectedPathIds);
+                SetCurrentValue(CornerParametersProperty, viewModel.TwoDCornerParameters);
+                SetCurrentValue(MeasurementsProperty, viewModel.TwoDMeasurements);
+            }
+        }
+        else
+        {
+            var nextDocument = AddRectangleToDocument(startPoint, worldPoint);
+            if (nextDocument is not null)
+            {
+                SetCurrentValue(DocumentProperty, nextDocument);
+                var newPathId = nextDocument.Paths[^1].Id;
+                SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
+            }
         }
 
         CancelPendingRectangle();

@@ -12,6 +12,7 @@ namespace Domain.App.ViewModels;
 public sealed partial class EditorPageViewModel
 {
     private string? _twoDTextFontPreview;
+    private double _twoDRectangleFilletRadius;
 
     private sealed record TwoDConvertLineParameterDefinition(
         string Key,
@@ -338,6 +339,24 @@ public sealed partial class EditorPageViewModel
             if (!_suppressTwoDViewportPersistence)
                 Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
         }
+    }
+
+    public double TwoDRectangleFilletRadius
+    {
+        get => _twoDRectangleFilletRadius;
+        set => SetProperty(ref _twoDRectangleFilletRadius,
+            double.IsFinite(value) ? Math.Max(0.0, value) : 0.0);
+    }
+
+    public string? CreateTwoDRectangle(Editor2DPoint start, Editor2DPoint end)
+    {
+        var pathId = _twoDWorkspace.CreateRectangle(start, end, TwoDRectangleFilletRadius);
+        if (pathId is null)
+            return null;
+
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+        return pathId;
     }
 
     public bool TwoDSnapEnabled
@@ -1024,7 +1043,10 @@ public sealed partial class EditorPageViewModel
         => TwoDDocument is null
             ? 0
             : TwoDDocument.Paths.Count(path =>
-                path.IsAxisAlignedRectangle
+                (path.IsAxisAlignedRectangle
+                    || TwoDCornerParameters.Any(parameter => parameter.PathId == path.Id
+                        && parameter.SourcePoints.Count == 4
+                        && Editor2DGeometry.IsAxisAlignedRectangle(parameter.SourcePoints, isClosed: true)))
                 && TwoDSelectedPathIds.Contains(path.Id, StringComparer.Ordinal));
 
     public bool CanExpandTwoDRectangles => TwoDSelectedRectangleCount > 0;
@@ -2020,7 +2042,7 @@ public sealed partial class EditorPageViewModel
         Editor2DTool.Chamfer => "Chamfer tool: click a corner handle, then drag its arrow or edit the active value to bevel that corner.",
         Editor2DTool.ConvertLines => "Convert Lines tool: keep line or polyline geometry selected, pick a style in the lower 2D panel, and apply it to replace the selected source paths with local patterned geometry.",
         Editor2DTool.SketchLine => "Line tool: click once to place the start point, then click again to create a new line segment in the 2D workspace.",
-        Editor2DTool.SketchRectangle => "Rectangle tool: click once to place the first corner, then click again to create a sharp constrained rectangle with attached width and height dimensions.",
+        Editor2DTool.SketchRectangle => "Rectangle tool: click once to place the first corner, then click again to create a constrained rectangle with editable initial fillets and attached dimensions.",
         Editor2DTool.SketchCircle => "Circle tool: click once to place the center, then click again to set the radius and add a circular path to the 2D workspace.",
         Editor2DTool.SketchPolygon => "Polygon tool: click once to place the center, then click again to set the radius and add a regular closed polygon using the current side count.",
         Editor2DTool.SketchText => "Text tool: click once to place one corner of a text box, then click again to size it. Edit the selected TEXT content and height from the 2D selection panel.",

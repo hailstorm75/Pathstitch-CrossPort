@@ -27,13 +27,13 @@ public sealed class AutomationSafeNumericUpDownTests
     }
 
     [Fact]
-    public void SewingInspector_UsesAutomationSafeSpinnerForEveryDecimalSetting()
+    public void Inspector_UsesAutomationSafeSpinnerForEveryDecimalSetting()
     {
         var inspector = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(), "src", "Pathstitch.App", "Pages", "Editor2DInspector.axaml"));
 
         Assert.DoesNotContain("<NumericUpDown", inspector, StringComparison.Ordinal);
-        Assert.Equal(9, inspector.Split("<controls:AutomationSafeNumericUpDown", StringSplitOptions.None).Length - 1);
+        Assert.Equal(10, inspector.Split("<controls:AutomationSafeNumericUpDown", StringSplitOptions.None).Length - 1);
     }
 
     private static string FindRepositoryRoot()

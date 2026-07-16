@@ -605,6 +605,33 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task RectangleTool_UsesSessionFilletAndCreatesOneAtomicEditableShape()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        viewModel.ActivateTwoDRectangleTool();
+
+        viewModel.TwoDRectangleFilletRadius = -2;
+        Assert.Equal(0, viewModel.TwoDRectangleFilletRadius);
+        viewModel.TwoDRectangleFilletRadius = 100;
+
+        var pathId = viewModel.CreateTwoDRectangle(new(0, 0), new(10, 6));
+
+        Assert.NotNull(pathId);
+        Assert.Equal([pathId], viewModel.TwoDSelectedPathIds);
+        Assert.Equal(4, viewModel.TwoDCornerParameters.Count);
+        Assert.All(viewModel.TwoDCornerParameters, parameter => Assert.Equal(3, parameter.Value));
+        Assert.Equal(2, viewModel.TwoDMeasurements.Count(measurement => measurement.IsAutoDimension));
+        Assert.Equal(1, viewModel.TwoDSelectedRectangleCount);
+        Assert.True(viewModel.CanExpandTwoDRectangles);
+        Assert.True(viewModel.UndoTwoDWorkspace());
+        Assert.Empty(viewModel.TwoDDocument!.Paths);
+        Assert.Empty(viewModel.TwoDCornerParameters);
+        Assert.True(viewModel.RedoTwoDWorkspace());
+        Assert.Equal(4, viewModel.TwoDCornerParameters.Count);
+    }
+
+    [Fact]
     public async Task OpeningBlankTwoDWorkspace_DoesNotCreateATwoDArtifact()
     {
         var viewModel = CreateViewModel();

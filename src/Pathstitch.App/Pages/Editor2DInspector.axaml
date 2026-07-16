@@ -119,6 +119,23 @@
       </StackPanel>
       <StackPanel
         Spacing="8"
+        IsVisible="{Binding IsTwoDRectangleToolActive}">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="Rectangle" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="Initial fillet radius (mm)" />
+        <controls:AutomationSafeNumericUpDown
+          AutomationProperties.AutomationId="editor.2d.rectangle.fillet-radius"
+          Minimum="0"
+          Increment="0.5"
+          Value="{Binding TwoDRectangleFilletRadius, Mode=TwoWay}" />
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
         IsVisible="{Binding IsTwoDPolygonToolActive}">
         <TextBlock
           FontSize="10"

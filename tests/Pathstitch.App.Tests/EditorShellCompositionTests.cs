@@ -342,6 +342,10 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("IsChecked=\"{Binding TwoDOffsetConstruction, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
         Assert.Contains("OnTwoDOffsetDistanceKeyDown", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDPolygonSides", inspector, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsTwoDRectangleToolActive}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.rectangle.fillet-radius\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("Value=\"{Binding TwoDRectangleFilletRadius, Mode=TwoWay}\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("RectangleFilletRadius=\"{Binding TwoDRectangleFilletRadius}\"", twoD, StringComparison.Ordinal);
         Assert.Contains("SewingHoleMargin=\"{Binding TwoDSewingHoleMargin, Mode=TwoWay}\"", twoD, StringComparison.Ordinal);
         Assert.Contains("Explode Compound", canvas, StringComparison.Ordinal);
         Assert.Contains("Stroke to Fill", canvas, StringComparison.Ordinal);

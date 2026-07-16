@@ -49,6 +49,7 @@
     Zoom="{Binding TwoDViewportZoom, Mode=TwoWay}"
     OffsetX="{Binding TwoDViewportOffsetX, Mode=TwoWay}"
     OffsetY="{Binding TwoDViewportOffsetY, Mode=TwoWay}"
+    RectangleFilletRadius="{Binding TwoDRectangleFilletRadius}"
     PolygonSides="{Binding TwoDPolygonSides, Mode=TwoWay}"
     FrameRequestToken="{Binding TwoDFrameRequestToken}" />
 </UserControl>
