@@ -618,79 +618,69 @@ public static class Editor2DGeometry
     }
 
     public static Editor2DPreviewPath TranslatePath(Editor2DPreviewPath path, double deltaX, double deltaY, string? id = null)
-    {
-        Editor2DPoint Transform(Editor2DPoint point) => new(point.X + deltaX, point.Y + deltaY);
-        return path with
-        {
-            Id = id ?? path.Id,
-            Start = path.Start is Editor2DPoint start
-                ? new Editor2DPoint(start.X + deltaX, start.Y + deltaY)
-                : null,
-            Center = path.Center is Editor2DPoint center
-                ? new Editor2DPoint(center.X + deltaX, center.Y + deltaY)
-                : null,
-            Points = path.Points
-                .Select(Transform)
-                .ToArray(),
-            BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(anchor, Transform)).ToArray(),
-        };
-    }
+        => TransformPath(path, Editor2DAffineTransform.CreateTranslation(deltaX, deltaY), id);
 
     public static Editor2DPreviewPath ScalePath(Editor2DPreviewPath path, Editor2DPoint pivot, double factor, string? id = null)
-    {
-        Editor2DPoint Transform(Editor2DPoint point) => new(
-            pivot.X + ((point.X - pivot.X) * factor),
-            pivot.Y + ((point.Y - pivot.Y) * factor));
-
-        var scaledPoints = path.Points.Select(Transform).ToArray();
-        return path with
-        {
-            Id = id ?? path.Id,
-            Start = path.Start is Editor2DPoint start ? Transform(start) : null,
-            Center = path.Center is Editor2DPoint center ? Transform(center) : null,
-            Radius = path.Radius is double radius ? radius * factor : null,
-            TextHeight = path.TextHeight is double textHeight ? textHeight * factor : null,
-            Points = scaledPoints,
-            BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(anchor, Transform)).ToArray(),
-            IsAxisAlignedRectangle = IsAxisAlignedRectangle(scaledPoints, path.IsClosed),
-        };
-    }
+        => TransformPath(path, Editor2DAffineTransform.CreateScale(pivot, factor), id);
 
     public static Editor2DPreviewPath RotatePath(Editor2DPreviewPath path, Editor2DPoint pivot, double angleDegrees, string? id = null)
-    {
-        var rotatedStart = path.Start is Editor2DPoint start
-            ? RotatePoint(start, pivot, angleDegrees)
-            : null;
-        var rotatedCenter = path.Center is Editor2DPoint center
-            ? RotatePoint(center, pivot, angleDegrees)
-            : null;
-        var rotatedRotation = path.RotationDegrees;
-        if (path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase) && rotatedRotation is double rotationDegrees)
-            rotatedRotation = rotationDegrees + angleDegrees;
+        => TransformPath(path, Editor2DAffineTransform.CreateRotation(pivot, angleDegrees), id);
 
-        var rotatedStartAngle = path.StartAngleDegrees;
-        var rotatedEndAngle = path.EndAngleDegrees;
-        if (path.EntityType.Equals("ARC", StringComparison.OrdinalIgnoreCase))
+    public static Editor2DPreviewPath TransformPath(
+        Editor2DPreviewPath path,
+        Editor2DAffineTransform transform,
+        string? id = null)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(transform);
+        if (!transform.IsFinite)
+            throw new ArgumentOutOfRangeException(nameof(transform), "Transform values must be finite.");
+
+        var transformedPoints = path.Points.Select(transform.TransformPoint).ToArray();
+        var transformedCenter = path.Center is { } center ? transform.TransformPoint(center) : null;
+        var transformedRotation = path.RotationDegrees;
+        var preservesDirection = transform.M11 == 1.0 && transform.M12 == 0.0
+                                 && transform.M21 == 0.0 && transform.M22 == 1.0;
+        if (!preservesDirection && transformedRotation is double rotationDegrees)
+            transformedRotation = transform.TransformDirectionDegrees(rotationDegrees);
+
+        var transformedStartAngle = path.StartAngleDegrees;
+        var transformedEndAngle = path.EndAngleDegrees;
+        if (path.EntityType.Equals("ARC", StringComparison.OrdinalIgnoreCase)
+            && path.StartAngleDegrees is double startAngle
+            && path.EndAngleDegrees is double endAngle)
         {
-            rotatedStartAngle = path.StartAngleDegrees is double startAngle ? NormalizeAngleDegrees(startAngle + angleDegrees) : null;
-            rotatedEndAngle = path.EndAngleDegrees is double endAngle ? NormalizeAngleDegrees(endAngle + angleDegrees) : null;
+            double TransformAngle(double angle)
+                => transform.TransformDirectionDegrees(angle);
+
+            if (transform.Determinant < 0)
+            {
+                transformedStartAngle = TransformAngle(endAngle);
+                transformedEndAngle = TransformAngle(startAngle);
+            }
+            else
+            {
+                transformedStartAngle = TransformAngle(startAngle);
+                transformedEndAngle = TransformAngle(endAngle);
+            }
         }
 
-        var rotatedPoints = path.Points
-            .Select(point => RotatePoint(point, pivot, angleDegrees))
-            .ToArray();
+        var isUniformScale = transform.TryGetUniformScale(out var uniformScale);
         return path with
         {
             Id = id ?? path.Id,
-            Start = rotatedStart,
-            Center = rotatedCenter,
-            RotationDegrees = rotatedRotation,
-            StartAngleDegrees = rotatedStartAngle,
-            EndAngleDegrees = rotatedEndAngle,
-            Points = rotatedPoints,
+            Start = path.Start is { } start ? transform.TransformPoint(start) : null,
+            Center = transformedCenter,
+            RotationDegrees = transformedRotation,
+            StartAngleDegrees = transformedStartAngle,
+            EndAngleDegrees = transformedEndAngle,
+            Radius = isUniformScale && path.Radius is double radius ? radius * uniformScale : path.Radius,
+            TextHeight = isUniformScale && path.TextHeight is double textHeight ? textHeight * uniformScale : path.TextHeight,
+            WidthFactor = transform.Determinant < 0 && path.WidthFactor is double widthFactor ? -widthFactor : path.WidthFactor,
+            Points = transformedPoints,
             BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(
-                anchor, point => RotatePoint(point, pivot, angleDegrees))).ToArray(),
-            IsAxisAlignedRectangle = IsAxisAlignedRectangle(rotatedPoints, path.IsClosed),
+                anchor, transform.TransformPoint)).ToArray(),
+            IsAxisAlignedRectangle = IsAxisAlignedRectangle(transformedPoints, path.IsClosed),
         };
     }
 
@@ -837,18 +827,6 @@ public static class Editor2DGeometry
         => new(
             start.X + (localX * cosAngle) - (localY * sinAngle),
             start.Y + (localX * sinAngle) + (localY * cosAngle));
-
-    private static Editor2DPoint RotatePoint(Editor2DPoint point, Editor2DPoint pivot, double angleDegrees)
-    {
-        var angleRadians = angleDegrees * Math.PI / 180.0;
-        var cosAngle = Math.Cos(angleRadians);
-        var sinAngle = Math.Sin(angleRadians);
-        var translatedX = point.X - pivot.X;
-        var translatedY = point.Y - pivot.Y;
-        return new Editor2DPoint(
-            pivot.X + (translatedX * cosAngle) - (translatedY * sinAngle),
-            pivot.Y + (translatedX * sinAngle) + (translatedY * cosAngle));
-    }
 
     private static IReadOnlyList<Editor2DPreviewPath> BuildDashedConvertedPaths(
         string sourcePathId,

@@ -26,6 +26,9 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             ["square"] = [("spacing", 4, .3, false), ("size", 1.5, .1, false)],
             ["triangle"] = [("spacing", 5, .3, false), ("size", 2, .1, false)],
         };
+    private static readonly IReadOnlySet<string> ConvertLinePhysicalLengthSettings = new HashSet<string>(
+        ["dash_length", "gap", "spacing", "dot_radius", "wavelength", "amplitude", "size"],
+        StringComparer.OrdinalIgnoreCase);
     private readonly IReferenceImageTraceService? _referenceImageTraceService;
     private readonly IReferenceImageBackgroundRemovalService? _referenceImageBackgroundRemovalService;
     private readonly Stack<Editor2DWorkspaceState> _undo = new();
@@ -657,6 +660,144 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             SelectedPathIds = selectedPathIds,
             SelectedMeasurementId = selectedMeasurementId,
         });
+
+    public bool ApplySelectionTransform(Editor2DAffineTransform transform, bool createCopy = false)
+    {
+        ArgumentNullException.ThrowIfNull(transform);
+        if (!transform.IsFinite)
+            throw new ArgumentOutOfRangeException(nameof(transform), "Transform values must be finite.");
+
+        var selectedIds = SelectedPathIds.ToHashSet(StringComparer.Ordinal);
+        var selectedPaths = Document.Paths.Where(path => selectedIds.Contains(path.Id)).ToArray();
+        if (selectedPaths.Length == 0)
+            return false;
+
+        if (createCopy)
+        {
+            var copyIds = selectedPaths.ToDictionary(
+                path => path.Id,
+                path => $"{path.Id}:copy:{Guid.NewGuid():N}",
+                StringComparer.Ordinal);
+            var copies = selectedPaths.ToDictionary(
+                path => path.Id,
+                path => Editor2DGeometry.TransformPath(path, transform, copyIds[path.Id]),
+                StringComparer.Ordinal);
+            var copiedPaths = Document.Paths.SelectMany(path => copies.TryGetValue(path.Id, out var copy)
+                ? new[] { path, copy }
+                : new[] { path }).ToArray();
+            var copyHasUniformScale = transform.TryGetUniformScale(out var copyUniformScale);
+            var cornerCopies = CornerParameters
+                .Where(parameter => copyIds.ContainsKey(parameter.PathId))
+                .Select(parameter => parameter with
+                {
+                    Id = $"{parameter.Id}:copy:{Guid.NewGuid():N}",
+                    PathId = copyIds[parameter.PathId],
+                    Value = copyHasUniformScale ? parameter.Value * copyUniformScale : parameter.Value,
+                    SourcePoints = parameter.SourcePoints.Select(transform.TransformPoint).ToArray(),
+                })
+                .ToArray();
+            var convertLineCopies = ConvertLineGroups
+                .Where(group => group.GeneratedPathIds.Count > 0
+                    && group.GeneratedPathIds.All(copyIds.ContainsKey))
+                .Select(group => group with
+                {
+                    Id = $"{group.Id}:copy:{Guid.NewGuid():N}",
+                    Settings = group.Settings.ToDictionary(
+                        pair => pair.Key,
+                        pair => copyHasUniformScale && ConvertLinePhysicalLengthSettings.Contains(pair.Key)
+                            ? pair.Value * copyUniformScale
+                            : pair.Value,
+                        StringComparer.OrdinalIgnoreCase),
+                    Sources = group.Sources.Select(source => source with
+                    {
+                        SourcePath = Editor2DGeometry.TransformPath(
+                            source.SourcePath,
+                            transform,
+                            $"{source.SourcePath.Id}:copy:{Guid.NewGuid():N}"),
+                        GeneratedPathIds = source.GeneratedPathIds.Select(id => copyIds[id]).ToArray(),
+                    }).ToArray(),
+                })
+                .ToArray();
+            var layers = Layers.Select(layer => layer with
+            {
+                PathIds = layer.PathIds.SelectMany(id => copyIds.TryGetValue(id, out var copyId)
+                    ? new[] { id, copyId }
+                    : new[] { id }).ToArray(),
+            }).ToArray();
+
+            Apply(_state with
+            {
+                Document = RebuildDocument(Document, copiedPaths),
+                SelectedPathIds = copies.Values.Select(path => path.Id).ToArray(),
+                CornerParameters = CornerParameters.Concat(cornerCopies).ToArray(),
+                ConvertLineGroups = ConvertLineGroups.Concat(convertLineCopies).ToArray(),
+                Layers = layers,
+            });
+            return true;
+        }
+
+        var paths = Document.Paths.Select(path => selectedIds.Contains(path.Id)
+            ? Editor2DGeometry.TransformPath(path, transform, path.Id)
+            : path).ToArray();
+        var hasUniformScale = transform.TryGetUniformScale(out var uniformScale);
+        var measurementScale = hasUniformScale ? uniformScale : Math.Sqrt(Math.Abs(transform.Determinant));
+        var measurementOffsetScale = transform.Determinant < 0.0 ? -measurementScale : measurementScale;
+        var measurements = Measurements.Select(measurement =>
+            !measurement.IsAutoDimension
+            && measurement.EntityPathId is { } pathId
+            && selectedIds.Contains(pathId)
+                ? measurement with
+                {
+                    Start = transform.TransformPoint(measurement.Start),
+                    End = transform.TransformPoint(measurement.End),
+                    RectP1 = measurement.RectP1 is { } rectP1 ? transform.TransformPoint(rectP1) : null,
+                    RectP2 = measurement.RectP2 is { } rectP2 ? transform.TransformPoint(rectP2) : null,
+                    FilletRadius = measurement.FilletRadius * measurementScale,
+                    OffsetDistance = measurement.OffsetDistance * measurementOffsetScale,
+                    PlacementAngleDegrees = measurement.PlacementAngleDegrees is { } placementAngle
+                        ? transform.TransformDirectionDegrees(placementAngle)
+                        : null,
+                }
+                : measurement).ToArray();
+        var cornerParameters = CornerParameters.Select(parameter => selectedIds.Contains(parameter.PathId)
+            ? parameter with
+            {
+                Value = hasUniformScale ? parameter.Value * uniformScale : parameter.Value,
+                SourcePoints = parameter.SourcePoints.Select(transform.TransformPoint).ToArray(),
+            }
+            : parameter).ToArray();
+        var convertLineGroups = ConvertLineGroups.Select(group =>
+        {
+            var selectedGeneratedCount = group.GeneratedPathIds.Count(selectedIds.Contains);
+            if (selectedGeneratedCount == 0)
+                return group;
+            if (selectedGeneratedCount != group.GeneratedPathIds.Count)
+                return null;
+            return group with
+            {
+                Settings = group.Settings.ToDictionary(
+                    pair => pair.Key,
+                    pair => hasUniformScale && ConvertLinePhysicalLengthSettings.Contains(pair.Key)
+                        ? pair.Value * uniformScale
+                        : pair.Value,
+                    StringComparer.OrdinalIgnoreCase),
+                Sources = group.Sources.Select(source => source with
+                {
+                    SourcePath = Editor2DGeometry.TransformPath(source.SourcePath, transform, source.SourcePath.Id),
+                }).ToArray(),
+            };
+        }).Where(group => group is not null).Cast<Editor2DConvertLineGroup>().ToArray();
+
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, paths),
+            SelectedPathIds = SelectedPathIds.ToArray(),
+            Measurements = measurements,
+            CornerParameters = cornerParameters,
+            ConvertLineGroups = convertLineGroups,
+        });
+        return true;
+    }
 
     public void ClearManualMeasurements()
         => SetMeasurements(

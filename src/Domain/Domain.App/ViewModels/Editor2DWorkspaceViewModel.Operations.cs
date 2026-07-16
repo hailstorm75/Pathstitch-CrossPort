@@ -304,20 +304,9 @@ public sealed partial class Editor2DWorkspaceViewModel
         var pivot = new Editor2DPoint(
             (points.Min(point => point.X) + points.Max(point => point.X)) / 2.0,
             (points.Min(point => point.Y) + points.Max(point => point.Y)) / 2.0);
-        var transformed = Document.Paths
-            .Select(path => selected.Any(candidate => candidate.Id == path.Id)
-                ? Editor2DGeometry.TranslatePath(
-                    Editor2DGeometry.RotatePath(path, pivot, rotationDegrees, path.Id),
-                    deltaX,
-                    deltaY,
-                    path.Id)
-                : path)
-            .ToArray();
-        Edit(state => state with
-        {
-            Document = state.Document with { Paths = transformed },
-            SelectedPathIds = SelectedPathIds.ToArray(),
-        });
+        var transform = Editor2DAffineTransform.CreateRotation(pivot, rotationDegrees)
+            .Then(Editor2DAffineTransform.CreateTranslation(deltaX, deltaY));
+        ApplySelectionTransform(transform);
         return Editor2DWorkspaceOperationResult.Success("Applied precise 2D transform");
     }
 
@@ -338,17 +327,7 @@ public sealed partial class Editor2DWorkspaceViewModel
         var pivot = customPivot ?? (fromCenter
             ? new Editor2DPoint((minX + points.Max(point => point.X)) / 2.0, (minY + points.Max(point => point.Y)) / 2.0)
             : new Editor2DPoint(minX, minY));
-        var selectedIds = selected.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
-        var transformed = Document.Paths
-            .Select(path => selectedIds.Contains(path.Id)
-                ? Editor2DGeometry.ScalePath(path, pivot, factor, path.Id)
-                : path)
-            .ToArray();
-        Edit(state => state with
-        {
-            Document = state.Document with { Paths = transformed },
-            SelectedPathIds = SelectedPathIds.ToArray(),
-        });
+        ApplySelectionTransform(Editor2DAffineTransform.CreateScale(pivot, factor));
         return Editor2DWorkspaceOperationResult.Success($"Scaled selected geometry by {factor:0.###}");
     }
 
