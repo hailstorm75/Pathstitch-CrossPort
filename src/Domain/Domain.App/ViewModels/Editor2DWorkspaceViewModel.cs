@@ -323,6 +323,48 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         Edit(state => state with { Document = document, IsInitialized = true });
     }
 
+    public string? CreateRectangle(
+        Editor2DPoint start,
+        Editor2DPoint end,
+        double initialFilletRadius = 0.0,
+        Editor2DFilletContinuity continuity = Editor2DFilletContinuity.G1,
+        string? pathId = null)
+    {
+        var id = string.IsNullOrWhiteSpace(pathId) ? $"rectangle-{Guid.NewGuid():N}" : pathId.Trim();
+        var creation = Editor2DRectangleCreationService.Create(id, start, end, initialFilletRadius, continuity);
+        if (creation is null || Document.Paths.Any(path => path.Id == creation.Path.Id))
+            return null;
+
+        var minX = Math.Min(start.X, end.X);
+        var minY = Math.Min(start.Y, end.Y);
+        var maxX = Math.Max(start.X, end.X);
+        var maxY = Math.Max(start.Y, end.Y);
+        var width = maxX - minX;
+        var height = maxY - minY;
+        var offset = Math.Max(Math.Min(width, height) * 0.15, 8.0);
+        var rectP1 = new Editor2DPoint(minX, minY);
+        var rectP2 = new Editor2DPoint(maxX, maxY);
+        var filletRadius = creation.CornerParameters.FirstOrDefault()?.Value ?? 0.0;
+        var autoMeasurements = new Editor2DMeasurement[]
+        {
+            new($"{creation.Path.Id}:width", new(minX, minY - offset), new(maxX, minY - offset),
+                true, creation.Path.Id, "width", rectP1, rectP2, filletRadius),
+            new($"{creation.Path.Id}:height", new(minX - offset, minY), new(minX - offset, maxY),
+                true, creation.Path.Id, "height", rectP1, rectP2, filletRadius),
+        };
+
+        ClearSewingHolePreview();
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, [.. Document.Paths, creation.Path]),
+            IsInitialized = true,
+            SelectedPathIds = [creation.Path.Id],
+            CornerParameters = CornerParameters.Concat(creation.CornerParameters).ToArray(),
+            Measurements = Measurements.Concat(autoMeasurements).ToArray(),
+        });
+        return creation.Path.Id;
+    }
+
     public void ClearDocument()
     {
         ClearSewingHolePreview();
@@ -598,16 +640,34 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             return 0;
 
         var selected = SelectedPathIds.ToHashSet(StringComparer.Ordinal);
-        var expanded = 0;
+        var parametricRectangleIds = CornerParameters
+            .GroupBy(parameter => parameter.PathId, StringComparer.Ordinal)
+            .Where(group => group.FirstOrDefault()?.SourcePoints is { Count: 4 } source
+                && Editor2DGeometry.IsAxisAlignedRectangle(source, isClosed: true))
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        var expandedIds = Document.Paths
+            .Where(path => selected.Contains(path.Id)
+                && (path.IsAxisAlignedRectangle || parametricRectangleIds.Contains(path.Id)))
+            .Select(path => path.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var expanded = expandedIds.Count;
         var paths = Document.Paths.Select(path =>
         {
-            if (!path.IsAxisAlignedRectangle || !selected.Contains(path.Id))
+            if (!expandedIds.Contains(path.Id))
                 return path;
-            expanded++;
             return path with { IsAxisAlignedRectangle = false };
         }).ToArray();
         if (expanded > 0)
-            Apply(_state with { Document = RebuildDocument(Document, paths) });
+        {
+            Apply(_state with
+            {
+                Document = RebuildDocument(Document, paths),
+                CornerParameters = CornerParameters.Where(parameter => !expandedIds.Contains(parameter.PathId)).ToArray(),
+                Measurements = Measurements.Where(measurement =>
+                    !measurement.IsAutoDimension || measurement.EntityPathId is null || !expandedIds.Contains(measurement.EntityPathId)).ToArray(),
+            });
+        }
         return expanded;
     }
 

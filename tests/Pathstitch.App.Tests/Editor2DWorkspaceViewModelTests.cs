@@ -951,6 +951,76 @@ public sealed class Editor2DWorkspaceViewModelTests
         Assert.Equal(source.Points, workspace.CornerParameters[0].SourcePoints);
     }
 
+    [Fact]
+    public void CreateRectangle_WithInitialFilletSeedsEditableCornerParametersAtomically()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+
+        var pathId = workspace.CreateRectangle(
+            new(0, 0), new(20, 10), initialFilletRadius: 2,
+            continuity: Editor2DFilletContinuity.G2,
+            pathId: "rounded-rectangle");
+
+        Assert.Equal("rounded-rectangle", pathId);
+        var path = Assert.Single(workspace.Document.Paths);
+        Assert.True(path.IsClosed);
+        Assert.False(path.IsAxisAlignedRectangle);
+        Assert.True(path.Points.Count > 4);
+        Assert.Equal([path.Id], workspace.SelectedPathIds);
+        Assert.Equal(4, workspace.CornerParameters.Count);
+        Assert.All(workspace.CornerParameters, parameter =>
+        {
+            Assert.Equal(path.Id, parameter.PathId);
+            Assert.Equal(Editor2DCornerKind.Fillet, parameter.Kind);
+            Assert.Equal(Editor2DFilletContinuity.G2, parameter.Continuity);
+            Assert.Equal(2, parameter.Value);
+            Assert.Equal([new(0, 0), new(20, 0), new(20, 10), new(0, 10)], parameter.SourcePoints);
+        });
+        Assert.Equal(2, workspace.Measurements.Count);
+        Assert.All(workspace.Measurements, measurement =>
+        {
+            Assert.True(measurement.IsAutoDimension);
+            Assert.Equal(path.Id, measurement.EntityPathId);
+            Assert.Equal(2, measurement.FilletRadius);
+        });
+        Assert.Contains(path.Id, workspace.ActiveLayer!.PathIds);
+
+        var restoredState = JsonSerializer.Deserialize<Editor2DWorkspaceState>(
+            JsonSerializer.Serialize(workspace.State));
+        var restored = new Editor2DWorkspaceViewModel();
+        restored.Apply(Assert.IsType<Editor2DWorkspaceState>(restoredState), recordHistory: false);
+        Assert.Equal(4, restored.CornerParameters.Count);
+        Assert.All(restored.Measurements, measurement => Assert.Equal(2, measurement.FilletRadius));
+
+        Assert.True(workspace.Undo());
+        Assert.Empty(workspace.Document.Paths);
+        Assert.Empty(workspace.CornerParameters);
+        Assert.Empty(workspace.Measurements);
+        Assert.True(workspace.Redo());
+        Assert.Equal(4, workspace.CornerParameters.Count);
+        Assert.Equal(2, workspace.Measurements.Count);
+        Assert.Equal(1, workspace.ExpandSelectedRectangles());
+        Assert.Empty(workspace.CornerParameters);
+        Assert.Empty(workspace.Measurements);
+        Assert.True(workspace.Document.Paths[0].Points.Count > 4);
+    }
+
+    [Fact]
+    public void CreateRectangle_ClampsFilletAndLeavesSharpRectangleUnparameterized()
+    {
+        var rounded = Editor2DRectangleCreationService.Create("rounded", new(0, 0), new(20, 10), 100);
+        var sharp = Editor2DRectangleCreationService.Create("sharp", new(0, 0), new(20, 10), 0);
+
+        Assert.NotNull(rounded);
+        Assert.All(rounded!.CornerParameters, parameter => Assert.Equal(5, parameter.Value));
+        Assert.False(rounded.Path.IsAxisAlignedRectangle);
+        Assert.NotNull(sharp);
+        Assert.Empty(sharp!.CornerParameters);
+        Assert.True(sharp.Path.IsAxisAlignedRectangle);
+        Assert.Equal(4, sharp.Path.Points.Count);
+        Assert.Null(Editor2DRectangleCreationService.Create("flat", new(0, 0), new(20, 0), 2));
+    }
+
     [Theory]
     [InlineData(20, 10)]
     [InlineData(12, 5)]
