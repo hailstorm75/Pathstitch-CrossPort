@@ -123,6 +123,60 @@ public sealed class PackagedStepGeometryKernelService(
         }
     }
 
+    public async Task<StepGeometryCombineResult> CombineAsync(
+        string existingSourcePath,
+        string incomingSourcePath,
+        CancellationToken cancellationToken = default)
+    {
+        var output = CreateOutputPath("step-combined", ".step");
+        try
+        {
+            var response = await SendAsync("combine", new
+            {
+                input = existingSourcePath,
+                incoming = incomingSourcePath,
+                output,
+            }, cancellationToken).ConfigureAwait(false);
+            var data = response.GetProperty("data");
+            var outputPath = data.TryGetProperty("output", out var outputValue)
+                ? outputValue.GetString()
+                : output;
+            if (string.IsNullOrWhiteSpace(outputPath) || !File.Exists(outputPath))
+                throw new InvalidDataException("STEP combine worker did not create its output document.");
+            var bodyCount = data.TryGetProperty("body_count", out var bodyCountValue)
+                ? bodyCountValue.GetInt32()
+                : 0;
+            return new StepGeometryCombineResult(
+                true,
+                $"Combined {bodyCount} STEP B-rep body/bodies through packaged OCCT worker.",
+                outputPath,
+                bodyCount);
+        }
+        catch (GeometryWorkerException ex)
+        {
+            TryDeleteFile(output);
+            return new StepGeometryCombineResult(false, ex.Message, Failure: ex.Failure);
+        }
+        catch (OperationCanceledException)
+        {
+            TryDeleteFile(output);
+            throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            TryDeleteFile(output);
+            return new StepGeometryCombineResult(
+                false,
+                ex.Message,
+                Failure: new GeometryKernelFailure(
+                    GeometryKernelFailureCode.BackendFailure,
+                    GeometryKernelOperation.Import,
+                    ex.Message,
+                    ex.GetType().FullName,
+                    IsRetryable: true));
+        }
+    }
+
     public async Task<EditorOperationResult> ProjectAsync(EditorProjectionRequest request, CancellationToken cancellationToken = default)
     {
         var output = CreateOutputPath("step-projection");
@@ -419,11 +473,20 @@ public sealed class PackagedStepGeometryKernelService(
         _ => GeometryKernelOperation.Import,
     };
 
-    private static string CreateOutputPath(string prefix)
+    private static string CreateOutputPath(string prefix, string extension = ".dxf")
     {
         var root = Path.Combine(Path.GetTempPath(), "Pathstitch-CrossPort", "Generated");
         Directory.CreateDirectory(root);
-        return Path.Combine(root, $"{prefix}-{Guid.NewGuid():N}.dxf");
+        return Path.Combine(root, $"{prefix}-{Guid.NewGuid():N}{extension}");
+    }
+
+    private static void TryDeleteFile(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+        try { File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     private void StopWorker()

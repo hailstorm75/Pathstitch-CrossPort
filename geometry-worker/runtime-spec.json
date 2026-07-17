@@ -13,5 +13,5 @@
   "psdTools": "1.17.4",
   "runtimeIdentifiers": ["win-x64", "osx-arm64"],
   "entryPoint": "pathstitch_core.geometry_worker",
-  "requiredCapabilities": ["brep-topology", "analytic-surfaces", "exact-curves", "pcurves", "projection", "unfold", "distortion", "pdf-vector-import", "psd-layer-import"]
+  "requiredCapabilities": ["brep-topology", "analytic-surfaces", "exact-curves", "pcurves", "projection", "unfold", "distortion", "step-combine", "pdf-vector-import", "psd-layer-import"]
 }

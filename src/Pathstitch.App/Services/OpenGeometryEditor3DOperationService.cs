@@ -89,15 +89,23 @@ public sealed class OpenGeometryEditor3DOperationService(
                 Failure: CreateFailure(GeometryKernelFailureCode.InvalidInput, GeometryKernelOperation.Import, message));
         }
 
-        if (normalizedPaths.Any(IsStepPath)
-            && (normalizedPaths.Length != 1 || !string.IsNullOrWhiteSpace(existingSourceModelPath)))
+        var incomingContainsStep = normalizedPaths.Any(IsStepPath);
+        var incomingContainsMesh = normalizedPaths.Any(path => !IsStepPath(path));
+        var hasExistingSource = !string.IsNullOrWhiteSpace(existingSourceModelPath) && File.Exists(existingSourceModelPath);
+        var existingIsStep = hasExistingSource && IsStepPath(existingSourceModelPath!);
+        if ((incomingContainsStep && incomingContainsMesh)
+            || (existingIsStep && incomingContainsMesh)
+            || (incomingContainsStep && hasExistingSource && !existingIsStep))
         {
-            const string message = "STEP B-rep import currently accepts one document at a time; save the workspace before importing another document.";
+            const string message = "STEP B-rep and mesh documents cannot be combined in one 3D workspace import.";
             return new EditorModelLoadResult(
                 false,
                 message,
                 Failure: CreateFailure(GeometryKernelFailureCode.InvalidInput, GeometryKernelOperation.Import, message));
         }
+
+        if (incomingContainsStep)
+            return await LoadCombinedStepModelsAsync(normalizedPaths, existingIsStep ? existingSourceModelPath : null, cancellationToken).ConfigureAwait(false);
 
         if (normalizedPaths.Length == 1
             && (string.IsNullOrWhiteSpace(existingSourceModelPath) || !File.Exists(existingSourceModelPath)))
@@ -140,6 +148,78 @@ public sealed class OpenGeometryEditor3DOperationService(
                 message,
                 Failure: CreateFailure(GeometryKernelFailureCode.BackendFailure, GeometryKernelOperation.Import, message, ex));
         }
+    }
+
+    private async Task<EditorModelLoadResult> LoadCombinedStepModelsAsync(
+        IReadOnlyList<string> incomingPaths,
+        string? existingSourceModelPath,
+        CancellationToken cancellationToken)
+    {
+        if (_stepGeometryKernelService is null)
+        {
+            const string message = "The app-owned STEP geometry worker runtime is not installed.";
+            return new EditorModelLoadResult(
+                false,
+                message,
+                Failure: CreateFailure(GeometryKernelFailureCode.SourceUnavailable, GeometryKernelOperation.Import, message));
+        }
+
+        if (string.IsNullOrWhiteSpace(existingSourceModelPath) && incomingPaths.Count == 1)
+            return await LoadStepModelAsync(incomingPaths[0], cancellationToken).ConfigureAwait(false);
+
+        var generatedPaths = new List<string>();
+        var current = existingSourceModelPath ?? incomingPaths[0];
+        var startIndex = existingSourceModelPath is null ? 1 : 0;
+        try
+        {
+            for (var index = startIndex; index < incomingPaths.Count; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var combined = await _stepGeometryKernelService
+                    .CombineAsync(current, incomingPaths[index], cancellationToken)
+                    .ConfigureAwait(false);
+                if (!combined.IsSuccess || string.IsNullOrWhiteSpace(combined.OutputPath))
+                {
+                    return new EditorModelLoadResult(
+                        false,
+                        combined.Message,
+                        Failure: combined.Failure ?? CreateFailure(
+                            GeometryKernelFailureCode.BackendFailure,
+                            GeometryKernelOperation.Import,
+                            combined.Message));
+                }
+                current = combined.OutputPath;
+                generatedPaths.Add(current);
+            }
+
+            var imported = await _stepGeometryKernelService.ImportAsync(current, cancellationToken).ConfigureAwait(false);
+            if (!imported.IsSuccess)
+                return new EditorModelLoadResult(false, imported.Message, Failure: imported.Failure);
+
+            foreach (var intermediate in generatedPaths.Take(Math.Max(0, generatedPaths.Count - 1)))
+                TryDeleteGeneratedStep(intermediate);
+            generatedPaths.Clear();
+            var action = existingSourceModelPath is null ? "Loaded" : "Appended";
+            return new EditorModelLoadResult(
+                true,
+                $"{action} STEP documents into one {imported.ViewportBodies?.Count ?? 0}-body B-rep workspace.",
+                current,
+                imported.ViewportJson,
+                imported.ViewportBodies,
+                StepTopology: imported.Document);
+        }
+        finally
+        {
+            foreach (var generated in generatedPaths)
+                TryDeleteGeneratedStep(generated);
+        }
+    }
+
+    private static void TryDeleteGeneratedStep(string path)
+    {
+        try { File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     public Task<EditorFaceDistortionResult> ComputeFaceDistortionAsync(

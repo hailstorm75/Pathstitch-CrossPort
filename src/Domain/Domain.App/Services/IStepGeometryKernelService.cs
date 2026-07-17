@@ -8,6 +8,11 @@ public interface IStepGeometryKernelService
 
     Task<StepGeometryImportResult> ImportAsync(string sourcePath, CancellationToken cancellationToken = default);
 
+    Task<StepGeometryCombineResult> CombineAsync(
+        string existingSourcePath,
+        string incomingSourcePath,
+        CancellationToken cancellationToken = default);
+
     Task<EditorOperationResult> ProjectAsync(EditorProjectionRequest request, CancellationToken cancellationToken = default);
 
     Task<EditorOperationResult> UnfoldAsync(EditorUnfoldRequest request, CancellationToken cancellationToken = default);

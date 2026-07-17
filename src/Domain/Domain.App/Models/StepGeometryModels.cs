@@ -84,3 +84,10 @@ public sealed record StepGeometryImportResult(
     string? ViewportJson = null,
     IReadOnlyList<Body3D>? ViewportBodies = null,
     GeometryKernelFailure? Failure = null);
+
+public sealed record StepGeometryCombineResult(
+    bool IsSuccess,
+    string Message,
+    string? OutputPath = null,
+    int BodyCount = 0,
+    GeometryKernelFailure? Failure = null);

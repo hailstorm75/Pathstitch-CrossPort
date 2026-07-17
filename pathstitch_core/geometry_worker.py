@@ -17,7 +17,7 @@ import traceback
 from typing import Any, Dict
 
 PROTOCOL_VERSION = 1
-CAPABILITIES = ["step-import", "brep-topology", "exact-curves", "pcurves", "projection", "unfold", "distortion"]
+CAPABILITIES = ["step-import", "step-combine", "brep-topology", "exact-curves", "pcurves", "projection", "unfold", "distortion"]
 
 
 def _read_exact(stream, count):
@@ -383,7 +383,10 @@ def _dispatch(operation, payload):
         if viewport.get("status") != "ok":
             return _error("backend-failure", viewport.get("message", "Viewport tessellation failed."))
         return {"ok": True, "topology": topology, "viewport": viewport["data"]}
-    if operation == "project":
+    if operation == "combine":
+        from pathstitch_core.step_ops import op_combine_steps
+        result = op_combine_steps(payload)
+    elif operation == "project":
         from pathstitch_core.step_ops import op_project_edges
         try:
             topology, provenance = _resolve_stable_references(payload.get("input"), payload, operation)
