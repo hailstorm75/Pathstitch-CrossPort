@@ -164,9 +164,11 @@ public sealed class EditorPageViewModelModeTests
         var sourcePath = Path.Combine(Path.GetTempPath(), $"pathstitch-semantic-{Guid.NewGuid():N}.obj");
         await File.WriteAllTextAsync(sourcePath, "v 0 0 0");
         var operations = new AppendingGeneratedOutputOperationService();
+        var renderer = new RecordingProjectPreviewRenderer();
         var viewModel = CreateViewModelForTests(
             outputPreviewService: new DxfOutputPreviewService(),
-            threeDOperationService: operations);
+            threeDOperationService: operations,
+            projectPreviewRenderer: renderer);
         var cutPath = new Editor2DPreviewPath("cut-path", "LINE", [new(0, 0), new(10, 0)], false);
         var scorePath = new Editor2DPreviewPath("score-path", "LINE", [new(0, 5), new(10, 5)], false);
         const string onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -227,6 +229,16 @@ public sealed class EditorPageViewModelModeTests
             Assert.Equal(12, viewModel.TwoDViewportOffsetX);
             Assert.Equal(-4, viewModel.TwoDViewportOffsetY);
             var committedPathId = committedLayer.PathIds[0];
+            var committedOutputPath = viewModel.LastGeneratedOutputPath;
+            var committedOutputContext = viewModel.GeneratedOutputContext;
+            var dirtyBeforePreview = viewModel.IsDirty;
+            var committedOutputSummary = viewModel.GeneratedOutputSummary;
+            var privateInstance = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            var revisionField = typeof(EditorPageViewModel).GetField("_documentRevision", privateInstance)!;
+            var outputDataField = typeof(EditorPageViewModel).GetField("_generatedOutputDataBase64", privateInstance)!;
+            var revisionBeforePreview = Assert.IsType<long>(revisionField.GetValue(viewModel));
+            var committedOutputData = outputDataField.GetValue(viewModel) as string;
+
 
             await viewModel.RefreshActiveUnfoldPreviewAsync();
 
@@ -254,6 +266,35 @@ public sealed class EditorPageViewModelModeTests
             Assert.Equal([cutPath.Id], viewModel.TwoDLayers.Single(layer => layer.Id == cutLayer.Id).PathIds);
             Assert.Equal(measurement, Assert.Single(viewModel.TwoDMeasurements));
             Assert.False(File.Exists(operations.ExistingDxfPath));
+            Assert.Equal(dirtyBeforePreview, viewModel.IsDirty);
+            Assert.Equal(committedOutputPath, viewModel.LastGeneratedOutputPath);
+            Assert.Equal(committedOutputContext, viewModel.GeneratedOutputContext);
+            Assert.Equal(3, Assert.IsType<DxfPreviewDocument>(operations.ExistingDocument).Paths.Count);
+            Assert.Equal(committedOutputSummary, viewModel.GeneratedOutputSummary);
+            Assert.Equal(revisionBeforePreview, Assert.IsType<long>(revisionField.GetValue(viewModel)));
+            Assert.Equal(committedOutputData, outputDataField.GetValue(viewModel) as string);
+
+            var captureStateMethod = typeof(EditorPageViewModel).GetMethod(
+                "CaptureProjectStateAsync",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var captureTask = Assert.IsType<Task<Project3DState>>(
+                captureStateMethod!.Invoke(viewModel, [CancellationToken.None]));
+            var capturedState = await captureTask;
+            Assert.Equal(committedOutputPath, capturedState.GeneratedOutputPath);
+            Assert.Equal(committedOutputContext, capturedState.GeneratedOutputContext);
+            Assert.Equal(committedOutputData, capturedState.GeneratedOutputDataBase64);
+            Assert.NotNull(capturedState.TwoDWorkspaceState);
+            var persistedState = capturedState.TwoDWorkspaceState!;
+            Assert.Equal(3, persistedState.Document.Paths.Count);
+            Assert.Contains(persistedState.Document.Paths, path => path.Id == committedPathId);
+            Assert.DoesNotContain(persistedState.Document.Paths, path => path.Id == secondPreviewLayer.PathIds[0]);
+            Assert.DoesNotContain(persistedState.Layers ?? [], layer => layer.Id.StartsWith("preview-unfold-", StringComparison.Ordinal));
+            Assert.NotNull(renderer.Document);
+            Assert.Equal(2, renderer.Document!.Geometry.Paths.Count);
+            Assert.Contains(renderer.Document.Geometry.Paths, path => path.Id == committedPathId);
+            Assert.DoesNotContain(renderer.Document.Geometry.Paths, path => path.Id == secondPreviewLayer.PathIds[0]);
+            Assert.Equal(4, viewModel.TwoDDocument.Paths.Count);
+
         }
         finally
         {
@@ -2614,6 +2655,7 @@ public sealed class EditorPageViewModelModeTests
     {
         public string OutputPath { get; } = Path.Combine(Path.GetTempPath(), $"pathstitch-appended-{Guid.NewGuid():N}.dxf");
         public string? ExistingDxfPath { get; private set; }
+        public DxfPreviewDocument? ExistingDocument { get; private set; }
 
         public Task<EditorModelLoadResult> LoadModelAsync(string sourceModelPath, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
@@ -2634,6 +2676,8 @@ public sealed class EditorPageViewModelModeTests
         public Task<EditorOperationResult> UnfoldAsync(EditorUnfoldRequest request, CancellationToken cancellationToken = default)
         {
             ExistingDxfPath = request.ExistingDxfPath;
+            if (File.Exists(request.ExistingDxfPath))
+                ExistingDocument = EditorDxfDocument.LoadPreviewDocument(request.ExistingDxfPath!);
             EditorDxfDocument.SaveOrAppendLwPolylines(
                 OutputPath,
                 "UNFOLDED_3D",
@@ -2644,6 +2688,19 @@ public sealed class EditorPageViewModelModeTests
 
         public Task<EditorOperationResult> ProjectEdgesAsync(EditorProjectionRequest request, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
+    }
+
+    private sealed class RecordingProjectPreviewRenderer : IProjectPreviewRenderer
+    {
+        public Editor2DExportDocument? Document { get; private set; }
+
+        public Task<byte[]?> RenderAsync(
+            Editor2DExportDocument? document,
+            CancellationToken cancellationToken = default)
+        {
+            Document = document;
+            return Task.FromResult<byte[]?>([1, 2, 3]);
+        }
     }
 
     private sealed class DxfWritingOutputPreviewService : IEditorOutputPreviewService
