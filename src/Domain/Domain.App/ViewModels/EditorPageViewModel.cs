@@ -80,6 +80,7 @@ public sealed partial class EditorPageViewModel(
     private string? _lastGeneratedOutputPath;
     private string? _generatedOutputDataBase64;
     private EditorGeneratedOutputSummary? _generatedOutputSummary;
+    private long _generatedOutputPreviewGeneration;
     private EditorMode _activeEditorMode = EditorMode.ThreeD;
     private StepGeometryDocument? _stepTopology;
     private bool _suppressTwoDDocumentPersistence;

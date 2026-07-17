@@ -186,12 +186,16 @@ public sealed partial class EditorPageViewModel
             BodyOffsetCount = state.BodyOffsets.Count;
             if (state.HasGeneratedOutput)
             {
-                GeneratedOutputContext = state.GeneratedOutputContext;
-                await UpdateGeneratedOutputPreviewAsync(
+                if (!await UpdateGeneratedOutputPreviewAsync(
                     state.GeneratedOutputPath,
                     activatePreviewWorkspace: false,
                     token,
-                    persistState: false).ConfigureAwait(true);
+                    persistState: false,
+                    outputContext: state.GeneratedOutputContext,
+                    updateOutputContext: true).ConfigureAwait(true))
+                {
+                    return;
+                }
             }
             else
             {

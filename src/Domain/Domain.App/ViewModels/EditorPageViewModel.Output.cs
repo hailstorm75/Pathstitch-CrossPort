@@ -2381,11 +2381,14 @@ public sealed partial class EditorPageViewModel
         StatusText = "Refreshing generated output";
         ErrorMessage = null;
 
-        await UpdateGeneratedOutputPreviewAsync(
+        if (!await UpdateGeneratedOutputPreviewAsync(
             LastGeneratedOutputPath,
             activatePreviewWorkspace: false,
             cancellationToken,
-            persistState: false).ConfigureAwait(true);
+            persistState: false).ConfigureAwait(true))
+        {
+            return;
+        }
 
         StatusText = HasGeneratedOutputFileOnDisk
             ? "Generated output refreshed"
@@ -2843,14 +2846,17 @@ public sealed partial class EditorPageViewModel
         SelectionSummary = "No selection";
         RequestViewportScript(BuildSetSelectedFacesScript(SelectedFaces));
         SetDistortionData(string.Empty);
-        GeneratedOutputContext = outputContext;
-
-        await UpdateGeneratedOutputPreviewAsync(
+        if (!await UpdateGeneratedOutputPreviewAsync(
             outputPath,
             activatePreviewWorkspace: true,
             cancellationToken,
             appendContext: appendContext,
-            generatedLayerName: GetGeneratedLayerName(outputContext)).ConfigureAwait(true);
+            generatedLayerName: GetGeneratedLayerName(outputContext),
+            outputContext: outputContext,
+            updateOutputContext: true).ConfigureAwait(true))
+        {
+            return;
+        }
 
         ActivateOutputTool();
         StatusText = string.IsNullOrWhiteSpace(outputPath)
@@ -2858,7 +2864,7 @@ public sealed partial class EditorPageViewModel
             : $"{StatusText} and prepared local 2D workspace";
     }
 
-    private async Task UpdateGeneratedOutputPreviewAsync(
+    private async Task<bool> UpdateGeneratedOutputPreviewAsync(
         string? outputPath,
         bool activatePreviewWorkspace,
         CancellationToken cancellationToken,
@@ -2866,30 +2872,37 @@ public sealed partial class EditorPageViewModel
         GeneratedOutputAppendContext? appendContext = null,
         string generatedLayerName = "Generated 3D",
         bool replaceGeneratedPreviewLayer = false,
-        bool isTransientUnfoldPreview = false)
+        bool isTransientUnfoldPreview = false,
+        EditorGeneratedOutputContext? outputContext = null,
+        bool updateOutputContext = false)
     {
-        if (!isTransientUnfoldPreview)
-            ApplyGeneratedOutput(outputPath);
+        var generation = Interlocked.Increment(ref _generatedOutputPreviewGeneration);
 
         if (string.IsNullOrWhiteSpace(outputPath))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (generation != Volatile.Read(ref _generatedOutputPreviewGeneration))
+                return false;
+
             if (!isTransientUnfoldPreview)
             {
+                ApplyGeneratedOutput(null);
                 GeneratedOutputSummary = null;
+                if (updateOutputContext)
+                    GeneratedOutputContext = outputContext;
                 SetTwoDDocument(null, activatePreviewWorkspace);
             }
-            return;
+            return true;
         }
 
         var summary = await _editorOutputPreviewService
             .InspectOutputAsync(outputPath, cancellationToken)
             .ConfigureAwait(true);
-        if (!isTransientUnfoldPreview)
-            GeneratedOutputSummary = summary;
 
+        string? generatedOutputDataBase64 = null;
         if (!isTransientUnfoldPreview && summary is { FileExists: true })
         {
-            _generatedOutputDataBase64 = await TryReadGeneratedOutputDataBase64Async(outputPath, cancellationToken)
+            generatedOutputDataBase64 = await TryReadGeneratedOutputDataBase64Async(outputPath, cancellationToken)
                 .ConfigureAwait(true);
         }
 
@@ -2899,6 +2912,19 @@ public sealed partial class EditorPageViewModel
             previewDocument = await _editorOutputPreviewService
                 .LoadPreviewDocumentAsync(outputPath, cancellationToken)
                 .ConfigureAwait(true);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (generation != Volatile.Read(ref _generatedOutputPreviewGeneration))
+            return false;
+
+        if (!isTransientUnfoldPreview)
+        {
+            ApplyGeneratedOutput(outputPath);
+            GeneratedOutputSummary = summary;
+            _generatedOutputDataBase64 = generatedOutputDataBase64;
+            if (updateOutputContext)
+                GeneratedOutputContext = outputContext;
         }
 
         if (appendContext is null)
@@ -2917,10 +2943,13 @@ public sealed partial class EditorPageViewModel
 
         if (persistState && !isTransientUnfoldPreview)
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+
+        return true;
     }
 
     private void ClearTwoDState()
     {
+        Interlocked.Increment(ref _generatedOutputPreviewGeneration);
         LastGeneratedOutputPath = null;
         GeneratedOutputSummary = null;
         GeneratedOutputContext = null;
