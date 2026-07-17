@@ -34,6 +34,15 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void ThreeDViewportDrop_UsesGenericWorkspaceImporter()
+    {
+        var code = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor3DView.axaml.cs");
+
+        Assert.Contains("OpenActivatedFilesAsync(filePaths)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("OpenSourceModelsAsync(filePaths)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FileMenu_OffersDocumentLifecycleCommandsAndShortcuts()
     {
         var shell = ReadPage("EditorShellView.axaml");
