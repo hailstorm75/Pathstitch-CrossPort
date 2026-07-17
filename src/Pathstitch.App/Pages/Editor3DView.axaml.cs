@@ -70,7 +70,7 @@ public partial class Editor3DView : EditorInteractionControlBase
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .ToArray()
             ?? [];
-        await viewModel.OpenSourceModelsAsync(filePaths).ConfigureAwait(true);
+        await viewModel.OpenActivatedFilesAsync(filePaths).ConfigureAwait(true);
     }
 
     private void OnViewportNavigationCompleted(object? sender, WebViewNavigationCompletedEventArgs e)
