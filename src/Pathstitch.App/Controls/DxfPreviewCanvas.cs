@@ -1051,6 +1051,9 @@ public sealed class DxfPreviewCanvas : Control
     }
 
     public event Action<string, double, double, double, double, double>? ReferenceImageTransformChanged;
+    public event Action<string>? ReferenceImageTransformStarted;
+    public event Action? ReferenceImageTransformCompleted;
+    public event Action? ReferenceImageTransformCanceled;
     public event Action? MeasurementEditStarted;
     public event Action? MeasurementEditCompleted;
     internal event Action<DxfCanvasTransformPrecisionRequest>? TransformPrecisionRequested;
@@ -1225,6 +1228,8 @@ public sealed class DxfPreviewCanvas : Control
         _editingVertexPathId = null;
         _editingVertexIndex = 0;
         _editingVertexIsConstrainedRectangle = false;
+        if (_referenceImageDragStart is not null)
+            ReferenceImageTransformCanceled?.Invoke();
         _referenceImageDragStart = null;
         _referenceImageDragMode = default;
         if (_editingMeasurementId is not null)
@@ -1594,6 +1599,7 @@ public sealed class DxfPreviewCanvas : Control
             && ActiveReferenceImage is { } activeImage
             && TryHitReferenceImageGizmo(point.Position, activeImage, out var dragMode))
         {
+            ReferenceImageTransformStarted?.Invoke(activeImage.Id);
             _referenceImageDragStart = activeImage;
             _referenceImageDragMode = dragMode;
             _referenceImageDragStartPoint = point.Position;
@@ -1849,6 +1855,7 @@ Hover:
         {
             _referenceImageDragStart = null;
             _referenceImageDragMode = default;
+            ReferenceImageTransformCompleted?.Invoke();
             e.Pointer.Capture(null);
             InvalidateVisual();
             e.Handled = true;
@@ -1968,6 +1975,13 @@ Selection:
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
+        if (_referenceImageDragStart is not null)
+        {
+            _referenceImageDragStart = null;
+            _referenceImageDragMode = default;
+            ReferenceImageTransformCanceled?.Invoke();
+            InvalidateVisual();
+        }
         if (!_isRotatingSelection && !_isTranslatingSelection)
             return;
 

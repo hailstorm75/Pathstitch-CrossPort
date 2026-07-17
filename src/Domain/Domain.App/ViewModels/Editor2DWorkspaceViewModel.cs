@@ -84,6 +84,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private IReadOnlyList<Editor2DPreviewPath> _sewingHolePreviewPaths = [];
     private IReadOnlyList<Editor2DPreviewPath> _referenceImageTracePreviewPaths = [];
     private string? _referenceImageTraceLayerId;
+    private Editor2DWorkspaceState? _referenceImageTransformOrigin;
+    private string? _referenceImageTransformLayerId;
     private string? _editingSewingHoleOperationId;
     private Editor2DSewingHoleOperation? _selectedSewingHoleOperation;
 
@@ -277,6 +279,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool HasReferenceImageTraceSession => _referenceImageTraceLayerId is not null;
     public Editor2DReferenceImage? ReferenceImageTraceSource
         => Layers.FirstOrDefault(layer => layer.Id == _referenceImageTraceLayerId)?.ReferenceImage;
+    public bool IsReferenceImageTransformEditActive => _referenceImageTransformOrigin is not null;
     public int SewingHolePreviewCount => _sewingHolePreviewPaths.Count;
     public bool HasSewingHolePreview => _sewingHolePreviewPaths.Count > 0;
     public bool CanPreviewSewingHoles => SelectedPathIds.Any(id => Document.Paths.Any(path => path.Id == id));
@@ -374,15 +377,27 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                 && layer.IsReferenceImage
                 && layer.IsVisible
                 && !layer.IsLocked);
+        var transformSessionInvalid = _referenceImageTransformOrigin is not null
+            && !Layers.Any(layer => layer.Id == _referenceImageTransformLayerId
+                && layer.IsReferenceImage
+                && layer.IsVisible
+                && !layer.IsLocked);
         if (traceSessionInvalid)
         {
             _referenceImageTraceLayerId = null;
             _referenceImageTracePreviewPaths = [];
         }
+        if (transformSessionInvalid)
+        {
+            _referenceImageTransformOrigin = null;
+            _referenceImageTransformLayerId = null;
+        }
         RemoveMissingMirrorLinks();
         RaiseStateChanged();
         if (traceSessionInvalid)
             RaiseReferenceImageTraceChanged();
+        if (transformSessionInvalid)
+            OnPropertyChanged(nameof(IsReferenceImageTransformEditActive));
     }
 
     private Editor2DWorkspaceState DetachEditedConvertLineGroups(Editor2DWorkspaceState state)
@@ -1544,6 +1559,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         var source = ordered[sourceIndex];
         if (_referenceImageTraceLayerId == source.Id)
             CancelReferenceImageTrace();
+        if (_referenceImageTransformLayerId == source.Id)
+            CancelReferenceImageTransformEdit();
         if (source.Kind == Editor2DLayerKind.Geometry)
         {
             var geometryLayers = ordered.Where(layer => layer.Kind == Editor2DLayerKind.Geometry).ToArray();
@@ -1649,6 +1666,57 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             Height = Math.Max(0.001, height),
             RotationDegrees = NormalizeRotation(rotationDegrees),
         });
+
+    public bool BeginReferenceImageTransformEdit(string layerId)
+    {
+        var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId && candidate.IsReferenceImage);
+        if (layer?.ReferenceImage is null || !layer.IsVisible || layer.IsLocked)
+            return false;
+        if (_referenceImageTransformLayerId == layerId && _referenceImageTransformOrigin is not null)
+            return true;
+
+        CancelReferenceImageTransformEdit();
+        _referenceImageTransformOrigin = _state;
+        _referenceImageTransformLayerId = layerId;
+        OnPropertyChanged(nameof(IsReferenceImageTransformEditActive));
+        return true;
+    }
+
+    public bool CommitReferenceImageTransformEdit()
+    {
+        if (_referenceImageTransformOrigin is not { } origin)
+            return false;
+
+        _referenceImageTransformOrigin = null;
+        _referenceImageTransformLayerId = null;
+        OnPropertyChanged(nameof(IsReferenceImageTransformEditActive));
+        if (Equals(origin, _state))
+            return false;
+
+        _undo.Push(origin);
+        _redo.Clear();
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        return true;
+    }
+
+    public bool CancelReferenceImageTransformEdit()
+    {
+        if (_referenceImageTransformOrigin is not { } origin)
+            return false;
+
+        var layerId = _referenceImageTransformLayerId;
+        _referenceImageTransformOrigin = null;
+        _referenceImageTransformLayerId = null;
+        OnPropertyChanged(nameof(IsReferenceImageTransformEditActive));
+        if (Equals(origin, _state))
+            return false;
+
+        Apply(origin, recordHistory: false);
+        if (layerId is not null && _referenceImageTraceLayerId == layerId)
+            RefreshReferenceImageTracePreview();
+        return true;
+    }
 
     public bool CalibrateReferenceImage(string layerId, double realWorldWidth)
         => UpdateReferenceImageAndRefreshTrace(layerId, image =>
@@ -2310,6 +2378,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool Undo()
     {
         EndMeasurementEdit();
+        CommitReferenceImageTransformEdit();
         CancelReferenceImageTrace();
         if (_undo.Count == 0)
             return false;
@@ -2324,6 +2393,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool Redo()
     {
         EndMeasurementEdit();
+        CommitReferenceImageTransformEdit();
         CancelReferenceImageTrace();
         if (_redo.Count == 0)
             return false;
@@ -2338,6 +2408,11 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public void ClearHistory()
     {
         _measurementEditOrigin = null;
+        var transformEditWasActive = _referenceImageTransformOrigin is not null;
+        _referenceImageTransformOrigin = null;
+        _referenceImageTransformLayerId = null;
+        if (transformEditWasActive)
+            OnPropertyChanged(nameof(IsReferenceImageTransformEditActive));
         if (_undo.Count == 0 && _redo.Count == 0)
             return;
 
@@ -2614,11 +2689,18 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         if (layer?.ReferenceImage is null || layer.IsLocked)
             return false;
 
-        return UpdateLayer(layerId, candidate => candidate with
+        var layers = Layers.Select(candidate => candidate.Id == layerId
+            ? candidate with
+            {
+                ReferenceImage = update(candidate.ReferenceImage!),
+                PathIds = [],
+            }
+            : candidate).ToArray();
+        Apply(_state with
         {
-            ReferenceImage = update(candidate.ReferenceImage!),
-            PathIds = [],
-        });
+            Layers = layers,
+        }, recordHistory: _referenceImageTransformOrigin is null || _referenceImageTransformLayerId != layerId);
+        return true;
     }
 
     private bool UpdateReferenceImageAndRefreshTrace(

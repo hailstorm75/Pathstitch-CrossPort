@@ -206,7 +206,22 @@ public sealed partial class EditorPageViewModel
         double rotationDegrees)
     {
         if (_twoDWorkspace.UpdateReferenceImageTransform(layerId, x, y, width, height, rotationDegrees))
-            RefreshTwoDLayerFacade();
+            RefreshTwoDLayerFacade(requestPersistence: !_twoDWorkspace.IsReferenceImageTransformEditActive);
+    }
+
+    public bool BeginTwoDReferenceImageTransform(string layerId)
+        => _twoDWorkspace.BeginReferenceImageTransformEdit(layerId);
+
+    public void CommitTwoDReferenceImageTransform()
+    {
+        _twoDWorkspace.CommitReferenceImageTransformEdit();
+        RefreshTwoDLayerFacade();
+    }
+
+    public void CancelTwoDReferenceImageTransform()
+    {
+        _twoDWorkspace.CancelReferenceImageTransformEdit();
+        RefreshTwoDLayerFacade();
     }
 
     public void ScaleTwoDReferenceImage(string layerId, double factor)
@@ -448,7 +463,7 @@ public sealed partial class EditorPageViewModel
             RefreshTwoDLayerFacade();
     }
 
-    private void RefreshTwoDLayerFacade()
+    private void RefreshTwoDLayerFacade(bool requestPersistence = true)
     {
         NotifyTwoDWorkspaceFacadeProperties();
         OnPropertyChanged(nameof(TwoDLayers));
@@ -468,7 +483,8 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDReferenceTraceCornerSmoothness));
         OnPropertyChanged(nameof(TwoDReferenceTracePathOptimization));
         OnPropertyChanged(nameof(TwoDReferenceTraceSilhouetteOnly));
-        Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        if (requestPersistence)
+            Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
     }
 
     private void UpdateTwoDReferenceTraceOptions(

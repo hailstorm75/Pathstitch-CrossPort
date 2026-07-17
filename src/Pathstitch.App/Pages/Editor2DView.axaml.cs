@@ -21,6 +21,9 @@ public partial class Editor2DView : EditorInteractionControlBase
     {
         InitializeComponent();
         TwoDPreviewCanvas.ReferenceImageTransformChanged += OnReferenceImageTransformChanged;
+        TwoDPreviewCanvas.ReferenceImageTransformStarted += OnReferenceImageTransformStarted;
+        TwoDPreviewCanvas.ReferenceImageTransformCompleted += OnReferenceImageTransformCompleted;
+        TwoDPreviewCanvas.ReferenceImageTransformCanceled += OnReferenceImageTransformCanceled;
         TwoDPreviewCanvas.MeasurementEditStarted += OnMeasurementEditStarted;
         TwoDPreviewCanvas.MeasurementEditCompleted += OnMeasurementEditCompleted;
         TwoDPreviewCanvas.TransformPrecisionRequested += OnTransformPrecisionRequested;
@@ -59,6 +62,15 @@ public partial class Editor2DView : EditorInteractionControlBase
         double rotationDegrees)
         => (DataContext as Domain.App.ViewModels.EditorPageViewModel)?.UpdateTwoDReferenceImageTransform(
             layerId, x, y, width, height, rotationDegrees);
+
+    private void OnReferenceImageTransformStarted(string layerId)
+        => (DataContext as Domain.App.ViewModels.EditorPageViewModel)?.BeginTwoDReferenceImageTransform(layerId);
+
+    private void OnReferenceImageTransformCompleted()
+        => (DataContext as Domain.App.ViewModels.EditorPageViewModel)?.CommitTwoDReferenceImageTransform();
+
+    private void OnReferenceImageTransformCanceled()
+        => (DataContext as Domain.App.ViewModels.EditorPageViewModel)?.CancelTwoDReferenceImageTransform();
 
     private void OnMeasurementEditStarted()
         => (DataContext as Domain.App.ViewModels.EditorPageViewModel)?.BeginTwoDMeasurementEdit();
