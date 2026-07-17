@@ -2254,6 +2254,42 @@ Selection:
         }
 
         else if (e.Key == Key.Enter
+                 && e.KeyModifiers == KeyModifiers.None
+                 && ActiveTool == Editor2DTool.AddThickness
+                 && DataContext is EditorPageViewModel thicknessViewModel)
+        {
+            await thicknessViewModel.ConfirmTwoDAddThicknessAsync();
+            e.Handled = true;
+        }
+
+        else if (e.Key == Key.Enter
+                 && e.KeyModifiers == KeyModifiers.None
+                 && ActiveTool == Editor2DTool.Cleanup
+                 && DataContext is EditorPageViewModel cleanupViewModel)
+        {
+            cleanupViewModel.ConfirmTwoDCleanup();
+            e.Handled = true;
+        }
+
+        else if (e.Key == Key.Enter
+                 && e.KeyModifiers == KeyModifiers.None
+                 && ActiveTool == Editor2DTool.Patterning
+                 && DataContext is EditorPageViewModel patternViewModel)
+        {
+            patternViewModel.ConfirmTwoDPattern();
+            e.Handled = true;
+        }
+
+        else if (e.Key == Key.Enter
+                 && e.KeyModifiers == KeyModifiers.None
+                 && ActiveTool == Editor2DTool.AddSewingHoles
+                 && DataContext is EditorPageViewModel sewingViewModel)
+        {
+            sewingViewModel.ConfirmTwoDSewingHoles();
+            e.Handled = true;
+        }
+
+        else if (e.Key == Key.Enter
                  && (ActiveTool is Editor2DTool.Fillet or Editor2DTool.Chamfer)
                  && DataContext is EditorPageViewModel cornerViewModel)
         {

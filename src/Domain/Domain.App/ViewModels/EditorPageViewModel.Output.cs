@@ -2619,6 +2619,45 @@ public sealed partial class EditorPageViewModel
         return ApplyTwoDRectangularPattern();
     }
 
+    public async Task<bool> ConfirmTwoDAddThicknessAsync(CancellationToken cancellationToken = default)
+    {
+        if (!await ApplyTwoDAddThicknessAsync(cancellationToken).ConfigureAwait(true))
+            return false;
+
+        TwoDActiveTool = Editor2DTool.Select;
+        return true;
+    }
+
+    public bool ConfirmTwoDCleanup()
+    {
+        if (!ApplyTwoDCleanup())
+            return false;
+
+        TwoDActiveTool = Editor2DTool.Select;
+        return true;
+    }
+
+    public bool ConfirmTwoDPattern()
+    {
+        if (!ApplyTwoDPattern())
+            return false;
+
+        TwoDActiveTool = Editor2DTool.Select;
+        return true;
+    }
+
+    public bool ConfirmTwoDSewingHoles()
+    {
+        if (!_twoDWorkspace.RefreshSewingHolePreview()
+            || !_twoDWorkspace.CommitSewingHolePreview())
+        {
+            return false;
+        }
+
+        TwoDActiveTool = Editor2DTool.Select;
+        return true;
+    }
+
     public bool ApplyTwoDPaperFoldingCreases()
     {
         if (TwoDDocument is null)
