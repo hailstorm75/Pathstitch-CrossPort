@@ -74,11 +74,13 @@ public sealed class NavigationScopeIsolationTests
         Directory.CreateDirectory(directory);
         try
         {
+            var dispositionPrompt = new RecordingDispositionPrompt();
             using var root = new ServiceCollection()
                 .AddSingleton<IProjectFileDialogService, NullProjectFileDialogService>()
                 .AddSingleton(new RecentProjectsService(Path.Combine(directory, "recent.json")))
                 .AddScoped<ProjectSessionService>()
                 .AddScoped<IDocumentWindowContext, DocumentWindowContext>()
+                .AddSingleton<IProjectOpenDispositionPromptService>(dispositionPrompt)
                 .AddScoped<IMessenger>(_ => new StrongReferenceMessenger())
                 .AddScoped<INavigationManager>(services => new TestNavigationManager(
                     services.GetRequiredService<ProjectSessionService>().CurrentSession?.ProjectName ?? "missing"))
@@ -116,8 +118,28 @@ public sealed class NavigationScopeIsolationTests
             var activatedB = await _ui.RunAsync(() => activatedWindows[1].CurrentPageViewModel);
             Assert.Equal("First", Assert.IsType<TestPageViewModel>(activatedA).Name);
             Assert.Equal("Second", Assert.IsType<TestPageViewModel>(activatedB).Name);
+            Assert.Equal(1, dispositionPrompt.CallCount);
             await _ui.RunAsync(activatedWindows[0].Close);
             await _ui.RunAsync(activatedWindows[1].Close);
+            await WaitUntilAsync(() => manager.DocumentCount == 0);
+
+            var mixedProject = Path.Combine(directory, "mixed.stch");
+            var mixedDrawing = Path.Combine(directory, "drawing.dxf");
+            await File.WriteAllTextAsync(mixedProject, "{\"projectName\":\"Mixed\",\"templateId\":\"blank-project\"}");
+            await File.WriteAllTextAsync(mixedDrawing, "0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n");
+
+            await manager.OpenDocumentAsync(ProjectLaunchRequest.ForProject(Session(directory, "Owner")));
+            await manager.OpenFilesAsync([mixedProject, mixedDrawing]);
+
+            Assert.Equal(3, manager.DocumentCount);
+            var mixedWindows = manager.DocumentWindows.ToArray();
+            var mixedProjectPage = await _ui.RunAsync(() => mixedWindows[1].CurrentPageViewModel);
+            var mixedImportPage = await _ui.RunAsync(() => mixedWindows[2].CurrentPageViewModel);
+            Assert.Equal("Mixed", Assert.IsType<TestPageViewModel>(mixedProjectPage).Name);
+            Assert.NotEqual("Mixed", Assert.IsType<TestPageViewModel>(mixedImportPage).Name);
+            Assert.Equal(2, dispositionPrompt.CallCount);
+            foreach (var window in mixedWindows)
+                await _ui.RunAsync(window.Close);
             await WaitUntilAsync(() => manager.DocumentCount == 0);
         }
         finally
@@ -225,5 +247,18 @@ public sealed class NavigationScopeIsolationTests
     private sealed class TestWindowContext : IDocumentWindowContext
     {
         public Window? Owner { get; set; }
+    }
+
+    private sealed class RecordingDispositionPrompt : IProjectOpenDispositionPromptService
+    {
+        public int CallCount { get; private set; }
+
+        public Task<ProjectOpenDisposition> PromptAsync(
+            string incomingProjectName,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(ProjectOpenDisposition.NewWindow);
+        }
     }
 }
