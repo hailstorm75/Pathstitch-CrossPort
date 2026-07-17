@@ -11,6 +11,72 @@ namespace Pathstitch.App.Tests;
 public sealed class Project3DStateServiceTests
 {
     [Fact]
+    public async Task LoadAsync_MigratesLegacyEditableCornersAndPenAnchors()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("legacy-editable-geometry.stch");
+        const string dxf =
+            "0\nSECTION\n2\nENTITIES\n" +
+            "0\nLWPOLYLINE\n5\nC1\n8\nCut\n90\n4\n70\n1\n10\n0\n20\n0\n10\n10\n20\n0\n10\n10\n20\n10\n10\n0\n20\n10\n" +
+            "0\nLWPOLYLINE\n5\nP1\n8\nPen\n90\n3\n70\n0\n10\n20\n20\n0\n10\n25\n20\n5\n10\n30\n20\n0\n" +
+            "0\nENDSEC\n0\nEOF\n";
+        var payload = JsonSerializer.Serialize(new
+        {
+            dxfDataBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(dxf)),
+            parametricShapes = new Dictionary<string, object>
+            {
+                ["C1"] = new
+                {
+                    @base = new[] { new[] { 0.0, 0.0 }, new[] { 10.0, 0.0 }, new[] { 10.0, 10.0 }, new[] { 0.0, 10.0 } },
+                    closed = true,
+                    corners = new[] { new { index = 1, kind = "fillet", value = 2.5, continuity = "G2" } },
+                },
+            },
+            penPaths = new Dictionary<string, object>
+            {
+                ["P1"] = new
+                {
+                    closed = false,
+                    anchors = new[]
+                    {
+                        new { point = new[] { 20.0, 0.0 }, handleIn = (double[]?)null, handleOut = (double[]?)new[] { 22.0, 3.0 } },
+                        new { point = new[] { 25.0, 5.0 }, handleIn = (double[]?)new[] { 23.0, 5.0 }, handleOut = (double[]?)new[] { 27.0, 5.0 } },
+                        new { point = new[] { 30.0, 0.0 }, handleIn = (double[]?)new[] { 28.0, 3.0 }, handleOut = (double[]?)null },
+                    },
+                },
+            },
+        });
+        await File.WriteAllTextAsync(projectPath, payload);
+        var service = new Project3DStateService(new DxfOutputPreviewService());
+
+        var restored = await service.LoadAsync(projectPath);
+
+        var state = Assert.IsType<Editor2DWorkspaceState>(restored.TwoDWorkspaceState);
+        var cornerPath = Assert.Single(state.Document.Paths, path => path.SourceEntityHandle == "C1");
+        var corner = Assert.Single(state.CornerParameters!);
+        Assert.Equal(cornerPath.Id, corner.PathId);
+        Assert.Equal(1, corner.CornerIndex);
+        Assert.Equal(Editor2DCornerKind.Fillet, corner.Kind);
+        Assert.Equal(Editor2DFilletContinuity.G2, corner.Continuity);
+        Assert.Equal(2.5, corner.Value);
+        Assert.Equal([new Editor2DPoint(0, 0), new Editor2DPoint(10, 0), new Editor2DPoint(10, 10), new Editor2DPoint(0, 10)], corner.SourcePoints);
+        var penPath = Assert.Single(state.Document.Paths, path => path.SourceEntityHandle == "P1");
+        Assert.False(penPath.IsClosed);
+        Assert.Equal(3, penPath.BezierAnchors!.Count);
+        Assert.Equal(new Editor2DPoint(22, 3), penPath.BezierAnchors[0].HandleOut);
+        Assert.Equal(new Editor2DPoint(23, 5), penPath.BezierAnchors[1].HandleIn);
+        Assert.Equal(new Editor2DPoint(30, 0), penPath.BezierAnchors[2].Point);
+
+        await service.SaveAsync(projectPath, restored);
+        var reopened = Assert.IsType<Editor2DWorkspaceState>((await service.LoadAsync(projectPath)).TwoDWorkspaceState);
+        var reopenedCorner = Assert.Single(reopened.CornerParameters!);
+        Assert.Equal(corner.PathId, reopenedCorner.PathId);
+        Assert.Equal(corner.SourcePoints, reopenedCorner.SourcePoints);
+        var reopenedPen = Assert.Single(reopened.Document.Paths, path => path.Id == penPath.Id);
+        Assert.Equal(penPath.BezierAnchors, reopenedPen.BezierAnchors);
+    }
+
+    [Fact]
     public async Task LoadAsync_MigratesLegacyMacLayerStackFoldersAndMeasurements()
     {
         using var workspace = TestWorkspace.Create();
