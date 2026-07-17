@@ -197,6 +197,119 @@ public sealed class DxfPreviewCanvasInteractionTests
     }
 
     [Fact]
+    public async Task SketchLine_EnterCommitsPreviewAndRequestsAutoLengthPrecision()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+            try
+            {
+                viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document;
+                viewModel.TwoDActiveTool = Editor2DTool.SketchLine;
+                viewModel.TwoDWorkspace.ClearHistory();
+                var canvas = Canvas(viewModel.TwoDDocument);
+                canvas.DataContext = viewModel;
+                canvas.ActiveTool = Editor2DTool.SketchLine;
+                DxfCanvasDimensionExpressionRequest? request = null;
+                canvas.DimensionExpressionRequested += value => request = value;
+                var start = new Editor2DPoint(0, 0);
+                var end = new Editor2DPoint(12, 0);
+
+                InvokeLineClick(canvas, Screen(canvas, start));
+                var session = InteractionSession(canvas);
+                session.PendingLineEnd = end;
+                var args = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter };
+
+                canvas.RaiseEvent(args);
+
+                var path = Assert.Single(viewModel.TwoDDocument!.Paths);
+                Assert.True(args.Handled);
+                Assert.Equal(start.X, path.Points[0].X, 8);
+                Assert.Equal(start.Y, path.Points[0].Y, 8);
+                Assert.Equal(end.X, path.Points[1].X, 8);
+                Assert.Equal(end.Y, path.Points[1].Y, 8);
+                Assert.Equal([path.Id], viewModel.TwoDSelectedPathIds);
+                Assert.Equal($"{path.Id}:length", request?.MeasurementId);
+                Assert.Equal("12", request?.Text);
+                Assert.Null(session.PendingLineStart);
+                Assert.Null(session.PendingLineEnd);
+                Assert.True(viewModel.TwoDWorkspace.CanUndo);
+                Assert.Equal(Editor2DTool.SketchLine, viewModel.TwoDActiveTool);
+            }
+            finally
+            {
+                viewModel.Dispose();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task SketchLine_EnterRejectsShortPreviewAndClearsPendingLine()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+            try
+            {
+                viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document;
+                viewModel.TwoDActiveTool = Editor2DTool.SketchLine;
+                viewModel.TwoDWorkspace.ClearHistory();
+                var canvas = Canvas(viewModel.TwoDDocument);
+                canvas.DataContext = viewModel;
+                canvas.ActiveTool = Editor2DTool.SketchLine;
+
+                InvokeLineClick(canvas, Screen(canvas, new(0, 0)));
+                var session = InteractionSession(canvas);
+                session.PendingLineEnd = new(2, 0);
+                var args = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter };
+
+                canvas.RaiseEvent(args);
+
+                Assert.True(args.Handled);
+                Assert.Empty(viewModel.TwoDDocument!.Paths);
+                Assert.Null(session.PendingLineStart);
+                Assert.Null(session.PendingLineEnd);
+                Assert.False(viewModel.TwoDWorkspace.CanUndo);
+            }
+            finally
+            {
+                viewModel.Dispose();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task SketchLine_EnterWithoutPendingLineDoesNotCreateGeometry()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+            try
+            {
+                viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document;
+                viewModel.TwoDActiveTool = Editor2DTool.SketchLine;
+                viewModel.TwoDWorkspace.ClearHistory();
+                var canvas = Canvas(viewModel.TwoDDocument);
+                canvas.DataContext = viewModel;
+                canvas.ActiveTool = Editor2DTool.SketchLine;
+                var args = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter };
+
+                canvas.RaiseEvent(args);
+
+                var session = InteractionSession(canvas);
+                Assert.Empty(viewModel.TwoDDocument!.Paths);
+                Assert.Null(session.PendingLineStart);
+                Assert.Null(session.PendingLineEnd);
+                Assert.False(viewModel.TwoDWorkspace.CanUndo);
+            }
+            finally
+            {
+                viewModel.Dispose();
+            }
+        });
+    }
+
+    [Fact]
     public async Task CircleClickRouting_KeepsCenterAndRequestsAutoRadiusPrecision()
     {
         await _ui.RunAsync(() =>
