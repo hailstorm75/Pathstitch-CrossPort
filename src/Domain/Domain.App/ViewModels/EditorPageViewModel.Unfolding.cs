@@ -152,17 +152,17 @@ public sealed partial class EditorPageViewModel
         StatusText = $"{actionLabel} running";
         ErrorMessage = null;
 
-        var existingDxfPath = await StageExistingTwoDDocumentAsync(cancellationToken).ConfigureAwait(true);
+        var appendContext = await StageExistingTwoDDocumentAsync(cancellationToken).ConfigureAwait(true);
         EditorOperationResult result;
         try
         {
             result = await _threeDWorkspace.UnfoldAsync(
-                BuildUnfoldRequest(wholeBody, existingDxfPath),
+                BuildUnfoldRequest(wholeBody, appendContext?.StagingPath),
                 cancellationToken).ConfigureAwait(true);
         }
         finally
         {
-            DeleteStagedTwoDDocument(existingDxfPath);
+            DeleteStagedTwoDDocument(appendContext?.StagingPath);
         }
 
         StatusText = result.IsSuccess ? $"{actionLabel} completed" : $"{actionLabel} failed";
@@ -177,6 +177,7 @@ public sealed partial class EditorPageViewModel
             await HandleSuccessfulGeneratedOutputAsync(
                 result.OutputPath,
                 BuildUnfoldOutputContext(wholeBody, actionLabel),
+                appendContext,
                 cancellationToken).ConfigureAwait(true);
             if (recordActivity)
                 RecordActivity("Flatten 3D Geometry", wholeBody ? "Flattened entire body" : "Flattened selected faces");
@@ -187,7 +188,9 @@ public sealed partial class EditorPageViewModel
         await UpdateGeneratedOutputPreviewAsync(
             result.OutputPath,
             activatePreviewWorkspace: false,
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            appendContext: appendContext,
+            generatedLayerName: "Unfolded 3D").ConfigureAwait(true);
     }
 
     private EditorGeneratedOutputContext BuildUnfoldOutputContext(bool wholeBody, string actionLabel)

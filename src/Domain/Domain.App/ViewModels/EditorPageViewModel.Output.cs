@@ -2831,6 +2831,7 @@ public sealed partial class EditorPageViewModel
     private async Task HandleSuccessfulGeneratedOutputAsync(
         string? outputPath,
         EditorGeneratedOutputContext outputContext,
+        GeneratedOutputAppendContext? appendContext,
         CancellationToken cancellationToken)
     {
         SelectedFaces = [];
@@ -2844,7 +2845,9 @@ public sealed partial class EditorPageViewModel
         await UpdateGeneratedOutputPreviewAsync(
             outputPath,
             activatePreviewWorkspace: true,
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            appendContext: appendContext,
+            generatedLayerName: GetGeneratedLayerName(outputContext)).ConfigureAwait(true);
 
         ActivateOutputTool();
         StatusText = string.IsNullOrWhiteSpace(outputPath)
@@ -2856,7 +2859,9 @@ public sealed partial class EditorPageViewModel
         string? outputPath,
         bool activatePreviewWorkspace,
         CancellationToken cancellationToken,
-        bool persistState = true)
+        bool persistState = true,
+        GeneratedOutputAppendContext? appendContext = null,
+        string generatedLayerName = "Generated 3D")
     {
         ApplyGeneratedOutput(outputPath);
 
@@ -2886,7 +2891,14 @@ public sealed partial class EditorPageViewModel
                 .ConfigureAwait(true);
         }
 
-        SetTwoDDocument(previewDocument, activatePreviewWorkspace);
+        if (appendContext is null)
+        {
+            SetTwoDDocument(previewDocument, activatePreviewWorkspace);
+        }
+        else
+        {
+            ApplyGeneratedOutputAppend(appendContext, previewDocument, generatedLayerName, activatePreviewWorkspace);
+        }
 
         if (persistState)
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
@@ -2996,10 +3008,13 @@ public sealed partial class EditorPageViewModel
         return Convert.ToBase64String(dxfBytes);
     }
 
-    private async Task<string?> StageExistingTwoDDocumentAsync(CancellationToken cancellationToken)
+    private async Task<GeneratedOutputAppendContext?> StageExistingTwoDDocumentAsync(CancellationToken cancellationToken)
     {
         if (TwoDDocument is not { Paths.Count: > 0 } document)
             return null;
+
+        SyncTwoDWorkspaceState(recordHistory: false);
+        var snapshot = _twoDWorkspace.State;
 
         var stagingDirectory = Path.Combine(Path.GetTempPath(), "Pathstitch-CrossPort", "GeneratedInput");
         Directory.CreateDirectory(stagingDirectory);
@@ -3009,7 +3024,10 @@ public sealed partial class EditorPageViewModel
             await _editorOutputPreviewService
                 .SavePreviewDocumentAsync(document, stagingPath, cancellationToken)
                 .ConfigureAwait(true);
-            return stagingPath;
+            var stagedDocument = await _editorOutputPreviewService
+                .LoadPreviewDocumentAsync(stagingPath, cancellationToken)
+                .ConfigureAwait(true);
+            return new GeneratedOutputAppendContext(stagingPath, snapshot, stagedDocument?.Paths.Count ?? document.Paths.Count);
         }
         catch
         {
@@ -3017,6 +3035,102 @@ public sealed partial class EditorPageViewModel
             throw;
         }
     }
+
+    private void ApplyGeneratedOutputAppend(
+        GeneratedOutputAppendContext context,
+        Editor2DPreviewDocument? generatedDocument,
+        string generatedLayerName,
+        bool activatePreviewWorkspace)
+    {
+        if (generatedDocument is null || generatedDocument.Paths.Count < context.BasePathCount)
+        {
+            _twoDWorkspace.Apply(context.Snapshot, recordHistory: false);
+            ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+            if (activatePreviewWorkspace)
+                ActiveEditorMode = EditorMode.TwoD;
+            return;
+        }
+
+        var existingIds = context.Snapshot.Document.Paths.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
+        var appendedPaths = generatedDocument.Paths
+            .Skip(context.BasePathCount)
+            .Select((path, index) => path with
+            {
+                Id = CreateGeneratedPathId(generatedLayerName, index, existingIds),
+                SourceEntityHandle = null,
+            })
+            .ToArray();
+        if (appendedPaths.Length == 0)
+        {
+            _twoDWorkspace.Apply(context.Snapshot, recordHistory: false);
+            ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+            if (activatePreviewWorkspace)
+                ActiveEditorMode = EditorMode.TwoD;
+            return;
+        }
+
+        var combinedPaths = context.Snapshot.Document.Paths.Concat(appendedPaths).ToArray();
+        var generatedLayerId = $"generated-3d-{Guid.NewGuid():N}";
+        var layers = (context.Snapshot.Layers ?? [])
+            .Append(new Editor2DLayer(
+                generatedLayerId,
+                generatedLayerName,
+                appendedPaths.Select(path => path.Id).ToArray(),
+                Order: context.Snapshot.Layers?.Count ?? 0,
+                ColorHex: "#7C9CFF"))
+            .ToArray();
+        var nextState = context.Snapshot with
+        {
+            Document = RebuildGeneratedOutputDocument(context.Snapshot.Document, combinedPaths, generatedDocument.UnsupportedEntityTypes),
+            Layers = layers,
+        };
+        _twoDWorkspace.Apply(nextState, recordHistory: false);
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        if (activatePreviewWorkspace)
+            ActiveEditorMode = EditorMode.TwoD;
+    }
+
+    private static string CreateGeneratedPathId(string layerName, int index, ISet<string> existingIds)
+    {
+        var prefix = new string(layerName.ToLowerInvariant().Select(character => char.IsLetterOrDigit(character) ? character : '-').ToArray()).Trim('-');
+        string id;
+        do
+        {
+            id = $"{prefix}-{index}-{Guid.NewGuid():N}";
+        }
+        while (!existingIds.Add(id));
+        return id;
+    }
+
+    private static Editor2DPreviewDocument RebuildGeneratedOutputDocument(
+        Editor2DPreviewDocument source,
+        IReadOnlyList<Editor2DPreviewPath> paths,
+        IReadOnlyList<string> generatedUnsupportedTypes)
+    {
+        var points = paths.SelectMany(path => path.Points).ToArray();
+        return source with
+        {
+            Paths = paths,
+            Bounds = points.Length == 0
+                ? new Editor2DBounds(0, 0, 0, 0)
+                : new Editor2DBounds(points.Min(point => point.X), points.Min(point => point.Y), points.Max(point => point.X), points.Max(point => point.Y)),
+            EntityCounts = paths.GroupBy(path => path.EntityType, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),
+            UnsupportedEntityTypes = source.UnsupportedEntityTypes.Concat(generatedUnsupportedTypes)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+        };
+    }
+
+    private static string GetGeneratedLayerName(EditorGeneratedOutputContext context)
+        => context.SourceTool.Equals("Projection", StringComparison.OrdinalIgnoreCase)
+            ? "Projected 3D"
+            : "Unfolded 3D";
+
+    private sealed record GeneratedOutputAppendContext(
+        string StagingPath,
+        Editor2DWorkspaceState Snapshot,
+        int BasePathCount);
 
     private static void DeleteStagedTwoDDocument(string? stagingPath)
     {

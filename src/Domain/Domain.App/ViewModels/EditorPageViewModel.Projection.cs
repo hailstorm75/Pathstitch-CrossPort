@@ -364,17 +364,17 @@ public sealed partial class EditorPageViewModel
 
         try
         {
-            var existingDxfPath = await StageExistingTwoDDocumentAsync(cancellationToken).ConfigureAwait(true);
+            var appendContext = await StageExistingTwoDDocumentAsync(cancellationToken).ConfigureAwait(true);
             EditorOperationResult result;
             try
             {
                 result = await _threeDWorkspace.ProjectAsync(
-                    BuildProjectionRequest(existingDxfPath),
+                    BuildProjectionRequest(appendContext?.StagingPath),
                     cancellationToken).ConfigureAwait(true);
             }
             finally
             {
-                DeleteStagedTwoDDocument(existingDxfPath);
+                DeleteStagedTwoDDocument(appendContext?.StagingPath);
             }
 
             StatusText = result.IsSuccess ? "Projection completed" : "Projection failed";
@@ -386,6 +386,7 @@ public sealed partial class EditorPageViewModel
                 await HandleSuccessfulGeneratedOutputAsync(
                     result.OutputPath,
                     BuildProjectionOutputContext(),
+                    appendContext,
                     cancellationToken).ConfigureAwait(true);
                 RecordActivity("Project 3D Geometry", ProjectionSelectionSummary);
                 IsPlaneSelectionActive = false;
