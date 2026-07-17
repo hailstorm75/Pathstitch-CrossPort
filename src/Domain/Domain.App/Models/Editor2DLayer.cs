@@ -66,6 +66,12 @@ public sealed record Editor2DLayer(
     public string ContentSummary => IsReferenceImage
         ? ReferenceImage!.SizeSummary
         : $"{PathIds.Count} entities";
+
+    [JsonIgnore]
+    public string VisibilityLabel => IsVisible ? "Visible" : "Hidden";
+
+    [JsonIgnore]
+    public string LockLabel => IsLocked ? "Locked" : "Unlocked";
 }
 
 public sealed record Editor2DLayerFolder(

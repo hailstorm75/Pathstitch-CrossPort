@@ -163,8 +163,18 @@
                   </StackPanel>
                   <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding ContentSummary}" />
                   <StackPanel Orientation="Horizontal" Spacing="4">
-                    <Button Padding="5,2" Content="Visible" Tag="{Binding Id}" Click="OnToggleVisibilityClicked" />
-                    <Button Padding="5,2" Content="Lock" Tag="{Binding Id}" Click="OnToggleLockClicked" />
+                    <ToggleButton
+                      Padding="5,2"
+                      Content="{Binding VisibilityLabel}"
+                      IsChecked="{Binding IsVisible, Mode=OneWay}"
+                      Tag="{Binding Id}"
+                      Click="OnToggleVisibilityClicked" />
+                    <ToggleButton
+                      Padding="5,2"
+                      Content="{Binding LockLabel}"
+                      IsChecked="{Binding IsLocked, Mode=OneWay}"
+                      Tag="{Binding Id}"
+                      Click="OnToggleLockClicked" />
                     <Button Padding="5,2" Content="↑" Tag="{Binding Id}" Click="OnMoveLayerUpClicked" />
                     <Button Padding="5,2" Content="↓" Tag="{Binding Id}" Click="OnMoveLayerDownClicked" />
                     <Button Padding="5,2" Content="Merge ↓" Tag="{Binding Id}" Click="OnMergeLayerWithBelowClicked" />
