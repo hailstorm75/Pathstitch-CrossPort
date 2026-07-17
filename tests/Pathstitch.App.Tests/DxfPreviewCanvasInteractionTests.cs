@@ -2,6 +2,7 @@ namespace Pathstitch.App.Tests;
 
 using System.Reflection;
 using Avalonia;
+using Avalonia.Input;
 using Domain.App.Models;
 using Pathstitch.App.Controls;
 using Pathstitch.App.Tests.Fixtures;
@@ -9,6 +10,32 @@ using Pathstitch.App.Tests.Fixtures;
 public sealed class DxfPreviewCanvasInteractionTests
 {
     private readonly HeadlessUiFixture _ui = new();
+
+    [Theory]
+    [InlineData(Key.Enter, 1, 0)]
+    [InlineData(Key.Escape, 0, 1)]
+    public async Task ReferenceImageTransform_EnterCommitsAndEscapeCancels(
+        Key key,
+        int expectedCommits,
+        int expectedCancels)
+    {
+        await _ui.RunAsync(() =>
+        {
+            var canvas = Canvas(Editor2DWorkspaceState.Empty.Document);
+            canvas.ReferenceImageTransformEditActive = true;
+            var commits = 0;
+            var cancels = 0;
+            canvas.ReferenceImageTransformCompleted += () => commits++;
+            canvas.ReferenceImageTransformCanceled += () => cancels++;
+            var args = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key };
+
+            canvas.RaiseEvent(args);
+
+            Assert.True(args.Handled);
+            Assert.Equal(expectedCommits, commits);
+            Assert.Equal(expectedCancels, cancels);
+        });
+    }
 
     [Fact]
     public async Task RectangleClickRouting_ReverseRectangleRequestsAutoWidthPrecision()

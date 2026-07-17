@@ -13,6 +13,89 @@ namespace Pathstitch.App.Tests;
 public sealed class ReferenceImageWorkflowTests
 {
     [Fact]
+    public void ReferenceImageSelection_BeginsTransformWithoutChangingUnderlyingTool()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var geometryLayer = workspace.Layers.Single(layer => layer.Kind == Editor2DLayerKind.Geometry);
+        var referenceLayer = workspace.ImportReferenceImage("pattern.png", Convert.ToBase64String([1]), 100, 50);
+
+        Assert.True(workspace.IsReferenceImageTransformEditActive);
+        Assert.True(workspace.SelectLayer(geometryLayer.Id));
+        workspace.SetActiveTool(Editor2DTool.SketchLine);
+        Assert.True(workspace.SelectLayer(referenceLayer.Id));
+
+        Assert.Equal(Editor2DTool.SketchLine, workspace.ActiveTool);
+        Assert.Equal(referenceLayer.Id, workspace.ActiveLayerId);
+        Assert.True(workspace.IsReferenceImageTransformEditActive);
+        Assert.Empty(workspace.SelectedPathIds);
+    }
+
+    [Fact]
+    public void ReferenceImageLayerSwitch_CommitsTransformAsOneUndoStep()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var geometryLayer = workspace.Layers.Single(layer => layer.Kind == Editor2DLayerKind.Geometry);
+        var referenceLayer = workspace.ImportReferenceImage("pattern.png", Convert.ToBase64String([1]), 100, 50);
+        Assert.True(workspace.SelectLayer(geometryLayer.Id));
+        workspace.ClearHistory();
+        workspace.SetActiveTool(Editor2DTool.SketchLine);
+        Assert.True(workspace.SelectLayer(referenceLayer.Id));
+        var original = workspace.Layers.Single(layer => layer.Id == referenceLayer.Id).ReferenceImage!;
+
+        Assert.True(workspace.UpdateReferenceImageTransform(referenceLayer.Id, 10, 5, 120, 60, 10));
+        Assert.True(workspace.UpdateReferenceImageTransform(referenceLayer.Id, 20, 15, 140, 70, 25));
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.SelectLayer(geometryLayer.Id));
+
+        Assert.False(workspace.IsReferenceImageTransformEditActive);
+        Assert.True(workspace.CanUndo);
+        Assert.Equal(20, workspace.Layers.Single(layer => layer.Id == referenceLayer.Id).ReferenceImage!.X);
+        Assert.True(workspace.Undo());
+        Assert.Equal(original, workspace.Layers.Single(layer => layer.Id == referenceLayer.Id).ReferenceImage);
+        Assert.Equal(referenceLayer.Id, workspace.ActiveLayerId);
+        Assert.Equal(Editor2DTool.SketchLine, workspace.ActiveTool);
+        Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
+    public void ImportingAnotherReferenceImage_CommitsActiveTransformBeforeStartingNext()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var first = workspace.ImportReferenceImage("first.png", Convert.ToBase64String([1]), 100, 50);
+        Assert.True(workspace.UpdateReferenceImageTransform(first.Id, 12, 8, 110, 55, 15));
+
+        var second = workspace.ImportReferenceImage("second.png", Convert.ToBase64String([2]), 80, 40);
+
+        Assert.Equal(12, workspace.Layers.Single(layer => layer.Id == first.Id).ReferenceImage!.X);
+        Assert.Equal(second.Id, workspace.ActiveLayerId);
+        Assert.True(workspace.IsReferenceImageTransformEditActive);
+        Assert.Equal(2, workspace.Layers.Count(layer => layer.IsReferenceImage));
+    }
+
+    [Fact]
+    public void LockedOrHiddenReferenceImage_DoesNotBeginTransformOnSelection()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var geometryLayer = workspace.Layers.Single(layer => layer.Kind == Editor2DLayerKind.Geometry);
+        var referenceLayer = workspace.ImportReferenceImage("pattern.png", Convert.ToBase64String([1]), 100, 50);
+
+        Assert.True(workspace.ToggleLayerLock(referenceLayer.Id));
+        Assert.True(workspace.SelectLayer(geometryLayer.Id));
+        Assert.True(workspace.SelectLayer(referenceLayer.Id));
+        Assert.False(workspace.IsReferenceImageTransformEditActive);
+
+        Assert.True(workspace.ToggleLayerLock(referenceLayer.Id));
+        Assert.True(workspace.ToggleLayerVisibility(referenceLayer.Id));
+        Assert.True(workspace.SelectLayer(geometryLayer.Id));
+        Assert.True(workspace.SelectLayer(referenceLayer.Id));
+        Assert.False(workspace.IsReferenceImageTransformEditActive);
+    }
+
+    [Fact]
     public void ReferenceImageTransformEdit_CommitsOneUndoForManyPreviewUpdates()
     {
         var workspace = new Editor2DWorkspaceViewModel();
@@ -545,6 +628,9 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Contains("ReferenceImageTransformStarted?.Invoke", canvasSource, StringComparison.Ordinal);
         Assert.Contains("ReferenceImageTransformCompleted?.Invoke", canvasSource, StringComparison.Ordinal);
         Assert.Contains("ReferenceImageTransformCanceled?.Invoke", canvasSource, StringComparison.Ordinal);
+        Assert.Contains("ReferenceImageTransformEditActive=\"{Binding TwoDReferenceImageTransformEditActive}\"", ReadPage("Editor2DView.axaml"), StringComparison.Ordinal);
+        Assert.Contains("ReferenceImageTransformEditActive && e.Key is Key.Enter or Key.Escape", canvasSource, StringComparison.Ordinal);
+        Assert.Contains("if (!ReferenceImageTransformEditActive || ActiveReferenceImage", canvasSource, StringComparison.Ordinal);
         Assert.Contains("BeginTwoDReferenceImageTransform", viewSource, StringComparison.Ordinal);
         Assert.Contains("CommitTwoDReferenceImageTransform", viewSource, StringComparison.Ordinal);
         Assert.Contains("CancelTwoDReferenceImageTransform", viewSource, StringComparison.Ordinal);
