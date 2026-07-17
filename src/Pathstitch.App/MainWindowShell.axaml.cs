@@ -44,6 +44,8 @@ public sealed partial class MainWindowShell : Window
 
 	internal Task WhenNavigationIdleAsync() => _navigationIdle.Task;
 
+	internal void ApproveApplicationClose() => _applicationCloseApproved = true;
+
 	private async void OnClosing(object? sender, WindowClosingEventArgs e)
 	{
 		if (_applicationCloseApproved)

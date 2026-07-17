@@ -13,6 +13,8 @@ using Domain.App.Services;
 using Domain.App.ViewModels;
 using Domain.MVVM.Navigation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Pathstitch.App.Services;
 
@@ -21,9 +23,13 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
     private readonly IServiceProvider _rootServices;
     private readonly IClassicDesktopStyleApplicationLifetime? _desktop;
     private readonly List<DocumentWindowHandle> _documents = [];
+    private readonly ApplicationCloseCoordinator _applicationCloseCoordinator = new();
+    private readonly ILogger<DesktopDocumentWindowManager> _logger;
     private DocumentWindowHandle? _welcome;
     private DocumentWindowHandle? _activeDocument;
     private bool _disposed;
+    private bool _shutdownPreviewRunning;
+    private bool _shutdownApproved;
 
     public DesktopDocumentWindowManager(
         IServiceProvider rootServices,
@@ -31,6 +37,10 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
     {
         _rootServices = rootServices;
         _desktop = desktop;
+        _logger = rootServices.GetService<ILogger<DesktopDocumentWindowManager>>()
+            ?? NullLogger<DesktopDocumentWindowManager>.Instance;
+        if (_desktop is not null)
+            _desktop.ShutdownRequested += OnShutdownRequested;
     }
 
     public MainWindowShell? ActiveWindow => _activeDocument?.Window ?? _welcome?.Window;
@@ -196,6 +206,53 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
             _desktop?.Shutdown();
     }
 
+    private async void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
+    {
+        if (_shutdownApproved)
+            return;
+
+        e.Cancel = true;
+        if (_shutdownPreviewRunning)
+            return;
+
+        _shutdownPreviewRunning = true;
+        try
+        {
+            var targets = BuildApplicationCloseTargets();
+            if (!await _applicationCloseCoordinator.TryApproveAsync(targets).ConfigureAwait(true))
+                return;
+            if (_disposed)
+                return;
+
+            _welcome?.Window.ApproveApplicationClose();
+            _shutdownApproved = true;
+            _desktop?.Shutdown();
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Application shutdown preview failed");
+        }
+        finally
+        {
+            _shutdownPreviewRunning = false;
+        }
+    }
+
+    private IReadOnlyList<ApplicationCloseTarget> BuildApplicationCloseTargets()
+    {
+        var ordered = _activeDocument is null
+            ? _documents.ToArray()
+            : _documents
+                .Where(document => !ReferenceEquals(document, _activeDocument))
+                .Prepend(_activeDocument)
+                .ToArray();
+        return ordered
+            .Select(document => new ApplicationCloseTarget(
+                document.Scope.ServiceProvider.GetRequiredService<IMessenger>(),
+                document.Window.ApproveApplicationClose))
+            .ToArray();
+    }
+
     private static NavigationChangeRequestMessage CreateEditorNavigationRequest(ProjectLaunchRequest launchRequest)
     {
         var parameters = new Dictionary<string, object>
@@ -240,6 +297,8 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
         if (_disposed)
             return;
         _disposed = true;
+        if (_desktop is not null)
+            _desktop.ShutdownRequested -= OnShutdownRequested;
         foreach (var document in _documents.ToArray())
             document.Scope.Dispose();
         _documents.Clear();
