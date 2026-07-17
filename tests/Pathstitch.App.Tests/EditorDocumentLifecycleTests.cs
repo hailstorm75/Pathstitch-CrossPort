@@ -4,6 +4,7 @@ using Domain.App.Navigation;
 using Domain.App.Services;
 using Domain.App.ViewModels;
 using Domain.MVVM.Navigation;
+using Pathstitch.App.Services;
 
 namespace Pathstitch.App.Tests;
 
@@ -35,6 +36,72 @@ public sealed class EditorDocumentLifecycleTests
         Assert.False(fixture.ViewModel.IsDirty);
         var persisted = await new Project3DStateService().LoadAsync(fixture.ProjectPath);
         Assert.Equal(EditorMode.Batch, persisted.WorkspaceState?.ActiveEditorMode);
+    }
+
+    [Fact]
+    public async Task SaveAndReopen_RestoresEmbeddedBatchInputsSettingsAndSelection()
+    {
+        await using var fixture = await LifecycleFixture.CreateAsync();
+        var directory = Path.GetDirectoryName(fixture.ProjectPath)!;
+        var dxfPath = Path.Combine(directory, "first.dxf");
+        var svgPath = Path.Combine(directory, "second.svg");
+        var outputDirectory = Path.Combine(directory, "batch-output");
+        await File.WriteAllTextAsync(
+            dxfPath,
+            "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
+        await File.WriteAllTextAsync(
+            svgPath,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M0 0 L10 0\"/></svg>");
+        Assert.Equal(2, fixture.ViewModel.BatchWorkspace.AddFiles([dxfPath, svgPath]));
+        fixture.ViewModel.BatchWorkspace.Items[1].IsSelected = false;
+        fixture.ViewModel.BatchWorkspace.ContinueOnError = false;
+        fixture.ViewModel.BatchWorkspace.OutputDirectory = outputDirectory;
+        fixture.ViewModel.BatchWorkspace.ExportSelectedOnly = true;
+        fixture.ViewModel.BatchWorkspace.SelectedExportFormat = EditorBatchExportFormat.Dxf;
+        await fixture.ViewModel.SetActiveEditorModeAsync(EditorMode.Batch);
+        Assert.True(fixture.ViewModel.IsDirty);
+
+        await fixture.ViewModel.SaveDocumentAsync();
+        File.Delete(dxfPath);
+        File.Delete(svgPath);
+
+        var reopened = EditorPageViewModelModeTests.CreateViewModelForTests();
+        try
+        {
+            var session = new ProjectSession(
+                Guid.NewGuid(),
+                "Lifecycle",
+                fixture.ProjectPath,
+                new ProjectTemplateDefinition("blank", "Blank", "Untitled"),
+                ProjectSessionOrigin.Opened,
+                DateTimeOffset.UtcNow);
+            Assert.True(await reopened.ConfigureParametersAsync(
+                new Dictionary<string, object> { [EditorNavigationParameterKeys.ProjectSession] = session },
+                CancellationToken.None));
+            await ((INavigablePageViewModel)reopened).LoadAsync(CancellationToken.None);
+
+            Assert.False(reopened.IsDirty);
+            Assert.Equal(EditorMode.Batch, reopened.ActiveEditorMode);
+            Assert.Equal(["first.dxf", "second.svg"], reopened.BatchWorkspace.Items.Select(item => item.FileName));
+            Assert.All(reopened.BatchWorkspace.Items, item => Assert.True(File.Exists(item.FilePath)));
+            Assert.DoesNotContain(reopened.BatchWorkspace.Items, item =>
+                item.FilePath.Equals(dxfPath, StringComparison.OrdinalIgnoreCase)
+                || item.FilePath.Equals(svgPath, StringComparison.OrdinalIgnoreCase));
+            Assert.True(reopened.BatchWorkspace.Items[0].IsSelected);
+            Assert.False(reopened.BatchWorkspace.Items[1].IsSelected);
+            Assert.False(reopened.BatchWorkspace.ContinueOnError);
+            Assert.True(reopened.BatchWorkspace.ExportSelectedOnly);
+            Assert.Equal(outputDirectory, reopened.BatchWorkspace.OutputDirectory);
+
+            await reopened.BatchWorkspace.ExportDxfAsync(new DxfOutputPreviewService());
+
+            Assert.True(File.Exists(reopened.BatchWorkspace.Items[0].OutputPath));
+            Assert.Null(reopened.BatchWorkspace.Items[1].OutputPath);
+        }
+        finally
+        {
+            reopened.Dispose();
+        }
     }
 
     [Fact]

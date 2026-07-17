@@ -325,6 +325,91 @@ public sealed class EditorBatchWorkspaceViewModelTests
         }
     }
 
+    [Fact]
+    public async Task CaptureAndRestoreState_PreservesEmbeddedInputAndTransformedDocument()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchState", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var input = Path.Combine(directory, "drawing.dxf");
+        var project = Path.Combine(directory, "project.stch");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n");
+        string? recoveryDirectory = null;
+        try
+        {
+            var preview = new RecordingPreviewService();
+            var workspace = new EditorBatchWorkspaceViewModel
+            {
+                ContinueOnError = false,
+                ExportSelectedOnly = true,
+                SelectedExportFormat = EditorBatchExportFormat.Svg,
+            };
+            Assert.True(workspace.AddFile(input));
+            await workspace.ApplyOffsetAsync(preview, new StubOffsetGeometryKernel(), 2.0);
+            var state = await workspace.CaptureStateAsync(project);
+            File.Delete(input);
+
+            var restored = new EditorBatchWorkspaceViewModel();
+            await restored.RestoreStateAsync(state, project);
+
+            var item = Assert.Single(restored.Items);
+            recoveryDirectory = Path.GetDirectoryName(item.FilePath);
+            Assert.Equal("drawing.dxf", item.FileName);
+            Assert.True(File.Exists(item.FilePath));
+            Assert.NotNull(item.Document);
+            Assert.Equal(EditorBatchItemStatus.Pending, item.Status);
+            Assert.Equal("Ready", item.Message);
+            Assert.False(restored.ContinueOnError);
+            Assert.True(restored.ExportSelectedOnly);
+            Assert.Equal(EditorBatchExportFormat.Svg, restored.SelectedExportFormat);
+
+            var export = new RecordingPreviewService();
+            await restored.ExportDxfAsync(export);
+
+            Assert.Empty(export.LoadedPaths);
+            Assert.Single(export.SavedPaths);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+            if (recoveryDirectory is not null && Directory.Exists(recoveryDirectory))
+                Directory.Delete(recoveryDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task CaptureState_QueuedActiveProjectEmbedsMetadataWithoutRecursiveArchive()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchActiveProject", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var project = Path.Combine(directory, "project.stch");
+        await new Project3DStateService().SaveAsync(project, Project3DState.Empty);
+        string? recoveryDirectory = null;
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel();
+            Assert.True(workspace.AddFile(project));
+
+            var state = await workspace.CaptureStateAsync(project);
+
+            var itemState = Assert.Single(state.Items!);
+            var embedded = Convert.FromBase64String(Assert.IsType<string>(itemState.SourceDataBase64));
+            Assert.Equal((byte)'{', embedded.First(value => !char.IsWhiteSpace((char)value)));
+
+            var restored = new EditorBatchWorkspaceViewModel();
+            await restored.RestoreStateAsync(state, project);
+            recoveryDirectory = Path.GetDirectoryName(Assert.Single(restored.Items).FilePath);
+            await restored.RunAsync();
+
+            Assert.Equal(EditorBatchItemStatus.Succeeded, restored.Items[0].Status);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+            if (recoveryDirectory is not null && Directory.Exists(recoveryDirectory))
+                Directory.Delete(recoveryDirectory, recursive: true);
+        }
+    }
+
     private sealed class StubOffsetGeometryKernel : IEditor2DGeometryKernelService
     {
         public Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(
