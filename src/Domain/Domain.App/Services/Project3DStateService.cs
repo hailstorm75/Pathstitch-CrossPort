@@ -61,7 +61,8 @@ public sealed class Project3DStateService
                 payload.SavedStepTopology,
                 payload.SavedBatchWorkspaceState ?? ConvertLegacyBatchWorkspace(payload.BatchItems),
                 payload.SavedActivityLog ?? ConvertLegacyActivityLog(payload.LogEntries),
-                payload.SavedLearnModeEnabled ?? payload.IsLearnModeEnabled ?? true);
+                payload.SavedLearnModeEnabled ?? payload.IsLearnModeEnabled ?? true,
+                LegacyExportMeasurementLines: payload.ExportMeasurementLines);
         }
         catch
         {
@@ -595,6 +596,7 @@ public sealed class Project3DStateService
         [property: JsonPropertyName("logEntries")] IReadOnlyList<LegacyActivityEntryPayload>? LogEntries,
         [property: JsonPropertyName("savedLearnModeEnabled")] bool? SavedLearnModeEnabled,
         [property: JsonPropertyName("isLearnModeEnabled")] bool? IsLearnModeEnabled,
+        [property: JsonPropertyName("exportMeasurementLines")] bool? ExportMeasurementLines,
         string? SourceModelPath = null);
 
     private sealed record LegacyActivityEntryPayload(

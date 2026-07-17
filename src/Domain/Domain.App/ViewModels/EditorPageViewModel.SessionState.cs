@@ -223,6 +223,11 @@ public sealed partial class EditorPageViewModel
             }
 
             ApplyPersistedTwoDWorkspaceState(state.TwoDWorkspaceState);
+            if (state.TwoDWorkspaceState?.ExportPreferences is null
+                && state.LegacyExportMeasurementLines is { } includeMeasurementLines)
+            {
+                TwoDExportMeasurementLines = includeMeasurementLines;
+            }
             ApplyPersistedEditorWorkspaceState(state.WorkspaceState);
             await _batchWorkspace
                 .RestoreStateAsync(state.BatchWorkspaceState, ProjectSession.ProjectFilePath, token)
