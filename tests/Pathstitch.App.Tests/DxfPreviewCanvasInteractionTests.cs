@@ -290,6 +290,11 @@ public sealed class DxfPreviewCanvasInteractionTests
             .GetMethod("CommitVertexEdit", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(canvas, null)!;
 
+    private static void InvokePenCommit(DxfPreviewCanvas canvas, bool isClosed)
+        => typeof(DxfPreviewCanvas)
+            .GetMethod("CommitPendingPenPath", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(canvas, [isClosed]);
+
     private static Editor2DPreviewDocument Document(IReadOnlyList<Editor2DPreviewPath> paths)
         => new(
             paths,
@@ -330,6 +335,38 @@ public sealed class DxfPreviewCanvasInteractionTests
         Assert.Equal(
             DxfPenCompletion.Open,
             DxfCanvasPenInteraction.GetCompletionForClick(points, new Point(20, 0), ToScreen, 10));
+    }
+
+    [Fact]
+    public async Task PenCommit_EditingEarlierPathKeepsEditedPathSelected()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var originalAnchors = new[]
+            {
+                new Editor2DBezierAnchor(new(0, 0)),
+                new Editor2DBezierAnchor(new(10, 0)),
+            };
+            var editedPath = new Editor2DPreviewPath(
+                "pen-a",
+                "LWPOLYLINE",
+                Editor2DBezierGeometry.Flatten(originalAnchors, closed: false),
+                false,
+                BezierAnchors: originalAnchors);
+            var laterPath = new Editor2DPreviewPath("line-b", "LINE", [new(20, 0), new(30, 0)], false);
+            var canvas = Canvas(Document([editedPath, laterPath]));
+            var session = InteractionSession(canvas);
+            session.EditingPenPathId = editedPath.Id;
+            session.PendingPenAnchors = originalAnchors
+                .Select(anchor => DxfCanvasPenEditing.MoveAnchor(anchor, new(2, 3)))
+                .ToArray();
+
+            InvokePenCommit(canvas, isClosed: false);
+
+            Assert.Equal([editedPath.Id], canvas.SelectedPathIds);
+            Assert.Equal(laterPath.Id, canvas.Document!.Paths[^1].Id);
+            Assert.Equal(new Editor2DPoint(2, 3), canvas.Document.Paths[0].BezierAnchors![0].Point);
+        });
     }
 
     [Theory]
