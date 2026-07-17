@@ -258,7 +258,7 @@ public sealed class ReferenceImageWorkflowTests
     }
 
     [Fact]
-    public void ReferenceImageTrace_PreviewsCancelsThenCommitsAtomically()
+    public async Task ReferenceImageTrace_PreviewsCancelsThenCommitsAtomically()
     {
         var tracer = new RecordingReferenceImageTraceService(
             [[new(40, 20), new(360, 30), new(200, 180)]]);
@@ -309,6 +309,8 @@ public sealed class ReferenceImageWorkflowTests
 
         workspace.ClearHistory();
         Assert.True(workspace.BeginReferenceImageTrace(layer.Id));
+        Assert.True(workspace.IsReferenceImageTracePreviewPending);
+        await workspace.WaitForReferenceImageTracePreviewAsync();
 
         Assert.Equal(0.8, tracer.LastOptions!.Threshold, 6);
         Assert.Equal(25, tracer.LastOptions.Tolerance);
@@ -325,6 +327,7 @@ public sealed class ReferenceImageWorkflowTests
         Assert.False(workspace.CanUndo);
 
         Assert.True(workspace.BeginReferenceImageTrace(layer.Id));
+        await workspace.WaitForReferenceImageTracePreviewAsync();
         var trace = workspace.CommitReferenceImageTrace();
 
         Assert.NotNull(trace);
@@ -348,9 +351,53 @@ public sealed class ReferenceImageWorkflowTests
 
         Assert.True(workspace.ToggleLayerVisibility(layer.Id));
         Assert.True(workspace.BeginReferenceImageTrace(layer.Id));
+        await workspace.WaitForReferenceImageTracePreviewAsync();
         Assert.NotNull(workspace.CommitReferenceImageTrace());
         var reusedTarget = Assert.Single(workspace.Layers, candidate => candidate.Name == "pattern_traced");
         Assert.Equal(2, reusedTarget.PathIds.Count);
+    }
+
+    [Fact]
+    public async Task ReferenceImageTrace_AppliesOnlyLatestRequestAndCancelRejectsLateResult()
+    {
+        var tracer = new ControllableReferenceImageTraceService();
+        var workspace = new Editor2DWorkspaceViewModel(tracer);
+        var layer = workspace.ImportReferenceImage("pattern.png", "image", 100, 100);
+        workspace.ClearHistory();
+
+        Assert.True(workspace.BeginReferenceImageTrace(layer.Id));
+        var firstTask = workspace.WaitForReferenceImageTracePreviewAsync();
+        var first = await tracer.NextRequestAsync();
+        Assert.True(workspace.IsReferenceImageTracePreviewPending);
+        Assert.Null(workspace.CommitReferenceImageTrace());
+
+        Assert.True(workspace.SetReferenceImageTraceThreshold(layer.Id, 0.8));
+        var secondTask = workspace.WaitForReferenceImageTracePreviewAsync();
+        var second = await tracer.NextRequestAsync();
+        first.Complete([[new(0, 0), new(10, 0), new(0, 10)]]);
+
+        Assert.False(await firstTask);
+        Assert.Empty(workspace.ReferenceImageTracePreviewPaths);
+        Assert.True(workspace.IsReferenceImageTracePreviewPending);
+
+        second.Complete([[new(20, 20), new(80, 20), new(20, 80)]]);
+        Assert.True(await secondTask);
+        var latest = Assert.Single(workspace.ReferenceImageTracePreviewPaths);
+        Assert.Equal(new Editor2DPoint(-30, -30), latest.Points[0]);
+        Assert.False(workspace.IsReferenceImageTracePreviewPending);
+
+        Assert.True(workspace.RefreshReferenceImageTracePreview());
+        var cancelledTask = workspace.WaitForReferenceImageTracePreviewAsync();
+        var cancelled = await tracer.NextRequestAsync();
+        workspace.CancelReferenceImageTrace();
+        cancelled.Complete([[new(0, 0), new(99, 0), new(0, 99)]]);
+
+        Assert.False(await cancelledTask);
+        Assert.False(workspace.HasReferenceImageTraceSession);
+        Assert.False(workspace.IsReferenceImageTracePreviewPending);
+        Assert.Empty(workspace.ReferenceImageTracePreviewPaths);
+        Assert.Empty(workspace.Document.Paths);
+        Assert.False(workspace.CanUndo);
     }
 
     [Fact]
@@ -622,6 +669,8 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Contains("OnCancelReferenceTraceClicked", panel, StringComparison.Ordinal);
         Assert.Contains("TwoDReferenceTraceCornerSmoothness", panel, StringComparison.Ordinal);
         Assert.Contains("TwoDReferenceTracePathOptimization", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.reference.trace.progress", panel, StringComparison.Ordinal);
+        Assert.Contains("IsTwoDReferenceTraceRunning", panel, StringComparison.Ordinal);
         Assert.Contains("TracePreviewPaths=\"{Binding TwoDWorkspace.ReferenceImageTracePreviewPaths}\"", ReadPage("Editor2DView.axaml"), StringComparison.Ordinal);
         var canvasSource = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
         var viewSource = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DView.axaml.cs");
@@ -668,6 +717,41 @@ public sealed class ReferenceImageWorkflowTests
             LastOptions = options;
             return contours;
         }
+    }
+
+    private sealed class ControllableReferenceImageTraceService : IReferenceImageTraceService
+    {
+        private readonly SemaphoreSlim _available = new(0);
+        private readonly Queue<TraceRequest> _requests = new();
+        private readonly object _gate = new();
+
+        public IReadOnlyList<IReadOnlyList<Editor2DPoint>> TraceContours(
+            string imageDataBase64,
+            Editor2DReferenceImageTraceOptions options)
+        {
+            var request = new TraceRequest(options);
+            lock (_gate)
+                _requests.Enqueue(request);
+            _available.Release();
+            return request.Result.Task.GetAwaiter().GetResult();
+        }
+
+        public async Task<TraceRequest> NextRequestAsync()
+        {
+            if (!await _available.WaitAsync(TimeSpan.FromSeconds(5)))
+                throw new TimeoutException("Trace request did not start.");
+            lock (_gate)
+                return _requests.Dequeue();
+        }
+    }
+
+    private sealed record TraceRequest(Editor2DReferenceImageTraceOptions Options)
+    {
+        public TaskCompletionSource<IReadOnlyList<IReadOnlyList<Editor2DPoint>>> Result { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Complete(IReadOnlyList<IReadOnlyList<Editor2DPoint>> contours)
+            => Result.TrySetResult(contours);
     }
 
     private sealed class RecordingReferenceImageBackgroundRemovalService(string result)
