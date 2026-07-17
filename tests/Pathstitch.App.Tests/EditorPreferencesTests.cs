@@ -259,4 +259,78 @@ public sealed class EditorPreferencesTests
         Assert.Equal("2", viewModel.ToolCustomizations.Single(item => item.Identifier == "3d.move").ShortcutText);
         await _ui.RunAsync(dialog.Close);
     }
+
+    [Fact]
+    public async Task PreferencesDialog_PersistsAppCommandShortcutAndUpdatesPalette()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-ui-app-shortcuts-{Guid.NewGuid():N}.json");
+        try
+        {
+            var store = new UserPreferencesStore(path);
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+            await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+            var dialog = await _ui.RunAsync(() => new PreferencesDialog(viewModel, store));
+            await _ui.RunAsync(() =>
+            {
+                dialog.Show();
+                dialog.UpdateLayout();
+                _ui.FindByAutomationId<TextBox>(dialog, "preferences.shortcut.file.new").Text = "Ctrl+Shift+N";
+                _ui.FindByAutomationId<Button>(dialog, "dialog.preferences.apply")
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            });
+
+            Assert.Equal("Primary+Shift+N", store.Load().AppCommandShortcuts!["file.new"]);
+            viewModel.CommandSearchQuery = "New Project";
+            Assert.Equal(
+                "Ctrl+Shift+N",
+                viewModel.CommandSearchResults.Single(item => item.Identifier == "file.new").ShortcutText);
+            await _ui.RunAsync(dialog.Close);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task PreferencesDialog_RejectsThenReassignsAppShortcutThatConflictsWithTool()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-ui-shortcut-conflict-{Guid.NewGuid():N}.json");
+        try
+        {
+            var store = new UserPreferencesStore(path);
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+            await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+            var dialog = await _ui.RunAsync(() => new PreferencesDialog(viewModel, store));
+            await _ui.RunAsync(() =>
+            {
+                dialog.Show();
+                dialog.UpdateLayout();
+                _ui.FindByAutomationId<TextBox>(dialog, "preferences.shortcut.file.new").Text = "C";
+                _ui.FindByAutomationId<Button>(dialog, "dialog.preferences.apply")
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            });
+
+            var status = await _ui.RunAsync(() => dialog.FindControl<TextBlock>("StatusText")!.Text);
+            Assert.Contains("conflicts", status, StringComparison.OrdinalIgnoreCase);
+            Assert.Null(store.Load().AppCommandShortcuts);
+            Assert.Equal("C", viewModel.ToolCustomizations.Single(item => item.Identifier == "2d.circle").ShortcutText);
+            await _ui.RunAsync(() =>
+                _ui.FindByAutomationId<Button>(dialog, "dialog.preferences.shortcut-reassign")
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
+            Assert.Equal("C", NormalizeStored(store.Load().AppCommandShortcuts!["file.new"]));
+            Assert.Null(viewModel.ToolCustomizations.Single(item => item.Identifier == "2d.circle").ShortcutText);
+            await _ui.RunAsync(dialog.Close);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private static string? NormalizeStored(string value)
+    {
+        Assert.True(EditorShortcutGesture.TryNormalize(value, out var normalized));
+        return normalized;
+    }
 }

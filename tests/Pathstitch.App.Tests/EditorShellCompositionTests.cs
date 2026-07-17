@@ -50,8 +50,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Command=\"{Binding ExportSvgCommand}\"", shell, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding ExportPngCommand}\"", shell, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding ExportPdfCommand}\"", shell, StringComparison.Ordinal);
-        Assert.Contains("DesktopPrimaryShortcut.Create(Key.E)", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
-        Assert.Contains("SaveAsMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.S, shift: true)", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
+        Assert.Contains("SetHotKey(ExportDxfMenuItem, EditorCommandPaletteCatalog.ExportDxfIdentifier)", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
+        Assert.Contains("SetHotKey(SaveAsMenuItem, EditorCommandPaletteCatalog.SaveAsIdentifier)", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding NewProjectCommand}\"", shell, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding OpenProjectCommand}\"", shell, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding ImportFilesCommand}\"", shell, StringComparison.Ordinal);
@@ -59,9 +59,10 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("HotKey=\"Ctrl+O\"", shell, StringComparison.Ordinal);
         Assert.Contains("HotKey=\"Ctrl+Shift+I\"", shell, StringComparison.Ordinal);
         var code = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs");
-        Assert.Contains("DesktopPrimaryShortcut.Create(Key.N)", code, StringComparison.Ordinal);
-        Assert.Contains("DesktopPrimaryShortcut.Create(Key.O)", code, StringComparison.Ordinal);
-        Assert.Contains("DesktopPrimaryShortcut.Create(Key.I, shift: true)", code, StringComparison.Ordinal);
+        Assert.Contains("EditorAppShortcutCatalog.Resolve", code, StringComparison.Ordinal);
+        Assert.Contains("SetHotKey(NewProjectMenuItem", code, StringComparison.Ordinal);
+        Assert.Contains("SetHotKey(OpenProjectMenuItem", code, StringComparison.Ordinal);
+        Assert.Contains("SetHotKey(ImportFilesMenuItem", code, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -91,7 +92,7 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("tool.Tool is not null || tool.TwoDTool is not null", code, StringComparison.Ordinal);
         Assert.Contains("EditorSidebarAction.FlipSelectionHorizontal", code, StringComparison.Ordinal);
         Assert.Contains("viewModel.ActivateSidebarItem(toolKey)", code, StringComparison.Ordinal);
-        Assert.Contains("DesktopPrimaryShortcut.Create(Key.K)", code, StringComparison.Ordinal);
+        Assert.Contains("SetHotKey(SearchCommandsMenuItem, EditorCommandPaletteCatalog.SearchIdentifier)", code, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -181,8 +182,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Button.command-result.selected", ReadPage("EditorCommandPalette.axaml"), StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CommandSearchResults\"", ReadPage("EditorCommandPalette.axaml"), StringComparison.Ordinal);
         Assert.Contains("FocusSearch", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("KeyModifiers.Control", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
-        Assert.Contains("KeyModifiers.Meta", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
+        Assert.Contains("EditorShortcutGesture.TryCapture", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
+        Assert.Contains("EditorAppShortcutCatalog.Resolve", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
     }
 
     [Fact]
