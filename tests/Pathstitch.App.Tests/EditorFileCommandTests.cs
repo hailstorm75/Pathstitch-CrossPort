@@ -99,6 +99,51 @@ public sealed class EditorFileCommandTests
         }
     }
 
+    [Fact]
+    public async Task ActivatedDrawing_ImportsIntoCurrentEditorWithoutUsingPicker()
+    {
+        var importedPath = Path.Combine(Path.GetTempPath(), $"activated-{Guid.NewGuid():N}.dxf");
+        await File.WriteAllTextAsync(importedPath, "DXF");
+        try
+        {
+            var imported = Document(new Editor2DPreviewPath("activated", "LINE", [new(0, 0), new(2, 0)], false));
+            await using var fixture = await Fixture.CreateAsync(
+                UnsavedChangesPromptResult.Cancel,
+                new MappingOutputService(importedPath, imported));
+            await fixture.ViewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+            var sessionId = fixture.ViewModel.ProjectSession!.SessionId;
+
+            await fixture.ViewModel.OpenActivatedFilesAsync([importedPath]);
+
+            Assert.Equal(0, fixture.Dialog.WorkspaceCount);
+            Assert.Equal(0, fixture.Prompt.CallCount);
+            Assert.Equal(sessionId, fixture.ViewModel.ProjectSession.SessionId);
+            Assert.True(fixture.ViewModel.IsDirty);
+            Assert.Single(fixture.ViewModel.TwoDWorkspace.ImportGroups);
+        }
+        finally
+        {
+            File.Delete(importedPath);
+        }
+    }
+
+    [Fact]
+    public async Task ActivatedProject_RespectsUnsavedChangesCancellation()
+    {
+        await using var fixture = await Fixture.CreateAsync(UnsavedChangesPromptResult.Cancel);
+        var other = Path.Combine(fixture.Directory, "activated.stch");
+        await new Project3DStateService().SaveAsync(other, Project3DState.Empty);
+        await fixture.ViewModel.SetActiveEditorModeAsync(EditorMode.Batch);
+        var originalSessionId = fixture.ViewModel.ProjectSession!.SessionId;
+
+        await fixture.ViewModel.OpenActivatedFilesAsync([other]);
+
+        Assert.Equal(1, fixture.Prompt.CallCount);
+        Assert.Equal(originalSessionId, fixture.ViewModel.ProjectSession.SessionId);
+        Assert.Equal(originalSessionId, fixture.SessionService.CurrentSession!.SessionId);
+        Assert.Empty(fixture.NavigationRequests);
+    }
+
     private static Editor2DPreviewDocument Document(params Editor2DPreviewPath[] paths)
         => new(paths, new(0, 0, 10, 10), new Dictionary<string, int>(), []);
 
@@ -198,6 +243,7 @@ public sealed class EditorFileCommandTests
         public IReadOnlyList<string> WorkspacePaths { get; set; } = [];
         public int NewCount { get; private set; }
         public int OpenCount { get; private set; }
+        public int WorkspaceCount { get; private set; }
 
         public Task<string?> PickExistingProjectFileAsync(CancellationToken cancellationToken = default)
         {
@@ -209,7 +255,11 @@ public sealed class EditorFileCommandTests
             NewCount++;
             return Task.FromResult(NewPath);
         }
-        public Task<IReadOnlyList<string>> PickWorkspaceFilesAsync(CancellationToken cancellationToken = default) => Task.FromResult(WorkspacePaths);
+        public Task<IReadOnlyList<string>> PickWorkspaceFilesAsync(CancellationToken cancellationToken = default)
+        {
+            WorkspaceCount++;
+            return Task.FromResult(WorkspacePaths);
+        }
         public Task<IReadOnlyList<string>> PickSourceModelFilesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([]);
         public Task<string?> PickSourceModelFileAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
     }
