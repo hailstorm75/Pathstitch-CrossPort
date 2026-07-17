@@ -5,8 +5,9 @@
   xmlns:models="using:Domain.App.Models"
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:EditorBatchWorkspaceViewModel"
-  AutomationProperties.AutomationId="editor.workspace.batch">
-  <Grid Margin="28" RowDefinitions="Auto,*">
+  AutomationProperties.AutomationId="editor.workspace.batch"
+  DragDrop.AllowDrop="True">
+  <Grid x:Name="BatchDropSurface" Margin="28" RowDefinitions="Auto,*">
     <StackPanel Spacing="4">
       <TextBlock
         FontSize="20"
@@ -17,6 +18,11 @@
         AutomationProperties.AutomationId="editor.batch.summary"
         Foreground="{StaticResource SecondaryTextBrush}"
         Text="{Binding Summary}" />
+      <TextBlock
+        AutomationProperties.AutomationId="editor.batch.drop-target"
+        FontSize="10"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="Drop DXF, SVG, PDF, or Pathstitch project files here" />
     </StackPanel>
     <ScrollViewer Grid.Row="1" Margin="0,18,0,0">
       <ItemsControl ItemsSource="{Binding Items}">
@@ -30,7 +36,7 @@
               BorderBrush="{StaticResource BorderBrush}"
               BorderThickness="1"
               CornerRadius="8">
-              <Grid ColumnDefinitions="*,Auto">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                 <StackPanel Spacing="4">
                   <CheckBox Content="Process this file" IsChecked="{Binding IsSelected, Mode=TwoWay}" />
                   <TextBlock Foreground="{StaticResource PrimaryTextBrush}" Text="{Binding FileName}" />
@@ -38,7 +44,13 @@
                   <TextBlock FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding Message}" />
                   <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding OutputPath}" />
                 </StackPanel>
-                <TextBlock Grid.Column="1" Foreground="{StaticResource AccentBrush}" Text="{Binding Status}" />
+                <StackPanel Grid.Column="1" Spacing="6">
+                  <TextBlock Foreground="{StaticResource AccentBrush}" Text="{Binding Status}" />
+                  <Button
+                    AutomationProperties.AutomationId="{Binding FilePath, StringFormat=editor.batch.remove.{0}}"
+                    Content="Remove"
+                    Click="OnRemoveBatchItemClicked" />
+                </StackPanel>
               </Grid>
             </Border>
           </DataTemplate>

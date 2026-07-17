@@ -52,6 +52,11 @@ public sealed class ProjectFileDialogService(IDocumentWindowContext? windowConte
         Patterns = ["*.pdf"],
     };
 
+    private static readonly FilePickerFileType BatchInputFileType = new("Batch Input")
+    {
+        Patterns = ["*.dxf", "*.svg", "*.pdf", "*.stch"],
+    };
+
     public async Task<string?> PickExistingProjectFileAsync(CancellationToken cancellationToken = default)
     {
         var topLevel = GetTopLevel();
@@ -255,6 +260,45 @@ public sealed class ProjectFileDialogService(IDocumentWindowContext? windowConte
 
         cancellationToken.ThrowIfCancellationRequested();
         return result?.TryGetLocalPath();
+    }
+
+    public async Task<IReadOnlyList<string>> PickBatchInputFilesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var topLevel = GetTopLevel();
+        if (topLevel?.StorageProvider is null)
+            return [];
+
+        var result = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            AllowMultiple = true,
+            Title = "Select Batch Inputs",
+            FileTypeFilter = [BatchInputFileType],
+        }).ConfigureAwait(true);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return result
+            .Select(file => file.TryGetLocalPath())
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Cast<string>()
+            .ToArray();
+    }
+
+    public async Task<string?> PickBatchOutputFolderAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var topLevel = GetTopLevel();
+        if (topLevel?.StorageProvider is null)
+            return null;
+
+        var result = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            AllowMultiple = false,
+            Title = "Select Batch Export Destination",
+        }).ConfigureAwait(true);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return result.Count > 0 ? result[0].TryGetLocalPath() : null;
     }
 
     private TopLevel? GetTopLevel()

@@ -29,4 +29,10 @@ public interface IProjectFileDialogService
 
     Task<string?> PickPdfExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
         => Task.FromResult<string?>(null);
+
+    Task<IReadOnlyList<string>> PickBatchInputFilesAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<string>>([]);
+
+    Task<string?> PickBatchOutputFolderAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
 }

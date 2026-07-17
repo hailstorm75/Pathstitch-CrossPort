@@ -151,7 +151,13 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     public bool CanOperateSelected => !IsRunning && Items.Any(item =>
         item.IsSelected && IsSupportedDrawingInput(item.FilePath));
 
+    public bool HasExportedOutput => TryGetExistingOutputPath() is not null;
+
     public int SelectedItemCount => Items.Count(item => item.IsSelected);
+
+    public string? TryGetExistingOutputPath()
+        => Items.Select(item => item.OutputPath)
+            .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path));
 
     public void SetAllSelected(bool selected)
     {
@@ -160,6 +166,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(CanOperateSelected));
         OnPropertyChanged(nameof(SelectedItemCount));
+        OnPropertyChanged(nameof(HasExportedOutput));
     }
 
     public string Summary
@@ -741,7 +748,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
 
     private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(EditorBatchItem.IsSelected))
+        if (e.PropertyName is nameof(EditorBatchItem.IsSelected) or nameof(EditorBatchItem.OutputPath))
             NotifyDerivedStateChanged();
         if (e.PropertyName is nameof(EditorBatchItem.IsSelected) or nameof(EditorBatchItem.Document))
             NotifyStateChanged();

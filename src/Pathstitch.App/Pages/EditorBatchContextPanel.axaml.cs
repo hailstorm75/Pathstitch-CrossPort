@@ -13,10 +13,31 @@ public partial class EditorBatchContextPanel : UserControl
 {
     public EditorBatchContextPanel() => InitializeComponent();
 
+    private EditorPageViewModel? EditorViewModel
+        => (TopLevel.GetTopLevel(this) as MainWindowShell)?.CurrentPageViewModel as EditorPageViewModel;
+
     private void OnAddProjectClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorBatchWorkspaceViewModel viewModel)
             viewModel.AddInputFile();
+    }
+
+    private async void OnPickBatchInputsClicked(object? sender, RoutedEventArgs e)
+    {
+        if (EditorViewModel is { } viewModel)
+            await viewModel.PickBatchInputFilesAsync();
+    }
+
+    private async void OnPickBatchOutputFolderClicked(object? sender, RoutedEventArgs e)
+    {
+        if (EditorViewModel is { } viewModel)
+            await viewModel.ChooseBatchOutputFolderAsync();
+    }
+
+    private async void OnRevealBatchOutputClicked(object? sender, RoutedEventArgs e)
+    {
+        if (EditorViewModel is { } viewModel)
+            await viewModel.RevealBatchOutputAsync();
     }
 
     private async void OnRunBatchClicked(object? sender, RoutedEventArgs e)

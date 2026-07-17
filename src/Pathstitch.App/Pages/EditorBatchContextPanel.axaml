@@ -39,10 +39,20 @@
         Classes="panel-button"
         Content="Add file"
         Click="OnAddProjectClicked" />
+      <Button
+        AutomationProperties.AutomationId="editor.batch.pick-inputs"
+        Classes="panel-button"
+        Content="Add files…"
+        Click="OnPickBatchInputsClicked" />
       <TextBox
         AutomationProperties.AutomationId="editor.batch.output-directory"
         PlaceholderText="Output directory (optional)"
         Text="{Binding OutputDirectory, Mode=TwoWay}" />
+      <Button
+        AutomationProperties.AutomationId="editor.batch.pick-output-folder"
+        Classes="panel-button"
+        Content="Choose output folder…"
+        Click="OnPickBatchOutputFolderClicked" />
       <CheckBox
         AutomationProperties.AutomationId="editor.batch.export-selected-only"
         Content="Export selected only"
@@ -81,6 +91,12 @@
         Content="Export batch outputs"
         IsEnabled="{Binding CanExport}"
         Click="OnExportDxfClicked" />
+      <Button
+        AutomationProperties.AutomationId="editor.batch.reveal-output"
+        Classes="panel-button"
+        Content="Reveal exported output"
+        IsEnabled="{Binding HasExportedOutput}"
+        Click="OnRevealBatchOutputClicked" />
       <Button
         AutomationProperties.AutomationId="editor.batch.apply-offset"
         Classes="panel-button"
