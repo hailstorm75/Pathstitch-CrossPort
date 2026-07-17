@@ -4,7 +4,7 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class EditorPageViewModel
 {
-    public bool DuplicateTwoDSelection(double offsetX = 10.0, double offsetY = 10.0)
+    public bool DuplicateTwoDSelection(double offsetX = 5.0, double offsetY = 5.0)
     {
         if (TwoDDocument is not { } document || TwoDSelectedPathIds.Count == 0)
             return false;
