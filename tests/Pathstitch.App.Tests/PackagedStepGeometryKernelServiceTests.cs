@@ -63,6 +63,61 @@ public sealed class PackagedStepGeometryKernelServiceTests
     }
 
     [Fact]
+    public async Task PinnedWorker_ProjectionAndUnfoldAppendExistingDxf()
+    {
+        var runtime = TryFindPinnedRuntime();
+        if (runtime is null)
+            return;
+        using var service = CreateService(runtime);
+        var fixture = FindRepositoryFile("tests", "Pathstitch.App.Tests", "Fixtures", "box-cylinder.step");
+        var existingPath = Path.Combine(Path.GetTempPath(), $"pathstitch-existing-{Guid.NewGuid():N}.dxf");
+        EditorDxfDocument.SavePreviewDocument(
+            existingPath,
+            new Editor2DPreviewDocument(
+                [
+                    new Editor2DPreviewPath("existing", "LINE", [new(0, 0), new(5, 0)], false, Start: new(0, 0), IsConstruction: true),
+                    new Editor2DPreviewPath("circle", "CIRCLE", [], true, Center: new(2, 4), Radius: 1),
+                    new Editor2DPreviewPath("text", "TEXT", [], false, Start: new(0, 7), Text: "keep", TextHeight: 1),
+                ],
+                new Editor2DBounds(0, 0, 5, 8),
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["LINE"] = 1,
+                    ["CIRCLE"] = 1,
+                    ["TEXT"] = 1,
+                },
+                []));
+        try
+        {
+            var imported = await service.ImportAsync(fixture);
+            Assert.True(imported.IsSuccess, imported.Message);
+            var body = imported.Document!.Bodies[0];
+            var face = body.Faces[0];
+
+            var projection = await service.ProjectAsync(new EditorProjectionRequest(
+                fixture, "XY", 0, null, null, [0], [], ExistingDxfPath: existingPath));
+            var unfold = await service.UnfoldAsync(new EditorUnfoldRequest(
+                fixture,
+                [new SelectedFace3D(0, 0, body.Id, face.Id)],
+                [0],
+                WholeBody: false,
+                DistortionMode: "conformal",
+                SelectedFaceIds: [face.Id],
+                VisibleBodyIds: [body.Id],
+                ExistingDxfPath: existingPath));
+
+            Assert.True(projection.IsSuccess, projection.Message);
+            Assert.True(unfold.IsSuccess, unfold.Message);
+            AssertExistingLineAndGeneratedGeometry(projection.OutputPath!);
+            AssertExistingLineAndGeneratedGeometry(unfold.OutputPath!);
+        }
+        finally
+        {
+            File.Delete(existingPath);
+        }
+    }
+
+    [Fact]
     public async Task PinnedWorker_ImportsStableExactTopologyAndRunsLifecycleOperations()
     {
         var runtime = TryFindPinnedRuntime();
@@ -425,6 +480,17 @@ public sealed class PackagedStepGeometryKernelServiceTests
         Assert.DoesNotContain("GetEnvironmentVariable(\"PATH\")", resolver, StringComparison.Ordinal);
         Assert.Contains("GeometryWorker", project, StringComparison.Ordinal);
         Assert.Contains("step-combine", runtimeSpec, StringComparison.Ordinal);
+    }
+
+    private static void AssertExistingLineAndGeneratedGeometry(string outputPath)
+    {
+        var document = EditorDxfDocument.LoadPreviewDocument(outputPath);
+        Assert.Contains(document.Paths, path => path.Points.Count == 2
+            && path.Points[0] == new DxfPoint(0, 0)
+            && path.Points[1] == new DxfPoint(5, 0));
+        Assert.Contains(document.Paths, path => path.EntityType == "CIRCLE");
+        Assert.Contains(document.Paths, path => path.EntityType == "TEXT" && path.Text == "keep");
+        Assert.True(document.Paths.Count > 3);
     }
 
     private static PackagedStepGeometryKernelService CreateService(GeometryWorkerRuntime runtime)

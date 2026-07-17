@@ -141,6 +141,34 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
     }
 
     [Fact]
+    public async Task ProjectEdgesAsync_AppendsAfterExistingTwoDGeometryWithoutMutatingSource()
+    {
+        using var workspace = TestWorkspace.Create();
+        var objPath = workspace.WriteText("triangle.obj", TriangleObj);
+        var existingPath = workspace.GetPath("existing.dxf");
+        WriteExistingLine(existingPath);
+        var original = await File.ReadAllTextAsync(existingPath);
+        var service = CreateService();
+        var load = await service.LoadModelAsync(objPath);
+
+        var projection = await service.ProjectEdgesAsync(new EditorProjectionRequest(
+            load.SourceModelPath,
+            "XY",
+            0,
+            FaceIndex: null,
+            FaceBodyIndex: null,
+            VisibleBodyIndices: [0],
+            BodyOffsets: [],
+            ExistingDxfPath: existingPath));
+
+        Assert.True(projection.IsSuccess, projection.Message);
+        var output = EditorDxfDocument.LoadPreviewDocument(projection.OutputPath!);
+        Assert.True(output.Paths.Count > 1);
+        AssertExistingLineAndAppendedGap(output);
+        Assert.Equal(original, await File.ReadAllTextAsync(existingPath));
+    }
+
+    [Fact]
     public async Task ProjectEdgesAsync_LoadsRestoredJsonMeshWorkspaceWithoutTempFilePrefix()
     {
         using var workspace = TestWorkspace.Create();
@@ -224,6 +252,32 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
         var dxf = await File.ReadAllTextAsync(unfold.OutputPath);
         Assert.Equal(1, CountDxfEntities(dxf, "LWPOLYLINE"));
         Assert.Contains("\n70\n1\n", dxf, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UnfoldAsync_AppendsAfterExistingTwoDGeometryWithoutMutatingSource()
+    {
+        using var workspace = TestWorkspace.Create();
+        var objPath = workspace.WriteText("triangle.obj", TriangleObj);
+        var existingPath = workspace.GetPath("existing.dxf");
+        WriteExistingLine(existingPath);
+        var original = await File.ReadAllTextAsync(existingPath);
+        var service = CreateService();
+        var load = await service.LoadModelAsync(objPath);
+
+        var unfold = await service.UnfoldAsync(new EditorUnfoldRequest(
+            load.SourceModelPath,
+            SelectedFaces: [],
+            VisibleBodyIndices: [0],
+            WholeBody: true,
+            DistortionMode: "conformal",
+            ExistingDxfPath: existingPath));
+
+        Assert.True(unfold.IsSuccess, unfold.Message);
+        var output = EditorDxfDocument.LoadPreviewDocument(unfold.OutputPath!);
+        Assert.Equal(2, output.Paths.Count);
+        AssertExistingLineAndAppendedGap(output);
+        Assert.Equal(original, await File.ReadAllTextAsync(existingPath));
     }
 
     [Fact]
@@ -338,6 +392,29 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
             NullLogger<OpenGeometryEditor3DOperationService>.Instance,
             bridge,
             stepKernel);
+    }
+
+    private static void WriteExistingLine(string path)
+    {
+        var line = new Editor2DPreviewPath("existing-line", "LINE", [new(0, 0), new(5, 0)], false, Start: new(0, 0));
+        EditorDxfDocument.SavePreviewDocument(
+            path,
+            new Editor2DPreviewDocument(
+                [line],
+                new Editor2DBounds(0, 0, 5, 0),
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["LINE"] = 1 },
+                []));
+    }
+
+    private static void AssertExistingLineAndAppendedGap(DxfPreviewDocument output)
+    {
+        var existing = Assert.Single(output.Paths, path => path.Points.Count == 2
+            && path.Points[0] == new DxfPoint(0, 0)
+            && path.Points[1] == new DxfPoint(5, 0));
+        Assert.NotNull(existing);
+        var appended = output.Paths.Where(path => !ReferenceEquals(path, existing)).ToArray();
+        Assert.NotEmpty(appended);
+        Assert.All(appended.SelectMany(path => path.Points), point => Assert.True(point.X >= 15.0 - 1e-6));
     }
 
     private sealed class RecordingStepKernel(TestWorkspace workspace) : IStepGeometryKernelService

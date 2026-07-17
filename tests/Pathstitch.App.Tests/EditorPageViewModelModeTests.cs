@@ -5,6 +5,7 @@ using Domain.App.Services;
 using Domain.App.ViewModels;
 using Domain.MVVM.Navigation;
 using Microsoft.Extensions.Logging.Abstractions;
+using Pathstitch.App.Services;
 
 namespace Pathstitch.App.Tests;
 
@@ -111,6 +112,42 @@ public sealed class EditorPageViewModelModeTests
         Assert.Contains(nameof(viewModel.IsConnectedNetLayout), changes);
         Assert.Contains(nameof(viewModel.IsSeparatePiecesLayout), changes);
         Assert.Contains(nameof(viewModel.UnfoldConfigurationSummary), changes);
+    }
+
+    [Fact]
+    public async Task UnfoldStagesCurrentTwoDDocumentAndLeavesItUntouchedOnFailure()
+    {
+        var sourcePath = Path.Combine(Path.GetTempPath(), $"pathstitch-stage-{Guid.NewGuid():N}.obj");
+        await File.WriteAllTextAsync(sourcePath, "v 0 0 0");
+        var operations = new RecordingGeneratedOutputOperationService();
+        var preview = new DxfWritingOutputPreviewService();
+        var viewModel = CreateViewModelForTests(outputPreviewService: preview, threeDOperationService: operations);
+        var original = new Editor2DPreviewDocument(
+            [new Editor2DPreviewPath("user-line", "LINE", [new(2, 3), new(8, 3)], false, Start: new(2, 3))],
+            new Editor2DBounds(2, 3, 8, 3),
+            new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["LINE"] = 1 },
+            []);
+        viewModel.TwoDDocument = original;
+        viewModel.ThreeDWorkspace.ReplaceBodies([new Body3D(0, "body", [])], "{}", sourcePath);
+        try
+        {
+            await viewModel.RequestUnfoldEntireBodyAsync();
+
+            Assert.NotNull(operations.UnfoldRequest?.ExistingDxfPath);
+            Assert.True(operations.ExistingDxfExistedDuringCall);
+            Assert.Contains(
+                operations.ExistingDocument!.Paths,
+                path => path.Points.Count == 2
+                    && path.Points[0] == new DxfPoint(2, 3)
+                    && path.Points[1] == new DxfPoint(8, 3));
+            Assert.False(File.Exists(operations.UnfoldRequest.ExistingDxfPath));
+            Assert.Equal(original, viewModel.TwoDDocument);
+        }
+        finally
+        {
+            viewModel.Dispose();
+            File.Delete(sourcePath);
+        }
     }
 
     [Fact]
@@ -2195,8 +2232,9 @@ public sealed class EditorPageViewModelModeTests
         IPsdImportModePromptService? psdImportModePromptService = null,
         IDocumentWindowService? documentWindowService = null,
         IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null,
-        IEditorOutputLauncherService? outputLauncherService = null)
-        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, referenceImagePreparationService, projectPreviewRenderer, psdImportService, psdImportModePromptService, documentWindowService, projectOpenDispositionPromptService, outputLauncherService);
+        IEditorOutputLauncherService? outputLauncherService = null,
+        IEditor3DOperationService? threeDOperationService = null)
+        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, referenceImagePreparationService, projectPreviewRenderer, psdImportService, psdImportModePromptService, documentWindowService, projectOpenDispositionPromptService, outputLauncherService, threeDOperationService);
 
     private static EditorPageViewModel CreateViewModel(
         IProjectFileDialogService? projectFileDialogService = null,
@@ -2212,7 +2250,8 @@ public sealed class EditorPageViewModelModeTests
         IPsdImportModePromptService? psdImportModePromptService = null,
         IDocumentWindowService? documentWindowService = null,
         IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null,
-        IEditorOutputLauncherService? outputLauncherService = null)
+        IEditorOutputLauncherService? outputLauncherService = null,
+        IEditor3DOperationService? threeDOperationService = null)
         => new(
             NullLogger<EditorPageViewModel>.Instance,
             new StubViewportAssetLocator(),
@@ -2221,7 +2260,7 @@ public sealed class EditorPageViewModelModeTests
             outputLauncherService ?? new StubOutputLauncherService(),
             outputPreviewService ?? new StubOutputPreviewService(),
             geometryKernelService ?? new Stub2DGeometryKernelService(),
-            new Stub3DOperationService(),
+            threeDOperationService ?? new Stub3DOperationService(),
             new StubGeometryKernelDescriptorProvider(),
             referenceImageTraceService: referenceImageTraceService,
             referenceImagePreparationService: referenceImagePreparationService,
@@ -2417,6 +2456,56 @@ public sealed class EditorPageViewModelModeTests
 
         public Task<EditorOperationResult> ProjectEdgesAsync(EditorProjectionRequest request, CancellationToken cancellationToken = default)
             => Task.FromResult(new EditorOperationResult(false, "Not used."));
+    }
+
+    private sealed class RecordingGeneratedOutputOperationService : IEditor3DOperationService
+    {
+        public EditorUnfoldRequest? UnfoldRequest { get; private set; }
+        public bool ExistingDxfExistedDuringCall { get; private set; }
+        public DxfPreviewDocument? ExistingDocument { get; private set; }
+
+        public Task<EditorModelLoadResult> LoadModelAsync(string sourceModelPath, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<EditorModelLoadResult> LoadModelsAsync(
+            IReadOnlyList<string> sourceModelPaths,
+            string? existingSourceModelPath = null,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<EditorFaceDistortionResult> ComputeFaceDistortionAsync(
+            string? sourceModelPath,
+            SelectedFace3D selectedFace,
+            string distortionMode,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<EditorOperationResult> UnfoldAsync(EditorUnfoldRequest request, CancellationToken cancellationToken = default)
+        {
+            UnfoldRequest = request;
+            ExistingDxfExistedDuringCall = File.Exists(request.ExistingDxfPath);
+            if (ExistingDxfExistedDuringCall)
+                ExistingDocument = EditorDxfDocument.LoadPreviewDocument(request.ExistingDxfPath!);
+            return Task.FromResult(new EditorOperationResult(false, "Deliberate failure"));
+        }
+
+        public Task<EditorOperationResult> ProjectEdgesAsync(EditorProjectionRequest request, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class DxfWritingOutputPreviewService : IEditorOutputPreviewService
+    {
+        public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
+            => Task.FromResult<Editor2DPreviewDocument?>(null);
+
+        public Task SavePreviewDocumentAsync(Editor2DPreviewDocument document, string outputPath, CancellationToken cancellationToken = default)
+        {
+            EditorDxfDocument.SavePreviewDocument(outputPath, document);
+            return Task.CompletedTask;
+        }
+
+        public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(string outputPath, CancellationToken cancellationToken = default)
+            => Task.FromResult<EditorGeneratedOutputSummary?>(null);
     }
 
     private sealed class StubGeometryKernelDescriptorProvider : IGeometryKernelDescriptorProvider
