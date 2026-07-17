@@ -633,11 +633,53 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
                 : layers.First(layer => layer.Kind == Editor2DLayerKind.Geometry).Id,
             Measurements: measurements,
             CornerParameters: cornerParameters,
+            SewingHoleParameters: ConvertLegacySewingHoleParameters(payload),
             Folders: (payload.SavedLayerFolders ?? [])
                 .Where(folder => !string.IsNullOrWhiteSpace(folder.Id))
                 .Select(folder => new Editor2DLayerFolder(folder.Id, folder.Name ?? "Folder", folder.ParentFolderId))
                 .ToArray());
     }
+
+    private static Editor2DSewingHoleParameters? ConvertLegacySewingHoleParameters(Project3DStatePayload payload)
+    {
+        if (payload.HoleOffsetDistance is null
+            && payload.HoleDiameter is null
+            && payload.HoleSpacing is null
+            && payload.HoleDistribution is null
+            && payload.HoleCount is null
+            && payload.HolePattern is null
+            && payload.HoleSide is null
+            && payload.HoleRowSpacing is null)
+            return null;
+
+        var defaults = Editor2DSewingHoleParameters.Default;
+        return defaults with
+        {
+            Diameter = IsPositiveFinite(payload.HoleDiameter) ? payload.HoleDiameter!.Value : defaults.Diameter,
+            Pitch = IsPositiveFinite(payload.HoleSpacing) ? payload.HoleSpacing!.Value : defaults.Pitch,
+            Margin = IsNonNegativeFinite(payload.HoleOffsetDistance) ? payload.HoleOffsetDistance!.Value : defaults.Margin,
+            DistributionMode = string.Equals(payload.HoleDistribution, "count", StringComparison.OrdinalIgnoreCase)
+                ? Editor2DSewingDistributionMode.Count
+                : Editor2DSewingDistributionMode.Pitch,
+            Count = payload.HoleCount is > 0 ? payload.HoleCount.Value : defaults.Count,
+            Pattern = string.Equals(payload.HolePattern, "saddle", StringComparison.OrdinalIgnoreCase)
+                ? Editor2DSewingPattern.Saddle
+                : Editor2DSewingPattern.Single,
+            Side = payload.HoleSide?.ToLowerInvariant() switch
+            {
+                "right" or "inner" => Editor2DSewingSide.Right,
+                "both" => Editor2DSewingSide.Both,
+                _ => Editor2DSewingSide.Left,
+            },
+            SaddleSpacing = IsNonNegativeFinite(payload.HoleRowSpacing) ? payload.HoleRowSpacing!.Value : defaults.SaddleSpacing,
+        };
+    }
+
+    private static bool IsPositiveFinite(double? value)
+        => value is { } resolved && double.IsFinite(resolved) && resolved > 0;
+
+    private static bool IsNonNegativeFinite(double? value)
+        => value is { } resolved && double.IsFinite(resolved) && resolved >= 0;
 
     private static Editor2DPreviewDocument ApplyLegacyPenPaths(
         Editor2DPreviewDocument document,
@@ -875,6 +917,15 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
         [property: JsonPropertyName("savedActiveLayerId")] string? SavedActiveLayerId = null,
         [property: JsonPropertyName("parametricShapes")] IReadOnlyDictionary<string, LegacyParametricShapePayload>? ParametricShapes = null,
         [property: JsonPropertyName("penPaths")] IReadOnlyDictionary<string, LegacyPenPathPayload>? PenPaths = null,
+        [property: JsonPropertyName("holeOffsetDistance")] double? HoleOffsetDistance = null,
+        [property: JsonPropertyName("holeDiameter")] double? HoleDiameter = null,
+        [property: JsonPropertyName("holeSpacing")] double? HoleSpacing = null,
+        [property: JsonPropertyName("holeDistribution")] string? HoleDistribution = null,
+        [property: JsonPropertyName("holeCount")] int? HoleCount = null,
+        [property: JsonPropertyName("holePattern")] string? HolePattern = null,
+        [property: JsonPropertyName("holeCornerBehavior")] string? HoleCornerBehavior = null,
+        [property: JsonPropertyName("holeSide")] string? HoleSide = null,
+        [property: JsonPropertyName("holeRowSpacing")] double? HoleRowSpacing = null,
         [property: JsonPropertyName("canvasScale")] double CanvasScale = 0.0,
         [property: JsonPropertyName("canvasOffsetX")] double CanvasOffsetX = 0.0,
         [property: JsonPropertyName("canvasOffsetY")] double CanvasOffsetY = 0.0,
