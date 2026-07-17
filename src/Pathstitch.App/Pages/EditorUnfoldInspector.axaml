@@ -42,15 +42,15 @@
             <ComboBoxItem Content="Connected Net" />
             <ComboBoxItem Content="Separate Pieces" />
           </ComboBox>
-          <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Unroll" />
-          <ComboBox Grid.Row="1" Grid.Column="1" SelectedIndex="{Binding UnrollModeIndex}">
+          <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" IsVisible="{Binding IsConnectedNetLayout}" Text="Unroll" />
+          <ComboBox Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsConnectedNetLayout}" SelectedIndex="{Binding UnrollModeIndex}">
             <ComboBoxItem Content="Radial" />
             <ComboBoxItem Content="Strip" />
             <ComboBoxItem Content="Spanning Tree" />
           </ComboBox>
         </Grid>
 
-        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding IsConnectedNetLayout}" RowSpacing="6">
           <TextBlock
             Grid.Row="0"
             Grid.Column="0"
@@ -80,7 +80,7 @@
             Click="OnClearActiveSeamOverridesClicked" />
         </Grid>
 
-        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding IsConnectedNetLayout}" RowSpacing="6">
           <TextBlock
             Grid.Row="0"
             Grid.Column="0"
@@ -128,7 +128,8 @@
           Background="#11000000"
           BorderBrush="{StaticResource BorderBrush}"
           BorderThickness="1"
-          CornerRadius="4">
+          CornerRadius="4"
+          IsVisible="{Binding IsSeparatePiecesLayout}">
           <StackPanel Spacing="4">
             <TextBlock
               FontSize="10"

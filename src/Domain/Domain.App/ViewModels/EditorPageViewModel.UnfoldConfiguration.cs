@@ -99,7 +99,13 @@ public sealed partial class EditorPageViewModel
         }
     }
 
-    public string UnfoldConfigurationSummary => $"3D geometry pieces / {GetDistortionModeLabel()}";
+    public string UnfoldConfigurationSummary => IsConnectedNetLayout
+        ? $"{NetLayoutLabel} / {UnrollModeLabel} / {GetDistortionModeLabel()}"
+        : $"{NetLayoutLabel} / {GetDistortionModeLabel()}";
+
+    public bool IsConnectedNetLayout => NetLayoutIndex == 0;
+
+    public bool IsSeparatePiecesLayout => !IsConnectedNetLayout;
 
     public int NetLayoutIndex
     {
@@ -109,6 +115,9 @@ public sealed partial class EditorPageViewModel
             if (!SetWorkspaceFacadeValue(_threeDWorkspace.NetLayoutIndex, Math.Clamp(value, 0, 1), updated => _threeDWorkspace.SetNetLayoutIndex(updated)))
                 return;
             OnPropertyChanged(nameof(NetLayoutLabel));
+            OnPropertyChanged(nameof(IsConnectedNetLayout));
+            OnPropertyChanged(nameof(IsSeparatePiecesLayout));
+            OnPropertyChanged(nameof(UnfoldConfigurationSummary));
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
             if (LiveRecomputeEnabled)
                 RequestLiveRecompute(TimeSpan.FromMilliseconds(150));
@@ -123,6 +132,7 @@ public sealed partial class EditorPageViewModel
             if (!SetWorkspaceFacadeValue(_threeDWorkspace.UnrollModeIndex, Math.Clamp(value, 0, 2), updated => _threeDWorkspace.SetUnrollModeIndex(updated)))
                 return;
             OnPropertyChanged(nameof(UnrollModeLabel));
+            OnPropertyChanged(nameof(UnfoldConfigurationSummary));
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
             if (LiveRecomputeEnabled)
                 RequestLiveRecompute(TimeSpan.FromMilliseconds(150));
