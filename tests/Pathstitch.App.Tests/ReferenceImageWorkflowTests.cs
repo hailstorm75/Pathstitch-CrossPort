@@ -324,7 +324,7 @@ public sealed class ReferenceImageWorkflowTests
         {
             Assert.True(editor.CanUndoTwoDWorkspace);
             Assert.True(editor.UndoTwoDWorkspace());
-            Assert.Equal(0.65, editor.TwoDWorkspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Opacity);
+            Assert.Equal(0.5, editor.TwoDWorkspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Opacity);
             Assert.False(editor.CanUndoTwoDWorkspace);
         });
     }
@@ -355,6 +355,7 @@ public sealed class ReferenceImageWorkflowTests
 
         var legacy = JsonNode.Parse(json)!.AsObject();
         Assert.True(legacy.Remove("depth"));
+        Assert.True(legacy.Remove("opacity"));
         Assert.True(legacy.Remove("traceTolerance"));
         Assert.True(legacy.Remove("traceCornerSmoothness"));
         Assert.True(legacy.Remove("tracePathOptimization"));
@@ -363,6 +364,7 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Equal(
             Editor2DReferenceImageDepth.Back,
             legacyImage.Depth);
+        Assert.Equal(0.5, legacyImage.Opacity);
         Assert.Equal(50, legacyImage.TraceTolerance);
         Assert.Equal(50, legacyImage.TraceCornerSmoothness);
         Assert.Equal(50, legacyImage.TracePathOptimization);
