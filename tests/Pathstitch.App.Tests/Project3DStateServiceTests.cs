@@ -338,6 +338,34 @@ public sealed class Project3DStateServiceTests
         Assert.Equal(canonical, state.LearnModeEnabled);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoadAsync_ExposesLegacyMacMeasurementLineExportSetting(bool zipContainer)
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath(zipContainer ? "legacy-export-zip.stch" : "legacy-export-json.stch");
+        const string payload = "{\"exportMeasurementLines\":true}";
+        if (zipContainer)
+        {
+            await using var file = File.Create(projectPath);
+            using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+            var entry = archive.CreateEntry("project.json");
+            await using var entryStream = entry.Open();
+            await using var writer = new StreamWriter(entryStream);
+            await writer.WriteAsync(payload);
+        }
+        else
+        {
+            File.WriteAllText(projectPath, payload);
+        }
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        Assert.True(state.LegacyExportMeasurementLines);
+    }
+
     [Fact]
     public async Task LoadAsync_MapsLegacySavedStepJsonToViewportJson()
     {
