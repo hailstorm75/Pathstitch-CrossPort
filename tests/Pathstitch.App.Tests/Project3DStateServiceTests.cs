@@ -11,6 +11,90 @@ namespace Pathstitch.App.Tests;
 public sealed class Project3DStateServiceTests
 {
     [Fact]
+    public async Task LoadAsync_MigratesLegacyMacLayerStackFoldersAndMeasurements()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("legacy-layers.stch");
+        const string dxf =
+            "0\nSECTION\n2\nENTITIES\n" +
+            "0\nLINE\n5\nA1\n8\nCut\n10\n0\n20\n0\n11\n10\n21\n0\n" +
+            "0\nLINE\n5\nB2\n8\nScore\n10\n0\n20\n5\n11\n10\n21\n5\n" +
+            "0\nENDSEC\n0\nEOF\n";
+        const string onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+        var payload = JsonSerializer.Serialize(new
+        {
+            dxfDataBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(dxf)),
+            savedLayers = new object[]
+            {
+                new { id = "cut-id", name = "Cut", colorHex = "#FF0000", visible = true, locked = false, parentFolderId = "folder-child" },
+                new { id = "score-id", name = "Score", colorHex = "#0000FF", visible = false, locked = true, parentFolderId = "folder-child" },
+                new
+                {
+                    id = "reference-id", name = "Pattern", colorHex = "#00FF00", visible = true, locked = true,
+                    parentFolderId = "folder-root", isReferenceImageLayer = true, refImageBase64 = onePixelPng,
+                    refImageOffsetX = 8.0, refImageOffsetY = -3.0, refImageScaleX = 2.0, refImageScaleY = 3.0,
+                    refImageWidth = 10.0, refImageHeight = 20.0, refImagePixelWidth = 1.0, refImagePixelHeight = 1.0,
+                    refImageRotation = 15.0, refImageDepth = "front", refImageOpacity = 0.35,
+                    refImageOriginalBase64 = onePixelPng, backgroundRemoved = true,
+                },
+            },
+            savedLayerFolders = new[]
+            {
+                new { id = "folder-root", name = "References", parentFolderId = (string?)null },
+                new { id = "folder-child", name = "Geometry", parentFolderId = (string?)"folder-root" },
+            },
+            savedActiveLayerId = "score-id",
+            measurements = new[]
+            {
+                new
+                {
+                    id = "11111111-1111-1111-1111-111111111111",
+                    start = new { x = 0.0, y = 0.0 }, end = new { x = 10.0, y = 0.0 }, distanceMm = 10.0,
+                    isAutoDimension = true, entityHandle = "A1", dimensionType = "length", varName = "d1",
+                    expression = "10", driven = false, isParametric = true, offsetDistance = 2.0,
+                },
+            },
+        });
+        await File.WriteAllTextAsync(projectPath, payload);
+        var service = new Project3DStateService(new DxfOutputPreviewService());
+
+        var restored = await service.LoadAsync(projectPath);
+
+        var state = Assert.IsType<Editor2DWorkspaceState>(restored.TwoDWorkspaceState);
+        Assert.Equal("score-id", state.ActiveLayerId);
+        var cut = Assert.Single(state.Layers!, layer => layer.Id == "cut-id");
+        var score = Assert.Single(state.Layers!, layer => layer.Id == "score-id");
+        Assert.Equal("#FF0000", cut.ColorHex);
+        Assert.True(cut.IsVisible);
+        Assert.False(cut.IsLocked);
+        Assert.Equal("folder-child", cut.ParentFolderId);
+        Assert.Single(cut.PathIds);
+        Assert.False(score.IsVisible);
+        Assert.True(score.IsLocked);
+        Assert.Single(score.PathIds);
+        Assert.NotEqual(cut.PathIds[0], score.PathIds[0]);
+        var reference = Assert.Single(state.Layers!, layer => layer.Id == "reference-id").ReferenceImage!;
+        Assert.Equal(20.0, reference.Width);
+        Assert.Equal(60.0, reference.Height);
+        Assert.Equal(15.0, reference.RotationDegrees);
+        Assert.Equal(Editor2DReferenceImageDepth.Front, reference.Depth);
+        Assert.True(reference.BackgroundRemoved);
+        Assert.Equal(2, state.Folders!.Count);
+        Assert.Equal("folder-root", state.Folders.Single(folder => folder.Id == "folder-child").ParentFolderId);
+        var measurement = Assert.Single(state.Measurements!);
+        Assert.Equal(cut.PathIds[0], measurement.EntityPathId);
+        Assert.Equal("d1", measurement.VarName);
+        Assert.Equal("10", measurement.Expression);
+
+        await service.SaveAsync(projectPath, restored);
+        var reopened = Assert.IsType<Editor2DWorkspaceState>((await service.LoadAsync(projectPath)).TwoDWorkspaceState);
+        Assert.Equal(state.ActiveLayerId, reopened.ActiveLayerId);
+        Assert.Equal(state.Layers!.Select(layer => layer.Id), reopened.Layers!.Select(layer => layer.Id));
+        Assert.Equal(measurement.EntityPathId, Assert.Single(reopened.Measurements!).EntityPathId);
+        Assert.Equal(reference, Assert.Single(reopened.Layers!, layer => layer.Id == "reference-id").ReferenceImage);
+    }
+
+    [Fact]
     public async Task LoadAsync_MigratesLegacyMacDrawingViewportAndReferenceImage()
     {
         using var workspace = TestWorkspace.Create();
