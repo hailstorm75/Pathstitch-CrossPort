@@ -192,7 +192,7 @@ public sealed class DxfCanvasCollaboratorTests
     }
 
     [Fact]
-    public void InteractionController_AltLeftPressTemporarilyPansForAnyTool()
+    public void InteractionController_AltLeftPressTemporarilyPansOutsidePenTool()
     {
         Assert.True(DxfCanvasInteractionController.ShouldBeginPan(
             Editor2DTool.Select, false, true, KeyModifiers.Alt));
@@ -205,6 +205,8 @@ public sealed class DxfCanvasCollaboratorTests
             Editor2DTool.Select, false, true, KeyModifiers.None));
         Assert.False(DxfCanvasInteractionController.ShouldBeginPan(
             Editor2DTool.Select, false, false, KeyModifiers.Alt));
+        Assert.False(DxfCanvasInteractionController.ShouldBeginPan(
+            Editor2DTool.Pen, false, true, KeyModifiers.Alt));
     }
 
     [Fact]

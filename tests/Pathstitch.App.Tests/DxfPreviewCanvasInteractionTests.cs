@@ -347,6 +347,11 @@ public sealed class DxfPreviewCanvasInteractionTests
             .GetMethod("CommitPendingPenPath", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(canvas, [isClosed]);
 
+    private static void InvokePenPress(DxfPreviewCanvas canvas, Point point, KeyModifiers modifiers)
+        => typeof(DxfPreviewCanvas)
+            .GetMethod("HandlePenPress", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(canvas, [point, modifiers, null]);
+
     private static Editor2DPreviewDocument Document(IReadOnlyList<Editor2DPreviewPath> paths)
         => new(
             paths,
@@ -418,6 +423,42 @@ public sealed class DxfPreviewCanvasInteractionTests
             Assert.Equal([editedPath.Id], canvas.SelectedPathIds);
             Assert.Equal(laterPath.Id, canvas.Document!.Paths[^1].Id);
             Assert.Equal(new Editor2DPoint(2, 3), canvas.Document.Paths[0].BezierAnchors![0].Point);
+        });
+    }
+
+    [Fact]
+    public async Task PenAltClick_RemovesStagedAnchorWithoutMutatingEditedPathOrAppendingOnBlankCanvas()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var anchors = new[]
+            {
+                new Editor2DBezierAnchor(new(0, 0)),
+                new Editor2DBezierAnchor(new(20, 0)),
+                new Editor2DBezierAnchor(new(20, 20)),
+            };
+            var path = new Editor2DPreviewPath(
+                "pen-a",
+                "LWPOLYLINE",
+                Editor2DBezierGeometry.Flatten(anchors, closed: true),
+                true,
+                BezierAnchors: anchors);
+            var canvas = Canvas(Document([path]));
+            var session = InteractionSession(canvas);
+            session.EditingPenPathId = path.Id;
+            session.EditingPenClosed = true;
+            session.PendingPenAnchors = anchors;
+
+            InvokePenPress(canvas, Screen(canvas, anchors[0].Point), KeyModifiers.Alt);
+
+            Assert.Equal(2, session.PendingPenAnchors.Count);
+            Assert.DoesNotContain(anchors[0], session.PendingPenAnchors);
+            Assert.Equal(anchors, canvas.Document!.Paths[0].BezierAnchors);
+
+            InvokePenPress(canvas, new Point(399, 299), KeyModifiers.Alt);
+
+            Assert.Equal(2, session.PendingPenAnchors.Count);
+            Assert.Equal(anchors, canvas.Document.Paths[0].BezierAnchors);
         });
     }
 

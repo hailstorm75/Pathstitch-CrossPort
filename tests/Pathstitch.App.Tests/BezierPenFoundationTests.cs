@@ -66,6 +66,30 @@ public sealed class BezierPenFoundationTests
     }
 
     [Fact]
+    public void PenEditing_RemovesAnchorWithinScreenToleranceWithoutMinimumCount()
+    {
+        var anchors = new[]
+        {
+            new Editor2DBezierAnchor(new(0, 0)),
+            new Editor2DBezierAnchor(new(20, 0)),
+        };
+        static Avalonia.Point ToScreen(Editor2DPoint point) => new(point.X * 2, point.Y * 2);
+
+        Assert.True(DxfCanvasPenEditing.TryRemoveAnchorAt(
+            anchors, new(39, 1), ToScreen, 3, out var oneAnchor));
+        Assert.Single(oneAnchor);
+        Assert.Equal(anchors[0], oneAnchor[0]);
+
+        Assert.True(DxfCanvasPenEditing.TryRemoveAnchorAt(
+            oneAnchor, new(0, 0), ToScreen, 3, out var noAnchors));
+        Assert.Empty(noAnchors);
+
+        Assert.False(DxfCanvasPenEditing.TryRemoveAnchorAt(
+            anchors, new(80, 80), ToScreen, 3, out var unchanged));
+        Assert.Same(anchors, unchanged);
+    }
+
+    [Fact]
     public void PenCommit_KeepsEditableAnchorsAndRendererReadySampledGeometry()
     {
         var document = Editor2DWorkspaceState.Empty.Document;
