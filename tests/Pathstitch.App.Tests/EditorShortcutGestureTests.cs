@@ -18,6 +18,18 @@ public sealed class EditorShortcutGestureTests
         Assert.Null(shortcut.DefaultGesture);
     }
 
+    [Fact]
+    public void AppCatalog_OffersCustomizableLearnModeShortcut()
+    {
+        var shortcut = Assert.Single(
+            EditorAppShortcutCatalog.All,
+            definition => definition.Identifier == EditorCommandPaletteCatalog.ToggleLearnModeIdentifier);
+
+        Assert.Equal("Toggle Learn Mode", shortcut.Label);
+        Assert.Equal("View", shortcut.Category);
+        Assert.Null(shortcut.DefaultGesture);
+    }
+
     [Theory]
     [InlineData("Ctrl+Shift+n", "Primary+Shift+N")]
     [InlineData("Cmd+Option+F5", "Primary+Alt+F5")]

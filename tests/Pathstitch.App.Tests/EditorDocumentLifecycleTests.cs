@@ -63,6 +63,7 @@ public sealed class EditorDocumentLifecycleTests
         fixture.ViewModel.BatchWorkspace.SelectedExportFormat = EditorBatchExportFormat.Dxf;
         fixture.ViewModel.BatchWorkspace.SelectedNamingOption = EditorBatchNamingOption.CustomIndex;
         fixture.ViewModel.BatchWorkspace.CustomExportName = "Saved Batch";
+        fixture.ViewModel.LearnModeEnabled = false;
         await fixture.ViewModel.SetActiveEditorModeAsync(EditorMode.Batch);
         Assert.True(fixture.ViewModel.IsDirty);
 
@@ -87,6 +88,7 @@ public sealed class EditorDocumentLifecycleTests
 
             Assert.False(reopened.IsDirty);
             Assert.Equal("Save Project", Assert.Single(reopened.ActivityLog).Action);
+            Assert.False(reopened.LearnModeEnabled);
             Assert.Equal(EditorMode.Batch, reopened.ActiveEditorMode);
             Assert.Equal(["first.dxf", "second.svg"], reopened.BatchWorkspace.Items.Select(item => item.FileName));
             Assert.All(reopened.BatchWorkspace.Items, item => Assert.True(File.Exists(item.FilePath)));

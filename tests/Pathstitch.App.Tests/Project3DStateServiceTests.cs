@@ -28,6 +28,22 @@ public sealed class Project3DStateServiceTests
     }
 
     [Fact]
+    public async Task SaveAndLoadAsync_RoundTripsDisabledLearnMode()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("learn-mode.stch");
+        var service = new Project3DStateService();
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(null, [], [], LearnModeEnabled: false));
+
+        var restored = await service.LoadAsync(projectPath);
+
+        Assert.False(restored.LearnModeEnabled);
+    }
+
+    [Fact]
     public async Task LoadAsync_MapsLegacySavedStepJsonToViewportJson()
     {
         using var workspace = TestWorkspace.Create();
@@ -46,6 +62,7 @@ public sealed class Project3DStateServiceTests
         Assert.Equal("{\"bodies\":[],\"bbox\":{}}", state.ViewportJson);
         Assert.True(state.HasModel);
         Assert.Empty(state.ActivityLog!);
+        Assert.True(state.LearnModeEnabled);
     }
 
     [Fact]
