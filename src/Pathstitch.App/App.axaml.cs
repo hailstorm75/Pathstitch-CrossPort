@@ -2,6 +2,9 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using CommunityToolkit.Mvvm.DependencyInjection;
 using CommunityToolkit.Mvvm.Messaging;
 using Domain.App.Services;
@@ -62,8 +65,20 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.MainWindow = new MainWindowShell(Ioc.Default);
+            desktop.Exit += (_, _) => DisposeServices();
 
             WeakReferenceMessenger.Default.Send(new NavigationChangeRequestMessage(NavigationAddressBook.HomePage));
+
+            var startupFiles = NormalizeStartupFileArguments(desktop.Args);
+            if (startupFiles.Length > 0 && _services is not null)
+            {
+                desktop.MainWindow.Opened += async (_, _) =>
+                {
+                    var homePage = _services.GetRequiredKeyedService<INavigablePageViewModel>(NavigationAddressBook.HomePage);
+                    if (homePage is Domain.App.ViewModels.HomePageViewModel homePageViewModel)
+                        await homePageViewModel.OpenFilesAsync(startupFiles).ConfigureAwait(true);
+                };
+            }
 
             var acceptanceOutput = Environment.GetEnvironmentVariable("PATHSTITCH_MACOS_ACCEPTANCE_OUTPUT");
             if (!string.IsNullOrWhiteSpace(acceptanceOutput) && _services is not null)
@@ -80,6 +95,20 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    internal static string[] NormalizeStartupFileArguments(IReadOnlyList<string>? arguments)
+        => (arguments ?? [])
+            .Where(static argument => !string.IsNullOrWhiteSpace(argument))
+            .Select(Path.GetFullPath)
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private void DisposeServices()
+    {
+        (_services as IDisposable)?.Dispose();
+        _services = null;
     }
 
     private static void ApplyUserPreferences()
