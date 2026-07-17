@@ -43,7 +43,7 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     private bool _isSelectedBodyOffsetYTextValid = true;
     private bool _isSelectedBodyOffsetZTextValid = true;
     private int _distortionModeIndex;
-    private int _netLayoutIndex = 1;
+    private int _netLayoutIndex;
     private int _unrollModeIndex;
     private bool _liveRecomputeEnabled;
     private bool _wholeBodyRecompute;

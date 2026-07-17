@@ -24,5 +24,5 @@ public sealed record Editor3DWorkspaceState(
         [],
         null,
         new EditorProjectionWorkspaceState("origin", null, null, null, 0),
-        new EditorUnfoldWorkspaceState(1, 0, 0, 0, 0, false, false, "5", "1", "4", "2"));
+        new EditorUnfoldWorkspaceState(0, 0, 0, 0, 0, false, false, "5", "1", "4", "2"));
 }
