@@ -480,7 +480,12 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Content=\"Set\"", layers, StringComparison.Ordinal);
         Assert.Contains("OnSetLayerColorClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Content=\"+ Folder\"", layers, StringComparison.Ordinal);
-        Assert.Contains("ItemsSource=\"{Binding TwoDFolders}\"", layers, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding TwoDLayerHierarchyItems}\"", layers, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"viewModels:Editor2DLayerHierarchyItem\"", layers, StringComparison.Ordinal);
+        Assert.Contains("Content=\"+ Subfolder\"", layers, StringComparison.Ordinal);
+        Assert.Contains("OnToggleFolderExpandedClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("OnRenameFolderClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("OnCreateSubfolderClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("OnCreateFolderClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("OnDeleteFolderClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Content=\"Stroke to Fill\"", layers + ReadPage("Editor2DInspector.axaml"), StringComparison.Ordinal);

@@ -1246,6 +1246,62 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task TwoDLayerHierarchy_FlattensFoldersFirstAndHonorsExpansion()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var rootLayer = Assert.Single(viewModel.TwoDLayers);
+        Assert.True(viewModel.TwoDWorkspace.RenameLayer(rootLayer.Id, "Root layer"));
+        var folderA = viewModel.TwoDWorkspace.CreateFolder("A");
+        var childA = viewModel.TwoDWorkspace.CreateFolder("A1", folderA.Id);
+        var folderB = viewModel.TwoDWorkspace.CreateFolder("B");
+        var layerA = viewModel.TwoDWorkspace.CreateLayer("A layer");
+        var layerA1 = viewModel.TwoDWorkspace.CreateLayer("A1 layer");
+        var layerB = viewModel.TwoDWorkspace.CreateLayer("B layer");
+        Assert.True(viewModel.TwoDWorkspace.MoveLayerToFolder(layerA.Id, folderA.Id));
+        Assert.True(viewModel.TwoDWorkspace.MoveLayerToFolder(layerA1.Id, childA.Id));
+        Assert.True(viewModel.TwoDWorkspace.MoveLayerToFolder(layerB.Id, folderB.Id));
+
+        Assert.True(viewModel.ToggleTwoDFolderExpanded(folderA.Id));
+        Assert.True(viewModel.ToggleTwoDFolderExpanded(childA.Id));
+        Assert.True(viewModel.ToggleTwoDFolderExpanded(folderB.Id));
+
+        Assert.Equal(
+            [folderA.Id, childA.Id, layerA1.Id, layerA.Id, folderB.Id, layerB.Id, rootLayer.Id],
+            viewModel.TwoDLayerHierarchyItems.Select(item => item.Id));
+        Assert.Equal([0, 1, 2, 1, 0, 1, 0], viewModel.TwoDLayerHierarchyItems.Select(item => item.Depth));
+
+        Assert.True(viewModel.ToggleTwoDFolderExpanded(folderA.Id));
+        Assert.Equal(
+            [folderA.Id, folderB.Id, layerB.Id, rootLayer.Id],
+            viewModel.TwoDLayerHierarchyItems.Select(item => item.Id));
+
+        viewModel.CreateTwoDFolder();
+        var created = viewModel.TwoDFolders.Last();
+        Assert.True(viewModel.TwoDLayerHierarchyItems.Single(item => item.Id == created.Id).IsExpanded);
+    }
+
+    [Fact]
+    public async Task TwoDLayerHierarchy_DeleteParentRerootsExpandedChildren()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var parent = viewModel.TwoDWorkspace.CreateFolder("Parent");
+        var child = viewModel.TwoDWorkspace.CreateFolder("Child", parent.Id);
+        var layer = viewModel.TwoDWorkspace.CreateLayer("Nested");
+        Assert.True(viewModel.TwoDWorkspace.MoveLayerToFolder(layer.Id, child.Id));
+        Assert.True(viewModel.ToggleTwoDFolderExpanded(parent.Id));
+        Assert.True(viewModel.ToggleTwoDFolderExpanded(child.Id));
+
+        viewModel.DeleteTwoDFolder(parent.Id);
+
+        var childRow = viewModel.TwoDLayerHierarchyItems.Single(item => item.Id == child.Id);
+        Assert.Equal(0, childRow.Depth);
+        Assert.True(childRow.IsExpanded);
+        Assert.Equal(1, viewModel.TwoDLayerHierarchyItems.Single(item => item.Id == layer.Id).Depth);
+    }
+
+    [Fact]
     public async Task FillStrokeActions_ExposeAndApplyExistingWorkspaceOperations()
     {
         var viewModel = CreateViewModel();
