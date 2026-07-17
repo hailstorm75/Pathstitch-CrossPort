@@ -141,6 +141,16 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void LayersPanel_OffersReferenceImageAutoCropToggle()
+    {
+        var layers = ReadPage("Editor2DLayersPanel.axaml");
+
+        Assert.Contains("editor.layers.auto-crop-reference-images", layers, StringComparison.Ordinal);
+        Assert.Contains("Crop transparent margins on import", layers, StringComparison.Ordinal);
+        Assert.Contains("IsChecked=\"{Binding AutoCropTransparentReferenceImages, Mode=TwoWay}\"", layers, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void HelpMenu_ExposesAnAboutDialogForAppParity()
     {
         var shell = ReadPage("EditorShellView.axaml");
