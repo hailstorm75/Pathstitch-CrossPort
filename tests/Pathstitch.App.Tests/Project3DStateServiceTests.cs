@@ -11,6 +11,58 @@ namespace Pathstitch.App.Tests;
 public sealed class Project3DStateServiceTests
 {
     [Fact]
+    public async Task LoadAsync_MigratesLegacyMacDrawingViewportAndReferenceImage()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("legacy-2d.stch");
+        const string dxf = "0\nSECTION\n2\nENTITIES\n0\nLINE\n10\n2\n20\n3\n11\n8\n21\n3\n0\nENDSEC\n0\nEOF\n";
+        const string onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+        var payload = JsonSerializer.Serialize(new
+        {
+            dxfDataBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(dxf)),
+            canvasScale = 1.75,
+            canvasOffsetX = 42.5,
+            canvasOffsetY = -18.25,
+            refImageBase64 = onePixelPng,
+            refImageOffsetX = 12.0,
+            refImageOffsetY = -6.0,
+            refImageScale = 2.5,
+            refImageOpacity = 0.4,
+        });
+        await File.WriteAllTextAsync(projectPath, payload);
+        var service = new Project3DStateService(new DxfOutputPreviewService());
+
+        var restored = await service.LoadAsync(projectPath);
+
+        var state = Assert.IsType<Editor2DWorkspaceState>(restored.TwoDWorkspaceState);
+        Assert.Equal(1.75, state.ViewportZoom);
+        Assert.Equal(42.5, state.ViewportOffsetX);
+        Assert.Equal(-18.25, state.ViewportOffsetY);
+        var line = Assert.Single(state.Document.Paths);
+        Assert.Equal(new Editor2DPoint(2, 3), line.Points[0]);
+        Assert.Equal(new Editor2DPoint(8, 3), line.Points[1]);
+        var reference = Assert.Single(state.Layers!, layer => layer.IsReferenceImage).ReferenceImage!;
+        Assert.Equal(12.0, reference.X);
+        Assert.Equal(-6.0, reference.Y);
+        Assert.Equal(2.5, reference.Width);
+        Assert.Equal(2.5, reference.Height);
+        Assert.Equal(0.4, reference.Opacity);
+        Assert.Equal(2.5, reference.CalibrationUnitsPerPixel);
+
+        await service.SaveAsync(projectPath, restored);
+        var reopened = await service.LoadAsync(projectPath);
+        var reopenedState = Assert.IsType<Editor2DWorkspaceState>(reopened.TwoDWorkspaceState);
+        Assert.Equal(state.ViewportZoom, reopenedState.ViewportZoom);
+        Assert.Equal(state.ViewportOffsetX, reopenedState.ViewportOffsetX);
+        Assert.Equal(state.ViewportOffsetY, reopenedState.ViewportOffsetY);
+        var reopenedLine = Assert.Single(reopenedState.Document.Paths);
+        Assert.Equal(line.Id, reopenedLine.Id);
+        Assert.Equal(line.EntityType, reopenedLine.EntityType);
+        Assert.Equal(line.Points, reopenedLine.Points);
+        Assert.Equal(reference, Assert.Single(reopenedState.Layers!, layer => layer.IsReferenceImage).ReferenceImage);
+    }
+
+    [Fact]
     public async Task SaveAsync_WritesAndReplacesProjectPreviewEntry()
     {
         using var workspace = TestWorkspace.Create();
