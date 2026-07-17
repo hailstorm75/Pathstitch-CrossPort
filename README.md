@@ -12,7 +12,7 @@
 
 Pathstitch is for makers who want **CAD precision without CAD overhead**. Sketch a pattern with snapping and
 live dimensions, round corners parametrically, drop in saddle-stitch holes and glue tabs, then export
-cut-ready DXF/SVG/PDF. The active Avalonia/.NET port imports OBJ/STL meshes for 3D projection,
+cut-ready DXF/SVG/PDF. The active Avalonia/.NET port imports DXF, SVG, and PDF vector drawings plus OBJ/STL meshes for 3D projection,
 triangle-preserving flattening, and mesh distortion checks through OpenGeometry-backed workflows, and imports
 STEP through its packaged Python/OCCT geometry worker.
 
@@ -155,6 +155,7 @@ https://github.com/user-attachments/assets/903794b1-4d92-4840-8783-a3f5c49ae1bd
 - **Home v2** — press Home to frame all geometry or return to the default startup view if the canvas is empty.
 
 **Export & integrate**
+- **Drawing import** — DXF, SVG, and multi-page PDF vectors, including batch workflows.
 - **Export** — DXF, SVG, PDF, PNG with filters for selected-only or measurements and clear indicator checkmarks.
 - **Projects** — native `.stch` files.
 - **QuickLook Previews** — Finder previews + thumbnails for DXF (full curve support) & STEP (native fast 3D renderer).

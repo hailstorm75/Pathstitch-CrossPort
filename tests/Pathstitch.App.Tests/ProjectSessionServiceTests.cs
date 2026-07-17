@@ -69,6 +69,21 @@ public sealed class ProjectSessionServiceTests
     }
 
     [Fact]
+    public async Task OpenWorkspaceFilesAsync_QueuesPdfForTwoDWorkspace()
+    {
+        using var workspace = TestWorkspace.Create();
+        var pdfPath = workspace.WriteText("drawing.pdf", "%PDF-1.7");
+        var service = CreateService();
+
+        var request = await service.OpenWorkspaceFilesAsync([pdfPath]);
+
+        Assert.NotNull(request);
+        Assert.Empty(request.PendingSourceModelPaths);
+        Assert.Equal([Path.GetFullPath(pdfPath)], request.PendingTwoDFilePaths);
+        File.Delete(request.Session.ProjectFilePath);
+    }
+
+    [Fact]
     public async Task OpenWorkspaceFilesAsync_QueuesReferenceImageForTwoDWorkspace()
     {
         using var workspace = TestWorkspace.Create();
