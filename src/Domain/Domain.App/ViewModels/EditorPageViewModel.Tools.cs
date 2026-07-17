@@ -266,7 +266,7 @@ public sealed partial class EditorPageViewModel
         return shortcutText.Trim().ToLowerInvariant() switch
         {
             "delete-selection" when IsShowingTwoDWorkspace => DeleteTwoDSelection(),
-            "escape" when IsShowingTwoDWorkspace => HandleTwoDEscapeShortcut(),
+            "escape" when IsShowingTwoDWorkspace => CancelTwoDEscape(),
             "escape" => HandleEscapeShortcut(),
             _ => false,
         };
@@ -530,7 +530,7 @@ public sealed partial class EditorPageViewModel
         return false;
     }
 
-    private bool HandleTwoDEscapeShortcut()
+    public bool CancelTwoDEscape()
     {
         if (IsTwoDCornerToolActive)
         {
@@ -544,31 +544,38 @@ public sealed partial class EditorPageViewModel
             return true;
         }
 
+        if (IsTwoDScaleToolActive)
+        {
+            CancelTwoDScaleAndExit();
+            return true;
+        }
+
         if (IsTwoDMirrorToolActive)
         {
             CancelTwoDMirror(exitTool: true);
             return true;
         }
 
+        var handled = false;
         if (HasTwoDSelectedMeasurement)
         {
             ClearTwoDSelectedMeasurement();
-            return true;
+            handled = true;
         }
 
         if (HasTwoDSelection)
         {
             ClearTwoDSelection();
-            return true;
+            handled = true;
         }
 
-        if (HasTwoDMeasurements)
+        if (TwoDActiveTool != Editor2DTool.Select)
         {
-            ClearTwoDMeasurements();
-            return true;
+            TwoDActiveTool = Editor2DTool.Select;
+            handled = true;
         }
 
-        return false;
+        return handled;
     }
 
 }

@@ -2084,30 +2084,23 @@ Selection:
                     calibrationViewModel.CancelTwoDReferencePointCalibration();
                 SetCurrentValue(ReferenceCalibrationActiveProperty, false);
                 SetCurrentValue(ReferenceCalibrationPointsProperty, Array.Empty<Editor2DPoint>());
-                e.Handled = true;
-                return;
             }
-
-            if (_isTextEntryActive)
+            else if (_isTextEntryActive)
             {
                 if (_pendingTextInitialEntry is not null)
                     SetCurrentValue(TextEntryProperty, _pendingTextInitialEntry);
                 CancelPendingText();
-                e.Handled = true;
-                return;
             }
 
-            if (ActiveTool == Editor2DTool.Offset && DataContext is EditorPageViewModel offsetViewModel)
-                offsetViewModel.CancelTwoDOffset(exitTool: true);
-            else if (ActiveTool == Editor2DTool.Scale && DataContext is EditorPageViewModel scaleViewModel)
-                scaleViewModel.CancelTwoDScaleAndExit();
-            else if (ActiveTool == Editor2DTool.Mirror && DataContext is EditorPageViewModel mirrorViewModel)
-                mirrorViewModel.CancelTwoDMirror(exitTool: true);
-            else if ((ActiveTool is Editor2DTool.Fillet or Editor2DTool.Chamfer)
-                     && DataContext is EditorPageViewModel cornerViewModel)
-                cornerViewModel.CancelTwoDCornerToolSession(exitTool: true);
+            CancelActiveInteraction();
+            if (DataContext is EditorPageViewModel viewModel)
+                viewModel.CancelTwoDEscape();
             else
-                CancelActiveInteraction();
+            {
+                SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
+                SetCurrentValue(SelectedMeasurementIdProperty, null);
+                SetCurrentValue(ActiveToolProperty, Editor2DTool.Select);
+            }
             e.Handled = true;
             return;
         }
