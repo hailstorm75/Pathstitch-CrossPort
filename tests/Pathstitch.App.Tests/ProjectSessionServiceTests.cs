@@ -8,13 +8,17 @@ namespace Pathstitch.App.Tests;
 public sealed class ProjectSessionServiceTests
 {
     [Fact]
-    public async Task OpenRecentProjectAsync_CorruptProjectPreservesCurrentSession()
+    public async Task OpenRecentProjectAsync_MalformedNestedStatePreservesCurrentSession()
     {
         using var workspace = TestWorkspace.Create();
         var validPath = workspace.WriteText(
             "valid.stch",
             "{\"projectName\":\"Valid\",\"templateId\":\"blank-project\"}");
-        var corruptPath = workspace.WriteText("corrupt.stch", "not-json");
+        var corruptPath = workspace.WriteText(
+            "corrupt.stch",
+            """
+            {"projectName":"Broken","templateId":"blank-project","savedBodies3D":{}}
+            """);
         var service = new ProjectSessionService(
             new FakeProjectFileDialogService(),
             new RecentProjectsService(Path.Combine(workspace.Directory, "recent.json")));

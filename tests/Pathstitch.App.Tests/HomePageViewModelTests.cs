@@ -13,7 +13,7 @@ public sealed class HomePageViewModelTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CorruptProjectOpen_ShowsErrorAndPreservesCurrentSession(bool openAsRecent)
+    public async Task MalformedProjectStateOpen_ShowsErrorAndPreservesCurrentSession(bool openAsRecent)
     {
         var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-home-corrupt-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
@@ -25,7 +25,11 @@ public sealed class HomePageViewModelTests
             await File.WriteAllTextAsync(
                 validPath,
                 "{\"projectName\":\"Current\",\"templateId\":\"blank-project\"}");
-            await File.WriteAllTextAsync(corruptPath, "not-json");
+            await File.WriteAllTextAsync(
+                corruptPath,
+                """
+                {"projectName":"Broken","templateId":"blank-project","savedBodies3D":{}}
+                """);
             var sessionService = new ProjectSessionService(
                 new StubProjectFileDialogService(),
                 new RecentProjectsService(Path.Combine(directory, "recent.json")));

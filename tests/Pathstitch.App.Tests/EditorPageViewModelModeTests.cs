@@ -1765,6 +1765,62 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task LoadingPreparedProjectState_DoesNotReadProjectFileAgain()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-prepared-load-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var projectPath = Path.Combine(directory, "prepared.stch");
+        try
+        {
+            var path = new Editor2DPreviewPath(
+                "prepared-line",
+                "LINE",
+                [new Editor2DPoint(1, 2), new Editor2DPoint(8, 2)],
+                IsClosed: false);
+            var twoDState = Editor2DWorkspaceState.Empty with
+            {
+                IsInitialized = true,
+                Document = Editor2DWorkspaceState.Empty.Document with { Paths = [path] },
+            };
+            var shellState = new EditorWorkspaceState(
+                Editor3DTool.Select,
+                ThreeDOrthographic: false,
+                ShowTwoDWorkspace: true,
+                ActiveEditorMode: EditorMode.TwoD);
+            var stateService = new Project3DStateService();
+            await stateService.SaveAsync(
+                projectPath,
+                new Project3DState(null, [], [], WorkspaceState: shellState, TwoDWorkspaceState: twoDState));
+            var sessionService = new ProjectSessionService(
+                new StubProjectFileDialogService(),
+                new RecentProjectsService(Path.Combine(directory, "recent.json")),
+                stateService);
+            var request = Assert.IsType<ProjectLaunchRequest>(
+                await sessionService.PrepareOpenProjectLaunchAsync(projectPath));
+            var preparedState = Assert.IsType<Project3DState>(request.PreparedProjectState);
+            File.Delete(projectPath);
+            var viewModel = CreateViewModel();
+
+            Assert.True(await viewModel.ConfigureParametersAsync(
+                new Dictionary<string, object>
+                {
+                    [EditorNavigationParameterKeys.ProjectSession] = request.Session,
+                    [EditorNavigationParameterKeys.PreparedProjectState] = preparedState,
+                },
+                CancellationToken.None));
+            await ((INavigablePageViewModel)viewModel).LoadAsync(CancellationToken.None);
+
+            Assert.False(File.Exists(projectPath));
+            Assert.Equal(EditorMode.TwoD, viewModel.ActiveEditorMode);
+            Assert.Equal(path.Id, Assert.Single(viewModel.TwoDDocument!.Paths).Id);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task LoadingPendingTwoDDocuments_ImportsAllDrawingsSideBySide()
     {
         var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-2d-import-{Guid.NewGuid():N}");
