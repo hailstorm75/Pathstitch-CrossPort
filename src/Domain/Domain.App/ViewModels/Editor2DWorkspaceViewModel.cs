@@ -68,14 +68,14 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private string _patternDistanceMode = "Spacing";
     private string _patternCopiesXText = "3";
     private string _patternCopiesYText = "1";
-    private string _patternSpacingXText = "10";
-    private string _patternSpacingYText = "10";
+    private string _patternSpacingXText = "20";
+    private string _patternSpacingYText = "20";
     private string _patternExtentXText = "40";
     private string _patternExtentYText = "40";
     private string _patternCircularCountText = "6";
     private string _patternCircularAngleText = "360";
     private string _patternPathCopiesText = "4";
-    private string _patternPathSpacingText = "20";
+    private string _patternPathSpacingText = "10";
     private string _glueTabHeightText = "5";
     private string _glueTabType = "Trapezoid";
     private string _glueTabSide = "Left";
