@@ -163,6 +163,25 @@ public sealed class Editor3DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void SeamDecoration_ClearRestoresInheritanceWithoutRewritingExplicitPlain()
+    {
+        var edge = new EditorSeamEdge3D(1, 4);
+        var original = CreateWorkspace();
+        original.SetSeamDecoration(edge, "none");
+        var persisted = JsonSerializer.Deserialize<Editor3DWorkspaceState>(
+            JsonSerializer.Serialize(original.CaptureState()));
+        Assert.NotNull(persisted);
+        var restored = CreateWorkspace();
+
+        restored.RestoreState(persisted);
+
+        Assert.Equal("none", Assert.Single(restored.SeamDecorations).Decoration);
+        restored.ClearSeamDecoration(edge);
+        Assert.Empty(restored.SeamDecorations);
+        Assert.Null(restored.CaptureState().Unfold.SeamDecorations);
+    }
+
+    [Fact]
     public async Task ProjectPersistenceRoundTripPreservesOwnedThreeDWorkspaceState()
     {
         var workspace = CreateWorkspace();

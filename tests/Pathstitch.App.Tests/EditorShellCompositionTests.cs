@@ -760,7 +760,10 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("OnClearActiveSeamOverridesClicked", unfold, StringComparison.Ordinal);
         Assert.Contains("GlobalSeamDecorationIndex", unfold, StringComparison.Ordinal);
         Assert.Contains("AnchorFaceSummary", unfold, StringComparison.Ordinal);
-        Assert.Contains("SelectedSeamDecoration", unfold, StringComparison.Ordinal);
+        Assert.Contains("SelectedSeamDecorationIndex", unfold, StringComparison.Ordinal);
+        Assert.Contains("Default (Use Global)", unfold, StringComparison.Ordinal);
+        Assert.Contains("Plain (Cut)", unfold, StringComparison.Ordinal);
+        Assert.Contains("Glue Tab", unfold, StringComparison.Ordinal);
         Assert.Contains("NetLayoutIndex", unfold, StringComparison.Ordinal);
         Assert.Contains("Connected Net", unfold, StringComparison.Ordinal);
         Assert.Contains("UnrollModeIndex", unfold, StringComparison.Ordinal);

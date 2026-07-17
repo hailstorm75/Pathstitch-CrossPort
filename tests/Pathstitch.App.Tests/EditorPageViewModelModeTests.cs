@@ -83,6 +83,37 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public void SelectedSeamDecoration_DefaultClearsOverrideAndUsesGlobalDecoration()
+    {
+        var viewModel = CreateViewModelForTests();
+        var edge = new EditorSeamEdge3D(2, 7);
+        string? viewportScript = null;
+        viewModel.ThreeDWorkspace.ViewportScriptRequested += script => viewportScript = script;
+        viewModel.ThreeDWorkspace.MarkViewportReady();
+        viewModel.GlobalSeamDecorationIndex = 1;
+        viewModel.ToggleSeamEdge(edge.BodyIndex, edge.EdgeIndex);
+
+        Assert.Equal(["default", "none", "tabs", "holes"], viewModel.SeamDecorationOptions);
+        Assert.Equal("default", viewModel.SelectedSeamDecoration);
+        Assert.Equal(0, viewModel.SelectedSeamDecorationIndex);
+        Assert.Empty(viewModel.ThreeDWorkspace.SeamDecorations);
+
+        viewModel.SelectedSeamDecorationIndex = 1;
+
+        var explicitPlain = Assert.Single(viewModel.ThreeDWorkspace.SeamDecorations);
+        Assert.Equal(edge, explicitPlain.Edge);
+        Assert.Equal("none", explicitPlain.Decoration);
+        Assert.Equal(1, viewModel.GlobalSeamDecorationIndex);
+
+        viewModel.SelectedSeamDecorationIndex = 0;
+
+        Assert.Equal("default", viewModel.SelectedSeamDecoration);
+        Assert.Empty(viewModel.ThreeDWorkspace.SeamDecorations);
+        Assert.Equal(1, viewModel.GlobalSeamDecorationIndex);
+        Assert.Equal("setSeams(\"[]\", \"[]\", \"auto\", \"[]\");", viewportScript);
+    }
+
+    [Fact]
     public void PatternPreview_IsComputedWithoutMutatingDocument()
     {
         var viewModel = CreateViewModel();
