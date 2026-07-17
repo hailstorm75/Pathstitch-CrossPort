@@ -52,11 +52,16 @@
                     HorizontalContentAlignment="Stretch"
                     Background="Transparent"
                     BorderThickness="0"
+                    IsEnabled="{Binding IsEnabled}"
                     Tag="{Binding Identifier}"
                     PointerEntered="OnCommandPointerEntered"
                     Click="OnCommandClicked">
                     <Grid ColumnDefinitions="*,Auto">
                       <StackPanel Spacing="2">
+                        <TextBlock
+                          FontSize="9"
+                          Foreground="{StaticResource SecondaryTextBrush}"
+                          Text="{Binding GroupKey}" />
                         <TextBlock
                           Foreground="{StaticResource PrimaryTextBrush}"
                           Text="{Binding Label}" />

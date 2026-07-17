@@ -58,6 +58,13 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
         return window;
     }
 
+    public void ShowStartScreen()
+    {
+        var window = CreateWelcomeWindow();
+        window.Show();
+        window.Activate();
+    }
+
     public Task OpenFilesAsync(
         IReadOnlyList<string> filePaths,
         CancellationToken cancellationToken = default)

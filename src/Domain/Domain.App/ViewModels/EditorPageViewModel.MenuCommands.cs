@@ -77,5 +77,6 @@ public sealed partial class EditorPageViewModel
         ExportSvgCommand.NotifyCanExecuteChanged();
         ExportPngCommand.NotifyCanExecuteChanged();
         ExportPdfCommand.NotifyCanExecuteChanged();
+        NotifyCommandPaletteStateChanged();
     }
 }

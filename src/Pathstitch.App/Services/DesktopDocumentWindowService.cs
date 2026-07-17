@@ -10,11 +10,24 @@ namespace Pathstitch.App.Services;
 internal sealed class DesktopDocumentWindowCoordinator
 {
     private Func<ProjectLaunchRequest, CancellationToken, Task>? _openDocument;
+    private Action? _showStartScreen;
 
-    public void Attach(Func<ProjectLaunchRequest, CancellationToken, Task> openDocument)
-        => _openDocument = openDocument ?? throw new ArgumentNullException(nameof(openDocument));
+    public void Attach(
+        Func<ProjectLaunchRequest, CancellationToken, Task> openDocument,
+        Action showStartScreen)
+    {
+        _openDocument = openDocument ?? throw new ArgumentNullException(nameof(openDocument));
+        _showStartScreen = showStartScreen ?? throw new ArgumentNullException(nameof(showStartScreen));
+    }
 
-    public void Detach() => _openDocument = null;
+    public void Detach()
+    {
+        _openDocument = null;
+        _showStartScreen = null;
+    }
+
+    public void ShowStartScreen()
+        => (_showStartScreen ?? throw new InvalidOperationException("Document window manager is unavailable."))();
 
     public Task OpenDocumentAsync(
         ProjectLaunchRequest launchRequest,

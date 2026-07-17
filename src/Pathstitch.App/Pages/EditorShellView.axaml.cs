@@ -29,6 +29,7 @@ public partial class EditorShellView : EditorInteractionControlBase
         ExportSvgMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.E, shift: true);
         SearchCommandsMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.K);
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
         KeyDown += OnEditorKeyDown;
     }
 
@@ -38,8 +39,33 @@ public partial class EditorShellView : EditorInteractionControlBase
         if (DataContext is EditorPageViewModel viewModel)
         {
             viewModel.PropertyChanged += OnViewModelPropertyChanged;
+            viewModel.CommandPaletteHostActionRequested += OnCommandPaletteHostActionRequested;
             _ = ShowModeIntroIfNeededAsync(viewModel);
         }
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not EditorPageViewModel viewModel)
+            return;
+        viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        viewModel.CommandPaletteHostActionRequested -= OnCommandPaletteHostActionRequested;
+    }
+
+    private async void OnCommandPaletteHostActionRequested(object? sender, EditorCommandPaletteHostAction action)
+    {
+        if (action == EditorCommandPaletteHostAction.StartScreen)
+        {
+            Ioc.Default.GetRequiredService<DesktopDocumentWindowCoordinator>().ShowStartScreen();
+            return;
+        }
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+            return;
+        if (action == EditorCommandPaletteHostAction.Preferences
+            && DataContext is EditorPageViewModel viewModel)
+            await new PreferencesDialog(viewModel).ShowDialog(owner);
+        else if (action == EditorCommandPaletteHostAction.Documentation)
+            await new DocumentationDialog().ShowDialog(owner);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

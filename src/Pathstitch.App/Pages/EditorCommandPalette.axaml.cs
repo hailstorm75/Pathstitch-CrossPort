@@ -15,6 +15,8 @@ public partial class EditorCommandPalette : UserControl
 
     public void FocusSearch()
     {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.OpenCommandSearch();
         CommandSearchInput.Focus();
         CommandSearchInput.SelectAll();
     }
@@ -27,7 +29,7 @@ public partial class EditorCommandPalette : UserControl
         switch (e.Key)
         {
             case Key.Escape:
-                viewModel.CommandSearchQuery = string.Empty;
+                viewModel.CloseCommandSearch();
                 ClearSelection(viewModel);
                 e.Handled = true;
                 break;
@@ -75,20 +77,20 @@ public partial class EditorCommandPalette : UserControl
         CommandSearchResults.ScrollIntoView(_selectedIndex);
     }
 
-    private void ActivateSelected(EditorPageViewModel viewModel)
+    private async void ActivateSelected(EditorPageViewModel viewModel)
     {
         var results = viewModel.CommandSearchResults;
         if (_selectedIndex < 0 || _selectedIndex >= results.Count)
             _selectedIndex = results.Count > 0 ? 0 : -1;
 
         if (_selectedIndex >= 0)
-            viewModel.ActivateCommandSearchItem(results[_selectedIndex].Identifier);
+            await viewModel.ActivateCommandSearchItemAsync(results[_selectedIndex].Identifier);
 
         ClearSelection(viewModel);
         _selectedIndex = -1;
     }
 
-    private void OnCommandClicked(object? sender, RoutedEventArgs e)
+    private async void OnCommandClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not EditorPageViewModel viewModel
             || sender is not Button { Tag: string identifier })
@@ -96,7 +98,7 @@ public partial class EditorCommandPalette : UserControl
             return;
         }
 
-        viewModel.ActivateCommandSearchItem(identifier);
+        await viewModel.ActivateCommandSearchItemAsync(identifier);
         ClearSelection(viewModel);
         _selectedIndex = -1;
     }

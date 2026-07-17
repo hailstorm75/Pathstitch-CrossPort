@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using CommunityToolkit.Mvvm.Input;
 using Domain.App.Models;
 
 namespace Domain.App.ViewModels;
@@ -11,7 +12,11 @@ public sealed partial class EditorPageViewModel
     private readonly IReadOnlyList<EditorSidebarToolItemViewModel> _commandPaletteOnlyItems =
         CreateSidebarTools(EditorCommandPaletteCatalog.SearchOnly);
     private string _commandSearchQuery = string.Empty;
+    private bool _isCommandSearchOpen;
+    private bool _isCommandPaletteActionRunning;
     private bool _isToolbarCustomizationMode;
+
+    public event EventHandler<EditorCommandPaletteHostAction>? CommandPaletteHostActionRequested;
 
     public IReadOnlyList<EditorSidebarToolItemViewModel> SidebarTools
         => _sidebarTools
@@ -34,7 +39,8 @@ public sealed partial class EditorPageViewModel
         }
     }
 
-    public bool IsCommandSearchOpen => !string.IsNullOrWhiteSpace(CommandSearchQuery);
+    public bool IsCommandSearchOpen
+        => _isCommandSearchOpen || !string.IsNullOrWhiteSpace(CommandSearchQuery);
 
     public bool IsCommandSearchEmpty => IsCommandSearchOpen && CommandSearchResults.Count == 0;
 
@@ -42,19 +48,45 @@ public sealed partial class EditorPageViewModel
     {
         get
         {
+            SyncCommandPaletteOnlyStates();
             var query = CommandSearchQuery.Trim();
-            if (query.Length == 0)
-                return SidebarTools;
-
-            return SidebarTools
+            var commands = SidebarTools
                 .Concat(_commandPaletteOnlyItems.Where(item => item.Mode == ActiveEditorMode))
+                .ToArray();
+            if (query.Length == 0)
+                return commands;
+
+            return commands
                 .Where(item => item.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || item.Hint.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || item.GroupKey.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || item.Key.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || item.Identifier.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || item.ShortcutText?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+                .OrderBy(item => item.Label.StartsWith(query, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                 .ToArray();
         }
+    }
+
+    public void OpenCommandSearch()
+    {
+        CommandSearchQuery = string.Empty;
+        if (_isCommandSearchOpen)
+            return;
+        _isCommandSearchOpen = true;
+        OnPropertyChanged(nameof(IsCommandSearchOpen));
+        OnPropertyChanged(nameof(CommandSearchResults));
+        OnPropertyChanged(nameof(IsCommandSearchEmpty));
+    }
+
+    public void CloseCommandSearch()
+    {
+        CommandSearchQuery = string.Empty;
+        if (!_isCommandSearchOpen)
+            return;
+        _isCommandSearchOpen = false;
+        OnPropertyChanged(nameof(IsCommandSearchOpen));
+        OnPropertyChanged(nameof(IsCommandSearchEmpty));
     }
 
     public IReadOnlyList<EditorToolCustomization> ToolCustomizations
@@ -167,15 +199,27 @@ public sealed partial class EditorPageViewModel
     }
 
     public void ActivateCommandSearchItem(string identifier)
+        => _ = ActivateCommandSearchItemAsync(identifier);
+
+    public async Task ActivateCommandSearchItemAsync(string identifier)
     {
         var item = CommandSearchResults.FirstOrDefault(candidate =>
             string.Equals(candidate.Identifier, identifier, StringComparison.Ordinal));
-        if (item is null)
+        if (item is null || !item.IsEnabled || _isCommandPaletteActionRunning)
             return;
 
-        if (!ActivateCommandPaletteOnlyItem(item.Identifier))
-            ActivateSidebarItem(item.Key);
-        CommandSearchQuery = string.Empty;
+        _isCommandPaletteActionRunning = true;
+        CloseCommandSearch();
+        try
+        {
+            if (!await ActivateCommandPaletteOnlyItemAsync(item.Identifier).ConfigureAwait(true))
+                ActivateSidebarItem(item.Key);
+        }
+        finally
+        {
+            _isCommandPaletteActionRunning = false;
+            NotifyCommandPaletteStateChanged();
+        }
     }
 
     public void CustomizeTool(string identifier, int order, string? shortcutText)
@@ -476,34 +520,139 @@ public sealed partial class EditorPageViewModel
         }
     }
 
-    private bool ActivateCommandPaletteOnlyItem(string identifier)
+    private async Task<bool> ActivateCommandPaletteOnlyItemAsync(string identifier)
     {
-        if (!IsShowingTwoDWorkspace)
-            return false;
-
         switch (identifier)
         {
             case EditorCommandPaletteCatalog.ToggleGridIdentifier:
+                if (!IsShowingTwoDWorkspace) return true;
                 ToggleTwoDGrid();
                 return true;
             case EditorCommandPaletteCatalog.ToggleSnappingIdentifier:
+                if (!IsShowingTwoDWorkspace) return true;
                 ToggleTwoDSnapping();
                 return true;
             case EditorCommandPaletteCatalog.ToggleChainSelectionIdentifier:
+                if (!IsShowingTwoDWorkspace) return true;
                 ToggleTwoDChainSelection();
                 return true;
             case EditorCommandPaletteCatalog.ZoomInIdentifier:
+                if (!IsShowingTwoDWorkspace) return true;
                 ZoomTwoDIn();
                 return true;
             case EditorCommandPaletteCatalog.ZoomOutIdentifier:
+                if (!IsShowingTwoDWorkspace) return true;
                 ZoomTwoDOut();
                 return true;
             case EditorCommandPaletteCatalog.ZoomToFitIdentifier:
+                if (!IsShowingTwoDWorkspace) return true;
                 FrameTwoDToContent();
+                return true;
+            case EditorCommandPaletteCatalog.UndoIdentifier:
+                UndoCommand.Execute(null);
+                return true;
+            case EditorCommandPaletteCatalog.RedoIdentifier:
+                RedoCommand.Execute(null);
+                return true;
+            case EditorCommandPaletteCatalog.DeleteIdentifier:
+                DeleteCommand.Execute(null);
+                return true;
+            case EditorCommandPaletteCatalog.SwitchToTwoDIdentifier:
+                await SetActiveEditorModeAsync(EditorMode.TwoD).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.SwitchToThreeDIdentifier:
+                await SetActiveEditorModeAsync(EditorMode.ThreeD).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.SwitchToBatchIdentifier:
+                await SetActiveEditorModeAsync(EditorMode.Batch).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.NewIdentifier:
+                await NewProjectCommand.ExecuteAsync(null).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.OpenIdentifier:
+                await OpenProjectCommand.ExecuteAsync(null).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.ImportIdentifier:
+                await ImportFilesCommand.ExecuteAsync(null).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.SaveIdentifier:
+                await SaveDocumentCommand.ExecuteAsync(null).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.SaveAsIdentifier:
+                await SaveDocumentAsCommand.ExecuteAsync(null).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.ExportDxfIdentifier:
+                await ExportDxfCommand.ExecuteAsync(null).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.ExportSvgIdentifier:
+                await ExportSvgCommand.ExecuteAsync(null).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.ExportPngIdentifier:
+                await ExportPngCommand.ExecuteAsync(null).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.ExportPdfIdentifier:
+                await ExportPdfCommand.ExecuteAsync(null).ConfigureAwait(true);
+                return true;
+            case EditorCommandPaletteCatalog.ClearReferenceImageIdentifier:
+                if (TwoDActiveReferenceImage is not null && TwoDActiveLayerId is { } layerId)
+                    DeleteTwoDLayer(layerId);
+                return true;
+            case EditorCommandPaletteCatalog.StartScreenIdentifier:
+                CommandPaletteHostActionRequested?.Invoke(this, EditorCommandPaletteHostAction.StartScreen);
+                return true;
+            case EditorCommandPaletteCatalog.SearchIdentifier:
+                OpenCommandSearch();
+                return true;
+            case EditorCommandPaletteCatalog.PreferencesIdentifier:
+                CommandPaletteHostActionRequested?.Invoke(this, EditorCommandPaletteHostAction.Preferences);
+                return true;
+            case EditorCommandPaletteCatalog.DocumentationIdentifier:
+                CommandPaletteHostActionRequested?.Invoke(this, EditorCommandPaletteHostAction.Documentation);
                 return true;
             default:
                 return false;
         }
+    }
+
+    private void SyncCommandPaletteOnlyStates()
+    {
+        foreach (var item in _commandPaletteOnlyItems.Where(item => item.Mode == ActiveEditorMode))
+        {
+            item.IsEnabled = !_isCommandPaletteActionRunning && item.Identifier switch
+            {
+                EditorCommandPaletteCatalog.ToggleGridIdentifier
+                    or EditorCommandPaletteCatalog.ToggleSnappingIdentifier
+                    or EditorCommandPaletteCatalog.ToggleChainSelectionIdentifier
+                    or EditorCommandPaletteCatalog.ZoomInIdentifier
+                    or EditorCommandPaletteCatalog.ZoomOutIdentifier
+                    or EditorCommandPaletteCatalog.ZoomToFitIdentifier => IsShowingTwoDWorkspace,
+                EditorCommandPaletteCatalog.UndoIdentifier => UndoCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.RedoIdentifier => RedoCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.DeleteIdentifier => DeleteCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.SwitchToTwoDIdentifier => ActiveEditorMode != EditorMode.TwoD,
+                EditorCommandPaletteCatalog.SwitchToThreeDIdentifier => ActiveEditorMode != EditorMode.ThreeD,
+                EditorCommandPaletteCatalog.SwitchToBatchIdentifier => ActiveEditorMode != EditorMode.Batch,
+                EditorCommandPaletteCatalog.NewIdentifier => NewProjectCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.OpenIdentifier => OpenProjectCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.ImportIdentifier => ImportFilesCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.SaveIdentifier => SaveDocumentCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.SaveAsIdentifier => SaveDocumentAsCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.ExportDxfIdentifier => ExportDxfCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.ExportSvgIdentifier => ExportSvgCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.ExportPngIdentifier => ExportPngCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.ExportPdfIdentifier => ExportPdfCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.ClearReferenceImageIdentifier
+                    => IsShowingTwoDWorkspace && TwoDActiveReferenceImage is not null,
+                _ => true,
+            };
+        }
+    }
+
+    private void NotifyCommandPaletteStateChanged()
+    {
+        SyncCommandPaletteOnlyStates();
+        OnPropertyChanged(nameof(CommandSearchResults));
+        OnPropertyChanged(nameof(IsCommandSearchEmpty));
     }
 
     private bool HandleEscapeShortcut()

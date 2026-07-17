@@ -72,6 +72,7 @@ public sealed partial class EditorPageViewModel
             NewProjectCommand.NotifyCanExecuteChanged();
             OpenProjectCommand.NotifyCanExecuteChanged();
             ImportFilesCommand.NotifyCanExecuteChanged();
+            NotifyCommandPaletteStateChanged();
         }
     }
 
@@ -111,7 +112,10 @@ public sealed partial class EditorPageViewModel
         set
         {
             if (SetProperty(ref _isLoading, value))
+            {
                 ImportFilesCommand.NotifyCanExecuteChanged();
+                NotifyCommandPaletteStateChanged();
+            }
         }
     }
 

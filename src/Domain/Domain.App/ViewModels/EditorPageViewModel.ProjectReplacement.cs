@@ -24,6 +24,7 @@ public sealed partial class EditorPageViewModel
             NewProjectCommand.NotifyCanExecuteChanged();
             OpenProjectCommand.NotifyCanExecuteChanged();
             ImportFilesCommand.NotifyCanExecuteChanged();
+            NotifyCommandPaletteStateChanged();
         }
     }
 

@@ -83,7 +83,9 @@ public partial class App : Application
         {
             _documentWindowCoordinator = _services!.GetRequiredService<DesktopDocumentWindowCoordinator>();
             _documentWindowManager = new DesktopDocumentWindowManager(_services!, desktop);
-            _documentWindowCoordinator.Attach(_documentWindowManager.OpenDocumentAsync);
+            _documentWindowCoordinator.Attach(
+                _documentWindowManager.OpenDocumentAsync,
+                _documentWindowManager.ShowStartScreen);
             desktop.MainWindow = _documentWindowManager.CreateWelcomeWindow();
             var windowServices = _documentWindowManager.WelcomeServices!;
             desktop.Exit += (_, _) => DisposeServices();

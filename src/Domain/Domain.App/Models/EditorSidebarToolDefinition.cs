@@ -351,24 +351,77 @@ public static class EditorCommandPaletteCatalog
     public const string ZoomInIdentifier = "view.zoomIn";
     public const string ZoomOutIdentifier = "view.zoomOut";
     public const string ZoomToFitIdentifier = "view.zoomFit";
+    public const string UndoIdentifier = "edit.undo";
+    public const string RedoIdentifier = "edit.redo";
+    public const string DeleteIdentifier = "edit.delete";
+    public const string SwitchToTwoDIdentifier = "view.mode2D";
+    public const string SwitchToThreeDIdentifier = "view.mode3D";
+    public const string SwitchToBatchIdentifier = "view.modeBatch";
+    public const string NewIdentifier = "file.new";
+    public const string OpenIdentifier = "file.open";
+    public const string ImportIdentifier = "file.import";
+    public const string SaveIdentifier = "file.save";
+    public const string SaveAsIdentifier = "file.saveAs";
+    public const string ExportDxfIdentifier = "file.export.dxf";
+    public const string ExportSvgIdentifier = "file.export.svg";
+    public const string ExportPngIdentifier = "file.export.png";
+    public const string ExportPdfIdentifier = "file.export.pdf";
+    public const string StartScreenIdentifier = "file.startScreen";
+    public const string ClearReferenceImageIdentifier = "image.clearRef";
+    public const string SearchIdentifier = "app.search";
+    public const string PreferencesIdentifier = "app.preferences";
+    public const string DocumentationIdentifier = "app.documentation";
 
     public static IReadOnlyList<EditorToolDescriptor> SearchOnly { get; } =
-    [
-        TwoDCommand(ToggleGridIdentifier, "Toggle Grid", "Show or hide the 2D grid.", "Shift+G"),
-        TwoDCommand(ToggleSnappingIdentifier, "Toggle Snapping", "Enable or disable 2D snapping.", "N"),
-        TwoDCommand(ToggleChainSelectionIdentifier, "Toggle Chain Selection", "Enable or disable connected-path selection.", "A"),
-        TwoDCommand(ZoomInIdentifier, "Zoom In", "Increase the 2D viewport zoom.", "Ctrl+="),
-        TwoDCommand(ZoomOutIdentifier, "Zoom Out", "Decrease the 2D viewport zoom.", "Ctrl+-"),
-        TwoDCommand(ZoomToFitIdentifier, "Zoom to Fit", "Frame all visible 2D content.", null),
-    ];
+        CreateSearchOnly();
 
-    private static EditorToolDescriptor TwoDCommand(
+    private static IReadOnlyList<EditorToolDescriptor> CreateSearchOnly()
+    {
+        var commands = new List<EditorToolDescriptor>();
+        foreach (var mode in Enum.GetValues<EditorMode>())
+        {
+            commands.AddRange(
+            [
+                Command(mode, ToggleGridIdentifier, "Toggle Grid", "View · Show or hide the 2D grid.", "Shift+G", "view"),
+                Command(mode, ToggleSnappingIdentifier, "Toggle Snapping", "View · Enable or disable 2D snapping.", "N", "view"),
+                Command(mode, ToggleChainSelectionIdentifier, "Toggle Chain Selection", "View · Enable or disable connected-path selection.", "A", "view"),
+                Command(mode, ZoomInIdentifier, "Zoom In", "View · Increase the 2D viewport zoom.", "Ctrl+=", "view"),
+                Command(mode, ZoomOutIdentifier, "Zoom Out", "View · Decrease the 2D viewport zoom.", "Ctrl+-", "view"),
+                Command(mode, ZoomToFitIdentifier, "Zoom to Fit", "View · Frame all visible 2D content.", null, "view"),
+                Command(mode, UndoIdentifier, "Undo", "Edit · Undo the last workspace change.", "Ctrl+Z", "edit"),
+                Command(mode, RedoIdentifier, "Redo", "Edit · Redo the last workspace change.", "Ctrl+Shift+Z", "edit"),
+                Command(mode, DeleteIdentifier, "Delete Selection", "Edit · Delete selected geometry or measurement.", "Delete", "edit"),
+                Command(mode, SwitchToTwoDIdentifier, "Switch to 2D Mode", "View · Show the 2D workspace.", null, "view"),
+                Command(mode, SwitchToThreeDIdentifier, "Switch to 3D Mode", "View · Show the 3D workspace.", null, "view"),
+                Command(mode, SwitchToBatchIdentifier, "Switch to Batch Mode", "View · Show the batch workspace.", null, "view"),
+                Command(mode, NewIdentifier, "New Project", "File · Create a new project.", "Ctrl+N", "file"),
+                Command(mode, OpenIdentifier, "Open Project…", "File · Open an existing Pathstitch project.", "Ctrl+O", "file"),
+                Command(mode, ImportIdentifier, "Import…", "File · Import drawing, image, or 3D files.", "Ctrl+Shift+I", "file"),
+                Command(mode, SaveIdentifier, "Save Project", "File · Save changes to the current project.", "Ctrl+S", "file"),
+                Command(mode, SaveAsIdentifier, "Save Project As…", "File · Save the current project to another path.", "Ctrl+Shift+S", "file"),
+                Command(mode, ExportDxfIdentifier, "Export DXF…", "File · Export the 2D workspace as DXF.", "Ctrl+E", "file"),
+                Command(mode, ExportSvgIdentifier, "Export SVG…", "File · Export the 2D workspace as SVG.", "Ctrl+Shift+E", "file"),
+                Command(mode, ExportPngIdentifier, "Export PNG…", "File · Export the 2D workspace as PNG.", null, "file"),
+                Command(mode, ExportPdfIdentifier, "Export PDF…", "File · Export the 2D workspace as PDF.", null, "file"),
+                Command(mode, StartScreenIdentifier, "Start Screen", "File · Show the Pathstitch start screen.", null, "file"),
+                Command(mode, ClearReferenceImageIdentifier, "Clear Active Reference Image", "File · Remove the active reference-image layer.", null, "file"),
+                Command(mode, SearchIdentifier, "Search Commands…", "App · Search tools and commands.", "Ctrl+K", "app"),
+                Command(mode, PreferencesIdentifier, "Preferences…", "App · Open Pathstitch preferences.", null, "app"),
+                Command(mode, DocumentationIdentifier, "Documentation", "App · Open Pathstitch documentation.", null, "app"),
+            ]);
+        }
+        return commands;
+    }
+
+    private static EditorToolDescriptor Command(
+        EditorMode mode,
         string identifier,
         string label,
         string hint,
-        string? shortcutText)
+        string? shortcutText,
+        string groupKey)
         => new(
-            EditorMode.TwoD,
+            mode,
             identifier,
             IconKey: identifier,
             IconPathData: string.Empty,
@@ -377,6 +430,6 @@ public static class EditorCommandPaletteCatalog
             shortcutText,
             CommandKey: identifier,
             InspectorPanelKey: null,
-            GroupKey: "view",
+            groupKey,
             Order: 0);
 }

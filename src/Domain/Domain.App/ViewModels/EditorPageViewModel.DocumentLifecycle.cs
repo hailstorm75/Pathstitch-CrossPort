@@ -26,6 +26,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             SaveDocumentCommand.NotifyCanExecuteChanged();
+            NotifyCommandPaletteStateChanged();
         }
     }
 
@@ -44,6 +45,7 @@ public sealed partial class EditorPageViewModel
             NewProjectCommand.NotifyCanExecuteChanged();
             OpenProjectCommand.NotifyCanExecuteChanged();
             ImportFilesCommand.NotifyCanExecuteChanged();
+            NotifyCommandPaletteStateChanged();
         }
     }
 
