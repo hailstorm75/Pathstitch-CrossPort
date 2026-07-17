@@ -1,12 +1,48 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia;
 using Domain.App.Models;
 
 namespace Pathstitch.App.Controls;
 
 internal static class DxfCanvasPenEditing
 {
+    public static bool TryRemoveAnchorAt(
+        IReadOnlyList<Editor2DBezierAnchor> anchors,
+        Point screenPoint,
+        Func<Editor2DPoint, Point> worldToScreen,
+        double tolerance,
+        out IReadOnlyList<Editor2DBezierAnchor> updatedAnchors)
+    {
+        updatedAnchors = anchors;
+        if (!double.IsFinite(tolerance) || tolerance < 0)
+            return false;
+
+        var nearestIndex = -1;
+        var nearestDistance = tolerance;
+        for (var index = 0; index < anchors.Count; index++)
+        {
+            var candidate = worldToScreen(anchors[index].Point);
+            var distance = Math.Sqrt(
+                Math.Pow(screenPoint.X - candidate.X, 2)
+                + Math.Pow(screenPoint.Y - candidate.Y, 2));
+            if (distance > nearestDistance)
+                continue;
+
+            nearestDistance = distance;
+            nearestIndex = index;
+        }
+
+        if (nearestIndex < 0)
+            return false;
+
+        var next = anchors.ToList();
+        next.RemoveAt(nearestIndex);
+        updatedAnchors = next;
+        return true;
+    }
+
     public static Editor2DPoint? GetHandleInForHit(Editor2DBezierAnchor anchor)
         => anchor.HandleIn ?? (anchor.HandleOut is Editor2DPoint handleOut
             ? ReflectHandle(anchor.Point, handleOut)

@@ -1749,7 +1749,7 @@ public sealed class DxfPreviewCanvas : Control
                 case DxfCanvasPressRoute.SketchCircle: HandleSketchCircleClick(point.Position); break;
                 case DxfCanvasPressRoute.SketchPolygon: HandleSketchPolygonClick(point.Position); break;
                 case DxfCanvasPressRoute.SketchText: HandleSketchTextClick(point.Position); break;
-                case DxfCanvasPressRoute.Pen: HandlePenPress(point.Position, e.Pointer); break;
+                case DxfCanvasPressRoute.Pen: HandlePenPress(point.Position, e.KeyModifiers, e.Pointer); break;
             }
             e.Handled = pressRoute is not DxfCanvasPressRoute.None;
             return;
@@ -4606,8 +4606,27 @@ Selection:
         return true;
     }
 
-    private void HandlePenPress(Point screenPoint, IPointer pointer)
+    private void HandlePenPress(Point screenPoint, KeyModifiers modifiers, IPointer pointer)
     {
+        if (modifiers.HasFlag(KeyModifiers.Alt))
+        {
+            if (DxfCanvasPenEditing.TryRemoveAnchorAt(
+                    _pendingPenAnchors,
+                    screenPoint,
+                    point => WorldToScreen(point, Bounds.Size),
+                    PenCloseHitTolerance,
+                    out var updatedAnchors))
+            {
+                _pendingPenAnchors = updatedAnchors.ToArray();
+            }
+
+            _pendingPenDragAnchorIndex = null;
+            _pendingPenDragControl = DxfCanvasInteractionSession.PenDragControl.Anchor;
+            _pendingPenHoverPoint = null;
+            InvalidateVisual();
+            return;
+        }
+
         var completion = DxfCanvasPenInteraction.GetCompletionForClick(
             _pendingPenAnchors.Select(static anchor => anchor.Point).ToArray(),
             screenPoint,

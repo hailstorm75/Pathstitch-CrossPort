@@ -74,7 +74,8 @@ internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession
         KeyModifiers modifiers)
         => isMiddleButtonPressed
             || (isLeftButtonPressed
-                && (tool == Editor2DTool.Pan || modifiers.HasFlag(KeyModifiers.Alt)));
+                && (tool == Editor2DTool.Pan
+                    || (tool != Editor2DTool.Pen && modifiers.HasFlag(KeyModifiers.Alt))));
 
     public DxfCanvasViewportUpdate ApplyWheel(
         Point screenPoint,
