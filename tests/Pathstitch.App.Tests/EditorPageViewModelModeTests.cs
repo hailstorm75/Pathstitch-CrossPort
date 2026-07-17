@@ -1678,6 +1678,11 @@ public sealed class EditorPageViewModelModeTests
         Assert.False(viewModel.IsCommandSearchOpen);
 
         viewModel.OpenCommandSearch();
+        await viewModel.ActivateCommandSearchItemAsync(EditorCommandPaletteCatalog.StartScreenIdentifier);
+        Assert.Equal(EditorCommandPaletteHostAction.StartScreen, hostAction);
+        Assert.False(viewModel.IsCommandSearchOpen);
+
+        viewModel.OpenCommandSearch();
         await viewModel.ActivateCommandSearchItemAsync(EditorCommandPaletteCatalog.PreferencesIdentifier);
         Assert.Equal(EditorCommandPaletteHostAction.Preferences, hostAction);
         Assert.False(viewModel.IsCommandSearchOpen);
@@ -1691,6 +1696,7 @@ public sealed class EditorPageViewModelModeTests
             EditorCommandPaletteCatalog.UndoIdentifier,
             EditorCommandPaletteCatalog.RedoIdentifier,
             EditorCommandPaletteCatalog.DeleteIdentifier,
+            EditorCommandPaletteCatalog.ConvertLinesToDashedIdentifier,
             EditorCommandPaletteCatalog.SwitchToTwoDIdentifier,
             EditorCommandPaletteCatalog.SwitchToThreeDIdentifier,
             EditorCommandPaletteCatalog.SwitchToBatchIdentifier,
@@ -1742,6 +1748,41 @@ public sealed class EditorPageViewModelModeTests
         Assert.True(viewModel.CommandSearchResults.Single(item => item.Identifier == EditorCommandPaletteCatalog.ClearReferenceImageIdentifier).IsEnabled);
         await viewModel.ActivateCommandSearchItemAsync(EditorCommandPaletteCatalog.ClearReferenceImageIdentifier);
         Assert.DoesNotContain(viewModel.TwoDLayers, item => item.Id == reference.Id);
+    }
+
+    [Fact]
+    public async Task CommandSearch_ConvertLinesToDashedTracksSelectionAndUsesUndoableConversion()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var path = new Editor2DPreviewPath("dash-me", "LINE", [new(0, 0), new(20, 0)], false);
+        viewModel.TwoDDocument = new Editor2DPreviewDocument(
+            [path], new Editor2DBounds(0, 0, 20, 0), new Dictionary<string, int> { ["LINE"] = 1 }, []);
+        viewModel.CommandSearchQuery = "convert lines to dashed";
+        Assert.False(viewModel.CommandSearchResults.Single(item =>
+            item.Identifier == EditorCommandPaletteCatalog.ConvertLinesToDashedIdentifier).IsEnabled);
+
+        viewModel.TwoDSelectedPathIds = [path.Id];
+        var command = Assert.Single(viewModel.CommandSearchResults, item =>
+            item.Identifier == EditorCommandPaletteCatalog.ConvertLinesToDashedIdentifier);
+        Assert.True(command.IsEnabled);
+        Assert.Equal("Ctrl+Shift+X", command.ShortcutText);
+
+        await viewModel.ActivateCommandSearchItemAsync(EditorCommandPaletteCatalog.ConvertLinesToDashedIdentifier);
+
+        var group = Assert.Single(viewModel.TwoDWorkspace.ConvertLineGroups);
+        Assert.Equal("dashed", group.Style);
+        Assert.False(viewModel.IsCommandSearchOpen);
+        Assert.Empty(viewModel.CommandSearchQuery);
+        Assert.True(viewModel.CanUndoTwoDWorkspace);
+        Assert.True(viewModel.UndoTwoDWorkspace());
+        Assert.Contains(viewModel.TwoDDocument!.Paths, item => item.Id == path.Id);
+        Assert.Empty(viewModel.TwoDWorkspace.ConvertLineGroups);
+
+        await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
+        viewModel.CommandSearchQuery = EditorCommandPaletteCatalog.ConvertLinesToDashedIdentifier;
+        Assert.False(viewModel.CommandSearchResults.Single(item =>
+            item.Identifier == EditorCommandPaletteCatalog.ConvertLinesToDashedIdentifier).IsEnabled);
     }
 
     [Fact]

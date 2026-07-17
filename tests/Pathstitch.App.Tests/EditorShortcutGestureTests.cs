@@ -30,6 +30,31 @@ public sealed class EditorShortcutGestureTests
         Assert.Null(shortcut.DefaultGesture);
     }
 
+    [Fact]
+    public void AppCatalog_OffersConflictSafeDashedLineShortcut()
+    {
+        var shortcut = Assert.Single(
+            EditorAppShortcutCatalog.All,
+            definition => definition.Identifier == EditorCommandPaletteCatalog.ConvertLinesToDashedIdentifier);
+
+        Assert.Equal("Convert Lines to Dashed", shortcut.Label);
+        Assert.Equal("Edit", shortcut.Category);
+        Assert.Equal("Primary+Shift+X", shortcut.DefaultGesture);
+
+        var app = EditorAppShortcutCatalog.All.ToDictionary(
+            definition => definition.Identifier,
+            definition => definition.DefaultGesture,
+            StringComparer.Ordinal);
+        app[shortcut.Identifier] = "X";
+        var conflict = EditorShortcutGesture.FindConflict(
+            app,
+            [new EditorToolCustomization("2d.trim", 0, "X")],
+            _ => EditorMode.TwoD);
+
+        Assert.Contains("Convert Lines to Dashed", conflict ?? string.Empty, StringComparison.Ordinal);
+        Assert.Contains("2d.trim", conflict ?? string.Empty, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("Ctrl+Shift+n", "Primary+Shift+N")]
     [InlineData("Cmd+Option+F5", "Primary+Alt+F5")]

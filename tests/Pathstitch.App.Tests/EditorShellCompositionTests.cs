@@ -112,6 +112,20 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void HelpMenu_UsesThePaletteStartScreenCoordinatorPath()
+    {
+        var shell = ReadPage("EditorShellView.axaml");
+        var code = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs");
+
+        Assert.Contains("editor.menu.help.start-screen", shell, StringComparison.Ordinal);
+        Assert.Contains("Click=\"OnShowStartScreenClicked\"", shell, StringComparison.Ordinal);
+        Assert.Contains("private static void ShowStartScreen()", code, StringComparison.Ordinal);
+        Assert.Contains("DesktopDocumentWindowCoordinator", code, StringComparison.Ordinal);
+        Assert.Contains("ShowStartScreen();", code, StringComparison.Ordinal);
+        Assert.Contains("SetHotKey(StartScreenMenuItem, EditorCommandPaletteCatalog.StartScreenIdentifier)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Shell_OffersAccessibleActivityLogTrayFromViewMenuAndWorkspace()
     {
         var shell = ReadPage("EditorShellView.axaml");

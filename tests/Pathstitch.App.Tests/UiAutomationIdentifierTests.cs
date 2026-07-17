@@ -39,6 +39,7 @@ public sealed class UiAutomationIdentifierTests
             "editor.menu.tools.search",
             "editor.menu.modify",
             "editor.menu.help",
+            "editor.menu.help.start-screen",
             "editor.menu.help.about",
             "editor.menu.help.preferences",
             "editor.menu.help.documentation",
