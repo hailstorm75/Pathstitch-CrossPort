@@ -72,6 +72,27 @@ public sealed class DrawingImportRoutingTests
         Assert.Equal(EditorMode.ThreeD, fixture.ViewModel.ActiveEditorMode);
         Assert.Empty(fixture.ViewModel.TwoDWorkspace.ImportGroups);
         Assert.Empty(fixture.ViewModel.BatchWorkspace.Items);
+        Assert.False(fixture.ViewModel.IsDirty);
+        Assert.False(fixture.ViewModel.TwoDWorkspace.CanUndo);
+        Assert.Contains(Path.GetFileName(fixture.Paths[0]), fixture.ViewModel.ErrorMessage, StringComparison.Ordinal);
+        Assert.Contains("no importable geometry", fixture.ViewModel.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task MalformedPdf_AbortsWholeDrawingImportAndReportsFailure()
+    {
+        await using var fixture = await Fixture.CreateAsync(2, EditorMode.ThreeD);
+        fixture.Preview.FailingPath = fixture.Paths[1];
+        fixture.Preview.LoadException = new InvalidDataException("malformed PDF payload");
+
+        await fixture.LoadAsync();
+
+        Assert.Equal(EditorMode.ThreeD, fixture.ViewModel.ActiveEditorMode);
+        Assert.Empty(fixture.ViewModel.TwoDWorkspace.ImportGroups);
+        Assert.False(fixture.ViewModel.IsDirty);
+        Assert.False(fixture.ViewModel.TwoDWorkspace.CanUndo);
+        Assert.Contains(Path.GetFileName(fixture.Paths[1]), fixture.ViewModel.ErrorMessage, StringComparison.Ordinal);
+        Assert.Contains("malformed PDF payload", fixture.ViewModel.ErrorMessage, StringComparison.Ordinal);
     }
 
     private static Editor2DPreviewDocument Document(params Editor2DPreviewPath[] paths)
@@ -124,18 +145,18 @@ public sealed class DrawingImportRoutingTests
             await new Project3DStateService().SaveAsync(projectPath,
                 new Project3DState(null, [], [], WorkspaceState: shellState, TwoDWorkspaceState: twoDState));
             var paths = Enumerable.Range(0, drawingCount)
-                .Select(index => Path.Combine(directory, index % 2 == 0 ? $"drawing-{index}.dxf" : $"drawing-{index}.svg"))
+                .Select(index => Path.Combine(directory, index % 2 == 0 ? $"drawing-{index}.dxf" : $"drawing-{index}.pdf"))
                 .Select(Path.GetFullPath)
                 .ToArray();
             foreach (var path in paths)
                 await File.WriteAllTextAsync(path, "drawing");
-            var documents = includeDocuments
-                ? paths.ToDictionary(
-                    path => path,
-                    path => Document(new Editor2DPreviewPath(
-                        Path.GetFileNameWithoutExtension(path), "LINE", [new(0, 0), new(5, 0)], false)),
-                    StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, Editor2DPreviewDocument>(StringComparer.OrdinalIgnoreCase);
+            var documents = paths.ToDictionary(
+                path => path,
+                path => includeDocuments
+                    ? Document(new Editor2DPreviewPath(
+                        Path.GetFileNameWithoutExtension(path), "LINE", [new(0, 0), new(5, 0)], false))
+                    : Document(),
+                StringComparer.OrdinalIgnoreCase);
             var preview = new RecordingPreviewService(documents);
             var prompt = new RecordingPrompt();
             var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
@@ -168,11 +189,19 @@ public sealed class DrawingImportRoutingTests
     {
         public int LoadCount { get; private set; }
         public int InspectUnitsCount { get; private set; }
+        public string? FailingPath { get; set; }
+        public Exception? LoadException { get; set; }
 
         public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             LoadCount++;
+            if (LoadException is not null
+                && FailingPath is not null
+                && string.Equals(Path.GetFullPath(outputPath), Path.GetFullPath(FailingPath), StringComparison.OrdinalIgnoreCase))
+            {
+                throw LoadException;
+            }
             documents.TryGetValue(Path.GetFullPath(outputPath), out var document);
             return Task.FromResult(document);
         }
