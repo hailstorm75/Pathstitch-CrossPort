@@ -8,6 +8,8 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class EditorPageViewModel
 {
+    private Project3DState? _preparedProjectState;
+
     public ProjectSession? ProjectSession
     {
         get => _projectSession;
@@ -131,6 +133,9 @@ public sealed partial class EditorPageViewModel
         }
 
         ProjectSession = session;
+        _preparedProjectState = parameters.TryGetValue(EditorNavigationParameterKeys.PreparedProjectState, out var preparedValue)
+            ? preparedValue as Project3DState
+            : null;
         if (!_isBatchWorkspaceDirtyTrackingSubscribed)
         {
             _batchWorkspace.StateChanged += MarkDocumentDirty;
@@ -174,7 +179,11 @@ public sealed partial class EditorPageViewModel
         Project3DState state;
         using (SuppressDocumentDirtyTracking())
         {
-            state = await _project3DStateService.LoadAsync(ProjectSession.ProjectFilePath, token).ConfigureAwait(true);
+            state = _preparedProjectState
+                    ?? await _project3DStateService
+                        .LoadAsync(ProjectSession.ProjectFilePath, token)
+                        .ConfigureAwait(true);
+            _preparedProjectState = null;
             RestoreActivityLog(state.ActivityLog);
             LearnModeEnabled = state.LearnModeEnabled;
             ViewportJsonContent = state.ViewportJson;

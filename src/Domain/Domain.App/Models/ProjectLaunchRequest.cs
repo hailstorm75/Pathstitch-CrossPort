@@ -6,6 +6,7 @@ public sealed record ProjectLaunchRequest(
 {
     public IReadOnlyList<string> PendingTwoDFilePaths { get; init; } = [];
     public IReadOnlyList<string> PendingReferenceImagePaths { get; init; } = [];
+    public Project3DState? PreparedProjectState { get; init; }
 
     public static ProjectLaunchRequest ForProject(ProjectSession session)
         => new(session, []);

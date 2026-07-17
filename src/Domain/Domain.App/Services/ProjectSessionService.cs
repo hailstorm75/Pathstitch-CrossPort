@@ -1,15 +1,15 @@
-using System.IO.Compression;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Domain.App.Models;
 
 namespace Domain.App.Services;
 
 public sealed class ProjectSessionService(
     IProjectFileDialogService projectFileDialogService,
-    RecentProjectsService recentProjectsService)
+    RecentProjectsService recentProjectsService,
+    Project3DStateService? project3DStateService = null)
 {
     private const string ProjectExtension = ".stch";
+    private readonly Project3DStateService _project3DStateService = project3DStateService ?? new Project3DStateService();
     private static readonly HashSet<string> Supported3DModelExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".obj",
@@ -104,19 +104,32 @@ public sealed class ProjectSessionService(
 
     public async Task<ProjectSession?> OpenTemplateProjectAsync(
         CancellationToken cancellationToken = default)
+        => (await OpenTemplateProjectLaunchAsync(cancellationToken).ConfigureAwait(false))?.Session;
+
+    public async Task<ProjectLaunchRequest?> OpenTemplateProjectLaunchAsync(
+        CancellationToken cancellationToken = default)
     {
-        var session = await PrepareOpenTemplateProjectAsync(cancellationToken).ConfigureAwait(false);
-        return session is null ? null : ActivateSession(session);
+        var request = await PrepareOpenTemplateProjectLaunchAsync(cancellationToken).ConfigureAwait(false);
+        if (request is null)
+            return null;
+
+        ActivateSession(request.Session);
+        return request;
     }
 
     public async Task<ProjectSession?> PrepareOpenTemplateProjectAsync(
+        CancellationToken cancellationToken = default)
+        => (await PrepareOpenTemplateProjectLaunchAsync(cancellationToken).ConfigureAwait(false))?.Session;
+
+    public async Task<ProjectLaunchRequest?> PrepareOpenTemplateProjectLaunchAsync(
         CancellationToken cancellationToken = default)
     {
         var projectPath = await projectFileDialogService
             .PickExistingProjectFileAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return await PrepareOpenProjectAsync(projectPath, ProjectSessionOrigin.Opened, cancellationToken).ConfigureAwait(false);
+        return await PrepareOpenProjectLaunchAsync(projectPath, ProjectSessionOrigin.Opened, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ProjectLaunchRequest?> OpenWorkspaceFilesAsync(CancellationToken cancellationToken = default)
@@ -163,12 +176,21 @@ public sealed class ProjectSessionService(
 
         if (projectFiles.Length == 1)
         {
-            var session = await PrepareOpenProjectAsync(projectFiles[0], ProjectSessionOrigin.Opened, cancellationToken).ConfigureAwait(false);
-            if (session is not null)
-                ActivateSession(session);
-            return session is null
-                ? null
-                : new ProjectLaunchRequest(session, sourceModelFiles) { PendingTwoDFilePaths = twoDFilePaths, PendingReferenceImagePaths = referenceImagePaths };
+            var request = await PrepareOpenProjectLaunchAsync(
+                    projectFiles[0],
+                    ProjectSessionOrigin.Opened,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (request is null)
+                return null;
+
+            ActivateSession(request.Session);
+            return request with
+            {
+                PendingSourceModelPaths = sourceModelFiles,
+                PendingTwoDFilePaths = twoDFilePaths,
+                PendingReferenceImagePaths = referenceImagePaths,
+            };
         }
 
         if (sourceModelFiles.Length > 0 || twoDFilePaths.Length > 0 || referenceImagePaths.Length > 0)
@@ -189,9 +211,22 @@ public sealed class ProjectSessionService(
     public async Task<ProjectSession?> OpenRecentProjectAsync(
         string projectFilePath,
         CancellationToken cancellationToken = default)
+        => (await OpenRecentProjectLaunchAsync(projectFilePath, cancellationToken).ConfigureAwait(false))?.Session;
+
+    public async Task<ProjectLaunchRequest?> OpenRecentProjectLaunchAsync(
+        string projectFilePath,
+        CancellationToken cancellationToken = default)
     {
-        var session = await PrepareOpenProjectAsync(projectFilePath, ProjectSessionOrigin.Opened, cancellationToken).ConfigureAwait(false);
-        return session is null ? null : ActivateSession(session);
+        var request = await PrepareOpenProjectLaunchAsync(
+                projectFilePath,
+                ProjectSessionOrigin.Opened,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (request is null)
+            return null;
+
+        ActivateSession(request.Session);
+        return request;
     }
 
     public ProjectSession ActivateSession(ProjectSession session)
@@ -249,12 +284,17 @@ public sealed class ProjectSessionService(
             TrackInRecentProjects: trackInRecentProjects);
     }
 
-    public Task<ProjectSession?> PrepareOpenProjectAsync(
+    public async Task<ProjectSession?> PrepareOpenProjectAsync(
         string? projectPath,
         CancellationToken cancellationToken = default)
-        => PrepareOpenProjectAsync(projectPath, ProjectSessionOrigin.Opened, cancellationToken);
+        => (await PrepareOpenProjectLaunchAsync(projectPath, cancellationToken).ConfigureAwait(false))?.Session;
 
-    private async Task<ProjectSession?> PrepareOpenProjectAsync(
+    public Task<ProjectLaunchRequest?> PrepareOpenProjectLaunchAsync(
+        string? projectPath,
+        CancellationToken cancellationToken = default)
+        => PrepareOpenProjectLaunchAsync(projectPath, ProjectSessionOrigin.Opened, cancellationToken);
+
+    private async Task<ProjectLaunchRequest?> PrepareOpenProjectLaunchAsync(
         string? projectPath,
         ProjectSessionOrigin origin,
         CancellationToken cancellationToken)
@@ -262,31 +302,41 @@ public sealed class ProjectSessionService(
         if (string.IsNullOrWhiteSpace(projectPath) || !File.Exists(projectPath))
             return null;
 
-        ProjectMetadata metadata;
+        var normalizedPath = Path.GetFullPath(projectPath);
+        ProjectOpenPayload prepared;
         try
         {
-            metadata = await ReadProjectMetadataAsync(projectPath, cancellationToken).ConfigureAwait(false);
+            prepared = await _project3DStateService
+                .PrepareLoadAsync(normalizedPath, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is JsonException
                                    or InvalidDataException
                                    or IOException
                                    or UnauthorizedAccessException
-                                   or InvalidOperationException)
+                                   or InvalidOperationException
+                                   or NotSupportedException
+                                   or FormatException)
         {
             throw new InvalidOperationException(
-                $"Could not open '{Path.GetFileName(projectPath)}': the file is not a valid Pathstitch project.",
+                $"Could not open '{Path.GetFileName(normalizedPath)}': the file is not a valid Pathstitch project.",
                 ex);
         }
-        var resolvedTemplate = ResolveTemplate(metadata.TemplateId);
-        var resolvedName = string.IsNullOrWhiteSpace(metadata.ProjectName)
-            ? Path.GetFileNameWithoutExtension(projectPath)
-            : metadata.ProjectName;
 
-        return CreateSession(
+        var resolvedTemplate = ResolveTemplate(prepared.TemplateId);
+        var resolvedName = string.IsNullOrWhiteSpace(prepared.ProjectName)
+            ? Path.GetFileNameWithoutExtension(normalizedPath)
+            : prepared.ProjectName;
+
+        var session = CreateSession(
             origin,
             resolvedName,
-            projectPath,
+            normalizedPath,
             resolvedTemplate);
+        return ProjectLaunchRequest.ForProject(session) with
+        {
+            PreparedProjectState = prepared.State,
+        };
     }
 
     private async Task<ProjectSession> CreateImportedWorkspaceSessionAsync(
@@ -325,49 +375,6 @@ public sealed class ProjectSessionService(
             trackInRecentProjects: false);
     }
 
-    private static async Task<ProjectMetadata> ReadProjectMetadataAsync(string projectPath, CancellationToken cancellationToken)
-    {
-        JsonObject? payload = null;
-        if (Path.GetExtension(projectPath).Equals(ProjectExtension, StringComparison.OrdinalIgnoreCase))
-        {
-            try
-            {
-                await using var fileStream = File.OpenRead(projectPath);
-                using var archive = new ZipArchive(fileStream, ZipArchiveMode.Read, leaveOpen: false);
-                var projectEntry = archive.GetEntry("project.json");
-                if (projectEntry is not null)
-                {
-                    await using var projectStream = projectEntry.Open();
-                    payload = await ReadProjectJsonObjectAsync(projectStream, cancellationToken).ConfigureAwait(false);
-                }
-            }
-            catch (InvalidDataException)
-            {
-                // Fall back to the initial plain JSON seed.
-            }
-        }
-
-        if (payload is null)
-        {
-            await using var jsonStream = File.OpenRead(projectPath);
-            payload = await ReadProjectJsonObjectAsync(jsonStream, cancellationToken).ConfigureAwait(false);
-        }
-
-        return new ProjectMetadata(
-            ProjectName: payload?["projectName"]?.GetValue<string>(),
-            TemplateId: payload?["templateId"]?.GetValue<string>());
-    }
-
-    private static async Task<JsonObject> ReadProjectJsonObjectAsync(
-        Stream stream,
-        CancellationToken cancellationToken)
-    {
-        var payload = await JsonNode.ParseAsync(
-            stream,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        return payload as JsonObject
-               ?? throw new JsonException("The Pathstitch project root must be a JSON object.");
-    }
 
     private static ProjectTemplateDefinition ResolveTemplate(string? templateId)
         => Templates.FirstOrDefault(x => string.Equals(x.TemplateId, templateId, StringComparison.OrdinalIgnoreCase))
@@ -402,5 +409,4 @@ public sealed class ProjectSessionService(
         return string.IsNullOrWhiteSpace(sanitized) ? "Imported-Workspace" : sanitized;
     }
 
-    private sealed record ProjectMetadata(string? ProjectName, string? TemplateId);
 }

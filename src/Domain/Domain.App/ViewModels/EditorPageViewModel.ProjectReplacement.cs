@@ -57,9 +57,12 @@ public sealed partial class EditorPageViewModel
         try
         {
             StatusText = "Opening project";
-            var session = await service.PrepareOpenTemplateProjectAsync(cancellationToken).ConfigureAwait(true);
-            if (session is null)
+            var launchRequest = await service
+                .PrepareOpenTemplateProjectLaunchAsync(cancellationToken)
+                .ConfigureAwait(true);
+            if (launchRequest is null)
                 return;
+            var session = launchRequest.Session;
 
             if (_documentWindowService is not null)
             {
@@ -74,19 +77,19 @@ public sealed partial class EditorPageViewModel
                 if (disposition == ProjectOpenDisposition.NewWindow)
                 {
                     await _documentWindowService
-                        .OpenDocumentAsync(ProjectLaunchRequest.ForProject(session), cancellationToken)
+                        .OpenDocumentAsync(launchRequest, cancellationToken)
                         .ConfigureAwait(true);
                     StatusText = "Opened project in a new window";
                     return;
                 }
 
-                await CombineProjectAsync(session.ProjectFilePath, cancellationToken).ConfigureAwait(true);
+                CombinePreparedProject(launchRequest.PreparedProjectState!, session.ProjectFilePath);
                 return;
             }
 
             if (!await ConfirmCanLeaveDocumentAsync(cancellationToken).ConfigureAwait(true))
                 return;
-            var navigationRequest = CreateEditorNavigationRequest(ProjectLaunchRequest.ForProject(session));
+            var navigationRequest = CreateEditorNavigationRequest(launchRequest);
             service.ActivateSession(session);
             _preapprovedNavigationRequest = navigationRequest;
             Messenger.Send(navigationRequest);
@@ -110,7 +113,14 @@ public sealed partial class EditorPageViewModel
 
     public async Task CombineProjectAsync(string projectPath, CancellationToken cancellationToken = default)
     {
-        var incoming = await _project3DStateService.LoadAsync(projectPath, cancellationToken).ConfigureAwait(true);
+        var prepared = await _project3DStateService
+            .PrepareLoadAsync(projectPath, cancellationToken)
+            .ConfigureAwait(true);
+        CombinePreparedProject(prepared.State, projectPath);
+    }
+
+    private void CombinePreparedProject(Project3DState incoming, string projectPath)
+    {
         var incomingTwoD = incoming.TwoDWorkspaceState;
         if (incomingTwoD is null)
             throw new InvalidOperationException("The selected project has no 2D drawing to combine.");
@@ -196,6 +206,8 @@ public sealed partial class EditorPageViewModel
         {
             [EditorNavigationParameterKeys.ProjectSession] = launchRequest.Session,
         };
+        if (launchRequest.PreparedProjectState is not null)
+            parameters[EditorNavigationParameterKeys.PreparedProjectState] = launchRequest.PreparedProjectState;
 
         if (launchRequest.PendingSourceModelPaths.Count > 0)
             parameters[EditorNavigationParameterKeys.PendingSourceModelPaths] = launchRequest.PendingSourceModelPaths;

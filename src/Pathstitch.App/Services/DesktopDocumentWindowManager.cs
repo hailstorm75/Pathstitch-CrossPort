@@ -275,6 +275,8 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
         {
             [EditorNavigationParameterKeys.ProjectSession] = launchRequest.Session,
         };
+        if (launchRequest.PreparedProjectState is not null)
+            parameters[EditorNavigationParameterKeys.PreparedProjectState] = launchRequest.PreparedProjectState;
         if (launchRequest.PendingSourceModelPaths.Count > 0)
             parameters[EditorNavigationParameterKeys.PendingSourceModelPaths] = launchRequest.PendingSourceModelPaths;
         if (launchRequest.PendingTwoDFilePaths.Count > 0)

@@ -124,9 +124,18 @@ public sealed partial class EditorPageViewModel
         var service = _projectSessionService;
         if (service is null)
             return;
-        var session = await service.PrepareOpenProjectAsync(projectPath, cancellationToken).ConfigureAwait(true);
-        if (session is null)
+        var launchRequest = await service
+            .PrepareOpenProjectLaunchAsync(projectPath, cancellationToken)
+            .ConfigureAwait(true);
+        if (launchRequest is null)
             return;
+        var session = launchRequest.Session;
+        var launchWithAssets = launchRequest with
+        {
+            PendingSourceModelPaths = sourcePaths,
+            PendingTwoDFilePaths = drawingPaths,
+            PendingReferenceImagePaths = imagePaths,
+        };
 
         if (_documentWindowService is not null)
         {
@@ -137,15 +146,13 @@ public sealed partial class EditorPageViewModel
                 return;
             if (disposition == ProjectOpenDisposition.NewWindow)
             {
-                await _documentWindowService.OpenDocumentAsync(new ProjectLaunchRequest(session, sourcePaths)
-                {
-                    PendingTwoDFilePaths = drawingPaths,
-                    PendingReferenceImagePaths = imagePaths,
-                }, cancellationToken).ConfigureAwait(true);
+                await _documentWindowService
+                    .OpenDocumentAsync(launchWithAssets, cancellationToken)
+                    .ConfigureAwait(true);
                 return;
             }
 
-            await CombineProjectAsync(projectPath, cancellationToken).ConfigureAwait(true);
+            CombinePreparedProject(launchRequest.PreparedProjectState!, projectPath);
             if (sourcePaths.Count > 0)
                 await OpenSourceModelsAsync(sourcePaths, cancellationToken).ConfigureAwait(true);
             if (drawingPaths.Count > 0)
@@ -158,11 +165,7 @@ public sealed partial class EditorPageViewModel
         if (!await ConfirmCanLeaveDocumentAsync(cancellationToken).ConfigureAwait(true))
             return;
 
-        var request = CreateEditorNavigationRequest(new ProjectLaunchRequest(session, sourcePaths)
-        {
-            PendingTwoDFilePaths = drawingPaths,
-            PendingReferenceImagePaths = imagePaths,
-        });
+        var request = CreateEditorNavigationRequest(launchWithAssets);
         service.ActivateSession(session);
         _preapprovedNavigationRequest = request;
         Messenger.Send(request);

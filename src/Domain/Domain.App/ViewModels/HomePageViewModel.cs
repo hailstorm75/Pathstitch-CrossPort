@@ -155,11 +155,11 @@ public sealed partial class HomePageViewModel(
         IsLoading = true;
         try
         {
-            ProjectSession? session;
+            ProjectLaunchRequest? launchRequest;
             try
             {
-                session = await projectSessionService
-                    .OpenTemplateProjectAsync()
+                launchRequest = await projectSessionService
+                    .OpenTemplateProjectLaunchAsync()
                     .ConfigureAwait(true);
             }
             catch (InvalidOperationException ex)
@@ -169,10 +169,10 @@ public sealed partial class HomePageViewModel(
                 return;
             }
 
-            if (session is not null)
+            if (launchRequest is not null)
             {
                 RefreshRecentProjects();
-                await StartEditorSessionAsync(new ProjectLaunchRequest(session, [])).ConfigureAwait(true);
+                await StartEditorSessionAsync(launchRequest).ConfigureAwait(true);
             }
         }
         finally
@@ -198,11 +198,11 @@ public sealed partial class HomePageViewModel(
         IsLoading = true;
         try
         {
-            ProjectSession? session;
+            ProjectLaunchRequest? launchRequest;
             try
             {
-                session = await projectSessionService
-                    .OpenRecentProjectAsync(recentProject.ProjectFilePath)
+                launchRequest = await projectSessionService
+                    .OpenRecentProjectLaunchAsync(recentProject.ProjectFilePath)
                     .ConfigureAwait(true);
             }
             catch (InvalidOperationException ex)
@@ -214,8 +214,8 @@ public sealed partial class HomePageViewModel(
 
             RefreshRecentProjects();
 
-            if (session is not null)
-                await StartEditorSessionAsync(new ProjectLaunchRequest(session, [])).ConfigureAwait(true);
+            if (launchRequest is not null)
+                await StartEditorSessionAsync(launchRequest).ConfigureAwait(true);
         }
         finally
         {
@@ -401,6 +401,8 @@ public sealed partial class HomePageViewModel(
         {
             [EditorNavigationParameterKeys.ProjectSession] = session,
         };
+        if (launchRequest.PreparedProjectState is not null)
+            parameters[EditorNavigationParameterKeys.PreparedProjectState] = launchRequest.PreparedProjectState;
 
         if (launchRequest.PendingSourceModelPaths.Count > 0)
             parameters[EditorNavigationParameterKeys.PendingSourceModelPaths] = launchRequest.PendingSourceModelPaths;

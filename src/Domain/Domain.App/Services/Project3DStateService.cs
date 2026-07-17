@@ -28,54 +28,77 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
 
         try
         {
-            var payload = await ReadProjectPayloadAsync(projectFilePath, cancellationToken).ConfigureAwait(false);
-            if (payload is null)
-                return Project3DState.Empty;
-
-            var bodies = (payload.SavedBodies3D ?? [])
-                .Select(body => body with
-                {
-                    Visible = body.Visible,
-                    Faces = body.Faces.Select(face => face with { BodyIndex = body.BodyIndex }).ToArray(),
-                })
-                .ToArray();
-            var offsets = payload.SavedBodyOffsets?
-                .Select(x => new BodyOffset3D(x.BodyIndex, x.X, x.Y, x.Z))
-                .ToArray() ?? [];
-            var generatedOutputPath = await TryExtractGeneratedOutputAsync(payload, projectFilePath, cancellationToken)
-                .ConfigureAwait(false);
-            var twoDWorkspaceState = payload.SavedTwoDWorkspaceState;
-            if (twoDWorkspaceState is null)
-            {
-                var legacyDocument = generatedOutputPath is not null && outputPreviewService is not null
-                    ? await outputPreviewService.LoadPreviewDocumentAsync(generatedOutputPath, cancellationToken).ConfigureAwait(false)
-                    : null;
-                twoDWorkspaceState = ConvertLegacyTwoDWorkspace(payload, legacyDocument);
-            }
-
-            return new Project3DState(
-                payload.SavedViewportJson ?? payload.SavedStepJson,
-                bodies,
-                offsets,
-                payload.SourceModelPath,
-                generatedOutputPath,
-                payload.DxfDataBase64,
-                payload.SavedGeneratedOutputContext,
-                payload.SavedUnfoldWorkspaceState,
-                payload.SavedProjectionWorkspaceState,
-                payload.SavedEditorWorkspaceState,
-                twoDWorkspaceState,
-                payload.SavedThreeDWorkspaceState,
-                payload.SavedStepTopology,
-                payload.SavedBatchWorkspaceState ?? ConvertLegacyBatchWorkspace(payload.BatchItems),
-                payload.SavedActivityLog ?? ConvertLegacyActivityLog(payload.LogEntries),
-                payload.SavedLearnModeEnabled ?? payload.IsLearnModeEnabled ?? true,
-                LegacyExportMeasurementLines: payload.ExportMeasurementLines);
+            return (await PrepareLoadAsync(projectFilePath, cancellationToken).ConfigureAwait(false)).State;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch
         {
             return Project3DState.Empty;
         }
+    }
+
+    public async Task<ProjectOpenPayload> PrepareLoadAsync(
+        string projectFilePath,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectFilePath))
+            throw new ArgumentException("A project path is required.", nameof(projectFilePath));
+        if (!File.Exists(projectFilePath))
+            throw new FileNotFoundException("The project file does not exist.", projectFilePath);
+
+        var payload = await ReadProjectPayloadAsync(projectFilePath, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidDataException("The project payload is empty.");
+        var state = await BuildStateAsync(payload, projectFilePath, cancellationToken).ConfigureAwait(false);
+        return new ProjectOpenPayload(payload.ProjectName, payload.TemplateId, state);
+    }
+
+    private async Task<Project3DState> BuildStateAsync(
+        Project3DStatePayload payload,
+        string projectFilePath,
+        CancellationToken cancellationToken)
+    {
+        var bodies = (payload.SavedBodies3D ?? [])
+            .Select(body => body with
+            {
+                Visible = body.Visible,
+                Faces = body.Faces.Select(face => face with { BodyIndex = body.BodyIndex }).ToArray(),
+            })
+            .ToArray();
+        var offsets = payload.SavedBodyOffsets?
+            .Select(x => new BodyOffset3D(x.BodyIndex, x.X, x.Y, x.Z))
+            .ToArray() ?? [];
+        var generatedOutputPath = await TryExtractGeneratedOutputAsync(payload, projectFilePath, cancellationToken)
+            .ConfigureAwait(false);
+        var twoDWorkspaceState = payload.SavedTwoDWorkspaceState;
+        if (twoDWorkspaceState is null)
+        {
+            var legacyDocument = generatedOutputPath is not null && outputPreviewService is not null
+                ? await outputPreviewService.LoadPreviewDocumentAsync(generatedOutputPath, cancellationToken).ConfigureAwait(false)
+                : null;
+            twoDWorkspaceState = ConvertLegacyTwoDWorkspace(payload, legacyDocument);
+        }
+
+        return new Project3DState(
+            payload.SavedViewportJson ?? payload.SavedStepJson,
+            bodies,
+            offsets,
+            payload.SourceModelPath,
+            generatedOutputPath,
+            payload.DxfDataBase64,
+            payload.SavedGeneratedOutputContext,
+            payload.SavedUnfoldWorkspaceState,
+            payload.SavedProjectionWorkspaceState,
+            payload.SavedEditorWorkspaceState,
+            twoDWorkspaceState,
+            payload.SavedThreeDWorkspaceState,
+            payload.SavedStepTopology,
+            payload.SavedBatchWorkspaceState ?? ConvertLegacyBatchWorkspace(payload.BatchItems),
+            payload.SavedActivityLog ?? ConvertLegacyActivityLog(payload.LogEntries),
+            payload.SavedLearnModeEnabled ?? payload.IsLearnModeEnabled ?? true,
+            LegacyExportMeasurementLines: payload.ExportMeasurementLines);
     }
 
     public Task SaveAsync(string projectFilePath, Project3DState state, CancellationToken cancellationToken = default)
@@ -282,13 +305,17 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
                 await using var fileStream = File.OpenRead(projectFilePath);
                 using var archive = new ZipArchive(fileStream, ZipArchiveMode.Read, leaveOpen: false);
                 var entry = archive.GetEntry("project.json");
-                var sourceModelPath = await TryExtractSourceModelAsync(archive, projectFilePath, cancellationToken).ConfigureAwait(false);
                 if (entry is not null)
                 {
                     await using var entryStream = entry.Open();
                     var payload = await JsonSerializer.DeserializeAsync<Project3DStatePayload>(entryStream, SerializerOptions, cancellationToken)
                         .ConfigureAwait(false);
-                    return payload is null ? null : payload with { SourceModelPath = sourceModelPath };
+                    if (payload is null)
+                        return null;
+
+                    var sourceModelPath = await TryExtractSourceModelAsync(archive, projectFilePath, cancellationToken)
+                        .ConfigureAwait(false);
+                    return payload with { SourceModelPath = sourceModelPath };
                 }
             }
             catch (InvalidDataException)
@@ -421,17 +448,10 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
         if (string.IsNullOrWhiteSpace(payload.DxfDataBase64))
             return null;
 
-        try
-        {
-            var dxfData = Convert.FromBase64String(payload.DxfDataBase64);
-            var targetPath = BuildEditableGeneratedOutputPath(projectFilePath);
-            await File.WriteAllBytesAsync(targetPath, dxfData, cancellationToken).ConfigureAwait(false);
-            return targetPath;
-        }
-        catch
-        {
-            return null;
-        }
+        var dxfData = Convert.FromBase64String(payload.DxfDataBase64);
+        var targetPath = BuildEditableGeneratedOutputPath(projectFilePath);
+        await File.WriteAllBytesAsync(targetPath, dxfData, cancellationToken).ConfigureAwait(false);
+        return targetPath;
     }
 
     private static IReadOnlyList<EditorActivityEntry> ConvertLegacyActivityLog(
@@ -939,6 +959,8 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
         [property: JsonPropertyName("refImageCalibrationStartY")] double? RefImageCalibrationStartY = null,
         [property: JsonPropertyName("refImageCalibrationEndX")] double? RefImageCalibrationEndX = null,
         [property: JsonPropertyName("refImageCalibrationEndY")] double? RefImageCalibrationEndY = null,
+        [property: JsonPropertyName("projectName")] string? ProjectName = null,
+        [property: JsonPropertyName("templateId")] string? TemplateId = null,
         string? SourceModelPath = null);
 
     private sealed record LegacyLayerPayload(
