@@ -126,6 +126,7 @@ public sealed partial class EditorPageViewModel
                 .SaveExportDocumentAsync(BuildExportDocument(document), outputPath, ParseDxfOptions(), cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported DXF to {Path.GetFileName(outputPath)}";
+            RecordActivity("Export DXF", Path.GetFileName(outputPath), markDocumentDirty: true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -164,6 +165,7 @@ public sealed partial class EditorPageViewModel
                     cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported SVG to {Path.GetFileName(outputPath)}";
+            RecordActivity("Export SVG", Path.GetFileName(outputPath), markDocumentDirty: true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -198,6 +200,7 @@ public sealed partial class EditorPageViewModel
                 .SaveExportDocumentAsync(BuildExportDocument(document), outputPath, ParsePngOptions(), cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported PNG to {Path.GetFileName(outputPath)}";
+            RecordActivity("Export PNG", Path.GetFileName(outputPath), markDocumentDirty: true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -232,6 +235,7 @@ public sealed partial class EditorPageViewModel
                 .SaveExportDocumentAsync(BuildExportDocument(document), outputPath, ParseSvgOptions(), cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported PDF to {Path.GetFileName(outputPath)}";
+            RecordActivity("Export PDF", Path.GetFileName(outputPath), markDocumentDirty: true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

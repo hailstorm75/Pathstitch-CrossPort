@@ -378,6 +378,7 @@ public sealed partial class EditorPageViewModel
                     result.OutputPath,
                     BuildProjectionOutputContext(),
                     cancellationToken).ConfigureAwait(true);
+                RecordActivity("Project 3D Geometry", ProjectionSelectionSummary);
                 IsPlaneSelectionActive = false;
                 ResetProjectionSelection();
             }

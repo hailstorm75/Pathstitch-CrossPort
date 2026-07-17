@@ -142,6 +142,11 @@ public sealed partial class EditorPageViewModel
                     ? "3D source model appended"
                     : "3D source model loaded",
                 cancellationToken).ConfigureAwait(true);
+            RecordActivity(
+                isAppendingToWorkspace ? "Append 3D Models" : "Open 3D Models",
+                normalizedSourceModelPaths.Count == 1
+                    ? Path.GetFileName(normalizedSourceModelPaths[0])
+                    : $"{normalizedSourceModelPaths.Count} source models");
         }
         finally
         {
@@ -175,6 +180,11 @@ public sealed partial class EditorPageViewModel
         }
 
         await ApplyLoadedSourceModelsAsync(result, isAppendingToWorkspace, result.Message, cancellationToken).ConfigureAwait(true);
+        RecordActivity(
+            isAppendingToWorkspace ? "Append 3D Models" : "Import 3D Models",
+            _pendingSourceModelPaths.Count == 1
+                ? Path.GetFileName(_pendingSourceModelPaths[0])
+                : $"{_pendingSourceModelPaths.Count} source models");
     }
 
     private Task ApplyLoadedSourceModelsAsync(

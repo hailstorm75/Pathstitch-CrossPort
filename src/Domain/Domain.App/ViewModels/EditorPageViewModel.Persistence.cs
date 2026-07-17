@@ -26,7 +26,8 @@ public sealed partial class EditorPageViewModel
             TwoDWorkspaceState: BuildPersistedTwoDWorkspaceState(),
             ThreeDWorkspaceState: _threeDWorkspace.CaptureState(),
             StepTopology: _stepTopology,
-            BatchWorkspaceState: batchWorkspaceState);
+            BatchWorkspaceState: batchWorkspaceState,
+            ActivityLog: ActivityLog);
     }
 
     private async Task PersistDocumentAsync(Project3DState state, CancellationToken cancellationToken)

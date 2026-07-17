@@ -223,8 +223,9 @@ public partial class Editor2DLayersPanel : UserControl
         _layerColorCommitCancellation?.Cancel();
         _layerColorCommitCancellation?.Dispose();
         _layerColorCommitCancellation = null;
+        var editingLayerColorId = _editingLayerColorId;
         _editingLayerColorId = null;
-        ViewModel?.CommitTwoDLayerColorEdit();
+        ViewModel?.CommitTwoDLayerColorEdit(editingLayerColorId);
     }
 
     private static void SetLayerColorTextValidity(TextBox textBox, bool isValid)

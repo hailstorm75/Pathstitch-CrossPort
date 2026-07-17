@@ -118,6 +118,8 @@ public sealed partial class EditorPageViewModel
         var merged = Editor2DProjectCombiner.Combine(_twoDWorkspace.State, incomingTwoD);
         _twoDWorkspace.Apply(merged, recordHistory: true);
         ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        MergeActivityLog(incoming.ActivityLog);
+        RecordActivity("Combine Project", $"Combined {Path.GetFileName(projectPath)}");
         MarkDocumentDirty();
         ActiveEditorMode = EditorMode.TwoD;
         StatusText = $"Combined {Path.GetFileName(projectPath)}";

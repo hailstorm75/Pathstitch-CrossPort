@@ -23,6 +23,7 @@ public sealed partial class EditorPageViewModel
     {
         _twoDWorkspace.CommitDocumentEdit(document, selectedPathIds);
         ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        RecordActivity("2D Edit", "Committed drawing edit");
         Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
     }
 
@@ -32,6 +33,7 @@ public sealed partial class EditorPageViewModel
         if (!result.IsSuccess)
             return false;
         ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        RecordActivity("2D Edit", result.Message);
         Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
         ViewportStateText = OutputStatusSummary;
         return true;
@@ -42,6 +44,7 @@ public sealed partial class EditorPageViewModel
         if (!_twoDWorkspace.ReplacePath(sourcePathId, replacements))
             return false;
         ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        RecordActivity("2D Edit", "Replaced path geometry");
         Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
         ViewportStateText = OutputStatusSummary;
         return true;
@@ -52,6 +55,7 @@ public sealed partial class EditorPageViewModel
         if (!_twoDWorkspace.UpdatePathVertex(pathId, vertexIndex, point))
             return false;
         ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        RecordActivity("2D Edit", "Moved path vertex");
         Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
         ViewportStateText = OutputStatusSummary;
         return true;

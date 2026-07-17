@@ -87,6 +87,8 @@ public sealed partial class EditorPageViewModel
         IsSaving = true;
         ErrorMessage = null;
         StatusText = "Saving project as";
+        var activitySnapshot = ActivityLog;
+        RecordActivity("Save Project As", Path.GetFileName(targetPath));
         try
         {
             var stateBeingSaved = await CaptureProjectStateAsync(CancellationToken.None).ConfigureAwait(true);
@@ -114,6 +116,7 @@ public sealed partial class EditorPageViewModel
         }
         catch (Exception ex)
         {
+            RestoreActivityLog(activitySnapshot);
             _logger.LogError(ex, "Failed to save project as {ProjectPath}", targetPath);
             StatusText = "Project Save As failed";
             ErrorMessage = ex.Message;
@@ -173,6 +176,8 @@ public sealed partial class EditorPageViewModel
         IsSaving = true;
         ErrorMessage = null;
         StatusText = "Saving project";
+        var activitySnapshot = ActivityLog;
+        RecordActivity("Save Project", Path.GetFileName(ProjectSession.ProjectFilePath));
 
         try
         {
@@ -185,11 +190,13 @@ public sealed partial class EditorPageViewModel
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            RestoreActivityLog(activitySnapshot);
             StatusText = "Project save cancelled";
             return false;
         }
         catch (Exception ex)
         {
+            RestoreActivityLog(activitySnapshot);
             _logger.LogError(ex, "Failed to save project {ProjectPath}", ProjectSession.ProjectFilePath);
             StatusText = "Project save failed";
             ErrorMessage = ex.Message;

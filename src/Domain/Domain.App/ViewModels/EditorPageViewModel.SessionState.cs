@@ -40,6 +40,8 @@ public sealed partial class EditorPageViewModel
             SetSourceModelPath(null);
             SetDistortionData(string.Empty);
             ClearTwoDState();
+            RestoreActivityLog([]);
+            IsActivityLogExpanded = false;
             ActiveEditorMode = EditorMode.ThreeD;
             ActiveTool = Editor3DTool.Select;
             ThreeDOrthographic = false;
@@ -172,6 +174,7 @@ public sealed partial class EditorPageViewModel
         using (SuppressDocumentDirtyTracking())
         {
             state = await _project3DStateService.LoadAsync(ProjectSession.ProjectFilePath, token).ConfigureAwait(true);
+            RestoreActivityLog(state.ActivityLog);
             ViewportJsonContent = state.ViewportJson;
             SetSourceModelPath(state.SourceModelPath);
             _stepTopology = state.StepTopology;

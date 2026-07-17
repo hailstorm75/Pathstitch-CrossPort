@@ -105,7 +105,7 @@
       <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
     </Style>
   </UserControl.Styles>
-  <Grid Background="{StaticResource BaseBackgroundBrush}" RowDefinitions="Auto,Auto,*">
+  <Grid Background="{StaticResource BaseBackgroundBrush}" RowDefinitions="Auto,Auto,*,Auto">
     <Menu
       AutomationProperties.AutomationId="editor.menu-strip"
       Background="{StaticResource PanelBackgroundBrush}"
@@ -245,6 +245,12 @@
           HotKey="Ctrl+D0"
           IsEnabled="{Binding IsShowingTwoDWorkspace}"
           Click="OnZoomToFitClicked" />
+        <Separator />
+        <MenuItem
+          x:Name="ActivityLogMenuItem"
+          AutomationProperties.AutomationId="editor.menu.view.log-tray"
+          Header="{Binding ActivityLogToggleLabel}"
+          Click="OnToggleActivityLogClicked" />
       </MenuItem>
       <MenuItem
         AutomationProperties.AutomationId="editor.menu.help"
@@ -416,6 +422,20 @@
               Foreground="{StaticResource PrimaryTextBrush}"
               Text="⌂" />
           </Button>
+          <Button
+            AutomationProperties.AutomationId="editor.workspace.log-tray"
+            AutomationProperties.Name="{Binding ActivityLogToggleLabel}"
+            AutomationProperties.HelpText="{Binding ActivityLogToggleHelpText}"
+            Classes="chip-button"
+            Classes.active="{Binding IsActivityLogExpanded}"
+            Width="34"
+            Height="34"
+            Padding="0"
+            IsVisible="{Binding !IsShowingBatchWorkspace}"
+            ToolTip.Tip="{Binding ActivityLogToggleLabel}"
+            Click="OnToggleActivityLogClicked">
+            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="14" Text="≡" />
+          </Button>
         </StackPanel>
 
         <Border
@@ -488,5 +508,6 @@
         ResizeDirection="Columns" />
       <pages:EditorInspectorHost Grid.Column="5" AutomationProperties.AutomationId="editor.inspector-host" />
     </Grid>
+    <pages:EditorActivityLogTray Grid.Row="3" />
   </Grid>
 </UserControl>

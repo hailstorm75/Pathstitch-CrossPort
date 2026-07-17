@@ -346,6 +346,9 @@ public sealed partial class EditorPageViewModel
             RefreshTwoDLayerFacade();
             await SetActiveEditorModeAsync(EditorMode.TwoD, CancellationToken.None).ConfigureAwait(true);
             StatusText = $"Imported {importedCount} image file(s)";
+            RecordActivity(
+                "Import Reference Images",
+                importedCount == 1 ? "Imported 1 image" : $"Imported {importedCount} images");
             MarkDocumentDirty();
         }
         return importedCount;

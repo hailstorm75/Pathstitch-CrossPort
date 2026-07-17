@@ -56,7 +56,8 @@ public sealed class Project3DStateService
                 payload.SavedTwoDWorkspaceState,
                 payload.SavedThreeDWorkspaceState,
                 payload.SavedStepTopology,
-                payload.SavedBatchWorkspaceState);
+                payload.SavedBatchWorkspaceState,
+                payload.SavedActivityLog ?? []);
         }
         catch
         {
@@ -123,6 +124,9 @@ public sealed class Project3DStateService
         payload["savedStepTopology"] = state.StepTopology is null
             ? null
             : JsonSerializer.SerializeToNode(state.StepTopology, SerializerOptions);
+        payload["savedActivityLog"] = state.ActivityLog is not { Count: > 0 }
+            ? null
+            : JsonSerializer.SerializeToNode(state.ActivityLog, SerializerOptions);
         var generatedOutputDataBase64 = await TryReadGeneratedOutputBase64Async(state.GeneratedOutputPath, cancellationToken)
             .ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(generatedOutputDataBase64))
@@ -462,6 +466,7 @@ public sealed class Project3DStateService
         [property: JsonPropertyName("savedThreeDWorkspaceState")] Editor3DWorkspaceState? SavedThreeDWorkspaceState,
         [property: JsonPropertyName("savedBatchWorkspaceState")] EditorBatchWorkspaceState? SavedBatchWorkspaceState,
         [property: JsonPropertyName("savedStepTopology")] StepGeometryDocument? SavedStepTopology,
+        [property: JsonPropertyName("savedActivityLog")] IReadOnlyList<EditorActivityEntry>? SavedActivityLog,
         string? SourceModelPath = null);
 
     private sealed record BodyOffsetPayload(

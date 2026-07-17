@@ -137,8 +137,9 @@ public sealed partial class EditorPageViewModel
 
     public void CreateTwoDLayer()
     {
-        _twoDWorkspace.CreateLayer();
+        var layer = _twoDWorkspace.CreateLayer();
         RefreshTwoDLayerFacade();
+        RecordActivity("Create Layer", layer.Name, layer.Id);
     }
 
     public void CreateTwoDFolder(string? parentFolderId = null)
@@ -234,6 +235,8 @@ public sealed partial class EditorPageViewModel
                 pixelHeight);
             RefreshTwoDLayerFacade();
             StatusText = $"Imported reference image: {Path.GetFileName(imagePath)}";
+            if (_twoDWorkspace.ActiveLayer is { } layer)
+                RecordActivity("Import Reference Image", Path.GetFileName(imagePath), layer.Id);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
         {
@@ -361,6 +364,7 @@ public sealed partial class EditorPageViewModel
         {
             RefreshTwoDLayerFacade();
             StatusText = $"Reference image calibrated to {width:0.###} units wide";
+            RecordActivity("Calibrate Reference Image", $"Width {width:0.###} units", layerId);
         }
     }
 
@@ -405,6 +409,7 @@ public sealed partial class EditorPageViewModel
         CancelTwoDReferencePointCalibration();
         RefreshTwoDLayerFacade();
         StatusText = $"Reference image calibrated to {target:0.###} units between points";
+        RecordActivity("Calibrate Reference Image", $"Distance {target:0.###} units", layerId);
         return true;
     }
 
@@ -439,6 +444,7 @@ public sealed partial class EditorPageViewModel
             return;
         RefreshTwoDLayerFacade();
         StatusText = "Reference image vectorized; source image hidden";
+        RecordActivity("Trace Reference Image", "Generated editable vectors");
     }
 
     public void CancelTwoDReferenceTrace()
@@ -454,6 +460,7 @@ public sealed partial class EditorPageViewModel
         {
             RefreshTwoDLayerFacade();
             StatusText = "Reference image background removed";
+            RecordActivity("Remove Image Background", "Removed reference image background", layerId);
         }
     }
 
@@ -463,6 +470,7 @@ public sealed partial class EditorPageViewModel
         {
             RefreshTwoDLayerFacade();
             StatusText = "Reference image background restored";
+            RecordActivity("Restore Image Background", "Restored reference image background", layerId);
         }
     }
 
@@ -502,7 +510,10 @@ public sealed partial class EditorPageViewModel
     public void RenameTwoDLayer(string layerId, string name)
     {
         if (_twoDWorkspace.RenameLayer(layerId, name))
+        {
             RefreshTwoDLayerFacade();
+            RecordActivity("Rename Layer", name.Trim(), layerId);
+        }
     }
 
     public bool SetTwoDLayerColor(string layerId, string colorHex)
@@ -511,6 +522,7 @@ public sealed partial class EditorPageViewModel
         if (!_twoDWorkspace.SetLayerColor(layerId, colorHex))
             return false;
         RefreshTwoDLayerFacade();
+        RecordActivity("Change Layer Color", colorHex.Trim().ToUpperInvariant(), layerId);
         return true;
     }
 
@@ -525,11 +537,13 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
-    public bool CommitTwoDLayerColorEdit()
+    public bool CommitTwoDLayerColorEdit(string? layerId = null)
     {
         if (!_twoDWorkspace.CommitLayerColorEdit())
             return false;
         RefreshTwoDLayerFacade();
+        if (TwoDLayers.FirstOrDefault(layer => layer.Id == layerId) is { } layer)
+            RecordActivity("Change Layer Color", layer.ColorHex, layer.Id);
         return true;
     }
 
@@ -539,6 +553,7 @@ public sealed partial class EditorPageViewModel
         {
             CancelTwoDReferencePointCalibration();
             RefreshTwoDLayerFacade();
+            RecordActivity("Delete Layer", "Deleted layer", layerId);
         }
     }
 

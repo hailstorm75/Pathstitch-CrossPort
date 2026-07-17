@@ -150,6 +150,12 @@ public partial class EditorShellView : EditorInteractionControlBase
             viewModel.FrameTwoDToContent();
     }
 
+    private void OnToggleActivityLogClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.ToggleActivityLog();
+    }
+
     private void OnSearchCommandsClicked(object? sender, RoutedEventArgs e)
         => CommandPalette.FocusSearch();
 
@@ -312,6 +318,7 @@ public partial class EditorShellView : EditorInteractionControlBase
         SetHotKey(ZoomInMenuItem, EditorCommandPaletteCatalog.ZoomInIdentifier);
         SetHotKey(ZoomOutMenuItem, EditorCommandPaletteCatalog.ZoomOutIdentifier);
         SetHotKey(ZoomToFitMenuItem, EditorCommandPaletteCatalog.ZoomToFitIdentifier);
+        SetHotKey(ActivityLogMenuItem, EditorCommandPaletteCatalog.ToggleActivityLogIdentifier);
         SetHotKey(DocumentationMenuItem, EditorCommandPaletteCatalog.DocumentationIdentifier);
         SetHotKey(PreferencesMenuItem, EditorCommandPaletteCatalog.PreferencesIdentifier);
     }

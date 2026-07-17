@@ -351,6 +351,7 @@ public static class EditorCommandPaletteCatalog
     public const string ZoomInIdentifier = "view.zoomIn";
     public const string ZoomOutIdentifier = "view.zoomOut";
     public const string ZoomToFitIdentifier = "view.zoomFit";
+    public const string ToggleActivityLogIdentifier = "view.toggleLogs";
     public const string UndoIdentifier = "edit.undo";
     public const string RedoIdentifier = "edit.redo";
     public const string DeleteIdentifier = "edit.delete";
@@ -388,6 +389,7 @@ public static class EditorCommandPaletteCatalog
                 Command(mode, ZoomInIdentifier, "Zoom In", "View · Increase the 2D viewport zoom.", "Ctrl+=", "view"),
                 Command(mode, ZoomOutIdentifier, "Zoom Out", "View · Decrease the 2D viewport zoom.", "Ctrl+-", "view"),
                 Command(mode, ZoomToFitIdentifier, "Zoom to Fit", "View · Frame all visible 2D content.", null, "view"),
+                Command(mode, ToggleActivityLogIdentifier, "Toggle Log Tray", "View · Show or hide the persisted activity log.", null, "view"),
                 Command(mode, UndoIdentifier, "Undo", "Edit · Undo the last workspace change.", "Ctrl+Z", "edit"),
                 Command(mode, RedoIdentifier, "Redo", "Edit · Redo the last workspace change.", "Ctrl+Shift+Z", "edit"),
                 Command(mode, DeleteIdentifier, "Delete Selection", "Edit · Delete selected geometry or measurement.", "Delete", "edit"),

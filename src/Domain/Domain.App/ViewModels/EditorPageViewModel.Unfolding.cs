@@ -57,6 +57,7 @@ public sealed partial class EditorPageViewModel
             wholeBody: false,
             actionLabel: UnfoldSelectedButtonText,
             activatePreviewWorkspace: true,
+            recordActivity: true,
             cancellationToken).ConfigureAwait(true);
     }
 
@@ -71,6 +72,7 @@ public sealed partial class EditorPageViewModel
             wholeBody: true,
             actionLabel: WholeBodyActionLabel,
             activatePreviewWorkspace: true,
+            recordActivity: true,
             cancellationToken).ConfigureAwait(true);
     }
 
@@ -84,6 +86,7 @@ public sealed partial class EditorPageViewModel
             wholeBody: _wholeBodyRecompute,
             actionLabel: UnfoldPreviewRefreshButtonText,
             activatePreviewWorkspace: false,
+            recordActivity: false,
             cancellationToken).ConfigureAwait(true);
     }
 
@@ -120,6 +123,7 @@ public sealed partial class EditorPageViewModel
                 wholeBody: _wholeBodyRecompute,
                 actionLabel: "Live recompute",
                 activatePreviewWorkspace: false,
+                recordActivity: false,
                 cancellationTokenSource.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
@@ -142,6 +146,7 @@ public sealed partial class EditorPageViewModel
         bool wholeBody,
         string actionLabel,
         bool activatePreviewWorkspace,
+        bool recordActivity,
         CancellationToken cancellationToken)
     {
         StatusText = $"{actionLabel} running";
@@ -164,6 +169,8 @@ public sealed partial class EditorPageViewModel
                 result.OutputPath,
                 BuildUnfoldOutputContext(wholeBody, actionLabel),
                 cancellationToken).ConfigureAwait(true);
+            if (recordActivity)
+                RecordActivity("Flatten 3D Geometry", wholeBody ? "Flattened entire body" : "Flattened selected faces");
             return;
         }
 

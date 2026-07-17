@@ -1,0 +1,46 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorActivityLogTray"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.log-tray"
+  IsVisible="{Binding IsActivityLogExpanded}">
+  <Border
+    Height="120"
+    Background="{StaticResource PanelBackgroundBrush}"
+    BorderBrush="{StaticResource BorderBrush}"
+    BorderThickness="0,1,0,0"
+    Padding="12,8">
+    <Grid>
+      <TextBlock
+        AutomationProperties.AutomationId="editor.log-tray.empty"
+        VerticalAlignment="Center"
+        Foreground="{StaticResource MutedTextBrush}"
+        IsVisible="{Binding HasNoActivityLogEntries}"
+        Text="No activity yet" />
+      <ScrollViewer
+        x:Name="ActivityScrollViewer"
+        AutomationProperties.AutomationId="editor.log-tray.entries"
+        IsVisible="{Binding HasActivityLogEntries}"
+        VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding ActivityLog}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="models:EditorActivityEntry">
+              <Grid
+                AutomationProperties.Name="{Binding AccessibilitySummary}"
+                Margin="0,2"
+                ColumnDefinitions="72,150,*,Auto">
+                <TextBlock FontSize="11" Foreground="{StaticResource MutedTextBrush}" Text="{Binding TimestampText}" />
+                <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Text="{Binding Action}" />
+                <TextBlock Grid.Column="2" FontSize="11" Foreground="{StaticResource PrimaryTextBrush}" Text="{Binding Details}" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="3" Margin="8,0,0,0" FontSize="10" Foreground="{StaticResource MutedTextBrush}" Text="{Binding LayerId}" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Grid>
+  </Border>
+</UserControl>
