@@ -200,16 +200,20 @@ public sealed class NavigationScopeIsolationTests
             var privateInstance = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
             var documentHandles = Assert.IsAssignableFrom<System.Collections.IList>(
                 typeof(DesktopDocumentWindowManager).GetField("_documents", privateInstance)!.GetValue(manager));
+            var backgroundHandle = documentHandles[0];
             var activeHandle = documentHandles[1];
             var activeDocumentField = typeof(DesktopDocumentWindowManager)
                 .GetField("_activeDocument", privateInstance)!;
             activeDocumentField.SetValue(manager, activeHandle);
 
-            await _ui.RunAsync(windows[0].Close);
-            await WaitUntilAsync(() => !windows[0].IsVisible);
+            typeof(DesktopDocumentWindowManager)
+                .GetMethod("OnDocumentClosed", privateInstance)!
+                .Invoke(manager, [backgroundHandle]);
+            Assert.Equal(2, manager.DocumentCount);
 
             Assert.Same(activeHandle, activeDocumentField.GetValue(manager));
 
+            await _ui.RunAsync(windows[0].Close);
             await _ui.RunAsync(windows[1].Close);
             await _ui.RunAsync(windows[2].Close);
             await WaitUntilAsync(() => manager.DocumentCount == 0);
