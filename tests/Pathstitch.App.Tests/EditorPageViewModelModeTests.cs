@@ -928,6 +928,52 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task GenericTwoDEscape_ClearsSelectionReturnsSelectAndPreservesMeasurements()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(0, 0), new(10, 0)], false);
+        var measurement = new Editor2DMeasurement("measure", new(0, 0), new(10, 0));
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDMeasurements = [measurement];
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDSelectedMeasurementId = measurement.Id;
+        viewModel.TwoDActiveTool = Editor2DTool.SketchLine;
+        viewModel.TwoDWorkspace.ClearHistory();
+
+        Assert.True(viewModel.TryActivateEditorShortcut("escape"));
+
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        Assert.Empty(viewModel.TwoDSelectedPathIds);
+        Assert.Null(viewModel.TwoDSelectedMeasurementId);
+        Assert.Equal(measurement, Assert.Single(viewModel.TwoDMeasurements));
+        Assert.False(viewModel.TwoDWorkspace.CanUndo);
+    }
+
+    [Fact]
+    public async Task ScaleEscape_DiscardsStagingReturnsSelectAndPreservesSelection()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var source = new Editor2DPreviewPath("shape", "LINE", [new(0, 0), new(10, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        viewModel.TwoDActiveTool = Editor2DTool.Scale;
+        viewModel.TwoDScaleFactorText = "2.5";
+        viewModel.TwoDScalePivot = new(3, 4);
+        viewModel.TwoDWorkspace.ClearHistory();
+
+        Assert.True(viewModel.TryActivateEditorShortcut("escape"));
+
+        Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        Assert.Equal([source.Id], viewModel.TwoDSelectedPathIds);
+        Assert.Equal("1", viewModel.TwoDScaleFactorText);
+        Assert.Null(viewModel.TwoDScalePivot);
+        Assert.Equal(source, Assert.Single(viewModel.TwoDDocument!.Paths));
+        Assert.False(viewModel.TwoDWorkspace.CanUndo);
+    }
+
+    [Fact]
     public void MoveCopyMode_ResetsWhenMoveToolActivates()
     {
         var viewModel = CreateViewModel();

@@ -609,6 +609,62 @@ public sealed class EditorShellHeadlessTests
     }
 
     [Fact]
+    public async Task LiveCanvas_EscapeClearsSelectionAndReturnsToSelect()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var source = new Editor2DPreviewPath("selected", "LINE", [new(0, 0), new(5, 0)], false);
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document with { Paths = [source] };
+        viewModel.TwoDSelectedPathIds = [source.Id];
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.Select;
+            viewModel.TwoDSelectedPathIds = [source.Id];
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            var key = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
+            canvas.RaiseEvent(key);
+
+            Assert.True(key.Handled);
+            Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+            Assert.Empty(viewModel.TwoDSelectedPathIds);
+        });
+    }
+
+    [Theory]
+    [InlineData(Editor2DTool.SketchLine, "HandleSketchLineClick")]
+    [InlineData(Editor2DTool.Measure, "HandleMeasurementClick")]
+    [InlineData(Editor2DTool.Dimension, "HandleDimensionClick")]
+    public async Task LiveCanvas_EscapeCancelsFirstPointDraftAndReturnsToSelect(
+        Editor2DTool tool,
+        string clickMethod)
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document;
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = tool;
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            typeof(DxfPreviewCanvas)
+                .GetMethod(clickMethod, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .Invoke(canvas, [new Point(canvas.Bounds.Width / 2, canvas.Bounds.Height / 2)]);
+            var key = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
+            canvas.RaiseEvent(key);
+
+            Assert.True(key.Handled);
+            Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+            Assert.Empty(viewModel.TwoDDocument!.Paths);
+            Assert.Empty(viewModel.TwoDMeasurements);
+        });
+    }
+
+    [Fact]
     public async Task LiveShell_ModeChangesSwapRailWorkspaceContextAndInspectorsByAutomationId()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();

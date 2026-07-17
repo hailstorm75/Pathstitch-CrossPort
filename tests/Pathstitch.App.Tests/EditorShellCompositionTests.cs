@@ -245,6 +245,7 @@ public sealed class EditorShellCompositionTests
         var handlers = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorInteractionControlBase.cs");
         var workspace = ReadPage("Editor2DView.axaml");
         var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+        var tools = ReadRepositoryFile("src", "Domain", "Domain.App", "ViewModels", "EditorPageViewModel.Tools.cs");
 
         Assert.Contains("TwoDScaleFromCenter, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDScaleFactorText, Mode=TwoWay", inspector, StringComparison.Ordinal);
@@ -260,7 +261,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("ScaleFactor=\"{Binding TwoDScalePreviewFactor}\"", workspace, StringComparison.Ordinal);
         Assert.Contains("ScaleFactorText=\"{Binding TwoDScaleFactorText, Mode=TwoWay}\"", workspace, StringComparison.Ordinal);
         Assert.Contains("SetCurrentValue(ScaleFactorTextProperty", canvas, StringComparison.Ordinal);
-        Assert.Contains("scaleViewModel.CancelTwoDScaleAndExit()", canvas, StringComparison.Ordinal);
+        Assert.Contains("viewModel.CancelTwoDEscape()", canvas, StringComparison.Ordinal);
+        Assert.Contains("CancelTwoDScaleAndExit()", tools, StringComparison.Ordinal);
         Assert.Contains("scaleViewModel.ConfirmTwoDScaleAndExit()", canvas, StringComparison.Ordinal);
         Assert.DoesNotContain("var scaledDocument = ScalePaths(_scaleDocumentSnapshot", canvas, StringComparison.Ordinal);
     }
@@ -272,6 +274,7 @@ public sealed class EditorShellCompositionTests
         var inspector = ReadPage("Editor2DInspector.axaml");
         var handlers = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorInteractionControlBase.cs");
         var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+        var tools = ReadRepositoryFile("src", "Domain", "Domain.App", "ViewModels", "EditorPageViewModel.Tools.cs");
 
         Assert.Contains("TwoDMirrorLineMode=\"{Binding TwoDMirrorLineMode, Mode=TwoWay}\"", view, StringComparison.Ordinal);
         Assert.Contains("TwoDMirrorFlipCopy=\"{Binding TwoDMirrorFlipCopy}\"", view, StringComparison.Ordinal);
@@ -289,7 +292,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("if (!TwoDMirrorLineMode)", canvas, StringComparison.Ordinal);
         Assert.Contains("Editor2DGeometry.CreateMirrorCopy", canvas, StringComparison.Ordinal);
         Assert.Contains("mirrorViewModel.ConfirmTwoDMirror()", canvas, StringComparison.Ordinal);
-        Assert.Contains("mirrorViewModel.CancelTwoDMirror(exitTool: true)", canvas, StringComparison.Ordinal);
+        Assert.Contains("viewModel.CancelTwoDEscape()", canvas, StringComparison.Ordinal);
+        Assert.Contains("CancelTwoDMirror(exitTool: true)", tools, StringComparison.Ordinal);
         Assert.Contains("Header = \"Break Mirror Link\"", canvas, StringComparison.Ordinal);
         Assert.Contains("editor.canvas.2d.break-mirror-link", canvas, StringComparison.Ordinal);
         Assert.Contains("viewModel.BreakTwoDMirrorLinks()", canvas, StringComparison.Ordinal);
@@ -392,6 +396,7 @@ public sealed class EditorShellCompositionTests
         var twoD = ReadPage("Editor2DView.axaml");
         var inspector = ReadPage("Editor2DInspector.axaml");
         var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+        var tools = ReadRepositoryFile("src", "Domain", "Domain.App", "ViewModels", "EditorPageViewModel.Tools.cs");
 
         Assert.Contains("DxfPreviewCanvas", twoD, StringComparison.Ordinal);
         Assert.DoesNotContain("StackPanel", twoD, StringComparison.Ordinal);
@@ -419,7 +424,8 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.corner.ok\"", inspector, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.corner.cancel\"", inspector, StringComparison.Ordinal);
         Assert.Contains("ConfirmTwoDCornerToolSession", canvas, StringComparison.Ordinal);
-        Assert.Contains("CancelTwoDCornerToolSession", canvas, StringComparison.Ordinal);
+        Assert.Contains("viewModel.CancelTwoDEscape()", canvas, StringComparison.Ordinal);
+        Assert.Contains("CancelTwoDCornerToolSession(exitTool: true)", tools, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.AutomationId=\"editor.2d.export-selected-only\"", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDExportSelectedOnly, Mode=TwoWay", inspector, StringComparison.Ordinal);
         Assert.Contains("TwoDExportMeasurementLines, Mode=TwoWay", inspector, StringComparison.Ordinal);
