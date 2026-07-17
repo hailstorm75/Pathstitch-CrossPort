@@ -367,6 +367,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
         if (recordHistory)
         {
+            CommitReferenceImageTransformEdit();
             _undo.Push(_state);
             _redo.Clear();
         }
@@ -1635,7 +1636,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         if (_referenceImageTraceLayerId == source.Id)
             CancelReferenceImageTrace();
         if (_referenceImageTransformLayerId == source.Id)
-            CancelReferenceImageTransformEdit();
+            CommitReferenceImageTransformEdit();
         if (source.Kind == Editor2DLayerKind.Geometry)
         {
             var geometryLayers = ordered.Where(layer => layer.Kind == Editor2DLayerKind.Geometry).ToArray();
@@ -1700,6 +1701,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         if (pixelWidth <= 0 || pixelHeight <= 0)
             throw new ArgumentOutOfRangeException(nameof(pixelWidth), "Reference image dimensions must be positive.");
 
+        CommitReferenceImageTransformEdit();
         var layers = Layers.OrderBy(layer => layer.Order).ToList();
         var scale = Math.Min(1.0, 240.0 / Math.Max(pixelWidth, pixelHeight));
         var id = Guid.NewGuid().ToString("N");
@@ -1723,6 +1725,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             ReferenceImage: image);
         layers.Add(layer);
         Apply(_state with { Layers = layers, ActiveLayerId = layer.Id, SelectedPathIds = [] });
+        BeginReferenceImageTransformEdit(layer.Id);
         return layer;
     }
 
@@ -1750,7 +1753,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         if (_referenceImageTransformLayerId == layerId && _referenceImageTransformOrigin is not null)
             return true;
 
-        CancelReferenceImageTransformEdit();
+        CommitReferenceImageTransformEdit();
         _referenceImageTransformOrigin = _state;
         _referenceImageTransformLayerId = layerId;
         OnPropertyChanged(nameof(IsReferenceImageTransformEditActive));
@@ -1937,6 +1940,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             || _referenceImageTraceService is null)
             return false;
 
+        CommitReferenceImageTransformEdit();
         _referenceImageTraceLayerId = layerId;
         RefreshReferenceImageTracePreview();
         return true;
@@ -2070,14 +2074,20 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         if (layer is null)
             return false;
 
+        if (_referenceImageTransformLayerId != layerId)
+            CommitReferenceImageTransformEdit();
         Apply(
             _state with { ActiveLayerId = layer.Id, SelectedPathIds = layer.PathIds },
             recordHistory: false);
+        if (layer.IsReferenceImage && layer.IsVisible && !layer.IsLocked)
+            BeginReferenceImageTransformEdit(layer.Id);
         return true;
     }
 
     public bool ToggleLayerVisibility(string layerId)
     {
+        if (_referenceImageTransformLayerId == layerId)
+            CommitReferenceImageTransformEdit();
         var changed = UpdateLayer(layerId, layer => layer with { IsVisible = !layer.IsVisible });
         if (changed && _referenceImageTraceLayerId == layerId)
         {
@@ -2091,6 +2101,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public bool ToggleLayerLock(string layerId)
     {
+        if (_referenceImageTransformLayerId == layerId)
+            CommitReferenceImageTransformEdit();
         var changed = UpdateLayer(layerId, layer => layer with { IsLocked = !layer.IsLocked });
         if (changed && _referenceImageTraceLayerId == layerId
             && Layers.First(layer => layer.Id == layerId).IsLocked)

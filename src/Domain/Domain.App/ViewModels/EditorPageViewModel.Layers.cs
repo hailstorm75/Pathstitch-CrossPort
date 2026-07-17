@@ -11,6 +11,8 @@ public sealed partial class EditorPageViewModel
 
     public string? TwoDActiveLayerId => _twoDWorkspace.ActiveLayerId;
 
+    public bool TwoDReferenceImageTransformEditActive => _twoDWorkspace.IsReferenceImageTransformEditActive;
+
     public IReadOnlyList<Editor2DReferenceImage> TwoDReferenceImages => TwoDLayers
         .Where(layer => layer.IsVisible && layer.ReferenceImage is not null)
         .Select(layer => layer.ReferenceImage!)
@@ -474,6 +476,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDActiveReferenceImage));
         OnPropertyChanged(nameof(HasTwoDActiveReferenceImage));
         OnPropertyChanged(nameof(TwoDActiveReferenceImageLocked));
+        OnPropertyChanged(nameof(TwoDReferenceImageTransformEditActive));
         OnPropertyChanged(nameof(HasTwoDReferenceTraceSession));
         OnPropertyChanged(nameof(ShowTwoDReferenceCalibration));
         OnPropertyChanged(nameof(CanCommitTwoDReferenceTrace));

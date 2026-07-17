@@ -150,6 +150,7 @@ public sealed partial class Editor2DWorkspaceViewModel
         var addedLayerCount = layers.Count - Layers.Count;
         if (addedLayerCount == 0)
             return Editor2DWorkspaceOperationResult.Failure("The Photoshop file contains no importable layer data");
+        CommitReferenceImageTransformEdit();
         Apply(_state with
         {
             Document = RebuildDocument(Document, Document.Paths.Concat(additions).ToArray()),
@@ -159,6 +160,9 @@ public sealed partial class Editor2DWorkspaceViewModel
             SelectedPathIds = selectedIds,
             SelectedMeasurementId = null,
         });
+        var activeLayer = layers[^1];
+        if (activeLayer.IsReferenceImage && activeLayer.IsVisible && !activeLayer.IsLocked)
+            BeginReferenceImageTransformEdit(activeLayer.Id);
         return Editor2DWorkspaceOperationResult.Success(
             $"Imported {addedLayerCount} layer{(addedLayerCount == 1 ? string.Empty : "s")} from {Path.GetFileName(import.SourcePath)}");
     }

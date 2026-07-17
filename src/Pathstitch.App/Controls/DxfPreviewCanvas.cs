@@ -254,6 +254,9 @@ public sealed class DxfPreviewCanvas : Control
     public static readonly StyledProperty<bool> ActiveReferenceImageLockedProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(ActiveReferenceImageLocked));
 
+    public static readonly StyledProperty<bool> ReferenceImageTransformEditActiveProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, bool>(nameof(ReferenceImageTransformEditActive));
+
     public static readonly StyledProperty<bool> ReferenceCalibrationActiveProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, bool>(
             nameof(ReferenceCalibrationActive), defaultBindingMode: BindingMode.TwoWay);
@@ -514,6 +517,7 @@ public sealed class DxfPreviewCanvas : Control
             ReferenceImagesProperty,
             ActiveReferenceImageProperty,
             ActiveReferenceImageLockedProperty,
+            ReferenceImageTransformEditActiveProperty,
             ReferenceCalibrationActiveProperty,
             ReferenceCalibrationPointsProperty,
             CornerParametersProperty,
@@ -1051,6 +1055,12 @@ public sealed class DxfPreviewCanvas : Control
     {
         get => GetValue(ActiveReferenceImageLockedProperty);
         set => SetValue(ActiveReferenceImageLockedProperty, value);
+    }
+
+    public bool ReferenceImageTransformEditActive
+    {
+        get => GetValue(ReferenceImageTransformEditActiveProperty);
+        set => SetValue(ReferenceImageTransformEditActiveProperty, value);
     }
 
     public bool ReferenceCalibrationActive
@@ -1623,7 +1633,7 @@ public sealed class DxfPreviewCanvas : Control
             }
         }
 
-        if (ActiveTool == Editor2DTool.Select
+        if (ReferenceImageTransformEditActive
             && !ActiveReferenceImageLocked
             && ActiveReferenceImage is { } activeImage
             && TryHitReferenceImageGizmo(point.Position, activeImage, out var dragMode))
@@ -1633,6 +1643,12 @@ public sealed class DxfPreviewCanvas : Control
             _referenceImageDragMode = dragMode;
             _referenceImageDragStartPoint = point.Position;
             e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
+        if (ReferenceImageTransformEditActive && ActiveReferenceImage is not null)
+        {
+            ReferenceImageTransformCompleted?.Invoke();
             e.Handled = true;
             return;
         }
@@ -2116,6 +2132,19 @@ Selection:
             return;
         }
 
+        if (ReferenceImageTransformEditActive && e.Key is Key.Enter or Key.Escape)
+        {
+            _referenceImageDragStart = null;
+            _referenceImageDragMode = default;
+            if (e.Key == Key.Escape)
+                ReferenceImageTransformCanceled?.Invoke();
+            else
+                ReferenceImageTransformCompleted?.Invoke();
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape)
         {
             if (ReferenceCalibrationActive)
@@ -2368,7 +2397,7 @@ Selection:
 
     private void DrawReferenceImageGizmo(DrawingContext context, Size size)
     {
-        if (ActiveTool != Editor2DTool.Select || ActiveReferenceImage is not { } image || image.Width <= 0.0 || image.Height <= 0.0)
+        if (!ReferenceImageTransformEditActive || ActiveReferenceImage is not { } image || image.Width <= 0.0 || image.Height <= 0.0)
             return;
 
         var center = WorldToScreen(new Editor2DPoint(image.X, image.Y), size);

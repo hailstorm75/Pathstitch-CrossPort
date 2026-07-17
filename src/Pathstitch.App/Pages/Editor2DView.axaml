@@ -57,6 +57,7 @@
     ReferenceImages="{Binding TwoDReferenceImages}"
     ActiveReferenceImage="{Binding TwoDActiveReferenceImage}"
     ActiveReferenceImageLocked="{Binding TwoDActiveReferenceImageLocked}"
+    ReferenceImageTransformEditActive="{Binding TwoDReferenceImageTransformEditActive}"
     ReferenceCalibrationActive="{Binding TwoDReferencePointCalibrationActive, Mode=TwoWay}"
     ReferenceCalibrationPoints="{Binding TwoDReferenceCalibrationPoints, Mode=TwoWay}"
     CornerParameters="{Binding TwoDCornerParameters, Mode=TwoWay}"
