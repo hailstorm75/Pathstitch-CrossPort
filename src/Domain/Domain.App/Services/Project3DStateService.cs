@@ -265,16 +265,23 @@ public sealed class Project3DStateService
 
         if (extension.Equals(".stch", StringComparison.OrdinalIgnoreCase))
         {
-            await using var fileStream = File.OpenRead(projectFilePath);
-            using var archive = new ZipArchive(fileStream, ZipArchiveMode.Read, leaveOpen: false);
-            var entry = archive.GetEntry("project.json");
-            var sourceModelPath = await TryExtractSourceModelAsync(archive, projectFilePath, cancellationToken).ConfigureAwait(false);
-            if (entry is not null)
+            try
             {
-                await using var entryStream = entry.Open();
-                var payload = await JsonSerializer.DeserializeAsync<Project3DStatePayload>(entryStream, SerializerOptions, cancellationToken)
-                    .ConfigureAwait(false);
-                return payload is null ? null : payload with { SourceModelPath = sourceModelPath };
+                await using var fileStream = File.OpenRead(projectFilePath);
+                using var archive = new ZipArchive(fileStream, ZipArchiveMode.Read, leaveOpen: false);
+                var entry = archive.GetEntry("project.json");
+                var sourceModelPath = await TryExtractSourceModelAsync(archive, projectFilePath, cancellationToken).ConfigureAwait(false);
+                if (entry is not null)
+                {
+                    await using var entryStream = entry.Open();
+                    var payload = await JsonSerializer.DeserializeAsync<Project3DStatePayload>(entryStream, SerializerOptions, cancellationToken)
+                        .ConfigureAwait(false);
+                    return payload is null ? null : payload with { SourceModelPath = sourceModelPath };
+                }
+            }
+            catch (InvalidDataException)
+            {
+                // Historic and newly seeded projects may store JSON directly in the .stch file.
             }
         }
 
