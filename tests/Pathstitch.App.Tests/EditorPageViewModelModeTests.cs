@@ -1322,6 +1322,10 @@ public sealed class EditorPageViewModelModeTests
         var layer = Assert.Single(viewModel.TwoDLayers);
         Assert.Equal([path.Id], layer.PathIds);
         Assert.Equal("1 entities", layer.ContentSummary);
+        Assert.Equal("Visible", layer.VisibilityLabel);
+        Assert.Equal("Unlocked", layer.LockLabel);
+        Assert.Equal("Hidden", (layer with { IsVisible = false }).VisibilityLabel);
+        Assert.Equal("Locked", (layer with { IsLocked = true }).LockLabel);
         Assert.Contains(nameof(EditorPageViewModel.TwoDLayers), changes);
     }
 

@@ -589,6 +589,13 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("OnDeleteLayerClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Content=\"Set\"", layers, StringComparison.Ordinal);
         Assert.Contains("OnSetLayerColorClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("<ToggleButton", layers, StringComparison.Ordinal);
+        Assert.Contains("Content=\"{Binding VisibilityLabel}\"", layers, StringComparison.Ordinal);
+        Assert.Contains("IsChecked=\"{Binding IsVisible, Mode=OneWay}\"", layers, StringComparison.Ordinal);
+        Assert.Contains("Content=\"{Binding LockLabel}\"", layers, StringComparison.Ordinal);
+        Assert.Contains("IsChecked=\"{Binding IsLocked, Mode=OneWay}\"", layers, StringComparison.Ordinal);
+        Assert.Contains("OnToggleVisibilityClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("OnToggleLockClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Avalonia.Controls.ColorPicker", layers, StringComparison.Ordinal);
         Assert.Contains("ColorChanged=\"OnLayerColorChanged\"", layers, StringComparison.Ordinal);
         Assert.Contains("editor.layer.color.{0}", layers, StringComparison.Ordinal);
