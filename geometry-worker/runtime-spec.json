@@ -8,7 +8,9 @@
   "numpy": "2.3.5",
   "scipy": "1.16.3",
   "shapely": "2.1.2",
+  "pdfplumber": "0.11.10",
+  "pypdfium2": "5.12.0",
   "runtimeIdentifiers": ["win-x64", "osx-arm64"],
   "entryPoint": "pathstitch_core.geometry_worker",
-  "requiredCapabilities": ["brep-topology", "analytic-surfaces", "exact-curves", "pcurves", "projection", "unfold", "distortion"]
+  "requiredCapabilities": ["brep-topology", "analytic-surfaces", "exact-curves", "pcurves", "projection", "unfold", "distortion", "pdf-vector-import"]
 }

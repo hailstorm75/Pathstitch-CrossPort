@@ -96,7 +96,7 @@ function Invoke-NativeRuntimeSmoke([string]$RuntimeRoot) {
     $env:PYTHONPATH = $RuntimeRoot
     $env:PATH = if ($IsWindows) { Join-Path $env:SystemRoot 'System32' } else { '/usr/bin:/bin' }
     try {
-        & $runtimePython -B -c "import OCC, OCC.Core.STEPControl, ezdxf, shapely, numpy, scipy; import pathstitch_core.geometry_worker; print('packaged pythonOCC worker imports ok')"
+        & $runtimePython -B -c "import OCC, OCC.Core.STEPControl, ezdxf, shapely, numpy, scipy, pdfplumber; import pathstitch_core.geometry_worker, pathstitch_core.worker; print('packaged Pathstitch workers import ok')"
         if ($LASTEXITCODE -ne 0) { throw 'Packaged worker import smoke test failed.' }
     } finally {
         $env:PYTHONPATH = $previousPythonPath
