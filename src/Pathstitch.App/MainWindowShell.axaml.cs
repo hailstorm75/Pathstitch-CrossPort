@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.Messaging;
 using Domain.MVVM.Navigation;
@@ -15,6 +16,7 @@ public sealed partial class MainWindowShell : Window
   private readonly INavigationManager _navigationManager;
   private readonly ILogger<MainWindowShell> _logger;
   private CancellationTokenSource _navigationCancellationTokenSource = new();
+  private TaskCompletionSource _navigationIdle = CompletedSource();
   private bool _applicationCloseApproved;
   private bool _applicationClosePreviewRunning;
 
@@ -30,6 +32,11 @@ public sealed partial class MainWindowShell : Window
 		Closing += OnClosing;
 		Closed += OnClosed;
 	}
+
+	internal INavigablePageViewModel? CurrentPageViewModel
+		=> (PART_PageContainer.Content as INavigablePageView)?.ViewModel;
+
+	internal Task WhenNavigationIdleAsync() => _navigationIdle.Task;
 
 	private async void OnClosing(object? sender, WindowClosingEventArgs e)
 	{
@@ -72,10 +79,13 @@ public sealed partial class MainWindowShell : Window
 		WeakReferenceMessenger.Default.UnregisterAll(this);
 		_navigationCancellationTokenSource.Cancel();
 		_navigationCancellationTokenSource.Dispose();
+		_navigationIdle.TrySetResult();
 	}
 
 	private async void OnNavigationChanged(object recipient, NavigationChangeRequestMessage message)
 	{
+		var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		_navigationIdle = completion;
 		try
 		{
 			await _navigationCancellationTokenSource.CancelAsync();
@@ -89,5 +99,16 @@ public sealed partial class MainWindowShell : Window
 		{
 			_logger.LogError(e, "Navigation failed");
 		}
+		finally
+		{
+			completion.TrySetResult();
+		}
+	}
+
+	private static TaskCompletionSource CompletedSource()
+	{
+		var source = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		source.SetResult();
+		return source;
 	}
 }

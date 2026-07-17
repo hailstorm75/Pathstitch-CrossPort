@@ -34,46 +34,69 @@ public sealed partial class EditorPageViewModel
             var selectedPaths = await _projectFileDialogService
                 .PickWorkspaceFilesAsync(cancellationToken)
                 .ConfigureAwait(true);
-            var paths = selectedPaths
-                .Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
-                .Select(Path.GetFullPath)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            if (paths.Length == 0)
-                return;
-
-            var projectPaths = paths.Where(path => Path.GetExtension(path).Equals(".stch", StringComparison.OrdinalIgnoreCase)).ToArray();
-            var sourcePaths = paths.Where(path => SupportedSourceModelExtensions.Contains(Path.GetExtension(path))).ToArray();
-            var drawingPaths = paths.Where(path => SupportedImportedDrawingExtensions.Contains(Path.GetExtension(path))).ToArray();
-            var imagePaths = paths.Where(path => SupportedImportedImageExtensions.Contains(Path.GetExtension(path))).ToArray();
-            var supported = projectPaths.Concat(sourcePaths).Concat(drawingPaths).Concat(imagePaths).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (paths.Any(path => !supported.Contains(path)) || projectPaths.Length > 1)
-            {
-                ErrorMessage = projectPaths.Length > 1
-                    ? "Import one Pathstitch project at a time."
-                    : "One or more selected files use an unsupported import format.";
-                return;
-            }
-
-            if (projectPaths.Length == 1)
-            {
-                await ImportProjectWithAssetsAsync(
-                    projectPaths[0], sourcePaths, drawingPaths, imagePaths, cancellationToken).ConfigureAwait(true);
-                return;
-            }
-
-            if (sourcePaths.Length > 0)
-                await OpenSourceModelsAsync(sourcePaths, cancellationToken).ConfigureAwait(true);
-            if (drawingPaths.Length > 0)
-                await RouteImportedTwoDDrawingsAsync(drawingPaths, cancellationToken).ConfigureAwait(true);
-            if (imagePaths.Length > 0)
-                await ImportReferenceImagesAsync(imagePaths, cancellationToken).ConfigureAwait(true);
+            await ImportFilesCoreAsync(selectedPaths, cancellationToken).ConfigureAwait(true);
         }
         finally
         {
             _importFilesGate.Release();
             ImportFilesCommand.NotifyCanExecuteChanged();
         }
+    }
+
+    public async Task OpenActivatedFilesAsync(
+        IReadOnlyList<string> filePaths,
+        CancellationToken cancellationToken = default)
+    {
+        await _importFilesGate.WaitAsync(cancellationToken).ConfigureAwait(true);
+        try
+        {
+            await ImportFilesCoreAsync(filePaths, cancellationToken).ConfigureAwait(true);
+        }
+        finally
+        {
+            _importFilesGate.Release();
+            ImportFilesCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private async Task ImportFilesCoreAsync(
+        IReadOnlyList<string> selectedPaths,
+        CancellationToken cancellationToken)
+    {
+        var paths = selectedPaths
+            .Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (paths.Length == 0)
+            return;
+
+        var projectPaths = paths.Where(path => Path.GetExtension(path).Equals(".stch", StringComparison.OrdinalIgnoreCase)).ToArray();
+        var sourcePaths = paths.Where(path => SupportedSourceModelExtensions.Contains(Path.GetExtension(path))).ToArray();
+        var drawingPaths = paths.Where(path => SupportedImportedDrawingExtensions.Contains(Path.GetExtension(path))).ToArray();
+        var imagePaths = paths.Where(path => SupportedImportedImageExtensions.Contains(Path.GetExtension(path))).ToArray();
+        var supported = projectPaths.Concat(sourcePaths).Concat(drawingPaths).Concat(imagePaths).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (paths.Any(path => !supported.Contains(path)) || projectPaths.Length > 1)
+        {
+            ErrorMessage = projectPaths.Length > 1
+                ? "Import one Pathstitch project at a time."
+                : "One or more selected files use an unsupported import format.";
+            return;
+        }
+
+        if (projectPaths.Length == 1)
+        {
+            await ImportProjectWithAssetsAsync(
+                projectPaths[0], sourcePaths, drawingPaths, imagePaths, cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        if (sourcePaths.Length > 0)
+            await OpenSourceModelsAsync(sourcePaths, cancellationToken).ConfigureAwait(true);
+        if (drawingPaths.Length > 0)
+            await RouteImportedTwoDDrawingsAsync(drawingPaths, cancellationToken).ConfigureAwait(true);
+        if (imagePaths.Length > 0)
+            await ImportReferenceImagesAsync(imagePaths, cancellationToken).ConfigureAwait(true);
     }
 
     private async Task ImportProjectWithAssetsAsync(
