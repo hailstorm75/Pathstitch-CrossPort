@@ -24,13 +24,13 @@ public sealed partial class EditorPageViewModel
     public string TwoDPngLongestEdgeText
     {
         get => _twoDPngLongestEdgeText;
-        set => SetProperty(ref _twoDPngLongestEdgeText, value ?? string.Empty);
+        set { if (SetProperty(ref _twoDPngLongestEdgeText, value ?? string.Empty)) PersistTwoDExportPreferences(); }
     }
 
     public bool TwoDPngTransparent
     {
         get => _twoDPngTransparent;
-        set => SetProperty(ref _twoDPngTransparent, value);
+        set { if (SetProperty(ref _twoDPngTransparent, value)) PersistTwoDExportPreferences(); }
     }
 
     public bool TwoDExportSelectedOnly
@@ -43,25 +43,26 @@ public sealed partial class EditorPageViewModel
 
             _twoDExportSelectedOnly = value;
             OnPropertyChanged();
+            PersistTwoDExportPreferences();
         }
     }
 
     public bool TwoDExportMeasurementLines
     {
         get => _twoDExportMeasurementLines;
-        set => SetProperty(ref _twoDExportMeasurementLines, value);
+        set { if (SetProperty(ref _twoDExportMeasurementLines, value)) PersistTwoDExportPreferences(); }
     }
 
     public string TwoDSvgPrecisionText
     {
         get => _twoDSvgPrecisionText;
-        set { if (SetProperty(ref _twoDSvgPrecisionText, value ?? string.Empty)) OnPropertyChanged(nameof(CanApplyTwoDSvgOptions)); }
+        set { if (SetProperty(ref _twoDSvgPrecisionText, value ?? string.Empty)) { OnPropertyChanged(nameof(CanApplyTwoDSvgOptions)); PersistTwoDExportPreferences(); } }
     }
 
     public string TwoDSvgStrokeWidthText
     {
         get => _twoDSvgStrokeWidthText;
-        set { if (SetProperty(ref _twoDSvgStrokeWidthText, value ?? string.Empty)) OnPropertyChanged(nameof(CanApplyTwoDSvgOptions)); }
+        set { if (SetProperty(ref _twoDSvgStrokeWidthText, value ?? string.Empty)) { OnPropertyChanged(nameof(CanApplyTwoDSvgOptions)); PersistTwoDExportPreferences(); } }
     }
 
     public bool CanApplyTwoDSvgOptions
@@ -76,7 +77,31 @@ public sealed partial class EditorPageViewModel
     public string TwoDDxfVersion
     {
         get => _twoDDxfVersion;
-        set => SetProperty(ref _twoDDxfVersion, value is null ? "R2010" : new Editor2DExportOptions(DxfVersion: value).NormalizedDxfVersion);
+        set
+        {
+            var normalized = value is null ? "R2010" : new Editor2DExportOptions(DxfVersion: value).NormalizedDxfVersion;
+            if (SetProperty(ref _twoDDxfVersion, normalized))
+                PersistTwoDExportPreferences();
+        }
+    }
+
+    private void PersistTwoDExportPreferences()
+    {
+        if (_isApplyingTwoDWorkspaceState)
+            return;
+
+        _twoDWorkspace.Apply(_twoDWorkspace.State with
+        {
+            ExportPreferences = new Editor2DExportPreferences(
+                TwoDExportSelectedOnly,
+                TwoDExportMeasurementLines,
+                TwoDSvgPrecisionText,
+                TwoDSvgStrokeWidthText,
+                TwoDDxfVersion,
+                TwoDPngLongestEdgeText,
+                TwoDPngTransparent),
+        }, recordHistory: false);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
     }
 
     public async Task ExportTwoDDxfAsync(CancellationToken cancellationToken = default)

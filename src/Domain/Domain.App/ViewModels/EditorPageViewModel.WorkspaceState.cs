@@ -196,7 +196,7 @@ public sealed partial class EditorPageViewModel
         NotifyTwoDHistoryCommands();
     }
 
-    private void ApplyPersistedTwoDWorkspaceState(Editor2DWorkspaceState? state)
+    internal void ApplyPersistedTwoDWorkspaceState(Editor2DWorkspaceState? state)
     {
         if (state is null)
             return;
@@ -222,6 +222,14 @@ public sealed partial class EditorPageViewModel
             SyncTwoDConvertLineEditorFromSelection();
             TwoDMeasurements = state.Measurements ?? [];
             TwoDSelectedMeasurementId = state.SelectedMeasurementId;
+            var exportPreferences = state.ExportPreferences ?? new Editor2DExportPreferences();
+            _twoDExportSelectedOnly = exportPreferences.ExportSelectedOnly;
+            _twoDExportMeasurementLines = exportPreferences.IncludeMeasurementLines;
+            _twoDSvgPrecisionText = exportPreferences.SvgPrecisionText;
+            _twoDSvgStrokeWidthText = exportPreferences.SvgStrokeWidthText;
+            _twoDDxfVersion = new Editor2DExportOptions(DxfVersion: exportPreferences.DxfVersion).NormalizedDxfVersion;
+            _twoDPngLongestEdgeText = exportPreferences.PngLongestEdgeText;
+            _twoDPngTransparent = exportPreferences.PngTransparent;
             ApplyTwoDViewportState(
                 state.ViewportZoom,
                 state.ViewportOffsetX,
@@ -278,6 +286,14 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(HasTwoDMeasurements));
         OnPropertyChanged(nameof(HasTwoDSelectedMeasurement));
         OnPropertyChanged(nameof(TwoDMeasurementSummary));
+        OnPropertyChanged(nameof(TwoDExportSelectedOnly));
+        OnPropertyChanged(nameof(TwoDExportMeasurementLines));
+        OnPropertyChanged(nameof(TwoDSvgPrecisionText));
+        OnPropertyChanged(nameof(TwoDSvgStrokeWidthText));
+        OnPropertyChanged(nameof(CanApplyTwoDSvgOptions));
+        OnPropertyChanged(nameof(TwoDDxfVersion));
+        OnPropertyChanged(nameof(TwoDPngLongestEdgeText));
+        OnPropertyChanged(nameof(TwoDPngTransparent));
         OnPropertyChanged(nameof(TwoDAutoDimensionCount));
         OnPropertyChanged(nameof(TwoDViewportSummary));
         OnPropertyChanged(nameof(TwoDToolHint));
