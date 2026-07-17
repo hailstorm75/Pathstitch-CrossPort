@@ -15,6 +15,31 @@ public sealed class NavigationScopeIsolationTests
     private readonly HeadlessUiFixture _ui = new();
 
     [Fact]
+    public async Task CoordinatorApprovedWindowClose_DoesNotPromptDocumentAgain()
+    {
+        var messenger = new StrongReferenceMessenger();
+        using var services = Services(messenger, "approved", new TestWindowContext());
+        var shell = await _ui.RunAsync(() => new MainWindowShell(services));
+        var prompts = 0;
+        var recipient = new object();
+        messenger.Register<PreviewApplicationClosingMessage>(recipient, (_, message) =>
+        {
+            prompts++;
+            message.Reply(Completed(false));
+        });
+        await _ui.RunAsync(shell.Show);
+
+        await _ui.RunAsync(() =>
+        {
+            shell.ApproveApplicationClose();
+            shell.Close();
+        });
+        await WaitUntilAsync(() => !shell.IsVisible);
+
+        Assert.Equal(0, prompts);
+    }
+
+    [Fact]
     public async Task TwoShells_KeepNavigationAndClosePreviewInsideOwningScope()
     {
         var messengerA = new StrongReferenceMessenger();

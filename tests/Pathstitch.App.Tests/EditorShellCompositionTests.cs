@@ -165,6 +165,20 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void DesktopManager_CoordinatesApplicationQuitAcrossDocumentScopes()
+    {
+        var manager = ReadRepositoryFile("src", "Pathstitch.App", "Services", "DesktopDocumentWindowManager.cs");
+        var shell = ReadRepositoryFile("src", "Pathstitch.App", "MainWindowShell.axaml.cs");
+
+        Assert.Contains("_desktop.ShutdownRequested += OnShutdownRequested", manager, StringComparison.Ordinal);
+        Assert.Contains("_applicationCloseCoordinator.TryApproveAsync", manager, StringComparison.Ordinal);
+        Assert.Contains("Prepend(_activeDocument)", manager, StringComparison.Ordinal);
+        Assert.Contains("document.Window.ApproveApplicationClose", manager, StringComparison.Ordinal);
+        Assert.Contains("_welcome?.Window.ApproveApplicationClose()", manager, StringComparison.Ordinal);
+        Assert.Contains("internal void ApproveApplicationClose", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void HelpMenu_ExposesAnAboutDialogForAppParity()
     {
         var shell = ReadPage("EditorShellView.axaml");
