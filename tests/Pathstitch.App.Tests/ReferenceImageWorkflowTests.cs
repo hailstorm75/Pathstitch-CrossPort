@@ -13,6 +13,38 @@ namespace Pathstitch.App.Tests;
 public sealed class ReferenceImageWorkflowTests
 {
     [Fact]
+    public void ImportReferenceImage_UsesOptionalInsertionPointAndKeepsLegacyOriginDefault()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+
+        var centered = workspace.ImportReferenceImage(
+            "centered.png",
+            Convert.ToBase64String([1]),
+            20,
+            10,
+            new Editor2DPoint(50, -25));
+        Assert.Equal(50, centered.ReferenceImage!.X);
+        Assert.Equal(-25, centered.ReferenceImage.Y);
+
+        Assert.True(workspace.Undo());
+        Assert.DoesNotContain(workspace.Layers, layer => layer.IsReferenceImage);
+        Assert.True(workspace.Redo());
+        var restored = Assert.Single(workspace.Layers, layer => layer.IsReferenceImage).ReferenceImage!;
+        Assert.Equal(50, restored.X);
+        Assert.Equal(-25, restored.Y);
+
+        var legacyWorkspace = new Editor2DWorkspaceViewModel();
+        var legacy = legacyWorkspace.ImportReferenceImage(
+            "legacy.png",
+            Convert.ToBase64String([2]),
+            20,
+            10);
+
+        Assert.Equal(0, legacy.ReferenceImage!.X);
+        Assert.Equal(0, legacy.ReferenceImage.Y);
+    }
+
+    [Fact]
     public void ReferenceImageSelection_BeginsTransformWithoutChangingUnderlyingTool()
     {
         var workspace = new Editor2DWorkspaceViewModel();

@@ -124,6 +124,31 @@ public sealed class ReferenceImagePreparationServiceTests
         }
     }
 
+    [Fact]
+    public async Task DroppedImage_UsesWorldInsertionPointWithoutChangingCropResult()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-positioned-crop-{Guid.NewGuid():N}.png");
+        await File.WriteAllBytesAsync(path, CreatePng(5, 4, bitmap => bitmap.SetPixel(3, 2, SKColors.Black)));
+        try
+        {
+            var editor = EditorPageViewModelModeTests.CreateViewModelForTests(
+                referenceImagePreparationService: _service);
+            editor.AutoCropTransparentReferenceImages = true;
+
+            await editor.OpenDroppedFilesAsync([path], new Domain.App.Models.Editor2DPoint(12.5, -7.25));
+
+            var image = Assert.Single(editor.TwoDReferenceImages);
+            Assert.Equal(1, image.PixelWidth);
+            Assert.Equal(1, image.PixelHeight);
+            Assert.Equal(12.5, image.X);
+            Assert.Equal(-7.25, image.Y);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static byte[] CreatePng(int width, int height, Action<SKBitmap> draw)
     {
         using var bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);

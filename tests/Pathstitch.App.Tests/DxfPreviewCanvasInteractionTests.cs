@@ -11,6 +11,31 @@ public sealed class DxfPreviewCanvasInteractionTests
 {
     private readonly HeadlessUiFixture _ui = new();
 
+    [Fact]
+    public async Task ScreenPointToWorld_UsesLiveCanvasZoomAndPan()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var canvas = Canvas(Editor2DWorkspaceState.Empty.Document);
+            canvas.Measure(new Size(800, 600));
+            canvas.Arrange(new Rect(0, 0, 800, 600));
+            canvas.Zoom = 2.5;
+            canvas.OffsetX = 14;
+            canvas.OffsetY = -9;
+            var screen = new Point(510, 225);
+
+            var world = canvas.ScreenPointToWorld(screen);
+            var expected = DxfCanvasViewportTransform.ScreenToWorld(
+                screen,
+                canvas.Bounds.Size,
+                canvas.Zoom,
+                canvas.OffsetX,
+                canvas.OffsetY);
+
+            Assert.Equal(expected, world);
+        });
+    }
+
     [Theory]
     [InlineData(Key.Enter, 1, 0)]
     [InlineData(Key.Escape, 0, 1)]

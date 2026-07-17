@@ -151,6 +151,20 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void TwoDWorkspace_AcceptsFileDropsAtCanvasWorldPosition()
+    {
+        var view = ReadPage("Editor2DView.axaml");
+        var code = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DView.axaml.cs");
+        var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+
+        Assert.Contains("editor.canvas.2d.drop-overlay", view, StringComparison.Ordinal);
+        Assert.Contains("DragDrop.SetAllowDrop(TwoDPreviewCanvas, true)", code, StringComparison.Ordinal);
+        Assert.Contains("ScreenPointToWorld(e.GetPosition(TwoDPreviewCanvas))", code, StringComparison.Ordinal);
+        Assert.Contains("OpenDroppedFilesAsync(paths, insertionPoint)", code, StringComparison.Ordinal);
+        Assert.Contains("public Editor2DPoint ScreenPointToWorld", canvas, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void HelpMenu_ExposesAnAboutDialogForAppParity()
     {
         var shell = ReadPage("EditorShellView.axaml");
