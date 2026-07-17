@@ -82,6 +82,113 @@ public sealed class Project3DStateServiceTests
         Assert.Equal(activity, Assert.Single(restored.ActivityLog!));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoadAsync_RestoresLegacyMacActivityLog(bool zipContainer)
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath(zipContainer ? "legacy-log-zip.stch" : "legacy-log-json.stch");
+        const string payload =
+            """
+            {
+              "logEntries": [
+                {
+                  "id": "legacy-entry",
+                  "timestamp": 0,
+                  "action": "Import Reference Image",
+                  "details": "pattern.png",
+                  "layerAffected": "layer-7"
+                }
+              ]
+            }
+            """;
+        if (zipContainer)
+        {
+            await using var file = File.Create(projectPath);
+            using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+            var entry = archive.CreateEntry("project.json");
+            await using var entryStream = entry.Open();
+            await using var writer = new StreamWriter(entryStream);
+            await writer.WriteAsync(payload);
+        }
+        else
+        {
+            File.WriteAllText(projectPath, payload);
+        }
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        var activity = Assert.Single(state.ActivityLog!);
+        Assert.Equal("legacy-entry", activity.Id);
+        Assert.Equal(new DateTimeOffset(2001, 1, 1, 0, 0, 0, TimeSpan.Zero), activity.TimestampUtc);
+        Assert.Equal("Import Reference Image", activity.Action);
+        Assert.Equal("pattern.png", activity.Details);
+        Assert.Equal("layer-7", activity.LayerId);
+    }
+
+    [Fact]
+    public async Task LoadAsync_SkipsMalformedLegacyActivityEntries()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.WriteText(
+            "partially-malformed-log.stch",
+            """
+            {
+              "logEntries": [
+                { "id": "bad-date", "timestamp": "not-a-date", "action": "Bad", "details": "Ignored" },
+                { "timestamp": 0, "action": "Missing id", "details": "Ignored" },
+                {
+                  "id": "valid-entry",
+                  "timestamp": "2026-07-17T10:30:00Z",
+                  "action": "Valid",
+                  "details": "Restored"
+                }
+              ]
+            }
+            """);
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        var activity = Assert.Single(state.ActivityLog!);
+        Assert.Equal("valid-entry", activity.Id);
+        Assert.Equal(new DateTimeOffset(2026, 7, 17, 10, 30, 0, TimeSpan.Zero), activity.TimestampUtc);
+    }
+
+    [Fact]
+    public async Task LoadAsync_PrefersCanonicalActivityLog()
+    {
+        using var workspace = TestWorkspace.Create();
+        var canonical = new EditorActivityEntry(
+            "canonical-entry",
+            new DateTimeOffset(2026, 7, 17, 10, 30, 0, TimeSpan.Zero),
+            "Canonical",
+            "Preferred");
+        var projectPath = workspace.WriteText(
+            "conflicting-activity-log.stch",
+            JsonSerializer.Serialize(new
+            {
+                savedActivityLog = new[] { canonical },
+                logEntries = new[]
+                {
+                    new
+                    {
+                        id = "legacy-entry",
+                        timestamp = 0,
+                        action = "Legacy",
+                        details = "Ignored",
+                    },
+                },
+            }));
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        Assert.Equal(canonical, Assert.Single(state.ActivityLog!));
+    }
+
     [Fact]
     public async Task SaveAndLoadAsync_RoundTripsDisabledLearnMode()
     {
