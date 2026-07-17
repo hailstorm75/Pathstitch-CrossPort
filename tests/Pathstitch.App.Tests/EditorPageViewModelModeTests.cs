@@ -305,6 +305,119 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task GeneratedOutputPreview_StaleCompletionCannotOverrideNewerOutputOrClear()
+    {
+        var firstPath = Path.Combine(Path.GetTempPath(), $"pathstitch-stale-first-{Guid.NewGuid():N}.dxf");
+        var secondPath = Path.Combine(Path.GetTempPath(), $"pathstitch-stale-second-{Guid.NewGuid():N}.dxf");
+        var clearPath = Path.Combine(Path.GetTempPath(), $"pathstitch-stale-clear-{Guid.NewGuid():N}.dxf");
+        var firstData = new byte[] { 1, 2, 3 };
+        var secondData = new byte[] { 4, 5, 6, 7 };
+        var clearData = new byte[] { 8, 9 };
+        File.WriteAllBytes(firstPath, firstData);
+        File.WriteAllBytes(secondPath, secondData);
+        File.WriteAllBytes(clearPath, clearData);
+
+        static Editor2DPreviewDocument CreateDocument(string pathId)
+        {
+            var path = new Editor2DPreviewPath(
+                pathId,
+                "LINE",
+                [new Editor2DPoint(0, 0), new Editor2DPoint(10, 0)],
+                false);
+            return new Editor2DPreviewDocument(
+                [path],
+                new Editor2DBounds(0, 0, 10, 0),
+                new Dictionary<string, int> { ["LINE"] = 1 },
+                []);
+        }
+
+        var firstDocument = CreateDocument("first-path");
+        var secondDocument = CreateDocument("second-path");
+        var clearDocument = CreateDocument("clear-path");
+        var previewService = new DelayedOutputPreviewService(new Dictionary<string, Editor2DPreviewDocument>
+        {
+            [firstPath] = firstDocument,
+            [secondPath] = secondDocument,
+            [clearPath] = clearDocument,
+        });
+        var viewModel = CreateViewModelForTests(outputPreviewService: previewService);
+        var privateInstance = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var updateMethod = typeof(EditorPageViewModel).GetMethod(
+            "UpdateGeneratedOutputPreviewAsync",
+            privateInstance)!;
+        var clearMethod = typeof(EditorPageViewModel).GetMethod("ClearTwoDState", privateInstance)!;
+        var outputDataField = typeof(EditorPageViewModel).GetField("_generatedOutputDataBase64", privateInstance)!;
+        var firstContext = new EditorGeneratedOutputContext(
+            "Unfold",
+            "First",
+            "First scope",
+            "First configuration",
+            DateTimeOffset.UtcNow.AddMinutes(-1));
+        var secondContext = new EditorGeneratedOutputContext(
+            "Projection",
+            "Second",
+            "Second scope",
+            "Second configuration",
+            DateTimeOffset.UtcNow);
+        var clearContext = secondContext with { TriggerLabel = "Clear candidate" };
+
+        Task<bool> BeginUpdate(string path, EditorGeneratedOutputContext context)
+            => Assert.IsAssignableFrom<Task<bool>>(updateMethod.Invoke(
+                viewModel,
+                new object?[]
+                {
+                    path,
+                    false,
+                    CancellationToken.None,
+                    false,
+                    null,
+                    "Generated 3D",
+                    false,
+                    false,
+                    context,
+                    true,
+                }));
+
+        try
+        {
+            var firstUpdate = BeginUpdate(firstPath, firstContext);
+            await previewService.WaitForLoadAsync(firstPath);
+            var secondUpdate = BeginUpdate(secondPath, secondContext);
+            await previewService.WaitForLoadAsync(secondPath);
+
+            previewService.Complete(secondPath);
+            Assert.True(await secondUpdate);
+            previewService.Complete(firstPath);
+            Assert.False(await firstUpdate);
+
+            Assert.Equal(Path.GetFullPath(secondPath), viewModel.LastGeneratedOutputPath);
+            Assert.Equal(secondContext, viewModel.GeneratedOutputContext);
+            Assert.Equal(secondPath, viewModel.GeneratedOutputSummary?.OutputPath);
+            Assert.Equal(secondDocument, viewModel.TwoDDocument);
+            Assert.Equal(Convert.ToBase64String(secondData), outputDataField.GetValue(viewModel));
+
+            var clearUpdate = BeginUpdate(clearPath, clearContext);
+            await previewService.WaitForLoadAsync(clearPath);
+            clearMethod.Invoke(viewModel, null);
+            previewService.Complete(clearPath);
+            Assert.False(await clearUpdate);
+
+            Assert.Null(viewModel.LastGeneratedOutputPath);
+            Assert.Null(viewModel.GeneratedOutputContext);
+            Assert.Null(viewModel.GeneratedOutputSummary);
+            Assert.Null(viewModel.TwoDDocument);
+            Assert.Null(outputDataField.GetValue(viewModel));
+        }
+        finally
+        {
+            viewModel.Dispose();
+            File.Delete(firstPath);
+            File.Delete(secondPath);
+            File.Delete(clearPath);
+        }
+    }
+
+    [Fact]
     public void SelectedSeamDecoration_DefaultClearsOverrideAndUsesGlobalDecoration()
     {
         var viewModel = CreateViewModelForTests();
@@ -2473,6 +2586,83 @@ public sealed class EditorPageViewModelModeTests
 
         public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(string outputPath, CancellationToken cancellationToken = default)
             => Task.FromResult<EditorGeneratedOutputSummary?>(null);
+    }
+
+    private sealed class DelayedOutputPreviewService : IEditorOutputPreviewService
+    {
+        private readonly Dictionary<string, DelayedPreviewLoad> _loads;
+
+        public DelayedOutputPreviewService(IReadOnlyDictionary<string, Editor2DPreviewDocument> documents)
+        {
+            _loads = documents.ToDictionary(
+                pair => Path.GetFullPath(pair.Key),
+                pair => new DelayedPreviewLoad(pair.Value),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(
+            string outputPath,
+            CancellationToken cancellationToken = default)
+        {
+            var load = GetLoad(outputPath);
+            load.Started.TrySetResult();
+            return load.Completion.Task;
+        }
+
+        public Task SavePreviewDocumentAsync(
+            Editor2DPreviewDocument document,
+            string outputPath,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(
+            string outputPath,
+            CancellationToken cancellationToken = default)
+        {
+            var fullPath = Path.GetFullPath(outputPath);
+            var load = GetLoad(fullPath);
+            var fileInfo = new FileInfo(fullPath);
+            var document = load.Document;
+            return Task.FromResult<EditorGeneratedOutputSummary?>(new EditorGeneratedOutputSummary(
+                fullPath,
+                fileInfo.Exists,
+                fileInfo.Exists ? fileInfo.Length : 0,
+                fileInfo.Exists ? fileInfo.LastWriteTimeUtc : null,
+                document.Paths.Count,
+                document.Paths.Count(path => path.IsClosed),
+                document.Paths.Count(path => !path.IsClosed),
+                document.EntityCounts.GetValueOrDefault("LINE"),
+                document.EntityCounts.GetValueOrDefault("LWPOLYLINE"),
+                document.EntityCounts.GetValueOrDefault("ARC"),
+                document.EntityCounts.GetValueOrDefault("CIRCLE"),
+                document.EntityCounts.GetValueOrDefault("ELLIPSE"),
+                document.EntityCounts.GetValueOrDefault("TEXT"),
+                document.UnsupportedEntityTypes.Count,
+                string.Join(", ", document.UnsupportedEntityTypes),
+                document.Bounds.Width,
+                document.Bounds.Height));
+        }
+
+        public Task WaitForLoadAsync(string outputPath)
+            => GetLoad(outputPath).Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        public void Complete(string outputPath)
+        {
+            var load = GetLoad(outputPath);
+            load.Completion.TrySetResult(load.Document);
+        }
+
+        private DelayedPreviewLoad GetLoad(string outputPath)
+            => _loads[Path.GetFullPath(outputPath)];
+
+        private sealed class DelayedPreviewLoad(Editor2DPreviewDocument document)
+        {
+            public Editor2DPreviewDocument Document { get; } = document;
+            public TaskCompletionSource Started { get; } =
+                new(TaskCreationOptions.RunContinuationsAsynchronously);
+            public TaskCompletionSource<Editor2DPreviewDocument?> Completion { get; } =
+                new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
     }
 
     private sealed class MappingOutputPreviewService(
