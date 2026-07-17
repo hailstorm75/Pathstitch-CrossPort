@@ -229,6 +229,15 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("editor.batch.export-format", panel, StringComparison.Ordinal);
         Assert.Contains("editor.batch.export-naming", panel, StringComparison.Ordinal);
         Assert.Contains("editor.batch.export-name", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.batch.pick-inputs", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.batch.pick-output-folder", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.batch.reveal-output", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.batch.drop-target", view, StringComparison.Ordinal);
+        Assert.Contains("DragDrop.AllowDrop=\"True\"", view, StringComparison.Ordinal);
+        Assert.Contains("OnRemoveBatchItemClicked", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorBatchView.axaml.cs"), StringComparison.Ordinal);
+        var picker = ReadRepositoryFile("src", "Pathstitch.App", "Services", "ProjectFileDialogService.cs");
+        Assert.Contains("BatchInputFileType", picker, StringComparison.Ordinal);
+        Assert.Contains("OpenFolderPickerAsync", picker, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1861,8 +1861,9 @@ public sealed class EditorPageViewModelModeTests
         IPsdImportService? psdImportService = null,
         IPsdImportModePromptService? psdImportModePromptService = null,
         IDocumentWindowService? documentWindowService = null,
-        IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null)
-        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, psdImportService, psdImportModePromptService, documentWindowService, projectOpenDispositionPromptService);
+        IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null,
+        IEditorOutputLauncherService? outputLauncherService = null)
+        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, psdImportService, psdImportModePromptService, documentWindowService, projectOpenDispositionPromptService, outputLauncherService);
 
     private static EditorPageViewModel CreateViewModel(
         IProjectFileDialogService? projectFileDialogService = null,
@@ -1875,13 +1876,14 @@ public sealed class EditorPageViewModelModeTests
         IPsdImportService? psdImportService = null,
         IPsdImportModePromptService? psdImportModePromptService = null,
         IDocumentWindowService? documentWindowService = null,
-        IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null)
+        IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null,
+        IEditorOutputLauncherService? outputLauncherService = null)
         => new(
             NullLogger<EditorPageViewModel>.Instance,
             new StubViewportAssetLocator(),
             new Project3DStateService(),
             projectFileDialogService ?? new StubProjectFileDialogService(),
-            new StubOutputLauncherService(),
+            outputLauncherService ?? new StubOutputLauncherService(),
             outputPreviewService ?? new StubOutputPreviewService(),
             geometryKernelService ?? new Stub2DGeometryKernelService(),
             new Stub3DOperationService(),

@@ -451,6 +451,64 @@ public sealed class EditorBatchWorkspaceViewModelTests
         }
     }
 
+    [Fact]
+    public async Task BatchPickerAndDrop_AddSupportedInputsAndChooseDestination()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchPicker", Guid.NewGuid().ToString("N"));
+        var first = Path.Combine(directory, "one.dxf");
+        var second = Path.Combine(directory, "two.svg");
+        var dialog = new BatchDialogService([first, second, Path.Combine(directory, "ignored.txt")], directory);
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests(projectFileDialogService: dialog);
+        try
+        {
+            await editor.PickBatchInputFilesAsync();
+            Assert.Equal(["one.dxf", "two.svg"], editor.BatchWorkspace.Items.Select(item => item.FileName));
+
+            Assert.Equal(1, editor.AddDroppedBatchFiles([
+                second,
+                Path.Combine(directory, "three.pdf"),
+                Path.Combine(directory, "ignored.png"),
+            ]));
+            Assert.Equal(3, editor.BatchWorkspace.Items.Count);
+
+            await editor.ChooseBatchOutputFolderAsync();
+            Assert.Equal(Path.GetFullPath(directory), editor.BatchWorkspace.OutputDirectory);
+            Assert.Equal(1, dialog.InputPickerCount);
+            Assert.Equal(1, dialog.FolderPickerCount);
+        }
+        finally
+        {
+            editor.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task RevealBatchOutput_UsesFirstExistingExport()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchReveal", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var input = Path.Combine(directory, "drawing.dxf");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
+        var launcher = new RecordingOutputLauncher();
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests(outputLauncherService: launcher);
+        try
+        {
+            editor.BatchWorkspace.OutputDirectory = Path.Combine(directory, "out");
+            Assert.True(editor.BatchWorkspace.AddFile(input));
+            await editor.BatchWorkspace.ExportDxfAsync(new DxfOutputPreviewService());
+
+            Assert.True(editor.BatchWorkspace.HasExportedOutput);
+            await editor.RevealBatchOutputAsync();
+
+            Assert.Equal(editor.BatchWorkspace.Items[0].OutputPath, Assert.Single(launcher.RevealedPaths));
+        }
+        finally
+        {
+            editor.Dispose();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private sealed class StubOffsetGeometryKernel : IEditor2DGeometryKernelService
     {
         public Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(
@@ -465,6 +523,46 @@ public sealed class EditorBatchWorkspaceViewModelTests
             double thickness,
             CancellationToken cancellationToken = default)
             => Task.FromResult(Editor2DGeometryKernelResult.Success(sourcePaths));
+    }
+
+    private sealed class BatchDialogService(
+        IReadOnlyList<string> inputPaths,
+        string? outputFolder) : IProjectFileDialogService
+    {
+        public int InputPickerCount { get; private set; }
+        public int FolderPickerCount { get; private set; }
+
+        public Task<IReadOnlyList<string>> PickBatchInputFilesAsync(CancellationToken cancellationToken = default)
+        {
+            InputPickerCount++;
+            return Task.FromResult(inputPaths);
+        }
+
+        public Task<string?> PickBatchOutputFolderAsync(CancellationToken cancellationToken = default)
+        {
+            FolderPickerCount++;
+            return Task.FromResult(outputFolder);
+        }
+
+        public Task<string?> PickExistingProjectFileAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+        public Task<string?> PickNewProjectFileAsync(string suggestedFileName, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+        public Task<IReadOnlyList<string>> PickWorkspaceFilesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<IReadOnlyList<string>> PickSourceModelFilesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<string?> PickSourceModelFileAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+    }
+
+    private sealed class RecordingOutputLauncher : IEditorOutputLauncherService
+    {
+        public List<string> RevealedPaths { get; } = [];
+
+        public Task OpenOutputAsync(string outputPath, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task RevealOutputAsync(string outputPath, CancellationToken cancellationToken = default)
+        {
+            RevealedPaths.Add(outputPath);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RecordingPreviewService : IEditorOutputPreviewService
