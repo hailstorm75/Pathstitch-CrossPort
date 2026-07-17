@@ -118,6 +118,10 @@ public sealed class MacOsDocumentIntegrationTests
         Assert.Contains("preview-smoke/step-preview.png", workflow, StringComparison.Ordinal);
         Assert.Contains("Get-FileHash", workflow, StringComparison.Ordinal);
         Assert.Contains("Quick Look did not generate DXF and STEP fixture thumbnails", workflow, StringComparison.Ordinal);
+        Assert.Contains("PATHSTITCH_MACOS_FILE_ACTIVATION_OUTPUT", workflow, StringComparison.Ordinal);
+        Assert.Contains("open -a $app $fixture", workflow, StringComparison.Ordinal);
+        Assert.Contains("file-activation-acceptance.json", workflow, StringComparison.Ordinal);
+        Assert.Contains("Running app did not receive the Finder file activation", workflow, StringComparison.Ordinal);
     }
 
     private static XDocument LoadPlist(params string[] pathParts)

@@ -86,6 +86,39 @@ jobs:
           if (-not (Test-Path "$evidence/packaged-roundtrip.stch")) { throw "Packaged app did not create the .stch round-trip artifact." }
           & unzip -t "$evidence/packaged-roundtrip.stch"
           if ($LASTEXITCODE -ne 0) { throw "Packaged .stch is not a valid project archive." }
+      - name: Running app Finder file-activation acceptance
+        shell: pwsh
+        run: |
+          $app = (Resolve-Path "artifacts/macos/Pathstitch.app").Path
+          $fixture = (Resolve-Path "scripts/macos/quicklook/Fixtures/preview-smoke.dxf").Path
+          $evidence = (Resolve-Path "artifacts/macos").Path + "/file-activation-acceptance"
+          New-Item -ItemType Directory -Force $evidence | Out-Null
+          $env:PATHSTITCH_MACOS_FILE_ACTIVATION_OUTPUT = $evidence
+          $process = Start-Process "$app/Contents/MacOS/Pathstitch.App" -PassThru
+          try {
+            $deadline = (Get-Date).AddSeconds(30)
+            while (-not (Test-Path "$evidence/file-activation-ready.txt")) {
+              if ((Get-Date) -ge $deadline) { throw "Packaged app did not become ready for file activation." }
+              Start-Sleep -Milliseconds 250
+            }
+            & open -a $app $fixture
+            if ($LASTEXITCODE -ne 0) { throw "LaunchServices failed to open the DXF in the running app." }
+            $deadline = (Get-Date).AddSeconds(45)
+            while (-not (Test-Path "$evidence/file-activation-acceptance.json")) {
+              if ((Get-Date) -ge $deadline) { throw "Running app did not receive the Finder file activation." }
+              Start-Sleep -Milliseconds 250
+            }
+            $result = Get-Content "$evidence/file-activation-acceptance.json" -Raw | ConvertFrom-Json
+            if ($result.status -ne "passed" -or
+                $result.files.Count -ne 1 -or
+                $result.files[0] -ne $fixture -or
+                $result.activePage -notmatch 'EditorPageViewModel') {
+              throw "Finder activation evidence did not contain the routed DXF editor session."
+            }
+          }
+          finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+          }
       - name: Finder Quick Look smoke test
         shell: pwsh
         run: |
