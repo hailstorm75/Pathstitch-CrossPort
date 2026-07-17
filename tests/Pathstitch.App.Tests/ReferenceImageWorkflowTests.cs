@@ -865,6 +865,13 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Contains("OnCancelReferenceTraceClicked", panel, StringComparison.Ordinal);
         Assert.Contains("TwoDReferenceTraceCornerSmoothness", panel, StringComparison.Ordinal);
         Assert.Contains("TwoDReferenceTracePathOptimization", panel, StringComparison.Ordinal);
+        Assert.Contains("TwoDReferenceTraceThreshold, StringFormat='{}{0:P0}'", panel, StringComparison.Ordinal);
+        Assert.Contains("TwoDReferenceTraceTolerance, StringFormat='{}{0:0}'", panel, StringComparison.Ordinal);
+        Assert.Contains("TwoDReferenceTraceCornerSmoothness, StringFormat='{}{0:0}'", panel, StringComparison.Ordinal);
+        Assert.Contains("TwoDReferenceTracePathOptimization, StringFormat='{}{0:0}'", panel, StringComparison.Ordinal);
+        Assert.Contains("Minimum=\"0\" Maximum=\"1\" SmallChange=\"0.05\" LargeChange=\"0.1\"", panel, StringComparison.Ordinal);
+        Assert.Equal(3, panel.Split("SmallChange=\"1\" LargeChange=\"10\"").Length - 1);
+        Assert.Contains("Use Left/Right arrows to adjust by 1.", panel, StringComparison.Ordinal);
         Assert.Contains("editor.reference.trace.progress", panel, StringComparison.Ordinal);
         Assert.Contains("IsTwoDReferenceTraceRunning", panel, StringComparison.Ordinal);
         Assert.Contains("TracePreviewPaths=\"{Binding TwoDWorkspace.ReferenceImageTracePreviewPaths}\"", ReadPage("Editor2DView.axaml"), StringComparison.Ordinal);
