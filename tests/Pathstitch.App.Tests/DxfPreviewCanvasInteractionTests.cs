@@ -394,6 +394,27 @@ public sealed class DxfPreviewCanvasInteractionTests
             DxfCanvasPenInteraction.GetCompletionForClick(points, new Point(20, 0), ToScreen, 10));
     }
 
+    [Theory]
+    [InlineData(false, true, true)]
+    [InlineData(false, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, false, false)]
+    public void PenClick_CompletesOnlyCreationDraft(
+        bool isEditing,
+        bool closeCompletion,
+        bool expected)
+    {
+        var completion = closeCompletion ? DxfPenCompletion.Closed : DxfPenCompletion.Open;
+        Assert.Equal(expected, DxfCanvasPenInteraction.ShouldCompletePath(isEditing, completion));
+    }
+
+    [Theory]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    public void PenClick_AppendsOnlyCreationOrOpenEdit(bool isEditing, bool isClosed, bool expected)
+        => Assert.Equal(expected, DxfCanvasPenInteraction.ShouldAppendAnchor(isEditing, isClosed));
+
     [Fact]
     public async Task PenCommit_EditingEarlierPathKeepsEditedPathSelected()
     {
@@ -459,6 +480,37 @@ public sealed class DxfPreviewCanvasInteractionTests
 
             Assert.Equal(2, session.PendingPenAnchors.Count);
             Assert.Equal(anchors, canvas.Document.Paths[0].BezierAnchors);
+        });
+    }
+
+    [Fact]
+    public async Task PenEdit_ClosedPathIgnoresBlankCanvasPress()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var anchors = new[]
+            {
+                new Editor2DBezierAnchor(new(0, 0)),
+                new Editor2DBezierAnchor(new(20, 0)),
+                new Editor2DBezierAnchor(new(20, 20)),
+            };
+            var path = new Editor2DPreviewPath(
+                "pen-a",
+                "LWPOLYLINE",
+                Editor2DBezierGeometry.Flatten(anchors, closed: true),
+                true,
+                BezierAnchors: anchors);
+            var canvas = Canvas(Document([path]));
+            var session = InteractionSession(canvas);
+            session.EditingPenPathId = path.Id;
+            session.EditingPenClosed = true;
+            session.PendingPenAnchors = anchors;
+
+            InvokePenPress(canvas, new Point(399, 299), KeyModifiers.None);
+
+            Assert.Equal(anchors, session.PendingPenAnchors);
+            Assert.Equal(anchors, canvas.Document!.Paths[0].BezierAnchors);
+            Assert.Equal(path.Points, canvas.Document.Paths[0].Points);
         });
     }
 
