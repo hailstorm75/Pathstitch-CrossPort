@@ -132,7 +132,8 @@ public sealed class DesktopStartupTests
         Assert.Contains("TryGetFeature(typeof(IActivatableLifetime))", app, StringComparison.Ordinal);
         Assert.Contains("FileActivatedEventArgs", app, StringComparison.Ordinal);
         Assert.Contains("fileActivation.Files", app, StringComparison.Ordinal);
-        Assert.Contains("OpenActivatedFilesAsync", app, StringComparison.Ordinal);
+        Assert.Contains("_documentWindowManager.OpenFilesAsync", app, StringComparison.Ordinal);
+        Assert.Contains("CreateWelcomeWindow", app, StringComparison.Ordinal);
         Assert.Contains("PATHSTITCH_MACOS_FILE_ACTIVATION_OUTPUT", app, StringComparison.Ordinal);
         Assert.Contains("CFBundleDocumentTypes", plist, StringComparison.Ordinal);
         Assert.Contains("com.pathstitch.project", plist, StringComparison.Ordinal);

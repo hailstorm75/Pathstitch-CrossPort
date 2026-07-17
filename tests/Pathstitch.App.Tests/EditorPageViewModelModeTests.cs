@@ -1859,8 +1859,9 @@ public sealed class EditorPageViewModelModeTests
         ProjectSessionService? projectSessionService = null,
         IReferenceImageTraceService? referenceImageTraceService = null,
         IPsdImportService? psdImportService = null,
-        IPsdImportModePromptService? psdImportModePromptService = null)
-        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, psdImportService, psdImportModePromptService);
+        IPsdImportModePromptService? psdImportModePromptService = null,
+        IDocumentWindowService? documentWindowService = null)
+        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, psdImportService, psdImportModePromptService, documentWindowService);
 
     private static EditorPageViewModel CreateViewModel(
         IProjectFileDialogService? projectFileDialogService = null,
@@ -1871,7 +1872,8 @@ public sealed class EditorPageViewModelModeTests
         ProjectSessionService? projectSessionService = null,
         IReferenceImageTraceService? referenceImageTraceService = null,
         IPsdImportService? psdImportService = null,
-        IPsdImportModePromptService? psdImportModePromptService = null)
+        IPsdImportModePromptService? psdImportModePromptService = null,
+        IDocumentWindowService? documentWindowService = null)
         => new(
             NullLogger<EditorPageViewModel>.Instance,
             new StubViewportAssetLocator(),
@@ -1887,7 +1889,8 @@ public sealed class EditorPageViewModelModeTests
             importUnitsPromptService: importUnitsPromptService,
             projectSessionService: projectSessionService,
             psdImportService: psdImportService,
-            psdImportModePromptService: psdImportModePromptService);
+            psdImportModePromptService: psdImportModePromptService,
+            documentWindowService: documentWindowService);
 
     private sealed class StubViewportAssetLocator : IEditorViewportAssetLocator
     {

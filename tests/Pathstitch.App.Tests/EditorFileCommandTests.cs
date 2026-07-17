@@ -11,6 +11,39 @@ namespace Pathstitch.App.Tests;
 public sealed class EditorFileCommandTests
 {
     [Fact]
+    public async Task NewProject_WithDocumentWindowServicePreservesDirtyCurrentDocument()
+    {
+        var windows = new RecordingDocumentWindowService();
+        await using var fixture = await Fixture.CreateAsync(
+            UnsavedChangesPromptResult.Cancel,
+            documentWindowService: windows);
+        fixture.Dialog.NewPath = Path.Combine(fixture.Directory, "new-window.stch");
+        await fixture.ViewModel.SetActiveEditorModeAsync(EditorMode.Batch);
+
+        await fixture.ViewModel.NewProjectAsync(CancellationToken.None);
+
+        Assert.Equal(0, fixture.Prompt.CallCount);
+        Assert.Equal(fixture.Session.SessionId, fixture.ViewModel.ProjectSession!.SessionId);
+        Assert.Equal(fixture.Session.SessionId, fixture.SessionService.CurrentSession!.SessionId);
+        Assert.Empty(fixture.NavigationRequests);
+        Assert.NotEqual(fixture.Session.SessionId, Assert.Single(windows.Requests).Session.SessionId);
+    }
+
+    [Fact]
+    public async Task CloseDocument_WithDocumentWindowServiceClosesOnlyOwningWindow()
+    {
+        var windows = new RecordingDocumentWindowService();
+        await using var fixture = await Fixture.CreateAsync(
+            UnsavedChangesPromptResult.Cancel,
+            documentWindowService: windows);
+
+        await fixture.ViewModel.CloseDocumentAsync();
+
+        Assert.Equal(1, windows.CloseCount);
+        Assert.Empty(fixture.NavigationRequests);
+    }
+
+    [Fact]
     public async Task NewProject_DiscardPromptsOnceAndPreapprovesExactNavigation()
     {
         await using var fixture = await Fixture.CreateAsync(UnsavedChangesPromptResult.Discard);
@@ -217,7 +250,8 @@ public sealed class EditorFileCommandTests
 
         public static async Task<Fixture> CreateAsync(
             UnsavedChangesPromptResult promptResult,
-            IEditorOutputPreviewService? outputService = null)
+            IEditorOutputPreviewService? outputService = null,
+            IDocumentWindowService? documentWindowService = null)
         {
             var directory = Path.Combine(Path.GetTempPath(), $"editor-file-commands-{Guid.NewGuid():N}");
             System.IO.Directory.CreateDirectory(directory);
@@ -233,7 +267,8 @@ public sealed class EditorFileCommandTests
                 projectFileDialogService: dialog,
                 outputPreviewService: outputService,
                 unsavedChangesPromptService: prompt,
-                projectSessionService: sessionService);
+                projectSessionService: sessionService,
+                documentWindowService: documentWindowService);
             Assert.True(await viewModel.ConfigureParametersAsync(
                 new Dictionary<string, object> { [EditorNavigationParameterKeys.ProjectSession] = session },
                 CancellationToken.None));
@@ -247,6 +282,26 @@ public sealed class EditorFileCommandTests
             ViewModel.Dispose();
             System.IO.Directory.Delete(Directory, recursive: true);
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingDocumentWindowService : IDocumentWindowService
+    {
+        public List<ProjectLaunchRequest> Requests { get; } = [];
+        public int CloseCount { get; private set; }
+
+        public Task OpenDocumentAsync(
+            ProjectLaunchRequest launchRequest,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(launchRequest);
+            return Task.CompletedTask;
+        }
+
+        public Task CloseCurrentDocumentAsync(CancellationToken cancellationToken = default)
+        {
+            CloseCount++;
+            return Task.CompletedTask;
         }
     }
 
