@@ -29,7 +29,7 @@ public sealed record Editor2DReferenceImage(
     [property: JsonPropertyName("width")] double Width,
     [property: JsonPropertyName("height")] double Height,
     [property: JsonPropertyName("rotationDegrees")] double RotationDegrees = 0.0,
-    [property: JsonPropertyName("opacity")] double Opacity = 0.65,
+    [property: JsonPropertyName("opacity")] double Opacity = 0.5,
     [property: JsonPropertyName("calibrationUnitsPerPixel")] double CalibrationUnitsPerPixel = 1.0,
     [property: JsonPropertyName("traceThreshold")] double TraceThreshold = 0.5,
     [property: JsonPropertyName("traceTolerance")] double TraceTolerance = 50.0,
