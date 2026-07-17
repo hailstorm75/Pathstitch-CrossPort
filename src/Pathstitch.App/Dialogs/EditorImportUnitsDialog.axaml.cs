@@ -20,10 +20,16 @@ public sealed partial class EditorImportUnitsDialog : Window
 
     public void SetImportInfo(Editor2DImportUnitsInfo info)
     {
-        DescriptionText.Text = $"\u201c{Path.GetFileName(info.SourcePath)}\u201d imported at {info.Width:0.###} \u00d7 {info.Height:0.###} mm and declares its units as {info.DeclaredUnit}. Confirm the real-world size.";
+        DescriptionText.Text = info.HasStrongUnitDeclaration
+            ? $"\u201c{Path.GetFileName(info.SourcePath)}\u201d imported at {info.Width:0.###} \u00d7 {info.Height:0.###} mm and declares its units as {info.DeclaredUnit}. Confirm the real-world size."
+            : $"\u201c{Path.GetFileName(info.SourcePath)}\u201d imported at {info.Width:0.###} \u00d7 {info.Height:0.###} mm, which looks unusually {(info.MaxDimension > 2000.0 ? "large" : "small")}. Pick the real-world size.";
         var choices = new List<Choice> { new($"Keep current size ({info.Width:0.###} \u00d7 {info.Height:0.###} mm)", 1.0) };
-        if (info.MillimetersPerDrawingUnit is { } fileFactor && Math.Abs(fileFactor - 1.0) > 1e-9)
+        if (info.HasStrongUnitDeclaration
+            && info.MillimetersPerDrawingUnit is { } fileFactor
+            && Math.Abs(fileFactor - 1.0) > 1e-9)
+        {
             choices.Add(new($"Apply file units ({info.DeclaredUnit} → mm)", fileFactor));
+        }
 
         foreach (var (label, factor) in new[]
         {
@@ -40,9 +46,9 @@ public sealed partial class EditorImportUnitsDialog : Window
         }
 
         ScaleChoice.ItemsSource = choices;
-        ScaleChoice.SelectedIndex = info.MillimetersPerDrawingUnit is { } declaredFactor
-            ? Math.Max(0, choices.FindIndex(choice => Math.Abs(choice.Factor - declaredFactor) < 1e-9))
-            : 0;
+        ScaleChoice.SelectedIndex = Math.Max(
+            0,
+            choices.FindIndex(choice => Math.Abs(choice.Factor - info.RecommendedScaleFactor) < 1e-9));
     }
 
     private void OnCancelClicked(object? sender, RoutedEventArgs e) => Close(null);
