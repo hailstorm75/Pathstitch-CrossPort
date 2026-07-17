@@ -43,7 +43,7 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
             _desktop.ShutdownRequested += OnShutdownRequested;
     }
 
-    public MainWindowShell? ActiveWindow => _activeDocument?.Window ?? _welcome?.Window;
+    public MainWindowShell? ActiveWindow => ResolveActiveDocument()?.Window ?? _welcome?.Window;
 
     public IServiceProvider? WelcomeServices => _welcome?.Scope.ServiceProvider;
 
@@ -100,11 +100,12 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
         IReadOnlyList<string> filePaths,
         CancellationToken cancellationToken)
     {
+        var activeDocument = ResolveActiveDocument();
         if (filePaths.Count == 1
             && Path.GetExtension(filePaths[0]).Equals(".stch", StringComparison.OrdinalIgnoreCase)
-            && _activeDocument is not null)
+            && activeDocument is not null)
         {
-            var prompt = _activeDocument.Scope.ServiceProvider
+            var prompt = activeDocument.Scope.ServiceProvider
                 .GetService<IProjectOpenDispositionPromptService>();
             var disposition = prompt is null
                 ? ProjectOpenDisposition.NewWindow
@@ -113,7 +114,7 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
                 return;
             if (disposition == ProjectOpenDisposition.Combine)
             {
-                if (_activeDocument.Window.CurrentPageViewModel is EditorPageViewModel editor)
+                if (activeDocument.Window.CurrentPageViewModel is EditorPageViewModel editor)
                     await editor.CombineProjectAsync(filePaths[0], cancellationToken).ConfigureAwait(true);
                 return;
             }
@@ -188,7 +189,9 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
             return;
 
         handle.Scope.Dispose();
-        _activeDocument = _documents.LastOrDefault();
+        if (ReferenceEquals(_activeDocument, handle))
+            _activeDocument = null;
+        ResolveActiveDocument();
         if (_documents.Count == 0 && _welcome is not null)
         {
             _welcome.Window.Show();
@@ -240,17 +243,28 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
 
     private IReadOnlyList<ApplicationCloseTarget> BuildApplicationCloseTargets()
     {
-        var ordered = _activeDocument is null
+        var activeDocument = ResolveActiveDocument();
+        var ordered = activeDocument is null
             ? _documents.ToArray()
             : _documents
-                .Where(document => !ReferenceEquals(document, _activeDocument))
-                .Prepend(_activeDocument)
+                .Where(document => !ReferenceEquals(document, activeDocument))
+                .Prepend(activeDocument)
                 .ToArray();
         return ordered
             .Select(document => new ApplicationCloseTarget(
                 document.Scope.ServiceProvider.GetRequiredService<IMessenger>(),
                 document.Window.ApproveApplicationClose))
             .ToArray();
+    }
+
+    private DocumentWindowHandle? ResolveActiveDocument()
+    {
+        var activeWindow = _documents.FirstOrDefault(document => document.Window.IsActive);
+        if (activeWindow is not null)
+            return _activeDocument = activeWindow;
+        if (_activeDocument is not null && _documents.Contains(_activeDocument))
+            return _activeDocument;
+        return _activeDocument = _documents.LastOrDefault();
     }
 
     private static NavigationChangeRequestMessage CreateEditorNavigationRequest(ProjectLaunchRequest launchRequest)
