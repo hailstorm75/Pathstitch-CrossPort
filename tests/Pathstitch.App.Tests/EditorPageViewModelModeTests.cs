@@ -159,7 +159,7 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
-    public async Task SuccessfulUnfoldAppendPreservesSemanticTwoDWorkspaceAndAddsGeneratedLayer()
+    public async Task UnfoldPreviewRefreshPreservesCommittedOutputAndReplacesOnlyPreviewLayer()
     {
         var sourcePath = Path.Combine(Path.GetTempPath(), $"pathstitch-semantic-{Guid.NewGuid():N}.obj");
         await File.WriteAllTextAsync(sourcePath, "v 0 0 0");
@@ -174,6 +174,7 @@ public sealed class EditorPageViewModelModeTests
         var cutLayer = new Editor2DLayer("cut", "Cut", [cutPath.Id], ColorHex: "#FF0000", ParentFolderId: "geometry");
         var scoreLayer = new Editor2DLayer("score", "Score", [scorePath.Id], IsVisible: false, IsLocked: true, Order: 1, ColorHex: "#0000FF", ParentFolderId: "geometry");
         var referenceLayer = new Editor2DLayer("reference", "Pattern", [], Order: 2, Kind: Editor2DLayerKind.ReferenceImage, ReferenceImage: reference);
+        var userNamedUnfoldLayer = new Editor2DLayer("user-unfold", "Unfolded 3D", [], Order: 3);
         var measurement = new Editor2DMeasurement("measurement", cutPath.Points[0], cutPath.Points[1], EntityPathId: cutPath.Id);
         var importGroup = new Editor2DImportGroup("import", "source.dxf", 1, [cutPath.Id], cutLayer.Id, 0, 0);
         var state = Editor2DWorkspaceState.Empty with
@@ -184,7 +185,7 @@ public sealed class EditorPageViewModelModeTests
                 new Editor2DBounds(0, 0, 10, 5),
                 new Dictionary<string, int> { ["LINE"] = 2 },
                 []),
-            Layers = [cutLayer, scoreLayer, referenceLayer],
+            Layers = [cutLayer, scoreLayer, referenceLayer, userNamedUnfoldLayer],
             ActiveLayerId = scoreLayer.Id,
             Folders = [new Editor2DLayerFolder("geometry", "Geometry")],
             Measurements = [measurement],
@@ -209,9 +210,11 @@ public sealed class EditorPageViewModelModeTests
             Assert.False(restoredScore.IsVisible);
             Assert.True(restoredScore.IsLocked);
             Assert.Equal(reference, viewModel.TwoDLayers.Single(layer => layer.Id == referenceLayer.Id).ReferenceImage);
-            var generated = Assert.Single(viewModel.TwoDLayers, layer => layer.Name == "Unfolded 3D");
-            Assert.Single(generated.PathIds);
-            Assert.Contains(viewModel.TwoDDocument.Paths, path => path.Id == generated.PathIds[0]);
+            Assert.Contains(viewModel.TwoDLayers, layer => layer.Id == userNamedUnfoldLayer.Id);
+            var committedLayer = Assert.Single(viewModel.TwoDLayers, layer => layer.Id.StartsWith("generated-3d-", StringComparison.Ordinal));
+            Assert.Equal("Unfolded 3D", committedLayer.Name);
+            Assert.Single(committedLayer.PathIds);
+            Assert.Contains(viewModel.TwoDDocument.Paths, path => path.Id == committedLayer.PathIds[0]);
             Assert.Equal(measurement, Assert.Single(viewModel.TwoDMeasurements));
             var restoredImport = Assert.Single(viewModel.TwoDWorkspace.ImportGroups);
             Assert.Equal(importGroup.Id, restoredImport.Id);
@@ -223,15 +226,31 @@ public sealed class EditorPageViewModelModeTests
             Assert.Equal(1.5, viewModel.TwoDViewportZoom);
             Assert.Equal(12, viewModel.TwoDViewportOffsetX);
             Assert.Equal(-4, viewModel.TwoDViewportOffsetY);
-            var firstGeneratedPathId = generated.PathIds[0];
+            var committedPathId = committedLayer.PathIds[0];
 
             await viewModel.RefreshActiveUnfoldPreviewAsync();
 
-            Assert.Equal(3, viewModel.TwoDDocument.Paths.Count);
-            var refreshedLayer = Assert.Single(viewModel.TwoDLayers, layer => layer.Name == "Unfolded 3D");
-            Assert.Single(refreshedLayer.PathIds);
-            Assert.NotEqual(firstGeneratedPathId, refreshedLayer.PathIds[0]);
-            Assert.DoesNotContain(viewModel.TwoDDocument.Paths, path => path.Id == firstGeneratedPathId);
+            Assert.Equal(4, viewModel.TwoDDocument.Paths.Count);
+            Assert.Contains(viewModel.TwoDLayers, layer => layer.Id == committedLayer.Id);
+            Assert.Contains(viewModel.TwoDDocument.Paths, path => path.Id == committedPathId);
+            Assert.Contains(viewModel.TwoDLayers, layer => layer.Id == userNamedUnfoldLayer.Id);
+            var firstPreviewLayer = Assert.Single(viewModel.TwoDLayers, layer => layer.Id.StartsWith("preview-unfold-", StringComparison.Ordinal));
+            Assert.Single(firstPreviewLayer.PathIds);
+            Assert.Contains(viewModel.TwoDDocument.Paths, path => path.Id == firstPreviewLayer.PathIds[0]);
+            var firstPreviewPathId = firstPreviewLayer.PathIds[0];
+
+            await viewModel.RefreshActiveUnfoldPreviewAsync();
+
+            Assert.Equal(4, viewModel.TwoDDocument.Paths.Count);
+            Assert.Contains(viewModel.TwoDLayers, layer => layer.Id == committedLayer.Id);
+            Assert.Contains(viewModel.TwoDDocument.Paths, path => path.Id == committedPathId);
+            Assert.Contains(viewModel.TwoDLayers, layer => layer.Id == userNamedUnfoldLayer.Id);
+            var secondPreviewLayer = Assert.Single(viewModel.TwoDLayers, layer => layer.Id.StartsWith("preview-unfold-", StringComparison.Ordinal));
+            Assert.NotEqual(firstPreviewLayer.Id, secondPreviewLayer.Id);
+            Assert.Single(secondPreviewLayer.PathIds);
+            Assert.NotEqual(firstPreviewPathId, secondPreviewLayer.PathIds[0]);
+            Assert.DoesNotContain(viewModel.TwoDDocument.Paths, path => path.Id == firstPreviewPathId);
+            Assert.Contains(viewModel.TwoDDocument.Paths, path => path.Id == secondPreviewLayer.PathIds[0]);
             Assert.Equal([cutPath.Id], viewModel.TwoDLayers.Single(layer => layer.Id == cutLayer.Id).PathIds);
             Assert.Equal(measurement, Assert.Single(viewModel.TwoDMeasurements));
             Assert.False(File.Exists(operations.ExistingDxfPath));
