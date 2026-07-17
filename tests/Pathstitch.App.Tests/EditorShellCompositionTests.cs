@@ -195,7 +195,8 @@ public sealed class EditorShellCompositionTests
 
         Assert.Contains("_desktop.ShutdownRequested += OnShutdownRequested", manager, StringComparison.Ordinal);
         Assert.Contains("_applicationCloseCoordinator.TryApproveAsync", manager, StringComparison.Ordinal);
-        Assert.Contains("Prepend(_activeDocument)", manager, StringComparison.Ordinal);
+        Assert.Contains("var activeDocument = ResolveActiveDocument()", manager, StringComparison.Ordinal);
+        Assert.Contains(".Prepend(activeDocument)", manager, StringComparison.Ordinal);
         Assert.Contains("document.Window.ApproveApplicationClose", manager, StringComparison.Ordinal);
         Assert.Contains("_welcome?.Window.ApproveApplicationClose()", manager, StringComparison.Ordinal);
         Assert.Contains("internal void ApproveApplicationClose", shell, StringComparison.Ordinal);
