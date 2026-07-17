@@ -9,7 +9,7 @@ using Domain.App.Models;
 
 namespace Domain.App.Services;
 
-public sealed class Project3DStateService
+public sealed class Project3DStateService(IEditorOutputPreviewService? outputPreviewService = null)
 {
     private static readonly DateTimeOffset AppleReferenceDate = new(2001, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
@@ -44,6 +44,14 @@ public sealed class Project3DStateService
                 .ToArray() ?? [];
             var generatedOutputPath = await TryExtractGeneratedOutputAsync(payload, projectFilePath, cancellationToken)
                 .ConfigureAwait(false);
+            var twoDWorkspaceState = payload.SavedTwoDWorkspaceState;
+            if (twoDWorkspaceState is null)
+            {
+                var legacyDocument = generatedOutputPath is not null && outputPreviewService is not null
+                    ? await outputPreviewService.LoadPreviewDocumentAsync(generatedOutputPath, cancellationToken).ConfigureAwait(false)
+                    : null;
+                twoDWorkspaceState = ConvertLegacyTwoDWorkspace(payload, legacyDocument);
+            }
 
             return new Project3DState(
                 payload.SavedViewportJson ?? payload.SavedStepJson,
@@ -56,7 +64,7 @@ public sealed class Project3DStateService
                 payload.SavedUnfoldWorkspaceState,
                 payload.SavedProjectionWorkspaceState,
                 payload.SavedEditorWorkspaceState,
-                payload.SavedTwoDWorkspaceState,
+                twoDWorkspaceState,
                 payload.SavedThreeDWorkspaceState,
                 payload.SavedStepTopology,
                 payload.SavedBatchWorkspaceState ?? ConvertLegacyBatchWorkspace(payload.BatchItems),
@@ -492,6 +500,78 @@ public sealed class Project3DStateService
         return new EditorBatchWorkspaceState(items);
     }
 
+    private static Editor2DWorkspaceState? ConvertLegacyTwoDWorkspace(
+        Project3DStatePayload payload,
+        Editor2DPreviewDocument? document)
+    {
+        if (string.IsNullOrWhiteSpace(payload.DxfDataBase64)
+            && string.IsNullOrWhiteSpace(payload.RefImageBase64)
+            && payload.CanvasScale == 0.0
+            && payload.CanvasOffsetX == 0.0
+            && payload.CanvasOffsetY == 0.0)
+            return null;
+
+        var layers = new List<Editor2DLayer>();
+        if (!string.IsNullOrWhiteSpace(payload.RefImageBase64))
+        {
+            try
+            {
+                var imageData = Convert.FromBase64String(payload.RefImageBase64);
+                if (Editor2DReferenceImageMetadata.TryReadPixelSize(imageData, out var pixelWidth, out var pixelHeight))
+                {
+                    var scale = double.IsFinite(payload.RefImageScale) && payload.RefImageScale > 0.0
+                        ? payload.RefImageScale
+                        : 1.0;
+                    const string referenceId = "legacy-reference-image";
+                    var image = new Editor2DReferenceImage(
+                        referenceId,
+                        "Reference image",
+                        payload.RefImageBase64,
+                        pixelWidth,
+                        pixelHeight,
+                        X: double.IsFinite(payload.RefImageOffsetX) ? payload.RefImageOffsetX : 0.0,
+                        Y: double.IsFinite(payload.RefImageOffsetY) ? payload.RefImageOffsetY : 0.0,
+                        Width: pixelWidth * scale,
+                        Height: pixelHeight * scale,
+                        Opacity: double.IsFinite(payload.RefImageOpacity)
+                            ? Math.Clamp(payload.RefImageOpacity, 0.0, 1.0)
+                            : 0.5,
+                        CalibrationUnitsPerPixel: scale);
+                    layers.Add(new Editor2DLayer(
+                        referenceId,
+                        image.FileName,
+                        [],
+                        Order: 1,
+                        Kind: Editor2DLayerKind.ReferenceImage,
+                        ReferenceImage: image));
+                }
+            }
+            catch (FormatException)
+            {
+                // Ignore corrupt legacy image data while preserving recoverable drawing state.
+            }
+        }
+
+        var workspaceDocument = document ?? Editor2DWorkspaceState.Empty.Document;
+        var geometryLayer = new Editor2DLayer(
+            "layer-1",
+            "Layer 1",
+            workspaceDocument.Paths.Select(path => path.Id).ToArray(),
+            Order: 0);
+        layers.Insert(0, geometryLayer);
+        var zoom = double.IsFinite(payload.CanvasScale) && payload.CanvasScale > 0.0
+            ? payload.CanvasScale
+            : 0.0;
+        return new Editor2DWorkspaceState(
+            workspaceDocument,
+            ViewportZoom: zoom,
+            ViewportOffsetX: double.IsFinite(payload.CanvasOffsetX) ? payload.CanvasOffsetX : 0.0,
+            ViewportOffsetY: double.IsFinite(payload.CanvasOffsetY) ? payload.CanvasOffsetY : 0.0,
+            IsInitialized: true,
+            Layers: layers,
+            ActiveLayerId: layers.Count > 1 ? layers[1].Id : geometryLayer.Id);
+    }
+
     private static bool TryParseLegacyActivityTimestamp(JsonElement value, out DateTimeOffset timestamp)
     {
         timestamp = default;
@@ -597,6 +677,19 @@ public sealed class Project3DStateService
         [property: JsonPropertyName("savedLearnModeEnabled")] bool? SavedLearnModeEnabled,
         [property: JsonPropertyName("isLearnModeEnabled")] bool? IsLearnModeEnabled,
         [property: JsonPropertyName("exportMeasurementLines")] bool? ExportMeasurementLines,
+        [property: JsonPropertyName("canvasScale")] double CanvasScale = 0.0,
+        [property: JsonPropertyName("canvasOffsetX")] double CanvasOffsetX = 0.0,
+        [property: JsonPropertyName("canvasOffsetY")] double CanvasOffsetY = 0.0,
+        [property: JsonPropertyName("refImageBase64")] string? RefImageBase64 = null,
+        [property: JsonPropertyName("refImageOffsetX")] double RefImageOffsetX = 0.0,
+        [property: JsonPropertyName("refImageOffsetY")] double RefImageOffsetY = 0.0,
+        [property: JsonPropertyName("refImageScale")] double RefImageScale = 1.0,
+        [property: JsonPropertyName("refImageOpacity")] double RefImageOpacity = 0.5,
+        [property: JsonPropertyName("refImageCalibrationDistance")] double RefImageCalibrationDistance = 100.0,
+        [property: JsonPropertyName("refImageCalibrationStartX")] double? RefImageCalibrationStartX = null,
+        [property: JsonPropertyName("refImageCalibrationStartY")] double? RefImageCalibrationStartY = null,
+        [property: JsonPropertyName("refImageCalibrationEndX")] double? RefImageCalibrationEndX = null,
+        [property: JsonPropertyName("refImageCalibrationEndY")] double? RefImageCalibrationEndY = null,
         string? SourceModelPath = null);
 
     private sealed record LegacyActivityEntryPayload(
