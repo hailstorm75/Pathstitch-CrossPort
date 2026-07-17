@@ -1,9 +1,12 @@
 using Avalonia;
+using Avalonia.Controls;
 using Domain.App.Models;
 using Domain.App.Services;
 using Domain.App.ViewModels;
 using Pathstitch.App.Controls;
+using Pathstitch.App.Pages;
 using Pathstitch.App.Services;
+using Pathstitch.App.Tests.Fixtures;
 using SkiaSharp;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -12,6 +15,8 @@ namespace Pathstitch.App.Tests;
 
 public sealed class ReferenceImageWorkflowTests
 {
+    private readonly HeadlessUiFixture _ui = new();
+
     [Fact]
     public void ImportReferenceImage_UsesOptionalInsertionPointAndKeepsLegacyOriginDefault()
     {
@@ -175,6 +180,97 @@ public sealed class ReferenceImageWorkflowTests
         Assert.False(workspace.BeginReferenceImageTransformEdit(layer.Id));
         Assert.False(workspace.UpdateReferenceImageTransform(layer.Id, 1, 1, 1, 1, 1));
         Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
+    public void ReferenceImageOpacityEdit_UsesContinuousValuesAndOneUndoPerGesture()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var layer = workspace.ImportReferenceImage("pattern.png", Convert.ToBase64String([1]), 100, 50);
+        var originalOpacity = layer.ReferenceImage!.Opacity;
+        workspace.ClearHistory();
+
+        Assert.True(workspace.BeginReferenceImageTransformEdit(layer.Id));
+        Assert.True(workspace.SetReferenceImageOpacity(layer.Id, 0.63));
+        Assert.True(workspace.SetReferenceImageOpacity(layer.Id, 0.37));
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.CommitReferenceImageTransformEdit());
+        Assert.Equal(0.37, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Opacity);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal(originalOpacity, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Opacity);
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.Redo());
+        Assert.Equal(0.37, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Opacity);
+
+        workspace.ClearHistory();
+        Assert.True(workspace.BeginReferenceImageTransformEdit(layer.Id));
+        Assert.True(workspace.SetReferenceImageOpacity(layer.Id, 0.12));
+        Assert.True(workspace.CancelReferenceImageTransformEdit());
+        Assert.Equal(0.37, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Opacity);
+        Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
+    public void ReferenceImageOpacity_ClampsAndRejectsLockedNonFiniteOrUnchangedValues()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var layer = workspace.ImportReferenceImage("pattern.png", Convert.ToBase64String([1]), 100, 50);
+        workspace.ClearHistory();
+
+        Assert.True(workspace.SetReferenceImageOpacity(layer.Id, -1));
+        Assert.Equal(0, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Opacity);
+        workspace.ClearHistory();
+        Assert.False(workspace.SetReferenceImageOpacity(layer.Id, 0));
+        Assert.False(workspace.SetReferenceImageOpacity(layer.Id, double.NaN));
+        Assert.False(workspace.SetReferenceImageOpacity(layer.Id, double.PositiveInfinity));
+        Assert.False(workspace.CanUndo);
+
+        Assert.True(workspace.SetReferenceImageOpacity(layer.Id, 2));
+        Assert.Equal(1, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Opacity);
+        Assert.True(workspace.ToggleLayerLock(layer.Id));
+        workspace.ClearHistory();
+        Assert.False(workspace.BeginReferenceImageTransformEdit(layer.Id));
+        Assert.False(workspace.SetReferenceImageOpacity(layer.Id, 0.5));
+        Assert.Equal(1, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Opacity);
+        Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
+    public async Task LayersPanel_OpacitySliderUpdatesLiveAndCommitsOneUndoOnFocusExit()
+    {
+        var stateBuilder = new Editor2DWorkspaceViewModel();
+        stateBuilder.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var layer = stateBuilder.ImportReferenceImage("pattern.png", Convert.ToBase64String([1]), 100, 50);
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests();
+        editor.ApplyPersistedTwoDWorkspaceState(stateBuilder.State);
+        var panel = await _ui.RunAsync(() => new Editor2DLayersPanel { DataContext = editor });
+        await using var session = await _ui.MountAsync(panel, width: 520, height: 900);
+
+        await _ui.RunAsync(() =>
+        {
+            var slider = _ui.FindByAutomationId<Slider>(panel, $"editor.reference.opacity.{layer.Id}");
+            Assert.True(slider.IsEnabled);
+            slider.Focus();
+            slider.Value = 0.63;
+            slider.Value = 0.37;
+
+            Assert.Equal(0.37, editor.TwoDWorkspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Opacity);
+            Assert.False(editor.CanUndoTwoDWorkspace);
+
+            _ui.FindByAutomationId<Button>(panel, "editor.layers.import-reference").Focus();
+        });
+        await _ui.RunAsync(() => { });
+
+        await _ui.RunAsync(() =>
+        {
+            Assert.True(editor.CanUndoTwoDWorkspace);
+            Assert.True(editor.UndoTwoDWorkspace());
+            Assert.Equal(0.65, editor.TwoDWorkspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!.Opacity);
+            Assert.False(editor.CanUndoTwoDWorkspace);
+        });
     }
 
     [Fact]
@@ -687,6 +783,11 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Contains("OnReferenceDepthBackClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceDepthFrontClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceFadeClicked", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.reference.opacity.{0}", panel, StringComparison.Ordinal);
+        Assert.Contains("Value=\"{Binding ReferenceImage.Opacity, Mode=OneWay}\"", panel, StringComparison.Ordinal);
+        Assert.Contains("IsKeyboardFocusWithin || slider.IsPointerOver", ReadPage("Editor2DLayersPanel.axaml.cs"), StringComparison.Ordinal);
+        Assert.Contains("OnReferenceOpacitySliderPointerReleased", panel, StringComparison.Ordinal);
+        Assert.Contains("OnReferenceOpacitySliderValueChanged", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceOpacity10Clicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceOpacity25Clicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceOpacity50Clicked", panel, StringComparison.Ordinal);
@@ -715,6 +816,13 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Contains("BeginTwoDReferenceImageTransform", viewSource, StringComparison.Ordinal);
         Assert.Contains("CommitTwoDReferenceImageTransform", viewSource, StringComparison.Ordinal);
         Assert.Contains("CancelTwoDReferenceImageTransform", viewSource, StringComparison.Ordinal);
+        var panelCode = ReadPage("Editor2DLayersPanel.axaml.cs");
+        Assert.Contains("BeginTwoDReferenceImageTransform", panelCode, StringComparison.Ordinal);
+        Assert.Contains("CommitTwoDReferenceImageTransform", panelCode, StringComparison.Ordinal);
+        Assert.Contains("SetTwoDReferenceImageOpacity", panelCode, StringComparison.Ordinal);
+        var layerViewModel = ReadRepositoryFile("src", "Domain", "Domain.App", "ViewModels", "EditorPageViewModel.Layers.cs");
+        Assert.Contains("RefreshTwoDReferenceImagePreviewFacade", layerViewModel, StringComparison.Ordinal);
+        Assert.Contains("if (_twoDWorkspace.IsReferenceImageTransformEditActive)", layerViewModel, StringComparison.Ordinal);
         Assert.Contains("OnRemoveReferenceBackgroundClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnRestoreReferenceBackgroundClicked", panel, StringComparison.Ordinal);
     }
