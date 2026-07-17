@@ -60,6 +60,7 @@ public partial class App : Application
             .AddSingleton<IEditorOutputLauncherService, EditorOutputLauncherService>()
             .AddSingleton<IPdfVectorImportService, PackagedPdfVectorImportService>()
             .AddSingleton<IEditorOutputPreviewService, DxfOutputPreviewService>()
+            .AddSingleton<IProjectPreviewRenderer, ProjectPreviewRenderer>()
             .AddSingleton<IGeometryKernelDescriptorProvider, OpenGeometryKernelDescriptorProvider>()
             .AddSingleton<IEditorViewportAssetLocator, EditorViewportAssetLocator>()
             .AddSingleton<OpenGeometryKernelBridge>()

@@ -14,8 +14,22 @@ internal static class PngOutputDocumentWriter
     public static void Save(string outputPath, Editor2DExportDocument document, Editor2DExportOptions options)
         => Save(outputPath, document.Geometry, options, document.PathMetadata);
 
+    public static byte[] Render(Editor2DExportDocument document, Editor2DExportOptions options)
+        => Render(document.Geometry, options, document.PathMetadata);
+
     private static void Save(
         string outputPath,
+        Editor2DPreviewDocument document,
+        Editor2DExportOptions options,
+        IReadOnlyDictionary<string, Editor2DExportPathMetadata>? pathMetadata)
+    {
+        var directory = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+            Directory.CreateDirectory(directory);
+        File.WriteAllBytes(outputPath, Render(document, options, pathMetadata));
+    }
+
+    private static byte[] Render(
         Editor2DPreviewDocument document,
         Editor2DExportOptions options,
         IReadOnlyDictionary<string, Editor2DExportPathMetadata>? pathMetadata)
@@ -63,9 +77,6 @@ internal static class PngOutputDocumentWriter
         canvas.Flush();
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        var directory = Path.GetDirectoryName(outputPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-            Directory.CreateDirectory(directory);
-        File.WriteAllBytes(outputPath, data.ToArray());
+        return data.ToArray();
     }
 }

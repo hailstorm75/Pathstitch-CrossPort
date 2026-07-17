@@ -1,4 +1,5 @@
 using Domain.App.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Domain.App.ViewModels;
 
@@ -12,6 +13,20 @@ public sealed partial class EditorPageViewModel
         var batchWorkspaceState = await _batchWorkspace
             .CaptureStateAsync(ProjectSession?.ProjectFilePath, cancellationToken)
             .ConfigureAwait(true);
+        byte[]? previewImageData = null;
+        if (_projectPreviewRenderer is not null)
+        {
+            try
+            {
+                previewImageData = await _projectPreviewRenderer
+                    .RenderAsync(BuildProjectPreviewDocument(), cancellationToken)
+                    .ConfigureAwait(true);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                _logger.LogWarning(exception, "Could not render the project preview thumbnail.");
+            }
+        }
         return new(
             ViewportJson: ViewportJsonContent,
             Bodies: Bodies,
@@ -28,7 +43,30 @@ public sealed partial class EditorPageViewModel
             StepTopology: _stepTopology,
             BatchWorkspaceState: batchWorkspaceState,
             ActivityLog: ActivityLog,
-            LearnModeEnabled: LearnModeEnabled);
+            LearnModeEnabled: LearnModeEnabled,
+            PreviewImageData: previewImageData);
+    }
+
+    private Editor2DExportDocument? BuildProjectPreviewDocument()
+    {
+        if (TwoDDocument is not { } document)
+            return null;
+
+        var geometryLayers = TwoDLayers
+            .Where(layer => layer.Kind == Editor2DLayerKind.Geometry)
+            .ToArray();
+        var assignedPathIds = geometryLayers
+            .SelectMany(layer => layer.PathIds)
+            .ToHashSet(StringComparer.Ordinal);
+        var visiblePathIds = geometryLayers
+            .Where(layer => layer.IsVisible)
+            .SelectMany(layer => layer.PathIds)
+            .ToHashSet(StringComparer.Ordinal);
+        var visiblePaths = document.Paths
+            .Where(path => !assignedPathIds.Contains(path.Id) || visiblePathIds.Contains(path.Id))
+            .ToArray();
+        var visibleDocument = CreateUpdatedTwoDDocument(document, visiblePaths);
+        return BuildExportDocument(visibleDocument);
     }
 
     private async Task PersistDocumentAsync(Project3DState state, CancellationToken cancellationToken)

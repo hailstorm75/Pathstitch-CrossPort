@@ -22,6 +22,7 @@ public sealed partial class EditorPageViewModel(
     IReferenceImageTraceService? referenceImageTraceService = null,
     IReferenceImageBackgroundRemovalService? referenceImageBackgroundRemovalService = null,
     IReferenceImagePreparationService? referenceImagePreparationService = null,
+    IProjectPreviewRenderer? projectPreviewRenderer = null,
     IUnsavedChangesPromptService? unsavedChangesPromptService = null,
     IEditorImportUnitsPromptService? importUnitsPromptService = null,
     ProjectSessionService? projectSessionService = null,
@@ -60,6 +61,7 @@ public sealed partial class EditorPageViewModel(
         importUnitsPromptService ?? CancelEditorImportUnitsPromptService.Instance;
     private readonly IReferenceImagePreparationService _referenceImagePreparationService =
         referenceImagePreparationService ?? MetadataReferenceImagePreparationService.Instance;
+    private readonly IProjectPreviewRenderer? _projectPreviewRenderer = projectPreviewRenderer;
     private readonly IPsdImportService _psdImportService = psdImportService ?? MissingPsdImportService.Instance;
     private readonly IPsdImportModePromptService _psdImportModePromptService =
         psdImportModePromptService ?? CancelPsdImportModePromptService.Instance;

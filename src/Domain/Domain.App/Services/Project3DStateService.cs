@@ -175,6 +175,13 @@ public sealed class Project3DStateService
                 await entryStream.WriteAsync(preservedEntry.Content, cancellationToken).ConfigureAwait(false);
             }
 
+            if (IsValidPreviewImage(state.PreviewImageData))
+            {
+                var previewEntry = archive.CreateEntry("preview.png", CompressionLevel.Optimal);
+                await using var previewStream = previewEntry.Open();
+                await previewStream.WriteAsync(state.PreviewImageData, cancellationToken).ConfigureAwait(false);
+            }
+
             if (!string.IsNullOrWhiteSpace(state.SourceModelPath) && File.Exists(state.SourceModelPath))
             {
                 var extension = Path.GetExtension(state.SourceModelPath);
@@ -327,6 +334,8 @@ public sealed class Project3DStateService
             {
                 if (string.Equals(entry.FullName, "project.json", StringComparison.OrdinalIgnoreCase))
                     continue;
+                if (string.Equals(entry.FullName, "preview.png", StringComparison.OrdinalIgnoreCase))
+                    continue;
 
                 if (!preserveExistingSourceModel && IsSourceModelEntry(entry.FullName))
                     continue;
@@ -344,6 +353,17 @@ public sealed class Project3DStateService
             return [];
         }
     }
+
+    private static bool IsValidPreviewImage(byte[]? data)
+        => data is { Length: > 8 and <= 4 * 1024 * 1024 }
+            && data[0] == 0x89
+            && data[1] == 0x50
+            && data[2] == 0x4E
+            && data[3] == 0x47
+            && data[4] == 0x0D
+            && data[5] == 0x0A
+            && data[6] == 0x1A
+            && data[7] == 0x0A;
 
     private static async Task<string?> TryExtractSourceModelAsync(ZipArchive archive, string projectFilePath, CancellationToken cancellationToken)
     {
