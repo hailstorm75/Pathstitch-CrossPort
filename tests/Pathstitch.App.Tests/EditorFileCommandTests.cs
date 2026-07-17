@@ -68,6 +68,30 @@ public sealed class EditorFileCommandTests
     }
 
     [Fact]
+    public async Task OpenProject_CorruptFilePreservesCurrentSessionAndEditorState()
+    {
+        await using var fixture = await Fixture.CreateAsync(UnsavedChangesPromptResult.Discard);
+        var corrupt = Path.Combine(fixture.Directory, "corrupt.stch");
+        await File.WriteAllTextAsync(corrupt, "not-json");
+        fixture.Dialog.OpenPath = corrupt;
+        await fixture.ViewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var existing = new Editor2DPreviewPath("existing", "LINE", [new(0, 0), new(5, 0)], false);
+        fixture.ViewModel.TwoDDocument = Document(existing);
+        var originalSessionId = fixture.ViewModel.ProjectSession!.SessionId;
+
+        await fixture.ViewModel.OpenProjectAsync(CancellationToken.None);
+
+        Assert.Equal(1, fixture.Dialog.OpenCount);
+        Assert.Equal(0, fixture.Prompt.CallCount);
+        Assert.Equal(originalSessionId, fixture.SessionService.CurrentSession!.SessionId);
+        Assert.Equal(originalSessionId, fixture.ViewModel.ProjectSession.SessionId);
+        Assert.Equal(existing, Assert.Single(fixture.ViewModel.TwoDDocument!.Paths));
+        Assert.Empty(fixture.NavigationRequests);
+        Assert.Equal("Project replacement failed", fixture.ViewModel.StatusText);
+        Assert.Contains("corrupt.stch", fixture.ViewModel.ErrorMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ImportDrawing_AddsToCurrentSessionWithoutUnsavedPrompt()
     {
         var importedPath = Path.Combine(Path.GetTempPath(), $"import-{Guid.NewGuid():N}.dxf");

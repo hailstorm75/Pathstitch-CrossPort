@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO.Compression;
 using Domain.App.Models;
 using Domain.App.Services;
 
@@ -6,6 +7,75 @@ namespace Pathstitch.App.Tests;
 
 public sealed class ProjectSessionServiceTests
 {
+    [Fact]
+    public async Task OpenRecentProjectAsync_CorruptProjectPreservesCurrentSession()
+    {
+        using var workspace = TestWorkspace.Create();
+        var validPath = workspace.WriteText(
+            "valid.stch",
+            "{\"projectName\":\"Valid\",\"templateId\":\"blank-project\"}");
+        var corruptPath = workspace.WriteText("corrupt.stch", "not-json");
+        var service = new ProjectSessionService(
+            new FakeProjectFileDialogService(),
+            new RecentProjectsService(Path.Combine(workspace.Directory, "recent.json")));
+        var current = Assert.IsType<ProjectSession>(await service.OpenRecentProjectAsync(validPath));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.OpenRecentProjectAsync(corruptPath));
+
+        Assert.Contains("corrupt.stch", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("not a valid Pathstitch project", exception.Message, StringComparison.Ordinal);
+        Assert.Same(current, service.CurrentSession);
+        Assert.DoesNotContain(service.RecentProjects, recent =>
+            recent.ProjectFilePath.Equals(corruptPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task PrepareOpenProjectAsync_RejectsMalformedAndMissingArchiveMetadata()
+    {
+        using var workspace = TestWorkspace.Create();
+        var malformedPath = Path.Combine(workspace.Directory, "malformed.stch");
+        using (var archive = ZipFile.Open(malformedPath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("project.json");
+            await using var stream = entry.Open();
+            await using var writer = new StreamWriter(stream);
+            await writer.WriteAsync("{broken");
+        }
+        var missingPath = Path.Combine(workspace.Directory, "missing.stch");
+        using (var archive = ZipFile.Open(missingPath, ZipArchiveMode.Create))
+            archive.CreateEntry("other.json");
+        var service = new ProjectSessionService(
+            new FakeProjectFileDialogService(),
+            new RecentProjectsService(Path.Combine(workspace.Directory, "recent.json")));
+
+        var malformed = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.PrepareOpenProjectAsync(malformedPath));
+        var missing = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.PrepareOpenProjectAsync(missingPath));
+
+        Assert.Contains("malformed.stch", malformed.Message, StringComparison.Ordinal);
+        Assert.Contains("missing.stch", missing.Message, StringComparison.Ordinal);
+        Assert.Null(service.CurrentSession);
+        Assert.Empty(service.RecentProjects);
+    }
+
+    [Fact]
+    public async Task PrepareOpenProjectAsync_RejectsNonObjectJsonRoot()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.WriteText("array.stch", "[]");
+        var service = new ProjectSessionService(
+            new FakeProjectFileDialogService(),
+            new RecentProjectsService(Path.Combine(workspace.Directory, "recent.json")));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.PrepareOpenProjectAsync(projectPath));
+
+        Assert.Contains("array.stch", exception.Message, StringComparison.Ordinal);
+        Assert.Null(service.CurrentSession);
+    }
+
     [Fact]
     public async Task OpenWorkspaceFilesAsync_CreatesImportedWorkspaceForStepSource()
     {
@@ -156,7 +226,7 @@ public sealed class ProjectSessionServiceTests
             Directory = directory;
         }
 
-        private string Directory { get; }
+        public string Directory { get; }
 
         public static TestWorkspace Create()
         {
