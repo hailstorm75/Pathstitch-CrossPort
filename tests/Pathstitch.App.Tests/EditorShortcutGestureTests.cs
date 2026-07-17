@@ -6,6 +6,18 @@ namespace Pathstitch.App.Tests;
 
 public sealed class EditorShortcutGestureTests
 {
+    [Fact]
+    public void AppCatalog_OffersCustomizableActivityLogShortcut()
+    {
+        var shortcut = Assert.Single(
+            EditorAppShortcutCatalog.All,
+            definition => definition.Identifier == EditorCommandPaletteCatalog.ToggleActivityLogIdentifier);
+
+        Assert.Equal("Toggle Log Tray", shortcut.Label);
+        Assert.Equal("View", shortcut.Category);
+        Assert.Null(shortcut.DefaultGesture);
+    }
+
     [Theory]
     [InlineData("Ctrl+Shift+n", "Primary+Shift+N")]
     [InlineData("Cmd+Option+F5", "Primary+Alt+F5")]

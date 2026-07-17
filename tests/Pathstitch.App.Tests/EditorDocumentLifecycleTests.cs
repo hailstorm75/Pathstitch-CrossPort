@@ -36,6 +36,9 @@ public sealed class EditorDocumentLifecycleTests
         Assert.False(fixture.ViewModel.IsDirty);
         var persisted = await new Project3DStateService().LoadAsync(fixture.ProjectPath);
         Assert.Equal(EditorMode.Batch, persisted.WorkspaceState?.ActiveEditorMode);
+        var activity = Assert.Single(persisted.ActivityLog!);
+        Assert.Equal("Save Project", activity.Action);
+        Assert.Equal(Path.GetFileName(fixture.ProjectPath), activity.Details);
     }
 
     [Fact]
@@ -83,6 +86,7 @@ public sealed class EditorDocumentLifecycleTests
             await ((INavigablePageViewModel)reopened).LoadAsync(CancellationToken.None);
 
             Assert.False(reopened.IsDirty);
+            Assert.Equal("Save Project", Assert.Single(reopened.ActivityLog).Action);
             Assert.Equal(EditorMode.Batch, reopened.ActiveEditorMode);
             Assert.Equal(["first.dxf", "second.svg"], reopened.BatchWorkspace.Items.Select(item => item.FileName));
             Assert.All(reopened.BatchWorkspace.Items, item => Assert.True(File.Exists(item.FilePath)));

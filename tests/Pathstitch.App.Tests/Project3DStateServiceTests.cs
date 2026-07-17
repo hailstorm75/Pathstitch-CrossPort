@@ -10,6 +10,24 @@ namespace Pathstitch.App.Tests;
 public sealed class Project3DStateServiceTests
 {
     [Fact]
+    public async Task SaveAndLoadAsync_RoundTripsActivityLog()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("activity-log.stch");
+        var service = new Project3DStateService();
+        var timestamp = new DateTimeOffset(2026, 7, 17, 10, 30, 0, TimeSpan.Zero);
+        var activity = new EditorActivityEntry("entry-1", timestamp, "Import Reference Images", "2 images", "layer-1");
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(null, [], [], ActivityLog: [activity]));
+
+        var restored = await service.LoadAsync(projectPath);
+
+        Assert.Equal(activity, Assert.Single(restored.ActivityLog!));
+    }
+
+    [Fact]
     public async Task LoadAsync_MapsLegacySavedStepJsonToViewportJson()
     {
         using var workspace = TestWorkspace.Create();
@@ -27,6 +45,7 @@ public sealed class Project3DStateServiceTests
 
         Assert.Equal("{\"bodies\":[],\"bbox\":{}}", state.ViewportJson);
         Assert.True(state.HasModel);
+        Assert.Empty(state.ActivityLog!);
     }
 
     [Fact]

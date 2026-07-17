@@ -112,6 +112,21 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void Shell_OffersAccessibleActivityLogTrayFromViewMenuAndWorkspace()
+    {
+        var shell = ReadPage("EditorShellView.axaml");
+        var tray = ReadPage("EditorActivityLogTray.axaml");
+
+        Assert.Contains("editor.menu.view.log-tray", shell, StringComparison.Ordinal);
+        Assert.Contains("editor.workspace.log-tray", shell, StringComparison.Ordinal);
+        Assert.Contains("<pages:EditorActivityLogTray Grid.Row=\"3\"", shell, StringComparison.Ordinal);
+        Assert.Contains("editor.log-tray", tray, StringComparison.Ordinal);
+        Assert.Contains("editor.log-tray.empty", tray, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.Name=\"{Binding AccessibilitySummary}\"", tray, StringComparison.Ordinal);
+        Assert.Contains("ActivityScrollViewer.ScrollToEnd", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorActivityLogTray.axaml.cs"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void HelpMenu_ExposesAnAboutDialogForAppParity()
     {
         var shell = ReadPage("EditorShellView.axaml");

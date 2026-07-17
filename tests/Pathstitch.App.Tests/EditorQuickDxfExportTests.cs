@@ -33,6 +33,7 @@ public sealed class EditorQuickDxfExportTests
         await viewModel.ExportTwoDDxfAsync();
 
         Assert.Null(output.SavedDocument);
+        Assert.Empty(viewModel.ActivityLog);
     }
 
     [Fact]
@@ -50,6 +51,10 @@ public sealed class EditorQuickDxfExportTests
 
         Assert.Same(document, output.SavedDocument);
         Assert.Equal(outputPath, output.SavedPath);
+        var activity = Assert.Single(viewModel.ActivityLog);
+        Assert.Equal("Export DXF", activity.Action);
+        Assert.Equal(outputPath, activity.Details);
+        Assert.True(viewModel.IsDirty);
     }
 
     [Fact]
@@ -147,6 +152,7 @@ public sealed class EditorQuickDxfExportTests
         await viewModel.ExportTwoDDxfAsync();
 
         Assert.Equal("Could not export DXF: disk full", viewModel.ErrorMessage);
+        Assert.Empty(viewModel.ActivityLog);
     }
 
     [Fact]
