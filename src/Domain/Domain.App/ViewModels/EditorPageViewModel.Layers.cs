@@ -24,6 +24,48 @@ public sealed partial class EditorPageViewModel
     public bool TwoDActiveReferenceImageLocked
         => _twoDWorkspace.ActiveLayer?.IsLocked == true;
 
+    public bool HasTwoDReferenceTraceSession => _twoDWorkspace.HasReferenceImageTraceSession;
+
+    public bool ShowTwoDReferenceCalibration
+        => HasTwoDActiveReferenceImage && !HasTwoDReferenceTraceSession;
+
+    public bool CanCommitTwoDReferenceTrace => _twoDWorkspace.ReferenceImageTracePreviewPaths.Count > 0;
+
+    public string TwoDReferenceTraceSummary
+        => CanCommitTwoDReferenceTrace
+            ? $"{_twoDWorkspace.ReferenceImageTracePreviewPaths.Count} cyan contour(s) ready"
+            : "No trace contours found";
+
+    public double TwoDReferenceTraceThreshold
+    {
+        get => _twoDWorkspace.ReferenceImageTraceSource?.TraceThreshold ?? 0.5;
+        set => UpdateTwoDReferenceTraceOptions(image => image with { TraceThreshold = value });
+    }
+
+    public double TwoDReferenceTraceTolerance
+    {
+        get => _twoDWorkspace.ReferenceImageTraceSource?.TraceTolerance ?? 50.0;
+        set => UpdateTwoDReferenceTraceOptions(image => image with { TraceTolerance = value });
+    }
+
+    public double TwoDReferenceTraceCornerSmoothness
+    {
+        get => _twoDWorkspace.ReferenceImageTraceSource?.TraceCornerSmoothness ?? 50.0;
+        set => UpdateTwoDReferenceTraceOptions(image => image with { TraceCornerSmoothness = value });
+    }
+
+    public double TwoDReferenceTracePathOptimization
+    {
+        get => _twoDWorkspace.ReferenceImageTraceSource?.TracePathOptimization ?? 50.0;
+        set => UpdateTwoDReferenceTraceOptions(image => image with { TracePathOptimization = value });
+    }
+
+    public bool TwoDReferenceTraceSilhouetteOnly
+    {
+        get => _twoDWorkspace.ReferenceImageTraceSource?.TraceSilhouetteOnly ?? false;
+        set => UpdateTwoDReferenceTraceOptions(image => image with { TraceSilhouetteOnly = value });
+    }
+
     private string _twoDReferenceCalibrationWidthText = "100";
     private bool _twoDReferencePointCalibrationActive;
     private IReadOnlyList<Editor2DPoint> _twoDReferenceCalibrationPoints = [];
@@ -304,12 +346,28 @@ public sealed partial class EditorPageViewModel
 
     public void TraceTwoDReferenceImage(string layerId)
     {
-        var trace = _twoDWorkspace.TraceReferenceImageBounds(layerId);
-        if (trace is null)
+        if (!_twoDWorkspace.BeginReferenceImageTrace(layerId))
             return;
 
         RefreshTwoDLayerFacade();
-        StatusText = "Reference bounds traced to editable geometry";
+        StatusText = CanCommitTwoDReferenceTrace
+            ? "Adjust tracing options, then generate vectors"
+            : "No trace contours found; adjust tracing options";
+    }
+
+    public void CommitTwoDReferenceTrace()
+    {
+        if (_twoDWorkspace.CommitReferenceImageTrace() is null)
+            return;
+        RefreshTwoDLayerFacade();
+        StatusText = "Reference image vectorized; source image hidden";
+    }
+
+    public void CancelTwoDReferenceTrace()
+    {
+        _twoDWorkspace.CancelReferenceImageTrace();
+        RefreshTwoDLayerFacade();
+        StatusText = "Reference image tracing cancelled";
     }
 
     public void RemoveTwoDReferenceImageBackground(string layerId)
@@ -401,7 +459,25 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDActiveReferenceImage));
         OnPropertyChanged(nameof(HasTwoDActiveReferenceImage));
         OnPropertyChanged(nameof(TwoDActiveReferenceImageLocked));
+        OnPropertyChanged(nameof(HasTwoDReferenceTraceSession));
+        OnPropertyChanged(nameof(ShowTwoDReferenceCalibration));
+        OnPropertyChanged(nameof(CanCommitTwoDReferenceTrace));
+        OnPropertyChanged(nameof(TwoDReferenceTraceSummary));
+        OnPropertyChanged(nameof(TwoDReferenceTraceThreshold));
+        OnPropertyChanged(nameof(TwoDReferenceTraceTolerance));
+        OnPropertyChanged(nameof(TwoDReferenceTraceCornerSmoothness));
+        OnPropertyChanged(nameof(TwoDReferenceTracePathOptimization));
+        OnPropertyChanged(nameof(TwoDReferenceTraceSilhouetteOnly));
         Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+    }
+
+    private void UpdateTwoDReferenceTraceOptions(
+        Func<Editor2DReferenceImage, Editor2DReferenceImage> update)
+    {
+        if (_twoDWorkspace.ReferenceImageTraceLayerId is not { } layerId
+            || !_twoDWorkspace.SetReferenceImageTraceOptions(layerId, update))
+            return;
+        RefreshTwoDLayerFacade();
     }
 
     private Editor2DReferenceImage? GetReferenceImage(string layerId)

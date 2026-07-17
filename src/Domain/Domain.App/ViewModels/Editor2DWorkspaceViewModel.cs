@@ -82,6 +82,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private string _glueTabStartOffsetText = "0";
     private string _glueTabEndOffsetText = "0";
     private IReadOnlyList<Editor2DPreviewPath> _sewingHolePreviewPaths = [];
+    private IReadOnlyList<Editor2DPreviewPath> _referenceImageTracePreviewPaths = [];
+    private string? _referenceImageTraceLayerId;
     private string? _editingSewingHoleOperationId;
     private Editor2DSewingHoleOperation? _selectedSewingHoleOperation;
 
@@ -270,6 +272,11 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             .Cast<Editor2DImportGroup>()
             .ToArray();
     public IReadOnlyList<Editor2DPreviewPath> SewingHolePreviewPaths => _sewingHolePreviewPaths;
+    public IReadOnlyList<Editor2DPreviewPath> ReferenceImageTracePreviewPaths => _referenceImageTracePreviewPaths;
+    public string? ReferenceImageTraceLayerId => _referenceImageTraceLayerId;
+    public bool HasReferenceImageTraceSession => _referenceImageTraceLayerId is not null;
+    public Editor2DReferenceImage? ReferenceImageTraceSource
+        => Layers.FirstOrDefault(layer => layer.Id == _referenceImageTraceLayerId)?.ReferenceImage;
     public int SewingHolePreviewCount => _sewingHolePreviewPaths.Count;
     public bool HasSewingHolePreview => _sewingHolePreviewPaths.Count > 0;
     public bool CanPreviewSewingHoles => SelectedPathIds.Any(id => Document.Paths.Any(path => path.Id == id));
@@ -362,8 +369,20 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         }
 
         _state = normalized;
+        var traceSessionInvalid = _referenceImageTraceLayerId is not null
+            && !Layers.Any(layer => layer.Id == _referenceImageTraceLayerId
+                && layer.IsReferenceImage
+                && layer.IsVisible
+                && !layer.IsLocked);
+        if (traceSessionInvalid)
+        {
+            _referenceImageTraceLayerId = null;
+            _referenceImageTracePreviewPaths = [];
+        }
         RemoveMissingMirrorLinks();
         RaiseStateChanged();
+        if (traceSessionInvalid)
+            RaiseReferenceImageTraceChanged();
     }
 
     private Editor2DWorkspaceState DetachEditedConvertLineGroups(Editor2DWorkspaceState state)
@@ -1523,6 +1542,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             return false;
 
         var source = ordered[sourceIndex];
+        if (_referenceImageTraceLayerId == source.Id)
+            CancelReferenceImageTrace();
         if (source.Kind == Editor2DLayerKind.Geometry)
         {
             var geometryLayers = ordered.Where(layer => layer.Kind == Editor2DLayerKind.Geometry).ToArray();
@@ -1620,7 +1641,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         double width,
         double height,
         double rotationDegrees)
-        => UpdateReferenceImage(layerId, image => image with
+        => UpdateReferenceImageAndRefreshTrace(layerId, image => image with
         {
             X = x,
             Y = y,
@@ -1630,7 +1651,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         });
 
     public bool CalibrateReferenceImage(string layerId, double realWorldWidth)
-        => UpdateReferenceImage(layerId, image =>
+        => UpdateReferenceImageAndRefreshTrace(layerId, image =>
         {
             if (!double.IsFinite(realWorldWidth) || realWorldWidth <= 0.0)
                 return image;
@@ -1662,7 +1683,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             || !double.IsFinite(height) || height <= 0.0
             || !double.IsFinite(unitsPerPixel) || unitsPerPixel <= 0.0)
             return false;
-        return UpdateReferenceImage(layerId, image => image with
+        return UpdateReferenceImageAndRefreshTrace(layerId, image => image with
         {
             Width = width,
             Height = height,
@@ -1697,7 +1718,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(removed))
             return false;
 
-        return UpdateReferenceImage(layerId, current => current with
+        return UpdateReferenceImageAndRefreshTrace(layerId, current => current with
         {
             DataBase64 = removed,
             OriginalDataBase64 = original,
@@ -1712,7 +1733,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         if (layer is null || image is null || layer.IsLocked || string.IsNullOrWhiteSpace(image.OriginalDataBase64))
             return false;
 
-        return UpdateReferenceImage(layerId, current => current with
+        return UpdateReferenceImageAndRefreshTrace(layerId, current => current with
         {
             DataBase64 = current.OriginalDataBase64!,
             OriginalDataBase64 = null,
@@ -1721,23 +1742,84 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     }
 
     public bool SetReferenceImageTraceThreshold(string layerId, double threshold)
-        => UpdateReferenceImage(layerId, image => image with { TraceThreshold = Math.Clamp(threshold, 0.0, 1.0) });
+        => SetReferenceImageTraceOptions(layerId, image => image with
+        {
+            TraceThreshold = Math.Clamp(threshold, 0.0, 1.0),
+        });
 
-    public Editor2DPreviewPath? TraceReferenceImageBounds(string layerId)
+    public bool SetReferenceImageTraceOptions(
+        string layerId,
+        Func<Editor2DReferenceImage, Editor2DReferenceImage> update)
+    {
+        var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId && candidate.IsReferenceImage);
+        if (layer?.ReferenceImage is null || layer.IsLocked)
+            return false;
+
+        var candidateImage = update(layer.ReferenceImage);
+        var updatedImage = candidateImage with
+        {
+            TraceThreshold = double.IsFinite(candidateImage.TraceThreshold)
+                ? Math.Clamp(candidateImage.TraceThreshold, 0.0, 1.0)
+                : 0.5,
+            TraceTolerance = double.IsFinite(candidateImage.TraceTolerance)
+                ? Math.Clamp(candidateImage.TraceTolerance, 1.0, 100.0)
+                : 50.0,
+            TraceCornerSmoothness = double.IsFinite(candidateImage.TraceCornerSmoothness)
+                ? Math.Clamp(candidateImage.TraceCornerSmoothness, 0.0, 100.0)
+                : 50.0,
+            TracePathOptimization = double.IsFinite(candidateImage.TracePathOptimization)
+                ? Math.Clamp(candidateImage.TracePathOptimization, 0.0, 100.0)
+                : 50.0,
+        };
+        if (Equals(layer.ReferenceImage, updatedImage))
+            return false;
+
+        Apply(_state with
+        {
+            Layers = Layers.Select(candidate => candidate.Id == layerId
+                ? candidate with { ReferenceImage = updatedImage, PathIds = [] }
+                : candidate).ToArray(),
+        }, recordHistory: false);
+        if (_referenceImageTraceLayerId == layerId)
+            RefreshReferenceImageTracePreview();
+        return true;
+    }
+
+    public bool BeginReferenceImageTrace(string layerId)
     {
         var sourceLayer = Layers.FirstOrDefault(layer => layer.Id == layerId && layer.IsReferenceImage);
+        if (sourceLayer?.ReferenceImage is null
+            || sourceLayer.IsLocked
+            || !sourceLayer.IsVisible
+            || _referenceImageTraceService is null)
+            return false;
+
+        _referenceImageTraceLayerId = layerId;
+        RefreshReferenceImageTracePreview();
+        return true;
+    }
+
+    public bool RefreshReferenceImageTracePreview()
+    {
+        var sourceLayer = Layers.FirstOrDefault(layer => layer.Id == _referenceImageTraceLayerId && layer.IsReferenceImage);
         var image = sourceLayer?.ReferenceImage;
         if (sourceLayer is null
             || image is null
             || sourceLayer.IsLocked
             || !sourceLayer.IsVisible
             || _referenceImageTraceService is null)
-            return null;
+        {
+            CancelReferenceImageTrace();
+            return false;
+        }
 
-        var contours = _referenceImageTraceService.TraceContours(image.DataBase64, image.TraceThreshold);
-        if (contours.Count == 0)
-            return null;
-
+        var options = new Editor2DReferenceImageTraceOptions(
+            image.TraceThreshold,
+            image.TraceTolerance,
+            image.TraceCornerSmoothness,
+            image.TracePathOptimization,
+            image.TraceSilhouetteOnly);
+        var contours = _referenceImageTraceService.TraceContours(image.DataBase64, options);
         var radians = image.RotationDegrees * Math.PI / 180.0;
         var cosine = Math.Cos(radians);
         var sine = Math.Sin(radians);
@@ -1749,48 +1831,94 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                 image.X + (localX * cosine) - (localY * sine),
                 image.Y + (localX * sine) + (localY * cosine));
         }
-        var traces = contours
+
+        _referenceImageTracePreviewPaths = contours
             .Where(contour => contour.Count >= 3)
-            .Select(contour => new Editor2DPreviewPath(
-                $"trace-{Guid.NewGuid():N}",
+            .Select((contour, index) => new Editor2DPreviewPath(
+                $"trace-preview-{sourceLayer.Id}-{index}",
                 "REFERENCE_TRACE",
                 contour.Select(Transform).ToArray(),
                 IsClosed: true))
             .ToArray();
-        if (traces.Length == 0)
+        RaiseReferenceImageTraceChanged();
+        return _referenceImageTracePreviewPaths.Count > 0;
+    }
+
+    public Editor2DPreviewPath? CommitReferenceImageTrace()
+    {
+        var sourceLayer = Layers.FirstOrDefault(layer => layer.Id == _referenceImageTraceLayerId && layer.IsReferenceImage);
+        if (sourceLayer?.ReferenceImage is null || _referenceImageTracePreviewPaths.Count == 0)
             return null;
 
+        var traces = _referenceImageTracePreviewPaths.Select(path => path with
+        {
+            Id = $"trace-{Guid.NewGuid():N}",
+        }).ToArray();
+        var targetNameBase = Path.GetFileNameWithoutExtension(sourceLayer.Name);
+        var targetName = $"{(string.IsNullOrWhiteSpace(targetNameBase) ? "Reference" : targetNameBase)}_traced";
         var layers = Layers.OrderBy(layer => layer.Order).ToList();
-        var geometryLayerIndex = layers.FindIndex(layer => layer.Kind == Editor2DLayerKind.Geometry && !layer.IsLocked);
-        if (geometryLayerIndex < 0)
+        var targetIndex = layers.FindIndex(layer => layer.Kind == Editor2DLayerKind.Geometry
+            && !layer.IsLocked
+            && layer.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase));
+        if (targetIndex < 0)
         {
             layers.Add(new Editor2DLayer(
                 Guid.NewGuid().ToString("N"),
-                "Traced geometry",
+                targetName,
                 traces.Select(trace => trace.Id).ToArray(),
-                Order: layers.Count));
+                Order: layers.Count,
+                ColorHex: "#22C55E"));
+            targetIndex = layers.Count - 1;
         }
         else
         {
-            layers[geometryLayerIndex] = layers[geometryLayerIndex] with
+            layers[targetIndex] = layers[targetIndex] with
             {
-                PathIds = layers[geometryLayerIndex].PathIds
-                    .Concat(traces.Select(trace => trace.Id))
-                    .Distinct(StringComparer.Ordinal)
-                    .ToArray(),
+                PathIds = layers[targetIndex].PathIds.Concat(traces.Select(trace => trace.Id)).ToArray(),
             };
         }
+        var targetLayerId = layers[targetIndex].Id;
+        layers = layers.Select(layer => layer.Id == sourceLayer.Id
+            ? layer with { IsVisible = false }
+            : layer).ToList();
 
-        var nextPaths = _state.Document.Paths.Concat(traces).ToArray();
-        var entityCounts = new Dictionary<string, int>(_state.Document.EntityCounts, StringComparer.OrdinalIgnoreCase);
-        entityCounts["REFERENCE_TRACE"] = entityCounts.GetValueOrDefault("REFERENCE_TRACE") + traces.Length;
         Apply(_state with
         {
-            Document = RebuildDocument(_state.Document with { EntityCounts = entityCounts }, nextPaths),
+            Document = RebuildDocument(_state.Document, _state.Document.Paths.Concat(traces).ToArray()),
             Layers = layers,
+            ActiveLayerId = targetLayerId,
             SelectedPathIds = traces.Select(trace => trace.Id).ToArray(),
         });
-        return traces[0];
+        var first = traces[0];
+        CancelReferenceImageTrace();
+        return first;
+    }
+
+    public void CancelReferenceImageTrace()
+    {
+        if (_referenceImageTraceLayerId is null && _referenceImageTracePreviewPaths.Count == 0)
+            return;
+        _referenceImageTraceLayerId = null;
+        _referenceImageTracePreviewPaths = [];
+        RaiseReferenceImageTraceChanged();
+    }
+
+    private void RaiseReferenceImageTraceChanged()
+    {
+        OnPropertyChanged(nameof(ReferenceImageTracePreviewPaths));
+        OnPropertyChanged(nameof(ReferenceImageTraceLayerId));
+        OnPropertyChanged(nameof(HasReferenceImageTraceSession));
+        OnPropertyChanged(nameof(ReferenceImageTraceSource));
+    }
+
+    public Editor2DPreviewPath? TraceReferenceImageBounds(string layerId)
+    {
+        if (!BeginReferenceImageTrace(layerId))
+            return null;
+        var trace = CommitReferenceImageTrace();
+        if (trace is null)
+            CancelReferenceImageTrace();
+        return trace;
     }
 
     public bool SelectLayer(string layerId)
@@ -1806,10 +1934,26 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     }
 
     public bool ToggleLayerVisibility(string layerId)
-        => UpdateLayer(layerId, layer => layer with { IsVisible = !layer.IsVisible });
+    {
+        var changed = UpdateLayer(layerId, layer => layer with { IsVisible = !layer.IsVisible });
+        if (changed && _referenceImageTraceLayerId == layerId)
+        {
+            if (Layers.First(layer => layer.Id == layerId).IsVisible)
+                RefreshReferenceImageTracePreview();
+            else
+                CancelReferenceImageTrace();
+        }
+        return changed;
+    }
 
     public bool ToggleLayerLock(string layerId)
-        => UpdateLayer(layerId, layer => layer with { IsLocked = !layer.IsLocked });
+    {
+        var changed = UpdateLayer(layerId, layer => layer with { IsLocked = !layer.IsLocked });
+        if (changed && _referenceImageTraceLayerId == layerId
+            && Layers.First(layer => layer.Id == layerId).IsLocked)
+            CancelReferenceImageTrace();
+        return changed;
+    }
 
     public bool MoveLayer(string layerId, int direction)
     {
@@ -2166,6 +2310,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool Undo()
     {
         EndMeasurementEdit();
+        CancelReferenceImageTrace();
         if (_undo.Count == 0)
             return false;
 
@@ -2179,6 +2324,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool Redo()
     {
         EndMeasurementEdit();
+        CancelReferenceImageTrace();
         if (_redo.Count == 0)
             return false;
 
@@ -2475,6 +2621,16 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         });
     }
 
+    private bool UpdateReferenceImageAndRefreshTrace(
+        string layerId,
+        Func<Editor2DReferenceImage, Editor2DReferenceImage> update)
+    {
+        var changed = UpdateReferenceImage(layerId, update);
+        if (changed && _referenceImageTraceLayerId == layerId)
+            RefreshReferenceImageTracePreview();
+        return changed;
+    }
+
     private static double NormalizeRotation(double rotationDegrees)
     {
         if (!double.IsFinite(rotationDegrees))
@@ -2589,7 +2745,18 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             CalibrationUnitsPerPixel = image.CalibrationUnitsPerPixel > 0.0
                 ? image.CalibrationUnitsPerPixel
                 : image.Width / image.PixelWidth,
-            TraceThreshold = Math.Clamp(image.TraceThreshold, 0.0, 1.0),
+            TraceThreshold = double.IsFinite(image.TraceThreshold)
+                ? Math.Clamp(image.TraceThreshold, 0.0, 1.0)
+                : 0.5,
+            TraceTolerance = double.IsFinite(image.TraceTolerance)
+                ? Math.Clamp(image.TraceTolerance, 1.0, 100.0)
+                : 50.0,
+            TraceCornerSmoothness = double.IsFinite(image.TraceCornerSmoothness)
+                ? Math.Clamp(image.TraceCornerSmoothness, 0.0, 100.0)
+                : 50.0,
+            TracePathOptimization = double.IsFinite(image.TracePathOptimization)
+                ? Math.Clamp(image.TracePathOptimization, 0.0, 100.0)
+                : 50.0,
             Depth = Enum.IsDefined(image.Depth) ? image.Depth : Editor2DReferenceImageDepth.Back,
         };
     }

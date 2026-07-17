@@ -207,6 +207,11 @@ public sealed class DxfPreviewCanvas : Control
             nameof(OffsetPreviewPaths),
             defaultValue: Array.Empty<Editor2DPreviewPath>());
 
+    public static readonly StyledProperty<IReadOnlyList<Editor2DPreviewPath>> TracePreviewPathsProperty =
+        AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DPreviewPath>>(
+            nameof(TracePreviewPaths),
+            defaultValue: Array.Empty<Editor2DPreviewPath>());
+
     public static readonly StyledProperty<IReadOnlyList<Editor2DPreviewPath>> PatternPreviewPathsProperty =
         AvaloniaProperty.Register<DxfPreviewCanvas, IReadOnlyList<Editor2DPreviewPath>>(
             nameof(PatternPreviewPaths),
@@ -319,6 +324,7 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly Pen TranslationYGizmoPen = new(new SolidColorBrush(Color.Parse("#22C55E")), 2.0);
     private static readonly Pen PreviewPathPen = new(new SolidColorBrush(Color.Parse("#62E6A7")), 1.8, dashStyle: new DashStyle([4, 3], 0));
     private static readonly Pen OffsetPreviewPathPen = new(new SolidColorBrush(Color.Parse("#F59E0B")), 1.2, dashStyle: new DashStyle([4, 4], 0));
+    private static readonly Pen TracePreviewPathPen = new(new SolidColorBrush(Color.Parse("#22D3EE")), 1.8);
     private static readonly Pen GlueTabPreviewPathPen = new(new SolidColorBrush(Color.Parse("#A855F7")), 1.5, dashStyle: new DashStyle([4, 3], 0));
     private static readonly Pen ReferenceCalibrationPen = new(new SolidColorBrush(Color.Parse("#EF4444")), 1.5, dashStyle: new DashStyle([4, 3], 0));
     private static readonly IBrush ReferenceCalibrationBrush = new SolidColorBrush(Color.Parse("#EF4444"));
@@ -485,6 +491,7 @@ public sealed class DxfPreviewCanvas : Control
             OffsetDistanceTextProperty,
             OffsetSideProperty,
             OffsetPreviewPathsProperty,
+            TracePreviewPathsProperty,
             PatternPreviewPathsProperty,
             GlueTabPreviewPathsProperty,
             GlueTabStartOffsetTextProperty,
@@ -983,6 +990,12 @@ public sealed class DxfPreviewCanvas : Control
         set => SetValue(OffsetPreviewPathsProperty, value);
     }
 
+    public IReadOnlyList<Editor2DPreviewPath> TracePreviewPaths
+    {
+        get => GetValue(TracePreviewPathsProperty);
+        set => SetValue(TracePreviewPathsProperty, value);
+    }
+
     public IReadOnlyList<Editor2DPreviewPath> PatternPreviewPaths
     {
         get => GetValue(PatternPreviewPathsProperty);
@@ -1448,6 +1461,7 @@ public sealed class DxfPreviewCanvas : Control
         DrawScalePivot(context, size);
         DrawPreviewPaths(context, size);
         DrawPreviewPaths(context, size, OffsetPreviewPaths, OffsetPreviewPathPen);
+        DrawPreviewPaths(context, size, TracePreviewPaths, TracePreviewPathPen);
         DrawPreviewPaths(context, size, PatternPreviewPaths);
         DrawPreviewPaths(context, size, GlueTabPreviewPaths, GlueTabPreviewPathPen);
         DrawEditableVertexHandles(context, size, visiblePaths);

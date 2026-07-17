@@ -151,7 +151,7 @@
                     <Button
                       AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.reference.trace.{0}}"
                       Padding="5,2"
-                      Content="Trace image bounds"
+                      Content="Trace Image (Vectorize)"
                       Tag="{Binding Id}"
                       Click="OnTraceReferenceImageClicked" />
                     <StackPanel Orientation="Horizontal" Spacing="4">
@@ -175,24 +175,52 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </ScrollViewer>
-      <StackPanel
-        Grid.Row="3"
-        Margin="0,8,0,0"
-        Spacing="4"
-        IsVisible="{Binding HasTwoDActiveReferenceImage}">
-        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="CALIBRATION WIDTH" />
-        <StackPanel Orientation="Horizontal" Spacing="4">
-          <TextBox Width="90" Text="{Binding TwoDReferenceCalibrationWidthText, Mode=TwoWay}" />
-          <Button Content="Calibrate" Click="OnCalibrateReferenceImageClicked" />
-        </StackPanel>
-        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDReferencePointCalibrationSummary}" TextWrapping="Wrap" />
-        <StackPanel Orientation="Horizontal" Spacing="4">
-          <Button
-            Content="Pick Two Points"
-            IsEnabled="{Binding !TwoDActiveReferenceImageLocked}"
-            Click="OnBeginReferencePointCalibrationClicked"
-            AutomationProperties.AutomationId="editor.2d.reference-calibration.begin" />
-          <Button Content="Cancel" Click="OnCancelReferencePointCalibrationClicked" />
+      <StackPanel Grid.Row="3" Margin="0,8,0,0" Spacing="8">
+        <Border
+          IsVisible="{Binding HasTwoDReferenceTraceSession}"
+          Padding="8"
+          Background="{StaticResource InputBackgroundBrush}"
+          BorderBrush="#22D3EE"
+          BorderThickness="1"
+          CornerRadius="6">
+          <StackPanel Spacing="5">
+            <TextBlock FontSize="11" FontWeight="SemiBold" Text="IMAGE TRACING" />
+            <TextBlock FontSize="9" Foreground="{StaticResource SecondaryTextBrush}" Text="Preview contours draw in cyan." />
+            <CheckBox Content="Silhouette only" IsChecked="{Binding TwoDReferenceTraceSilhouetteOnly, Mode=TwoWay}" />
+            <TextBlock FontSize="10" Text="Threshold" />
+            <Slider Minimum="0" Maximum="1" TickFrequency="0.05" Value="{Binding TwoDReferenceTraceThreshold, Mode=TwoWay}" />
+            <TextBlock FontSize="10" Text="Tolerance / detail" />
+            <Slider Minimum="1" Maximum="100" TickFrequency="1" Value="{Binding TwoDReferenceTraceTolerance, Mode=TwoWay}" />
+            <TextBlock FontSize="10" Text="Corner smoothness" />
+            <Slider Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding TwoDReferenceTraceCornerSmoothness, Mode=TwoWay}" />
+            <TextBlock FontSize="10" Text="Path optimization" />
+            <Slider Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding TwoDReferenceTracePathOptimization, Mode=TwoWay}" />
+            <TextBlock FontSize="9" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDReferenceTraceSummary}" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Content="Cancel" Click="OnCancelReferenceTraceClicked" />
+              <Button
+                AutomationProperties.AutomationId="editor.reference.trace.commit"
+                Content="Generate Vectors"
+                IsEnabled="{Binding CanCommitTwoDReferenceTrace}"
+                Click="OnCommitReferenceTraceClicked" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+        <StackPanel Spacing="4" IsVisible="{Binding ShowTwoDReferenceCalibration}">
+          <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="CALIBRATION WIDTH" />
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBox Width="90" Text="{Binding TwoDReferenceCalibrationWidthText, Mode=TwoWay}" />
+            <Button Content="Calibrate" Click="OnCalibrateReferenceImageClicked" />
+          </StackPanel>
+          <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDReferencePointCalibrationSummary}" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Button
+              Content="Pick Two Points"
+              IsEnabled="{Binding !TwoDActiveReferenceImageLocked}"
+              Click="OnBeginReferencePointCalibrationClicked"
+              AutomationProperties.AutomationId="editor.2d.reference-calibration.begin" />
+            <Button Content="Cancel" Click="OnCancelReferencePointCalibrationClicked" />
+          </StackPanel>
         </StackPanel>
       </StackPanel>
       <TextBlock

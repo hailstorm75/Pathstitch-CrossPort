@@ -11,8 +11,15 @@ public interface IReferenceImageTraceService
 {
     IReadOnlyList<IReadOnlyList<Editor2DPoint>> TraceContours(
         string imageDataBase64,
-        double threshold);
+        Editor2DReferenceImageTraceOptions options);
 }
+
+public sealed record Editor2DReferenceImageTraceOptions(
+    double Threshold = 0.5,
+    double Tolerance = 50.0,
+    double CornerSmoothness = 50.0,
+    double PathOptimization = 50.0,
+    bool SilhouetteOnly = false);
 
 public interface IReferenceImageBackgroundRemovalService
 {

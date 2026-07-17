@@ -32,6 +32,10 @@ public sealed record Editor2DReferenceImage(
     [property: JsonPropertyName("opacity")] double Opacity = 0.65,
     [property: JsonPropertyName("calibrationUnitsPerPixel")] double CalibrationUnitsPerPixel = 1.0,
     [property: JsonPropertyName("traceThreshold")] double TraceThreshold = 0.5,
+    [property: JsonPropertyName("traceTolerance")] double TraceTolerance = 50.0,
+    [property: JsonPropertyName("traceCornerSmoothness")] double TraceCornerSmoothness = 50.0,
+    [property: JsonPropertyName("tracePathOptimization")] double TracePathOptimization = 50.0,
+    [property: JsonPropertyName("traceSilhouetteOnly")] bool TraceSilhouetteOnly = false,
     [property: JsonPropertyName("originalDataBase64")] string? OriginalDataBase64 = null,
     [property: JsonPropertyName("backgroundRemoved")] bool BackgroundRemoved = false,
     [property: JsonPropertyName("depth")] Editor2DReferenceImageDepth Depth = Editor2DReferenceImageDepth.Back)

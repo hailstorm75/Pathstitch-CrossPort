@@ -49,6 +49,7 @@
     OffsetDistanceText="{Binding TwoDOffsetDistanceText, Mode=TwoWay}"
     OffsetSide="{Binding TwoDOffsetSide, Mode=TwoWay}"
     OffsetPreviewPaths="{Binding TwoDOffsetPreviewPaths}"
+    TracePreviewPaths="{Binding TwoDWorkspace.ReferenceImageTracePreviewPaths}"
     PatternPreviewPaths="{Binding TwoDPatternPreviewPaths}"
     GlueTabPreviewPaths="{Binding TwoDGlueTabPreviewPaths}"
     GlueTabStartOffsetText="{Binding TwoDGlueTabStartOffsetText, Mode=TwoWay}"
