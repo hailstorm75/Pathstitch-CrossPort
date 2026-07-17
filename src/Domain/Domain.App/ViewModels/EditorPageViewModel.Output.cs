@@ -2865,23 +2865,29 @@ public sealed partial class EditorPageViewModel
         bool persistState = true,
         GeneratedOutputAppendContext? appendContext = null,
         string generatedLayerName = "Generated 3D",
-        bool replaceGeneratedPreviewLayer = false)
+        bool replaceGeneratedPreviewLayer = false,
+        bool isTransientUnfoldPreview = false)
     {
-        ApplyGeneratedOutput(outputPath);
+        if (!isTransientUnfoldPreview)
+            ApplyGeneratedOutput(outputPath);
 
         if (string.IsNullOrWhiteSpace(outputPath))
         {
-            GeneratedOutputSummary = null;
-            SetTwoDDocument(null, activatePreviewWorkspace);
+            if (!isTransientUnfoldPreview)
+            {
+                GeneratedOutputSummary = null;
+                SetTwoDDocument(null, activatePreviewWorkspace);
+            }
             return;
         }
 
         var summary = await _editorOutputPreviewService
             .InspectOutputAsync(outputPath, cancellationToken)
             .ConfigureAwait(true);
-        GeneratedOutputSummary = summary;
+        if (!isTransientUnfoldPreview)
+            GeneratedOutputSummary = summary;
 
-        if (summary is { FileExists: true })
+        if (!isTransientUnfoldPreview && summary is { FileExists: true })
         {
             _generatedOutputDataBase64 = await TryReadGeneratedOutputDataBase64Async(outputPath, cancellationToken)
                 .ConfigureAwait(true);
@@ -2909,7 +2915,7 @@ public sealed partial class EditorPageViewModel
                 replaceGeneratedPreviewLayer);
         }
 
-        if (persistState)
+        if (persistState && !isTransientUnfoldPreview)
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
     }
 
@@ -3019,11 +3025,11 @@ public sealed partial class EditorPageViewModel
 
     private async Task<GeneratedOutputAppendContext?> StageExistingTwoDDocumentAsync(CancellationToken cancellationToken)
     {
-        if (TwoDDocument is not { Paths.Count: > 0 } document)
-            return null;
-
         SyncTwoDWorkspaceState(recordHistory: false);
-        var snapshot = _twoDWorkspace.State;
+        var snapshot = RemoveGeneratedPreviewLayer(_twoDWorkspace.State);
+        var document = snapshot.Document;
+        if (document.Paths.Count == 0)
+            return new GeneratedOutputAppendContext(null, snapshot, 0);
 
         var stagingDirectory = Path.Combine(Path.GetTempPath(), "Pathstitch-CrossPort", "GeneratedInput");
         Directory.CreateDirectory(stagingDirectory);
@@ -3099,6 +3105,7 @@ public sealed partial class EditorPageViewModel
         {
             Document = RebuildGeneratedOutputDocument(baseSnapshot.Document, combinedPaths, generatedDocument.UnsupportedEntityTypes),
             Layers = layers,
+            IsInitialized = true,
         };
         _twoDWorkspace.Apply(nextState, recordHistory: false);
         ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
@@ -3109,17 +3116,21 @@ public sealed partial class EditorPageViewModel
     private static Editor2DWorkspaceState RemoveGeneratedPreviewLayer(Editor2DWorkspaceState state)
     {
         var layers = state.Layers ?? [];
-        var removedPathIds = layers
-            .Where(IsGeneratedPreviewLayer)
+        var previewLayers = layers.Where(IsGeneratedPreviewLayer).ToArray();
+        if (previewLayers.Length == 0)
+            return state;
+
+        var removedPathIds = previewLayers
             .SelectMany(layer => layer.PathIds)
             .ToHashSet(StringComparer.Ordinal);
-        if (removedPathIds.Count == 0)
-            return state;
         var remainingPaths = state.Document.Paths.Where(path => !removedPathIds.Contains(path.Id)).ToArray();
+        var remainingLayers = layers.Where(layer => !IsGeneratedPreviewLayer(layer)).ToArray();
         return state with
         {
             Document = RebuildGeneratedOutputDocument(state.Document, remainingPaths, state.Document.UnsupportedEntityTypes),
-            Layers = layers.Where(layer => !IsGeneratedPreviewLayer(layer)).ToArray(),
+            Layers = remainingLayers,
+            IsInitialized = state.IsInitialized
+                && (remainingPaths.Length > 0 || remainingLayers.Length > 0 || (state.Folders?.Count ?? 0) > 0),
             SelectedPathIds = (state.SelectedPathIds ?? []).Where(id => !removedPathIds.Contains(id)).ToArray(),
             Measurements = (state.Measurements ?? []).Where(measurement => measurement.EntityPathId is null
                 || !removedPathIds.Contains(measurement.EntityPathId)).ToArray(),
@@ -3171,7 +3182,7 @@ public sealed partial class EditorPageViewModel
             : "Unfolded 3D";
 
     private sealed record GeneratedOutputAppendContext(
-        string StagingPath,
+        string? StagingPath,
         Editor2DWorkspaceState Snapshot,
         int BasePathCount);
 

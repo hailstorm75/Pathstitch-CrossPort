@@ -120,7 +120,7 @@ public sealed partial class EditorPageViewModel
     private Editor2DWorkspaceState BuildPersistedTwoDWorkspaceState()
     {
         SyncTwoDWorkspaceState(recordHistory: false);
-        return _twoDWorkspace.State;
+        return RemoveGeneratedPreviewLayer(_twoDWorkspace.State);
     }
 
     public bool UndoTwoDWorkspace()

@@ -186,14 +186,15 @@ public sealed partial class EditorPageViewModel
             return;
         }
 
-        GeneratedOutputContext = BuildUnfoldOutputContext(wholeBody, actionLabel);
         await UpdateGeneratedOutputPreviewAsync(
             result.OutputPath,
             activatePreviewWorkspace: false,
             cancellationToken,
+            persistState: false,
             appendContext: appendContext,
             generatedLayerName: "Unfolded 3D",
-            replaceGeneratedPreviewLayer: true).ConfigureAwait(true);
+            replaceGeneratedPreviewLayer: true,
+            isTransientUnfoldPreview: true).ConfigureAwait(true);
     }
 
     private EditorGeneratedOutputContext BuildUnfoldOutputContext(bool wholeBody, string actionLabel)

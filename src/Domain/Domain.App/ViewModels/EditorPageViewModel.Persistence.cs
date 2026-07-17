@@ -13,13 +13,14 @@ public sealed partial class EditorPageViewModel
         var batchWorkspaceState = await _batchWorkspace
             .CaptureStateAsync(ProjectSession?.ProjectFilePath, cancellationToken)
             .ConfigureAwait(true);
+        var twoDWorkspaceState = BuildPersistedTwoDWorkspaceState();
         byte[]? previewImageData = null;
         if (_projectPreviewRenderer is not null)
         {
             try
             {
                 previewImageData = await _projectPreviewRenderer
-                    .RenderAsync(BuildProjectPreviewDocument(), cancellationToken)
+                    .RenderAsync(BuildProjectPreviewDocument(twoDWorkspaceState), cancellationToken)
                     .ConfigureAwait(true);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
@@ -38,7 +39,7 @@ public sealed partial class EditorPageViewModel
             UnfoldWorkspaceState: BuildPersistedUnfoldWorkspaceState(),
             ProjectionWorkspaceState: BuildPersistedProjectionWorkspaceState(),
             WorkspaceState: BuildPersistedEditorWorkspaceState(),
-            TwoDWorkspaceState: BuildPersistedTwoDWorkspaceState(),
+            TwoDWorkspaceState: twoDWorkspaceState,
             ThreeDWorkspaceState: _threeDWorkspace.CaptureState(),
             StepTopology: _stepTopology,
             BatchWorkspaceState: batchWorkspaceState,
@@ -47,12 +48,13 @@ public sealed partial class EditorPageViewModel
             PreviewImageData: previewImageData);
     }
 
-    private Editor2DExportDocument? BuildProjectPreviewDocument()
+    private Editor2DExportDocument? BuildProjectPreviewDocument(Editor2DWorkspaceState twoDWorkspaceState)
     {
-        if (TwoDDocument is not { } document)
+        if (!twoDWorkspaceState.IsInitialized)
             return null;
 
-        var geometryLayers = TwoDLayers
+        var document = twoDWorkspaceState.Document;
+        var geometryLayers = (twoDWorkspaceState.Layers ?? [])
             .Where(layer => layer.Kind == Editor2DLayerKind.Geometry)
             .ToArray();
         var assignedPathIds = geometryLayers
