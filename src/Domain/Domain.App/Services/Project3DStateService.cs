@@ -513,7 +513,9 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
             && payload.CanvasOffsetY == 0.0)
             return null;
 
-        var workspaceDocument = document ?? Editor2DWorkspaceState.Empty.Document;
+        var workspaceDocument = ApplyLegacyPenPaths(
+            document ?? Editor2DWorkspaceState.Empty.Document,
+            payload.PenPaths);
         var layers = new List<Editor2DLayer>();
         foreach (var legacyLayer in payload.SavedLayers ?? [])
         {
@@ -595,6 +597,7 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
             .Where(path => !string.IsNullOrWhiteSpace(path.SourceEntityHandle))
             .GroupBy(path => path.SourceEntityHandle!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First().Id, StringComparer.OrdinalIgnoreCase);
+        var cornerParameters = ConvertLegacyCornerParameters(payload.ParametricShapes, pathIdsByHandle);
         var measurements = (payload.Measurements ?? [])
             .Where(item => item.Start is not null && item.End is not null
                 && item.Start.IsFinite && item.End.IsFinite)
@@ -629,10 +632,93 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
                 ? payload.SavedActiveLayerId
                 : layers.First(layer => layer.Kind == Editor2DLayerKind.Geometry).Id,
             Measurements: measurements,
+            CornerParameters: cornerParameters,
             Folders: (payload.SavedLayerFolders ?? [])
                 .Where(folder => !string.IsNullOrWhiteSpace(folder.Id))
                 .Select(folder => new Editor2DLayerFolder(folder.Id, folder.Name ?? "Folder", folder.ParentFolderId))
                 .ToArray());
+    }
+
+    private static Editor2DPreviewDocument ApplyLegacyPenPaths(
+        Editor2DPreviewDocument document,
+        IReadOnlyDictionary<string, LegacyPenPathPayload>? penPaths)
+    {
+        if (penPaths is not { Count: > 0 })
+            return document;
+
+        var changed = false;
+        var paths = document.Paths.Select(path =>
+        {
+            if (string.IsNullOrWhiteSpace(path.SourceEntityHandle)
+                || !penPaths.TryGetValue(path.SourceEntityHandle, out var model))
+                return path;
+            var anchors = (model.Anchors ?? [])
+                .Select(TryConvertLegacyPenAnchor)
+                .Where(anchor => anchor is not null)
+                .Cast<Editor2DBezierAnchor>()
+                .ToArray();
+            if (anchors.Length < 2 || anchors.Length != (model.Anchors?.Count ?? 0))
+                return path;
+            changed = true;
+            return path with { BezierAnchors = anchors, IsClosed = model.Closed };
+        }).ToArray();
+        return changed ? document with { Paths = paths } : document;
+    }
+
+    private static Editor2DBezierAnchor? TryConvertLegacyPenAnchor(LegacyPenAnchorPayload anchor)
+    {
+        var point = TryConvertLegacyCoordinate(anchor.Point);
+        if (point is null)
+            return null;
+        var handleIn = anchor.HandleIn is null ? null : TryConvertLegacyCoordinate(anchor.HandleIn);
+        var handleOut = anchor.HandleOut is null ? null : TryConvertLegacyCoordinate(anchor.HandleOut);
+        if ((anchor.HandleIn is not null && handleIn is null) || (anchor.HandleOut is not null && handleOut is null))
+            return null;
+        return new Editor2DBezierAnchor(point, handleIn, handleOut);
+    }
+
+    private static Editor2DPoint? TryConvertLegacyCoordinate(IReadOnlyList<double>? coordinate)
+        => coordinate is { Count: >= 2 }
+           && double.IsFinite(coordinate[0])
+           && double.IsFinite(coordinate[1])
+            ? new Editor2DPoint(coordinate[0], coordinate[1])
+            : null;
+
+    private static IReadOnlyList<Editor2DCornerParameter> ConvertLegacyCornerParameters(
+        IReadOnlyDictionary<string, LegacyParametricShapePayload>? shapes,
+        IReadOnlyDictionary<string, string> pathIdsByHandle)
+    {
+        if (shapes is not { Count: > 0 })
+            return [];
+        var parameters = new List<Editor2DCornerParameter>();
+        foreach (var (handle, shape) in shapes)
+        {
+            if (!pathIdsByHandle.TryGetValue(handle, out var pathId))
+                continue;
+            var sourcePoints = (shape.Base ?? []).Select(TryConvertLegacyCoordinate).ToArray();
+            if (sourcePoints.Length < 3 || sourcePoints.Any(point => point is null))
+                continue;
+            var resolvedSourcePoints = sourcePoints.Cast<Editor2DPoint>().ToArray();
+            foreach (var corner in shape.Corners ?? [])
+            {
+                if (corner.Index < 0 || corner.Index >= resolvedSourcePoints.Length
+                    || !double.IsFinite(corner.Value) || corner.Value < 0)
+                    continue;
+                parameters.Add(new Editor2DCornerParameter(
+                    $"legacy-corner-{pathId}-{corner.Index}",
+                    pathId,
+                    corner.Index,
+                    string.Equals(corner.Kind, "chamfer", StringComparison.OrdinalIgnoreCase)
+                        ? Editor2DCornerKind.Chamfer
+                        : Editor2DCornerKind.Fillet,
+                    corner.Value,
+                    resolvedSourcePoints,
+                    string.Equals(corner.Continuity, "G2", StringComparison.OrdinalIgnoreCase)
+                        ? Editor2DFilletContinuity.G2
+                        : Editor2DFilletContinuity.G1));
+            }
+        }
+        return parameters;
     }
 
     private static Editor2DReferenceImage? ConvertLegacyReferenceImage(LegacyLayerPayload layer)
@@ -787,6 +873,8 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
         [property: JsonPropertyName("savedLayers")] IReadOnlyList<LegacyLayerPayload>? SavedLayers = null,
         [property: JsonPropertyName("savedLayerFolders")] IReadOnlyList<LegacyLayerFolderPayload>? SavedLayerFolders = null,
         [property: JsonPropertyName("savedActiveLayerId")] string? SavedActiveLayerId = null,
+        [property: JsonPropertyName("parametricShapes")] IReadOnlyDictionary<string, LegacyParametricShapePayload>? ParametricShapes = null,
+        [property: JsonPropertyName("penPaths")] IReadOnlyDictionary<string, LegacyPenPathPayload>? PenPaths = null,
         [property: JsonPropertyName("canvasScale")] double CanvasScale = 0.0,
         [property: JsonPropertyName("canvasOffsetX")] double CanvasOffsetX = 0.0,
         [property: JsonPropertyName("canvasOffsetY")] double CanvasOffsetY = 0.0,
@@ -853,6 +941,26 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
         [property: JsonPropertyName("driven")] bool Driven = false,
         [property: JsonPropertyName("isParametric")] bool IsParametric = false,
         [property: JsonPropertyName("offsetDistance")] double OffsetDistance = 0.0);
+
+    private sealed record LegacyCornerPayload(
+        [property: JsonPropertyName("index")] int Index,
+        [property: JsonPropertyName("kind")] string? Kind,
+        [property: JsonPropertyName("value")] double Value,
+        [property: JsonPropertyName("continuity")] string? Continuity);
+
+    private sealed record LegacyParametricShapePayload(
+        [property: JsonPropertyName("base")] IReadOnlyList<IReadOnlyList<double>>? Base,
+        [property: JsonPropertyName("closed")] bool Closed,
+        [property: JsonPropertyName("corners")] IReadOnlyList<LegacyCornerPayload>? Corners);
+
+    private sealed record LegacyPenAnchorPayload(
+        [property: JsonPropertyName("point")] IReadOnlyList<double>? Point,
+        [property: JsonPropertyName("handleIn")] IReadOnlyList<double>? HandleIn = null,
+        [property: JsonPropertyName("handleOut")] IReadOnlyList<double>? HandleOut = null);
+
+    private sealed record LegacyPenPathPayload(
+        [property: JsonPropertyName("anchors")] IReadOnlyList<LegacyPenAnchorPayload>? Anchors,
+        [property: JsonPropertyName("closed")] bool Closed);
 
     private sealed record LegacyActivityEntryPayload(
         [property: JsonPropertyName("id")] string? Id,
