@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Domain.App.Models;
 using Domain.App.Services;
 using Domain.App.ViewModels;
@@ -159,6 +160,61 @@ public sealed class ReferenceImageWorkflowTests
         Assert.True(workspace.Redo());
         Assert.Equal(final, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage);
     }
+
+    [Fact]
+    public void ReferenceImagePositionEdit_CommitsExactCoordinatesAsOneUndoStep()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var layer = workspace.ImportReferenceImage("pattern.png", Convert.ToBase64String([1]), 100, 50);
+        workspace.ClearHistory();
+        var original = layer.ReferenceImage!;
+
+        Assert.True(workspace.BeginReferenceImageTransformEdit(layer.Id));
+        Assert.True(workspace.UpdateReferenceImageTransform(
+            layer.Id,
+            12.25,
+            -7.5,
+            original.Width,
+            original.Height,
+            original.RotationDegrees));
+        Assert.True(workspace.CommitReferenceImageTransformEdit());
+
+        var positioned = workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!;
+        Assert.Equal(12.25, positioned.X);
+        Assert.Equal(-7.5, positioned.Y);
+        Assert.True(workspace.CanUndo);
+        Assert.True(workspace.Undo());
+        Assert.Equal(original, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage);
+        Assert.True(workspace.Redo());
+        Assert.Equal(positioned, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage);
+    }
+
+    [Theory]
+    [InlineData("0", 0)]
+    [InlineData(" -12.5 ", -12.5)]
+    [InlineData("1.25e2", 125)]
+    public void ReferencePositionInput_ParsesFiniteInvariantNumbers(string input, double expected)
+    {
+        Assert.True(Editor2DLayersPanel.TryParseReferencePosition(input, out var position));
+        Assert.Equal(expected, position);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("1,25")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    public void ReferencePositionInput_RejectsInvalidOrNonFiniteNumbers(string? input)
+        => Assert.False(Editor2DLayersPanel.TryParseReferencePosition(input, out _));
+
+    [Theory]
+    [InlineData(KeyModifiers.None, 1.0)]
+    [InlineData(KeyModifiers.Control, 1.0)]
+    [InlineData(KeyModifiers.Shift, 10.0)]
+    [InlineData(KeyModifiers.Control | KeyModifiers.Shift, 10.0)]
+    public void ReferenceImageNudge_UsesMacStepModifiers(KeyModifiers modifiers, double expected)
+        => Assert.Equal(expected, Editor2DLayersPanel.GetReferenceNudgeStep(modifiers));
 
     [Fact]
     public void ReferenceImageTransformEdit_CancelRestoresExactStartWithoutHistory()
@@ -774,6 +830,13 @@ public sealed class ReferenceImageWorkflowTests
 
         Assert.Contains("editor.layers.import-reference", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceMoveLeftClicked", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.reference.position.x.{0}", panel, StringComparison.Ordinal);
+        Assert.Contains("editor.reference.position.y.{0}", panel, StringComparison.Ordinal);
+        Assert.Contains("Position Offset (mm)", panel, StringComparison.Ordinal);
+        Assert.Contains("Nudge (Shift=10mm)", panel, StringComparison.Ordinal);
+        Assert.Contains("OnReferencePositionTextKeyDown", panel, StringComparison.Ordinal);
+        Assert.Contains("OnReferencePositionTextLostFocus", panel, StringComparison.Ordinal);
+        Assert.Contains("OnReferenceNudgePointerPressed", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceScaleUpClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceRotateClicked", panel, StringComparison.Ordinal);
         Assert.Contains("editor.reference.depth.back.{0}", panel, StringComparison.Ordinal);
@@ -820,6 +883,9 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Contains("BeginTwoDReferenceImageTransform", panelCode, StringComparison.Ordinal);
         Assert.Contains("CommitTwoDReferenceImageTransform", panelCode, StringComparison.Ordinal);
         Assert.Contains("SetTwoDReferenceImageOpacity", panelCode, StringComparison.Ordinal);
+        Assert.Contains("TryParseReferencePosition", panelCode, StringComparison.Ordinal);
+        Assert.Contains("UpdateTwoDReferenceImageTransform", panelCode, StringComparison.Ordinal);
+        Assert.Contains("double.IsFinite", panelCode, StringComparison.Ordinal);
         var layerViewModel = ReadRepositoryFile("src", "Domain", "Domain.App", "ViewModels", "EditorPageViewModel.Layers.cs");
         Assert.Contains("RefreshTwoDReferenceImagePreviewFacade", layerViewModel, StringComparison.Ordinal);
         Assert.Contains("if (_twoDWorkspace.IsReferenceImageTransformEditActive)", layerViewModel, StringComparison.Ordinal);
