@@ -36,6 +36,10 @@ public partial class HomePageView : BasePageView
         Focusable = true;
         Loaded += OnLoaded;
         KeyDown += OnHomePageKeyDown;
+        DragDrop.AddDragEnterHandler(this, OnRootFileDragEnter);
+        DragDrop.AddDragLeaveHandler(this, OnRootFileDragLeave);
+        DragDrop.AddDragOverHandler(this, OnRootFileDragOver);
+        DragDrop.AddDropHandler(this, OnRootFileDrop);
         DragDrop.AddDragEnterHandler(FileDropSurface, OnFileDropSurfaceDragEnter);
         DragDrop.AddDragLeaveHandler(FileDropSurface, OnFileDropSurfaceDragLeave);
         DragDrop.AddDragOverHandler(FileDropSurface, OnFileDropSurfaceDragOver);
@@ -46,11 +50,13 @@ public partial class HomePageView : BasePageView
     private void OnFileDropSurfaceDragEnter(object? sender, DragEventArgs e)
     {
         SetDropSurfaceState(IsFileDrop(e));
+        e.Handled = true;
     }
 
     private void OnFileDropSurfaceDragLeave(object? sender, DragEventArgs e)
     {
         ResetDropSurfaceState();
+        e.Handled = true;
     }
 
     private void OnFileDropSurfaceDragOver(object? sender, DragEventArgs e)
@@ -58,11 +64,42 @@ public partial class HomePageView : BasePageView
         var acceptsFiles = IsFileDrop(e);
         e.DragEffects = acceptsFiles ? DragDropEffects.Copy : DragDropEffects.None;
         SetDropSurfaceState(acceptsFiles);
+        e.Handled = true;
     }
 
     private async void OnFileDropSurfaceDrop(object? sender, DragEventArgs e)
     {
         ResetDropSurfaceState();
+        e.Handled = true;
+
+        await HandleDroppedFilesAsync(e);
+    }
+
+    private void OnRootFileDragEnter(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = IsFileDrop(e) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnRootFileDragLeave(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private void OnRootFileDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = IsFileDrop(e) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void OnRootFileDrop(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        await HandleDroppedFilesAsync(e);
+    }
+
+    private async Task HandleDroppedFilesAsync(DragEventArgs e)
+    {
 
         if (!IsFileDrop(e))
             return;
@@ -76,7 +113,7 @@ public partial class HomePageView : BasePageView
         if (filePaths.Length == 0 || DataContext is not HomePageViewModel viewModel)
             return;
 
-        await viewModel.OpenFilesAsync(filePaths);
+        await viewModel.OpenFilesAsync(filePaths).ConfigureAwait(true);
     }
 
     private void OnRecentProjectPressed(object? sender, PointerPressedEventArgs e)

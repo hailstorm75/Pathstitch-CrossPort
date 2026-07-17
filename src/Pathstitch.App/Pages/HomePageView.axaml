@@ -8,6 +8,7 @@
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:HomePageViewModel"
   AutomationProperties.AutomationId="home.page"
+  DragDrop.AllowDrop="True"
   d:DesignHeight="720"
   d:DesignWidth="1180"
   mc:Ignorable="d">
