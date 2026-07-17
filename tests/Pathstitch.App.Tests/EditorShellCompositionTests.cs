@@ -225,6 +225,20 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void HomePageDrop_AcceptsFilesAcrossTheWholeWelcomeSurface()
+    {
+        var home = ReadPage("HomePageView.axaml");
+        var code = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "HomePageView.axaml.cs");
+
+        Assert.Contains("DragDrop.AllowDrop=\"True\"", home, StringComparison.Ordinal);
+        Assert.Contains("AddDropHandler(this, OnRootFileDrop)", code, StringComparison.Ordinal);
+        Assert.Contains("AddDropHandler(FileDropSurface, OnFileDropSurfaceDrop)", code, StringComparison.Ordinal);
+        Assert.Contains("HandleDroppedFilesAsync(e)", code, StringComparison.Ordinal);
+        Assert.Contains("e.Handled = true", code, StringComparison.Ordinal);
+        Assert.Contains("viewModel.OpenFilesAsync(filePaths)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void HelpMenu_ExposesPreferencesShortcutEditor()
     {
         var shell = ReadPage("EditorShellView.axaml");
