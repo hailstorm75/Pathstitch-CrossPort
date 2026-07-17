@@ -107,29 +107,43 @@ public sealed partial class EditorPageViewModel
         var importedDrawings = new List<Editor2DImportedDrawing>();
         foreach (var filePath in filePaths)
         {
-            var importedDocument = await _editorOutputPreviewService
-                .LoadPreviewDocumentAsync(filePath, cancellationToken)
-                .ConfigureAwait(true);
-            if (importedDocument is null)
-                continue;
-
-            var units = await _editorOutputPreviewService
-                .InspectImportUnitsAsync(filePath, cancellationToken)
-                .ConfigureAwait(true);
-            var appliedUnitScale = 1.0;
-            if (units?.RequiresPrompt == true)
+            try
             {
-                var factor = await _importUnitsPromptService
-                    .PromptAsync(units, cancellationToken)
+                var importedDocument = await _editorOutputPreviewService
+                    .LoadPreviewDocumentAsync(filePath, cancellationToken)
                     .ConfigureAwait(true);
-                if (factor is > 0)
-                    appliedUnitScale = factor.Value;
-            }
-            if (Math.Abs(appliedUnitScale - 1.0) > 1e-12)
-                importedDocument = ScaleImportedTwoDDocument(importedDocument, appliedUnitScale);
-            if (importedDocument.Paths.Count > 0)
+                if (importedDocument is not { Paths.Count: > 0 })
+                {
+                    ErrorMessage = $"Could not import {Path.GetFileName(filePath)}: no importable geometry found";
+                    return 0;
+                }
+
+                var units = await _editorOutputPreviewService
+                    .InspectImportUnitsAsync(filePath, cancellationToken)
+                    .ConfigureAwait(true);
+                var appliedUnitScale = 1.0;
+                if (units?.RequiresPrompt == true)
+                {
+                    var factor = await _importUnitsPromptService
+                        .PromptAsync(units, cancellationToken)
+                        .ConfigureAwait(true);
+                    if (factor is > 0)
+                        appliedUnitScale = factor.Value;
+                }
+                if (Math.Abs(appliedUnitScale - 1.0) > 1e-12)
+                    importedDocument = ScaleImportedTwoDDocument(importedDocument, appliedUnitScale);
                 importedDrawings.Add(new Editor2DImportedDrawing(
                     Path.GetFullPath(filePath), appliedUnitScale, importedDocument));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage = $"Could not import {Path.GetFileName(filePath)}: {ex.Message}";
+                return 0;
+            }
         }
 
         if (importedDrawings.Count == 0)
@@ -137,6 +151,7 @@ public sealed partial class EditorPageViewModel
 
         if (!CompleteTwoDWorkspaceOperation(_twoDWorkspace.AddImportedDrawings(importedDrawings)))
             return 0;
+        ErrorMessage = null;
         MarkDocumentDirty();
         return importedDrawings.Count;
     }
