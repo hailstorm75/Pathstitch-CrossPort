@@ -32,13 +32,13 @@ public sealed class EditorDirectToolTests
 
         editor.ActivateSidebarItem("duplicate");
         var copy = Assert.Single(editor.TwoDDocument.Paths, path => path.Id != source.Id);
-        Assert.Equal(new Editor2DPoint(10, 10), copy.Points[0]);
+        Assert.Equal(new Editor2DPoint(5, 5), copy.Points[0]);
         Assert.Equal([copy.Id], editor.TwoDSelectedPathIds);
 
         editor.ActivateSidebarItem("flip-horizontal");
         var flippedCopy = Assert.Single(editor.TwoDDocument.Paths, path => path.Id == copy.Id);
-        Assert.Equal(20, flippedCopy.Points[0].X);
-        Assert.Equal(10, flippedCopy.Points[1].X);
+        Assert.Equal(15, flippedCopy.Points[0].X);
+        Assert.Equal(5, flippedCopy.Points[1].X);
     }
 
     [Fact]
