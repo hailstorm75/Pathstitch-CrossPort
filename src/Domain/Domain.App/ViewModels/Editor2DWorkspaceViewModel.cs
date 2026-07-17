@@ -1048,6 +1048,81 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             SelectedMeasurementId = selectedMeasurementId,
         });
 
+    public bool UpdatePathVertex(string pathId, int vertexIndex, Editor2DPoint point)
+    {
+        if (string.IsNullOrWhiteSpace(pathId)
+            || !double.IsFinite(point.X)
+            || !double.IsFinite(point.Y))
+        {
+            return false;
+        }
+
+        var sourcePath = Document.Paths.FirstOrDefault(path =>
+            path.Id.Equals(pathId, StringComparison.Ordinal));
+        if (sourcePath is null
+            || sourcePath.IsAxisAlignedRectangle
+            || !(sourcePath.EntityType.Equals("LINE", StringComparison.OrdinalIgnoreCase)
+                 || sourcePath.EntityType.Equals("LWPOLYLINE", StringComparison.OrdinalIgnoreCase)
+                 || sourcePath.EntityType.Equals("POLYLINE", StringComparison.OrdinalIgnoreCase))
+            || vertexIndex < 0
+            || vertexIndex >= sourcePath.Points.Count
+            || sourcePath.Points[vertexIndex] == point)
+        {
+            return false;
+        }
+
+        var points = sourcePath.Points.ToArray();
+        points[vertexIndex] = point;
+        var updatedPath = sourcePath with
+        {
+            Points = points,
+            Start = vertexIndex == 0 && sourcePath.Start is not null ? point : sourcePath.Start,
+        };
+        var cornerParameters = CornerParameters.Select(parameter =>
+        {
+            if (!parameter.PathId.Equals(pathId, StringComparison.Ordinal)
+                || parameter.SourcePoints.Count != sourcePath.Points.Count)
+            {
+                return parameter;
+            }
+
+            var sourcePoints = parameter.SourcePoints.ToArray();
+            sourcePoints[vertexIndex] = point;
+            return parameter with { SourcePoints = sourcePoints };
+        }).ToArray();
+        var pathCornerParameters = cornerParameters
+            .Where(parameter => parameter.PathId.Equals(pathId, StringComparison.Ordinal))
+            .ToArray();
+        var measurements = Measurements.Select(measurement =>
+        {
+            if (!measurement.IsAutoDimension
+                || !pathId.Equals(measurement.EntityPathId, StringComparison.Ordinal))
+            {
+                return measurement;
+            }
+
+            return RebuildAttachedAutoMeasurement(
+                       measurement,
+                       updatedPath,
+                       pathCornerParameters,
+                       measurement.Id,
+                       pathId)
+                   ?? measurement;
+        }).ToArray();
+        var paths = Document.Paths.Select(path =>
+            path.Id.Equals(pathId, StringComparison.Ordinal) ? updatedPath : path).ToArray();
+
+        Apply(
+            _state with
+            {
+                Document = RebuildDocument(Document, paths),
+                Measurements = measurements,
+                CornerParameters = cornerParameters,
+            },
+            rebuildMeasurementCaches: false);
+        return true;
+    }
+
     public bool ReplacePath(string sourcePathId, IReadOnlyList<Editor2DPreviewPath> replacements)
     {
         if (string.IsNullOrWhiteSpace(sourcePathId)

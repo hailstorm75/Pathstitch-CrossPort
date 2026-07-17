@@ -62,6 +62,19 @@ internal sealed class DxfCanvasPathReplacementEventArgs(
     public void Complete(Editor2DPreviewDocument document) => Document = document;
 }
 
+internal sealed class DxfCanvasVertexEditEventArgs(
+    string pathId,
+    int vertexIndex,
+    Editor2DPoint point)
+{
+    public string PathId { get; } = pathId;
+    public int VertexIndex { get; } = vertexIndex;
+    public Editor2DPoint Point { get; } = point;
+    public Editor2DPreviewDocument? Document { get; private set; }
+
+    public void Complete(Editor2DPreviewDocument document) => Document = document;
+}
+
 internal readonly record struct DxfCanvasReferenceCalibrationRequest(
     Editor2DPoint Start,
     Editor2DPoint End,
@@ -426,6 +439,8 @@ public sealed class DxfPreviewCanvas : Control
     private ref string? _editingVertexPathId => ref _interaction.EditingVertexPathId;
     private ref int _editingVertexIndex => ref _interaction.EditingVertexIndex;
     private ref bool _editingVertexIsConstrainedRectangle => ref _interaction.EditingVertexIsConstrainedRectangle;
+    private ref Editor2DPreviewDocument? _vertexDocumentSnapshot => ref _interaction.VertexDocumentSnapshot;
+    private ref Editor2DPoint? _vertexPreviewPoint => ref _interaction.VertexPreviewPoint;
     private ref string? _editingPenPathId => ref _interaction.EditingPenPathId;
     private ref bool _editingPenClosed => ref _interaction.EditingPenClosed;
     private ref Editor2DPoint? _pendingLineStart => ref _interaction.PendingLineStart;
@@ -1062,6 +1077,7 @@ public sealed class DxfPreviewCanvas : Control
     internal event Action? DimensionExpressionDismissed;
     internal event Action<DxfCanvasSelectionTransformEventArgs>? SelectionTransformRequested;
     internal event Action<DxfCanvasPathReplacementEventArgs>? PathReplacementRequested;
+    internal event Action<DxfCanvasVertexEditEventArgs>? VertexEditRequested;
     internal event Action<DxfCanvasReferenceCalibrationRequest>? ReferenceCalibrationRequested;
 
     public IReadOnlyList<Editor2DCornerParameter> CornerParameters
@@ -1228,6 +1244,8 @@ public sealed class DxfPreviewCanvas : Control
         _editingVertexPathId = null;
         _editingVertexIndex = 0;
         _editingVertexIsConstrainedRectangle = false;
+        _vertexDocumentSnapshot = null;
+        _vertexPreviewPoint = null;
         if (_referenceImageDragStart is not null)
             ReferenceImageTransformCanceled?.Invoke();
         _referenceImageDragStart = null;
@@ -1409,6 +1427,17 @@ public sealed class DxfPreviewCanvas : Control
         if (GridVisible)
             DrawGrid(context, size);
         var visiblePaths = GetVisiblePaths();
+        if (_isEditingVertex
+            && !_editingVertexIsConstrainedRectangle
+            && _vertexPreviewPoint is { } vertexPreviewPoint
+            && !string.IsNullOrWhiteSpace(_editingVertexPathId))
+        {
+            visiblePaths = visiblePaths
+                .Select(path => path.Id.Equals(_editingVertexPathId, StringComparison.Ordinal)
+                    ? UpdateVertex(path, _editingVertexIndex, vertexPreviewPoint)
+                    : path)
+                .ToArray();
+        }
         if (_isMovingSelection
             && (Math.Abs(_movePreviewDelta.X) > 1e-12 || Math.Abs(_movePreviewDelta.Y) > 1e-12))
         {
@@ -1946,7 +1975,13 @@ Hover:
             case DxfCanvasReleaseRoute.GlueTabHandle:
                 _glueTabDragHandle = DxfCanvasGlueTabHandle.None; break;
             case DxfCanvasReleaseRoute.EditVertex:
-                _isEditingVertex = false; _editingVertexPathId = null; _editingVertexIndex = 0; _editingVertexIsConstrainedRectangle = false; break;
+                if (!_editingVertexIsConstrainedRectangle)
+                {
+                    ApplyVertexEdit(e.GetPosition(this));
+                    CommitVertexEdit();
+                }
+                ResetVertexEdit();
+                break;
             case DxfCanvasReleaseRoute.PenHandleDrag:
                 _pendingPenDragAnchorIndex = null; break;
             case DxfCanvasReleaseRoute.None: return;
@@ -1980,6 +2015,11 @@ Selection:
             _referenceImageDragStart = null;
             _referenceImageDragMode = default;
             ReferenceImageTransformCanceled?.Invoke();
+            InvalidateVisual();
+        }
+        if (_isEditingVertex)
+        {
+            ResetVertexEdit();
             InvalidateVisual();
         }
         if (!_isRotatingSelection && !_isTranslatingSelection)
@@ -4706,6 +4746,8 @@ Selection:
             _editingVertexPathId = path.Id;
             _editingVertexIndex = vertexIndex.Value;
             _editingVertexIsConstrainedRectangle = path.IsAxisAlignedRectangle;
+            _vertexDocumentSnapshot = Document;
+            _vertexPreviewPoint = path.Points[vertexIndex.Value];
             _cancelInteractionOnPointerRelease = false;
             SetCurrentValue(SelectedMeasurementIdProperty, null);
             pointer.Capture(this);
@@ -5205,27 +5247,71 @@ Selection:
 
     private void ApplyVertexEdit(Point pointerPosition)
     {
-        if (Document is null || string.IsNullOrWhiteSpace(_editingVertexPathId))
+        if (_vertexDocumentSnapshot is null
+            || string.IsNullOrWhiteSpace(_editingVertexPathId)
+            || _editingVertexIsConstrainedRectangle)
             return;
 
-        var nextPoint = ResolvePlacementPoint(pointerPosition);
-        var nextPaths = Document.Paths
-            .Select(path =>
-            {
-                if (!string.Equals(path.Id, _editingVertexPathId, StringComparison.Ordinal))
-                    return path;
-
-                var nextPoints = path.Points.ToArray();
-                if (_editingVertexIndex < 0 || _editingVertexIndex >= nextPoints.Length)
-                    return path;
-
-                nextPoints[_editingVertexIndex] = nextPoint;
-                return path with { Points = nextPoints };
-            })
-            .ToArray();
-
-        SetCurrentValue(DocumentProperty, CreateUpdatedDocument(Document, nextPaths));
+        _vertexPreviewPoint = ResolvePlacementPoint(pointerPosition);
         InvalidateVisual();
+    }
+
+    private bool CommitVertexEdit()
+    {
+        if (_vertexDocumentSnapshot is null
+            || _vertexPreviewPoint is not { } nextPoint
+            || string.IsNullOrWhiteSpace(_editingVertexPathId))
+        {
+            return false;
+        }
+
+        var sourcePath = _vertexDocumentSnapshot.Paths.FirstOrDefault(path =>
+            path.Id.Equals(_editingVertexPathId, StringComparison.Ordinal));
+        if (sourcePath is null
+            || _editingVertexIndex < 0
+            || _editingVertexIndex >= sourcePath.Points.Count
+            || sourcePath.Points[_editingVertexIndex] == nextPoint)
+        {
+            return false;
+        }
+
+        var request = new DxfCanvasVertexEditEventArgs(
+            _editingVertexPathId,
+            _editingVertexIndex,
+            nextPoint);
+        VertexEditRequested?.Invoke(request);
+        if (request.Document is null)
+            return false;
+
+        SetCurrentValue(DocumentProperty, request.Document);
+        return true;
+    }
+
+    private void ResetVertexEdit()
+    {
+        _isEditingVertex = false;
+        _editingVertexPathId = null;
+        _editingVertexIndex = 0;
+        _editingVertexIsConstrainedRectangle = false;
+        _vertexDocumentSnapshot = null;
+        _vertexPreviewPoint = null;
+    }
+
+    private static Editor2DPreviewPath UpdateVertex(
+        Editor2DPreviewPath path,
+        int vertexIndex,
+        Editor2DPoint point)
+    {
+        if (vertexIndex < 0 || vertexIndex >= path.Points.Count)
+            return path;
+
+        var points = path.Points.ToArray();
+        points[vertexIndex] = point;
+        return path with
+        {
+            Points = points,
+            Start = vertexIndex == 0 && path.Start is not null ? point : path.Start,
+        };
     }
 
     private Editor2DPreviewDocument? AddLineToDocument(Editor2DPoint startPoint, Editor2DPoint endPoint)

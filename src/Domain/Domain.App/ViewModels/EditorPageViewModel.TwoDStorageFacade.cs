@@ -47,6 +47,16 @@ public sealed partial class EditorPageViewModel
         return true;
     }
 
+    public bool UpdateTwoDPathVertex(string pathId, int vertexIndex, Editor2DPoint point)
+    {
+        if (!_twoDWorkspace.UpdatePathVertex(pathId, vertexIndex, point))
+            return false;
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+        ViewportStateText = OutputStatusSummary;
+        return true;
+    }
+
     private int _twoDPolygonSides { get => _twoDWorkspace.PolygonSides; set => _twoDWorkspace.PolygonSides = value; }
     private IReadOnlyList<string> _twoDExpandedRectanglePathIds { get => _twoDWorkspace.ExpandedRectanglePathIds; set => _twoDWorkspace.ExpandedRectanglePathIds = value; }
     private string _twoDSelectedTextDraft { get => _twoDWorkspace.SelectedTextDraft; set => _twoDWorkspace.SelectedTextDraft = value; }

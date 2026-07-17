@@ -32,6 +32,7 @@ public partial class Editor2DView : EditorInteractionControlBase
         TwoDPreviewCanvas.DimensionExpressionDismissed += OnDimensionExpressionDismissed;
         TwoDPreviewCanvas.SelectionTransformRequested += OnSelectionTransformRequested;
         TwoDPreviewCanvas.PathReplacementRequested += OnPathReplacementRequested;
+        TwoDPreviewCanvas.VertexEditRequested += OnVertexEditRequested;
         TwoDPreviewCanvas.ReferenceCalibrationRequested += OnReferenceCalibrationRequested;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -100,6 +101,18 @@ public partial class Editor2DView : EditorInteractionControlBase
         {
             return;
         }
+        request.Complete(document);
+    }
+
+    private void OnVertexEditRequested(DxfCanvasVertexEditEventArgs request)
+    {
+        if (DataContext is not Domain.App.ViewModels.EditorPageViewModel viewModel
+            || !viewModel.UpdateTwoDPathVertex(request.PathId, request.VertexIndex, request.Point)
+            || viewModel.TwoDDocument is not { } document)
+        {
+            return;
+        }
+
         request.Complete(document);
     }
 
