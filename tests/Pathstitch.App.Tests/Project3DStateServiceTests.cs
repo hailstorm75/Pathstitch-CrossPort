@@ -189,6 +189,91 @@ public sealed class Project3DStateServiceTests
         Assert.Equal(canonical, Assert.Single(state.ActivityLog!));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoadAsync_RestoresLegacyMacBatchItems(bool zipContainer)
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath(zipContainer ? "legacy-batch-zip.stch" : "legacy-batch-json.stch");
+        var firstData = Convert.ToBase64String([1, 2, 3]);
+        var secondData = Convert.ToBase64String([4, 5, 6]);
+        var payload = JsonSerializer.Serialize(new
+        {
+            batchItems = new object[]
+            {
+                new { originalName = "pattern.png", dxfDataBase64 = firstData, isSelected = true },
+                new { originalName = "SECOND", dxfDataBase64 = secondData, isSelected = false },
+                new { originalName = "broken.dxf", dxfDataBase64 = "not-base64", isSelected = true },
+                new { originalName = "", dxfDataBase64 = firstData, isSelected = true },
+            },
+        });
+        if (zipContainer)
+        {
+            await using var file = File.Create(projectPath);
+            using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+            var entry = archive.CreateEntry("project.json");
+            await using var entryStream = entry.Open();
+            await using var writer = new StreamWriter(entryStream);
+            await writer.WriteAsync(payload);
+        }
+        else
+        {
+            File.WriteAllText(projectPath, payload);
+        }
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        Assert.NotNull(state.BatchWorkspaceState);
+        Assert.NotNull(state.BatchWorkspaceState.Items);
+        Assert.Collection(
+            state.BatchWorkspaceState.Items,
+            item =>
+            {
+                Assert.Equal("pattern.png", item.FileName);
+                Assert.Equal(firstData, item.SourceDataBase64);
+                Assert.True(item.IsSelected);
+                Assert.Equal(".dxf", item.SourceFileExtension);
+            },
+            item =>
+            {
+                Assert.Equal("SECOND", item.FileName);
+                Assert.Equal(secondData, item.SourceDataBase64);
+                Assert.False(item.IsSelected);
+                Assert.Equal(".dxf", item.SourceFileExtension);
+            });
+    }
+
+    [Fact]
+    public async Task LoadAsync_PrefersCanonicalBatchWorkspaceState()
+    {
+        using var workspace = TestWorkspace.Create();
+        var canonical = new EditorBatchWorkspaceState(
+            [new EditorBatchItemState("canonical.dxf", SourceDataBase64: Convert.ToBase64String([7]))]);
+        var projectPath = workspace.WriteText(
+            "conflicting-batch-state.stch",
+            JsonSerializer.Serialize(new
+            {
+                savedBatchWorkspaceState = canonical,
+                batchItems = new[]
+                {
+                    new
+                    {
+                        originalName = "legacy.dxf",
+                        dxfDataBase64 = Convert.ToBase64String(new byte[] { 8 }),
+                        isSelected = false,
+                    },
+                },
+            }));
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        Assert.NotNull(state.BatchWorkspaceState);
+        Assert.Equal("canonical.dxf", Assert.Single(state.BatchWorkspaceState.Items!).FileName);
+    }
+
     [Fact]
     public async Task SaveAndLoadAsync_RoundTripsDisabledLearnMode()
     {

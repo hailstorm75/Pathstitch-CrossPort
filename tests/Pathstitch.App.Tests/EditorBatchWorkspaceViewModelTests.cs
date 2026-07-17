@@ -2,6 +2,7 @@ using Domain.App.ViewModels;
 using Domain.App.Models;
 using Domain.App.Services;
 using Pathstitch.App.Services;
+using System.Text.Json;
 
 namespace Pathstitch.App.Tests;
 
@@ -376,6 +377,59 @@ public sealed class EditorBatchWorkspaceViewModelTests
         finally
         {
             Directory.Delete(directory, recursive: true);
+            if (recoveryDirectory is not null && Directory.Exists(recoveryDirectory))
+                Directory.Delete(recoveryDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LegacyMacBatchState_RestoresSourceBytesAndLazyPreview()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-LegacyBatchState", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var project = Path.Combine(directory, "legacy.stch");
+        byte[] sourceData = [48, 10, 83, 69, 67, 84, 73, 79, 78, 10, 48, 10, 69, 79, 70, 10];
+        await File.WriteAllTextAsync(
+            project,
+            JsonSerializer.Serialize(new
+            {
+                batchItems = new[]
+                {
+                    new
+                    {
+                        originalName = "legacy-input.png",
+                        dxfDataBase64 = Convert.ToBase64String(sourceData),
+                        isSelected = false,
+                    },
+                },
+            }));
+        string? recoveryDirectory = null;
+        try
+        {
+            var migrated = await new Project3DStateService().LoadAsync(project);
+            Assert.NotNull(migrated.BatchWorkspaceState);
+            var workspace = new EditorBatchWorkspaceViewModel { OutputDirectory = directory };
+
+            await workspace.RestoreStateAsync(migrated.BatchWorkspaceState, project);
+
+            var item = Assert.Single(workspace.Items);
+            recoveryDirectory = Path.GetDirectoryName(item.FilePath);
+            Assert.Equal("legacy-input.png", item.FileName);
+            Assert.False(item.IsSelected);
+            Assert.Null(item.Document);
+            Assert.Equal(".dxf", Path.GetExtension(item.FilePath), ignoreCase: true);
+            Assert.Equal(sourceData, await File.ReadAllBytesAsync(item.FilePath));
+
+            var preview = new RecordingPreviewService();
+            await workspace.ExportDxfAsync(preview);
+
+            Assert.Equal(item.FilePath, Assert.Single(preview.LoadedPaths));
+            Assert.Single(preview.SavedPaths);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
             if (recoveryDirectory is not null && Directory.Exists(recoveryDirectory))
                 Directory.Delete(recoveryDirectory, recursive: true);
         }
