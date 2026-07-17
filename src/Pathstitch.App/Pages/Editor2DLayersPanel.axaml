@@ -244,6 +244,11 @@
         </ItemsControl>
       </ScrollViewer>
       <StackPanel Grid.Row="2" Margin="0,8,0,0" Spacing="8">
+        <CheckBox
+          AutomationProperties.AutomationId="editor.layers.auto-crop-reference-images"
+          AutomationProperties.HelpText="Trim fully transparent borders from newly imported reference images"
+          Content="Crop transparent margins on import"
+          IsChecked="{Binding AutoCropTransparentReferenceImages, Mode=TwoWay}" />
         <Border
           IsVisible="{Binding HasTwoDReferenceTraceSession}"
           Padding="8"

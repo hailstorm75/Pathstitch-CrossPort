@@ -324,15 +324,15 @@ public sealed partial class EditorPageViewModel
             try
             {
                 var bytes = await File.ReadAllBytesAsync(imagePath, cancellationToken).ConfigureAwait(true);
-                if (!Editor2DReferenceImageMetadata.TryReadPixelSize(bytes, out var pixelWidth, out var pixelHeight))
+                if (!TryPrepareReferenceImage(bytes, out var image) || image is null)
                     continue;
                 if (!TwoDWorkspace.IsInitialized)
                     TwoDDocument = Editor2DWorkspaceState.Empty.Document;
                 _twoDWorkspace.ImportReferenceImage(
                     Path.GetFileName(imagePath),
-                    Convert.ToBase64String(bytes),
-                    pixelWidth,
-                    pixelHeight);
+                    Convert.ToBase64String(image.Data),
+                    image.PixelWidth,
+                    image.PixelHeight);
                 importedCount++;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)

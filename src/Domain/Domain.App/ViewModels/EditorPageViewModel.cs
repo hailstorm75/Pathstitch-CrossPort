@@ -21,6 +21,7 @@ public sealed partial class EditorPageViewModel(
     IGeometryKernelDescriptorProvider geometryKernelDescriptorProvider,
     IReferenceImageTraceService? referenceImageTraceService = null,
     IReferenceImageBackgroundRemovalService? referenceImageBackgroundRemovalService = null,
+    IReferenceImagePreparationService? referenceImagePreparationService = null,
     IUnsavedChangesPromptService? unsavedChangesPromptService = null,
     IEditorImportUnitsPromptService? importUnitsPromptService = null,
     ProjectSessionService? projectSessionService = null,
@@ -57,6 +58,8 @@ public sealed partial class EditorPageViewModel(
         unsavedChangesPromptService ?? CancelUnsavedChangesPromptService.Instance;
     private readonly IEditorImportUnitsPromptService _importUnitsPromptService =
         importUnitsPromptService ?? CancelEditorImportUnitsPromptService.Instance;
+    private readonly IReferenceImagePreparationService _referenceImagePreparationService =
+        referenceImagePreparationService ?? MetadataReferenceImagePreparationService.Instance;
     private readonly IPsdImportService _psdImportService = psdImportService ?? MissingPsdImportService.Instance;
     private readonly IPsdImportModePromptService _psdImportModePromptService =
         psdImportModePromptService ?? CancelPsdImportModePromptService.Instance;
@@ -114,6 +117,20 @@ public sealed partial class EditorPageViewModel(
 
         public Task<double?> PromptAsync(Editor2DImportUnitsInfo info, CancellationToken cancellationToken = default)
             => Task.FromResult<double?>(null);
+    }
+
+    private sealed class MetadataReferenceImagePreparationService : IReferenceImagePreparationService
+    {
+        public static MetadataReferenceImagePreparationService Instance { get; } = new();
+
+        public bool TryPrepare(byte[] sourceData, bool cropTransparentMargins, out PreparedReferenceImage? image)
+        {
+            image = null;
+            if (!Editor2DReferenceImageMetadata.TryReadPixelSize(sourceData, out var width, out var height))
+                return false;
+            image = new PreparedReferenceImage(sourceData, width, height);
+            return true;
+        }
     }
 
     private sealed class MissingPsdImportService : IPsdImportService

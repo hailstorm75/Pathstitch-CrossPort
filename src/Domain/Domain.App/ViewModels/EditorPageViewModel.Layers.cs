@@ -220,7 +220,7 @@ public sealed partial class EditorPageViewModel
         try
         {
             var bytes = await File.ReadAllBytesAsync(imagePath, cancellationToken).ConfigureAwait(true);
-            if (!Editor2DReferenceImageMetadata.TryReadPixelSize(bytes, out var pixelWidth, out var pixelHeight))
+            if (!TryPrepareReferenceImage(bytes, out var image) || image is null)
             {
                 StatusText = "Unsupported reference image format";
                 return;
@@ -230,9 +230,9 @@ public sealed partial class EditorPageViewModel
                 TwoDDocument = Editor2DWorkspaceState.Empty.Document;
             _twoDWorkspace.ImportReferenceImage(
                 Path.GetFileName(imagePath),
-                Convert.ToBase64String(bytes),
-                pixelWidth,
-                pixelHeight);
+                Convert.ToBase64String(image.Data),
+                image.PixelWidth,
+                image.PixelHeight);
             RefreshTwoDLayerFacade();
             StatusText = $"Imported reference image: {Path.GetFileName(imagePath)}";
             if (_twoDWorkspace.ActiveLayer is { } layer)
