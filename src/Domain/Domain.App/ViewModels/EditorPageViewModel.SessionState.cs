@@ -129,6 +129,11 @@ public sealed partial class EditorPageViewModel
             _batchWorkspace.StateChanged += MarkDocumentDirty;
             _isBatchWorkspaceDirtyTrackingSubscribed = true;
         }
+        if (!_isReferenceImageTraceChangedSubscribed)
+        {
+            _twoDWorkspace.ReferenceImageTraceChanged += OnReferenceImageTraceChanged;
+            _isReferenceImageTraceChangedSubscribed = true;
+        }
         _pendingSourceModelPaths = parameters.TryGetValue(EditorNavigationParameterKeys.PendingSourceModelPaths, out var pendingValue)
             ? pendingValue switch
             {

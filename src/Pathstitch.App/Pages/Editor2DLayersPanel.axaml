@@ -196,6 +196,10 @@
             <TextBlock FontSize="10" Text="Path optimization" />
             <Slider Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding TwoDReferenceTracePathOptimization, Mode=TwoWay}" />
             <TextBlock FontSize="9" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDReferenceTraceSummary}" />
+            <ProgressBar
+              AutomationProperties.AutomationId="editor.reference.trace.progress"
+              IsIndeterminate="True"
+              IsVisible="{Binding IsTwoDReferenceTraceRunning}" />
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Button Content="Cancel" Click="OnCancelReferenceTraceClicked" />
               <Button

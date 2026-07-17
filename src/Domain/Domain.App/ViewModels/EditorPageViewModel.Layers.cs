@@ -28,13 +28,18 @@ public sealed partial class EditorPageViewModel
 
     public bool HasTwoDReferenceTraceSession => _twoDWorkspace.HasReferenceImageTraceSession;
 
+    public bool IsTwoDReferenceTraceRunning => _twoDWorkspace.IsReferenceImageTracePreviewPending;
+
     public bool ShowTwoDReferenceCalibration
         => HasTwoDActiveReferenceImage && !HasTwoDReferenceTraceSession;
 
-    public bool CanCommitTwoDReferenceTrace => _twoDWorkspace.ReferenceImageTracePreviewPaths.Count > 0;
+    public bool CanCommitTwoDReferenceTrace
+        => !IsTwoDReferenceTraceRunning && _twoDWorkspace.ReferenceImageTracePreviewPaths.Count > 0;
 
     public string TwoDReferenceTraceSummary
-        => CanCommitTwoDReferenceTrace
+        => IsTwoDReferenceTraceRunning
+            ? "Tracing image…"
+            : CanCommitTwoDReferenceTrace
             ? $"{_twoDWorkspace.ReferenceImageTracePreviewPaths.Count} cyan contour(s) ready"
             : "No trace contours found";
 
@@ -367,7 +372,9 @@ public sealed partial class EditorPageViewModel
             return;
 
         RefreshTwoDLayerFacade();
-        StatusText = CanCommitTwoDReferenceTrace
+        StatusText = IsTwoDReferenceTraceRunning
+            ? "Tracing reference image"
+            : CanCommitTwoDReferenceTrace
             ? "Adjust tracing options, then generate vectors"
             : "No trace contours found; adjust tracing options";
     }
@@ -478,6 +485,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDActiveReferenceImageLocked));
         OnPropertyChanged(nameof(TwoDReferenceImageTransformEditActive));
         OnPropertyChanged(nameof(HasTwoDReferenceTraceSession));
+        OnPropertyChanged(nameof(IsTwoDReferenceTraceRunning));
         OnPropertyChanged(nameof(ShowTwoDReferenceCalibration));
         OnPropertyChanged(nameof(CanCommitTwoDReferenceTrace));
         OnPropertyChanged(nameof(TwoDReferenceTraceSummary));
@@ -489,6 +497,9 @@ public sealed partial class EditorPageViewModel
         if (requestPersistence)
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
     }
+
+    private void OnReferenceImageTraceChanged()
+        => RefreshTwoDLayerFacade(requestPersistence: false);
 
     private void UpdateTwoDReferenceTraceOptions(
         Func<Editor2DReferenceImage, Editor2DReferenceImage> update)

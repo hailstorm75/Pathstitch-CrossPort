@@ -84,6 +84,10 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private IReadOnlyList<Editor2DPreviewPath> _sewingHolePreviewPaths = [];
     private IReadOnlyList<Editor2DPreviewPath> _referenceImageTracePreviewPaths = [];
     private string? _referenceImageTraceLayerId;
+    private CancellationTokenSource? _referenceImageTraceCancellation;
+    private Task<bool> _referenceImageTraceTask = Task.FromResult(false);
+    private long _referenceImageTraceGeneration;
+    private bool _isReferenceImageTracePreviewPending;
     private Editor2DWorkspaceState? _referenceImageTransformOrigin;
     private string? _referenceImageTransformLayerId;
     private string? _editingSewingHoleOperationId;
@@ -277,6 +281,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public IReadOnlyList<Editor2DPreviewPath> ReferenceImageTracePreviewPaths => _referenceImageTracePreviewPaths;
     public string? ReferenceImageTraceLayerId => _referenceImageTraceLayerId;
     public bool HasReferenceImageTraceSession => _referenceImageTraceLayerId is not null;
+    public bool IsReferenceImageTracePreviewPending => _isReferenceImageTracePreviewPending;
     public Editor2DReferenceImage? ReferenceImageTraceSource
         => Layers.FirstOrDefault(layer => layer.Id == _referenceImageTraceLayerId)?.ReferenceImage;
     public bool IsReferenceImageTransformEditActive => _referenceImageTransformOrigin is not null;
@@ -384,10 +389,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                 && layer.IsVisible
                 && !layer.IsLocked);
         if (traceSessionInvalid)
-        {
-            _referenceImageTraceLayerId = null;
-            _referenceImageTracePreviewPaths = [];
-        }
+            CancelReferenceImageTrace();
         if (transformSessionInvalid)
         {
             _referenceImageTransformOrigin = null;
@@ -395,8 +397,6 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         }
         RemoveMissingMirrorLinks();
         RaiseStateChanged();
-        if (traceSessionInvalid)
-            RaiseReferenceImageTraceChanged();
         if (transformSessionInvalid)
             OnPropertyChanged(nameof(IsReferenceImageTransformEditActive));
     }
@@ -1966,7 +1966,67 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             image.TraceCornerSmoothness,
             image.TracePathOptimization,
             image.TraceSilhouetteOnly);
-        var contours = _referenceImageTraceService.TraceContours(image.DataBase64, options);
+        _referenceImageTraceCancellation?.Cancel();
+        _referenceImageTraceCancellation?.Dispose();
+        var cancellation = new CancellationTokenSource();
+        _referenceImageTraceCancellation = cancellation;
+        var generation = ++_referenceImageTraceGeneration;
+        _referenceImageTracePreviewPaths = [];
+        _isReferenceImageTracePreviewPending = true;
+        RaiseReferenceImageTraceChanged();
+        _referenceImageTraceTask = RefreshReferenceImageTracePreviewAsync(
+            sourceLayer,
+            image,
+            options,
+            generation,
+            cancellation);
+        return true;
+    }
+
+    public Task<bool> WaitForReferenceImageTracePreviewAsync()
+        => _referenceImageTraceTask;
+
+    private async Task<bool> RefreshReferenceImageTracePreviewAsync(
+        Editor2DLayer sourceLayer,
+        Editor2DReferenceImage image,
+        Editor2DReferenceImageTraceOptions options,
+        long generation,
+        CancellationTokenSource cancellation)
+    {
+        IReadOnlyList<IReadOnlyList<Editor2DPoint>> contours;
+        try
+        {
+            contours = await Task.Run(
+                () => _referenceImageTraceService!.TraceContours(image.DataBase64, options),
+                cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch
+        {
+            contours = [];
+        }
+
+        if (cancellation.IsCancellationRequested
+            || generation != _referenceImageTraceGeneration
+            || _referenceImageTraceLayerId != sourceLayer.Id)
+            return false;
+        if (!Equals(
+                Layers.FirstOrDefault(layer => layer.Id == sourceLayer.Id)?.ReferenceImage,
+                image))
+        {
+            _isReferenceImageTracePreviewPending = false;
+            if (ReferenceEquals(_referenceImageTraceCancellation, cancellation))
+            {
+                _referenceImageTraceCancellation = null;
+                cancellation.Dispose();
+            }
+            RaiseReferenceImageTraceChanged();
+            return false;
+        }
+
         var radians = image.RotationDegrees * Math.PI / 180.0;
         var cosine = Math.Cos(radians);
         var sine = Math.Sin(radians);
@@ -1987,6 +2047,12 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                 contour.Select(Transform).ToArray(),
                 IsClosed: true))
             .ToArray();
+        _isReferenceImageTracePreviewPending = false;
+        if (ReferenceEquals(_referenceImageTraceCancellation, cancellation))
+        {
+            _referenceImageTraceCancellation = null;
+            cancellation.Dispose();
+        }
         RaiseReferenceImageTraceChanged();
         return _referenceImageTracePreviewPaths.Count > 0;
     }
@@ -1994,7 +2060,9 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public Editor2DPreviewPath? CommitReferenceImageTrace()
     {
         var sourceLayer = Layers.FirstOrDefault(layer => layer.Id == _referenceImageTraceLayerId && layer.IsReferenceImage);
-        if (sourceLayer?.ReferenceImage is null || _referenceImageTracePreviewPaths.Count == 0)
+        if (_isReferenceImageTracePreviewPending
+            || sourceLayer?.ReferenceImage is null
+            || _referenceImageTracePreviewPaths.Count == 0)
             return null;
 
         var traces = _referenceImageTracePreviewPaths.Select(path => path with
@@ -2043,10 +2111,17 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public void CancelReferenceImageTrace()
     {
-        if (_referenceImageTraceLayerId is null && _referenceImageTracePreviewPaths.Count == 0)
+        if (_referenceImageTraceLayerId is null
+            && _referenceImageTracePreviewPaths.Count == 0
+            && !_isReferenceImageTracePreviewPending)
             return;
+        _referenceImageTraceGeneration++;
+        _referenceImageTraceCancellation?.Cancel();
+        _referenceImageTraceCancellation?.Dispose();
+        _referenceImageTraceCancellation = null;
         _referenceImageTraceLayerId = null;
         _referenceImageTracePreviewPaths = [];
+        _isReferenceImageTracePreviewPending = false;
         RaiseReferenceImageTraceChanged();
     }
 
@@ -2056,17 +2131,22 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(ReferenceImageTraceLayerId));
         OnPropertyChanged(nameof(HasReferenceImageTraceSession));
         OnPropertyChanged(nameof(ReferenceImageTraceSource));
+        OnPropertyChanged(nameof(IsReferenceImageTracePreviewPending));
+        ReferenceImageTraceChanged?.Invoke();
     }
 
-    public Editor2DPreviewPath? TraceReferenceImageBounds(string layerId)
+    public async Task<Editor2DPreviewPath?> TraceReferenceImageBoundsAsync(string layerId)
     {
         if (!BeginReferenceImageTrace(layerId))
             return null;
+        await WaitForReferenceImageTracePreviewAsync();
         var trace = CommitReferenceImageTrace();
         if (trace is null)
             CancelReferenceImageTrace();
         return trace;
     }
+
+    public event Action? ReferenceImageTraceChanged;
 
     public bool SelectLayer(string layerId)
     {
