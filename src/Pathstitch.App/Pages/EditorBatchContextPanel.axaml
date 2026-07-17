@@ -51,6 +51,15 @@
         AutomationProperties.AutomationId="editor.batch.export-format"
         ItemsSource="{Binding ExportFormats}"
         SelectedItem="{Binding SelectedExportFormat, Mode=TwoWay}" />
+      <ComboBox
+        AutomationProperties.AutomationId="editor.batch.export-naming"
+        ItemsSource="{Binding NamingOptionLabels}"
+        SelectedIndex="{Binding SelectedNamingOptionIndex, Mode=TwoWay}" />
+      <TextBox
+        AutomationProperties.AutomationId="editor.batch.export-name"
+        IsVisible="{Binding UsesCustomExportName}"
+        PlaceholderText="Folder &amp; base name"
+        Text="{Binding CustomExportName, Mode=TwoWay}" />
       <TextBox
         x:Name="OffsetDistanceText"
         AutomationProperties.AutomationId="editor.batch.offset-distance"

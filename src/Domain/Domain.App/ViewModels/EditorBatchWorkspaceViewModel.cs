@@ -20,6 +20,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     private bool _exportSelectedOnly;
     private EditorBatchExportFormat _selectedExportFormat = EditorBatchExportFormat.Dxf;
     private EditorBatchAction _selectedAction = EditorBatchAction.ValidateProjects;
+    private EditorBatchNamingOption _selectedNamingOption = EditorBatchNamingOption.Original;
+    private string _customExportName = "BatchExport";
     private bool _suppressStateChanged;
 
     public event Action? StateChanged;
@@ -89,6 +91,44 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         }
     }
 
+    public IReadOnlyList<string> NamingOptionLabels { get; } = ["Original Names", "Custom Name + Index"];
+
+    public EditorBatchNamingOption SelectedNamingOption
+    {
+        get => _selectedNamingOption;
+        set
+        {
+            if (SetProperty(ref _selectedNamingOption, value))
+            {
+                OnPropertyChanged(nameof(SelectedNamingOptionIndex));
+                OnPropertyChanged(nameof(UsesCustomExportName));
+                NotifyStateChanged();
+            }
+        }
+    }
+
+    public int SelectedNamingOptionIndex
+    {
+        get => (int)SelectedNamingOption;
+        set
+        {
+            if (Enum.IsDefined(typeof(EditorBatchNamingOption), value))
+                SelectedNamingOption = (EditorBatchNamingOption)value;
+        }
+    }
+
+    public bool UsesCustomExportName => SelectedNamingOption == EditorBatchNamingOption.CustomIndex;
+
+    public string CustomExportName
+    {
+        get => _customExportName;
+        set
+        {
+            if (SetProperty(ref _customExportName, value ?? string.Empty))
+                NotifyStateChanged();
+        }
+    }
+
     public bool IsRunning
     {
         get => _isRunning;
@@ -145,6 +185,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         var exportSelectedOnly = ExportSelectedOnly;
         var selectedExportFormat = SelectedExportFormat;
         var selectedAction = SelectedAction;
+        var selectedNamingOption = SelectedNamingOption;
+        var customExportName = CustomExportName;
         var itemStates = new List<EditorBatchItemState>(itemSnapshots.Length);
         foreach (var item in itemSnapshots)
         {
@@ -183,7 +225,9 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             outputDirectory,
             exportSelectedOnly,
             selectedExportFormat,
-            selectedAction);
+            selectedAction,
+            selectedNamingOption,
+            customExportName);
     }
 
     public async Task RestoreStateAsync(
@@ -206,6 +250,11 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             SelectedAction = Enum.IsDefined(restoredAction)
                 ? restoredAction
                 : EditorBatchAction.ValidateProjects;
+            var restoredNamingOption = state?.SelectedNamingOption ?? EditorBatchNamingOption.Original;
+            SelectedNamingOption = Enum.IsDefined(restoredNamingOption)
+                ? restoredNamingOption
+                : EditorBatchNamingOption.Original;
+            CustomExportName = state?.CustomExportName ?? "BatchExport";
 
             var cacheRoot = BuildRecoveryDirectory(projectFilePath);
             var index = 0;
@@ -362,17 +411,22 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         IsRunning = true;
         var firstDrawing = Items.First(item => (!ExportSelectedOnly || item.IsSelected)
             && IsSupportedDrawingInput(item.FilePath));
-        var outputDirectory = string.IsNullOrWhiteSpace(OutputDirectory)
+        var destinationRoot = string.IsNullOrWhiteSpace(OutputDirectory)
             ? Path.Combine(Path.GetDirectoryName(firstDrawing.FilePath)!, "batch-output")
             : Path.GetFullPath(OutputDirectory.Trim().Trim('"'));
+        var outputDirectory = Path.Combine(destinationRoot, SanitizeExportName(
+            CustomExportName,
+            "Pathstitch_Batch_Export"));
         Directory.CreateDirectory(outputDirectory);
         var succeeded = 0;
         var failed = 0;
         try
         {
-            foreach (var item in Items.Where(item => (!ExportSelectedOnly || item.IsSelected)
-                && IsSupportedDrawingInput(item.FilePath)))
+            var exportItems = Items.Where(item => (!ExportSelectedOnly || item.IsSelected)
+                && IsSupportedDrawingInput(item.FilePath)).ToArray();
+            for (var index = 0; index < exportItems.Length; index++)
             {
+                var item = exportItems[index];
                 cancellationToken.ThrowIfCancellationRequested();
                 item.Status = EditorBatchItemStatus.Running;
                 item.Message = $"Exporting {SelectedExportFormat}";
@@ -388,7 +442,10 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                         EditorBatchExportFormat.Png => ".png",
                         _ => ".dxf",
                     };
-                    var outputPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(item.FileName)}-batch{extension}");
+                    var baseName = SelectedNamingOption == EditorBatchNamingOption.CustomIndex
+                        ? $"{SanitizeExportName(CustomExportName, "Export")}_{index + 1}"
+                        : SanitizeExportName(Path.GetFileNameWithoutExtension(item.FileName), "Export");
+                    var outputPath = Path.Combine(outputDirectory, $"{baseName}{extension}");
                     await outputPreviewService.SavePreviewDocumentAsync(
                         document,
                         outputPath,
@@ -414,6 +471,16 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             IsRunning = false;
             Summary = $"Batch export complete: {succeeded} succeeded, {failed} failed.";
         }
+    }
+
+    private static string SanitizeExportName(string? value, string fallback)
+    {
+        var name = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
+        var sanitized = new string(name.Select(character => invalid.Contains(character) ? '_' : character).ToArray())
+            .Trim()
+            .TrimEnd('.', ' ');
+        return string.IsNullOrWhiteSpace(sanitized) ? fallback : sanitized;
     }
 
     public async Task ApplyOffsetAsync(
