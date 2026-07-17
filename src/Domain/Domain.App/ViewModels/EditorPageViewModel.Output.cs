@@ -2950,7 +2950,7 @@ public sealed partial class EditorPageViewModel
     private void ClearTwoDState()
     {
         Interlocked.Increment(ref _generatedOutputPreviewGeneration);
-        LastGeneratedOutputPath = null;
+        ApplyGeneratedOutput(null);
         GeneratedOutputSummary = null;
         GeneratedOutputContext = null;
         SetTwoDDocument(null, activatePreviewWorkspace: false);
