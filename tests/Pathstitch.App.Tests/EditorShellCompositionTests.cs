@@ -484,6 +484,15 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("OnDeleteLayerClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Content=\"Set\"", layers, StringComparison.Ordinal);
         Assert.Contains("OnSetLayerColorClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("Avalonia.Controls.ColorPicker", layers, StringComparison.Ordinal);
+        Assert.Contains("ColorChanged=\"OnLayerColorChanged\"", layers, StringComparison.Ordinal);
+        Assert.Contains("editor.layer.color.{0}", layers, StringComparison.Ordinal);
+        Assert.Contains("IsAlphaEnabled=\"False\"", layers, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding !IsReferenceImage}\"", layers, StringComparison.Ordinal);
+        Assert.Contains("OnLayerColorTextKeyDown", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("TryNormalizeLayerColorHex", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml",
+            ReadRepositoryFile("src", "Pathstitch.App", "App.axaml"), StringComparison.Ordinal);
         Assert.Contains("Content=\"+ Folder\"", layers, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding TwoDLayerHierarchyItems}\"", layers, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"viewModels:Editor2DLayerHierarchyItem\"", layers, StringComparison.Ordinal);

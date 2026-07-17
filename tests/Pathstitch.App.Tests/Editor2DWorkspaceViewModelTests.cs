@@ -930,12 +930,54 @@ public sealed class Editor2DWorkspaceViewModelTests
         var layer = workspace.CreateLayer("Sketch");
 
         Assert.False(workspace.SetLayerColor(layer.Id, "blue"));
+        Assert.False(workspace.SetLayerColor(layer.Id, "#FF880080"));
         Assert.Equal("#4D7FFF", workspace.Layers.Single(item => item.Id == layer.Id).ColorHex);
 
         Assert.True(workspace.SetLayerColor(layer.Id, " #ff8800 "));
         Assert.Equal("#FF8800", workspace.Layers.Single(item => item.Id == layer.Id).ColorHex);
         Assert.True(workspace.Undo());
         Assert.Equal("#4D7FFF", workspace.Layers.Single(item => item.Id == layer.Id).ColorHex);
+        Assert.True(workspace.Redo());
+        Assert.Equal("#FF8800", workspace.Layers.Single(item => item.Id == layer.Id).ColorHex);
+    }
+
+    [Fact]
+    public void LayerColorEdit_CoalescesPreviewUpdatesAndSupportsCancel()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var layer = workspace.CreateLayer("Sketch");
+        workspace.ClearHistory();
+
+        Assert.True(workspace.BeginLayerColorEdit(layer.Id));
+        Assert.True(workspace.UpdateLayerColorEdit(layer.Id, "#112233"));
+        Assert.True(workspace.UpdateLayerColorEdit(layer.Id, "#445566"));
+        Assert.True(workspace.UpdateLayerColorEdit(layer.Id, "#778899"));
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.CommitLayerColorEdit());
+        Assert.True(workspace.CanUndo);
+        Assert.True(workspace.Undo());
+        Assert.Equal("#4D7FFF", workspace.Layers.Single(item => item.Id == layer.Id).ColorHex);
+        Assert.True(workspace.Redo());
+        Assert.Equal("#778899", workspace.Layers.Single(item => item.Id == layer.Id).ColorHex);
+
+        Assert.True(workspace.BeginLayerColorEdit(layer.Id));
+        Assert.True(workspace.UpdateLayerColorEdit(layer.Id, "#ABCDEF"));
+        Assert.True(workspace.CancelLayerColorEdit());
+        Assert.Equal("#778899", workspace.Layers.Single(item => item.Id == layer.Id).ColorHex);
+    }
+
+    [Fact]
+    public void Layers_NormalizeLegacyAlphaColorAndRejectReferenceColorPreview()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.Apply(Editor2DWorkspaceState.Empty with
+        {
+            Layers = [new Editor2DLayer("legacy", "Legacy", [], ColorHex: "#AABBCC80")],
+        });
+        Assert.Equal("#AABBCC", workspace.Layers.Single().ColorHex);
+
+        var reference = workspace.ImportReferenceImage("Reference", "AA==", 1, 1);
+        Assert.False(workspace.BeginLayerColorEdit(reference.Id));
     }
 
     [Fact]

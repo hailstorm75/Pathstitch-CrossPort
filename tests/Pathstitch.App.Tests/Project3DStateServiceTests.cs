@@ -170,7 +170,7 @@ public sealed class Project3DStateServiceTests
         var projectPath = workspace.GetPath("layers.stch");
         var service = new Project3DStateService();
         var path = new Editor2DPreviewPath("path", "LINE", [new Editor2DPoint(0, 0), new Editor2DPoint(5, 0)], false);
-        var layer = new Editor2DLayer("cut", "Cut", [path.Id], IsVisible: false, IsLocked: true);
+        var layer = new Editor2DLayer("cut", "Cut", [path.Id], IsVisible: false, IsLocked: true, ColorHex: "#FF8800");
         var state = Editor2DWorkspaceState.Empty with
         {
             IsInitialized = true,
@@ -188,6 +188,7 @@ public sealed class Project3DStateServiceTests
         Assert.Equal(layer.PathIds, restoredLayer.PathIds);
         Assert.False(restoredLayer.IsVisible);
         Assert.True(restoredLayer.IsLocked);
+        Assert.Equal("#FF8800", restoredLayer.ColorHex);
         Assert.Equal(layer.Id, restored.TwoDWorkspaceState.ActiveLayerId);
     }
 
