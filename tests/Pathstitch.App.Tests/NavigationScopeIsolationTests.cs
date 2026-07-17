@@ -173,6 +173,53 @@ public sealed class NavigationScopeIsolationTests
         }
     }
 
+    [Fact]
+    public async Task DocumentWindowManager_BackgroundClosePreservesActiveDocument()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-active-window-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using var root = new ServiceCollection()
+                .AddSingleton<IProjectFileDialogService, NullProjectFileDialogService>()
+                .AddSingleton(new RecentProjectsService(Path.Combine(directory, "recent.json")))
+                .AddScoped<ProjectSessionService>()
+                .AddScoped<IDocumentWindowContext, DocumentWindowContext>()
+                .AddSingleton<IProjectOpenDispositionPromptService>(new RecordingDispositionPrompt())
+                .AddScoped<IMessenger>(_ => new StrongReferenceMessenger())
+                .AddScoped<INavigationManager>(services => new TestNavigationManager(
+                    services.GetRequiredService<ProjectSessionService>().CurrentSession?.ProjectName ?? "missing"))
+                .BuildServiceProvider();
+            using var manager = new DesktopDocumentWindowManager(root);
+
+            await manager.OpenDocumentAsync(ProjectLaunchRequest.ForProject(Session(directory, "A")));
+            await manager.OpenDocumentAsync(ProjectLaunchRequest.ForProject(Session(directory, "B")));
+            await manager.OpenDocumentAsync(ProjectLaunchRequest.ForProject(Session(directory, "C")));
+            var windows = manager.DocumentWindows.ToArray();
+
+            var privateInstance = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            var documentHandles = Assert.IsAssignableFrom<System.Collections.IList>(
+                typeof(DesktopDocumentWindowManager).GetField("_documents", privateInstance)!.GetValue(manager));
+            var activeHandle = documentHandles[1];
+            var activeDocumentField = typeof(DesktopDocumentWindowManager)
+                .GetField("_activeDocument", privateInstance)!;
+            activeDocumentField.SetValue(manager, activeHandle);
+
+            await _ui.RunAsync(windows[0].Close);
+            await WaitUntilAsync(() => !windows[0].IsVisible);
+
+            Assert.Same(activeHandle, activeDocumentField.GetValue(manager));
+
+            await _ui.RunAsync(windows[1].Close);
+            await _ui.RunAsync(windows[2].Close);
+            await WaitUntilAsync(() => manager.DocumentCount == 0);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static ServiceProvider Services(
         IMessenger messenger,
         string name,
