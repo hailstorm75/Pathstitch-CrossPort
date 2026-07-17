@@ -35,7 +35,7 @@ public sealed partial class EditorPageViewModel
             var selectedPaths = await _projectFileDialogService
                 .PickWorkspaceFilesAsync(cancellationToken)
                 .ConfigureAwait(true);
-            await ImportFilesCoreAsync(selectedPaths, cancellationToken).ConfigureAwait(true);
+            await ImportFilesCoreAsync(selectedPaths, insertionPoint: null, cancellationToken).ConfigureAwait(true);
         }
         finally
         {
@@ -44,14 +44,26 @@ public sealed partial class EditorPageViewModel
         }
     }
 
-    public async Task OpenActivatedFilesAsync(
+    public Task OpenActivatedFilesAsync(
         IReadOnlyList<string> filePaths,
         CancellationToken cancellationToken = default)
+        => OpenFilesAtPointAsync(filePaths, insertionPoint: null, cancellationToken);
+
+    public Task OpenDroppedFilesAsync(
+        IReadOnlyList<string> filePaths,
+        Editor2DPoint insertionPoint,
+        CancellationToken cancellationToken = default)
+        => OpenFilesAtPointAsync(filePaths, insertionPoint, cancellationToken);
+
+    private async Task OpenFilesAtPointAsync(
+        IReadOnlyList<string> filePaths,
+        Editor2DPoint? insertionPoint,
+        CancellationToken cancellationToken)
     {
         await _importFilesGate.WaitAsync(cancellationToken).ConfigureAwait(true);
         try
         {
-            await ImportFilesCoreAsync(filePaths, cancellationToken).ConfigureAwait(true);
+            await ImportFilesCoreAsync(filePaths, insertionPoint, cancellationToken).ConfigureAwait(true);
         }
         finally
         {
@@ -62,6 +74,7 @@ public sealed partial class EditorPageViewModel
 
     private async Task ImportFilesCoreAsync(
         IReadOnlyList<string> selectedPaths,
+        Editor2DPoint? insertionPoint,
         CancellationToken cancellationToken)
     {
         var paths = selectedPaths
@@ -88,7 +101,7 @@ public sealed partial class EditorPageViewModel
         if (projectPaths.Length == 1)
         {
             await ImportProjectWithAssetsAsync(
-                projectPaths[0], sourcePaths, drawingPaths, imagePaths, cancellationToken).ConfigureAwait(true);
+                projectPaths[0], sourcePaths, drawingPaths, imagePaths, insertionPoint, cancellationToken).ConfigureAwait(true);
             return;
         }
 
@@ -97,7 +110,7 @@ public sealed partial class EditorPageViewModel
         if (drawingPaths.Length > 0)
             await RouteImportedTwoDDrawingsAsync(drawingPaths, cancellationToken).ConfigureAwait(true);
         if (imagePaths.Length > 0)
-            await ImportReferenceImagesAsync(imagePaths, cancellationToken).ConfigureAwait(true);
+            await ImportReferenceImagesAsync(imagePaths, insertionPoint, cancellationToken).ConfigureAwait(true);
     }
 
     private async Task ImportProjectWithAssetsAsync(
@@ -105,6 +118,7 @@ public sealed partial class EditorPageViewModel
         IReadOnlyList<string> sourcePaths,
         IReadOnlyList<string> drawingPaths,
         IReadOnlyList<string> imagePaths,
+        Editor2DPoint? insertionPoint,
         CancellationToken cancellationToken)
     {
         var service = _projectSessionService;
@@ -137,7 +151,7 @@ public sealed partial class EditorPageViewModel
             if (drawingPaths.Count > 0)
                 await RouteImportedTwoDDrawingsAsync(drawingPaths, cancellationToken).ConfigureAwait(true);
             if (imagePaths.Count > 0)
-                await ImportReferenceImagesAsync(imagePaths, cancellationToken).ConfigureAwait(true);
+                await ImportReferenceImagesAsync(imagePaths, insertionPoint, cancellationToken).ConfigureAwait(true);
             return;
         }
 
@@ -311,6 +325,7 @@ public sealed partial class EditorPageViewModel
 
     private async Task<int> ImportReferenceImagesAsync(
         IReadOnlyList<string> imagePaths,
+        Editor2DPoint? insertionPoint,
         CancellationToken cancellationToken)
     {
         var importedCount = 0;
@@ -318,7 +333,7 @@ public sealed partial class EditorPageViewModel
         {
             if (Path.GetExtension(imagePath).Equals(".psd", StringComparison.OrdinalIgnoreCase))
             {
-                importedCount += await ImportPsdAsync(imagePath, cancellationToken).ConfigureAwait(true);
+                importedCount += await ImportPsdAsync(imagePath, insertionPoint, cancellationToken).ConfigureAwait(true);
                 continue;
             }
             try
@@ -332,7 +347,8 @@ public sealed partial class EditorPageViewModel
                     Path.GetFileName(imagePath),
                     Convert.ToBase64String(image.Data),
                     image.PixelWidth,
-                    image.PixelHeight);
+                    image.PixelHeight,
+                    insertionPoint);
                 importedCount++;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
@@ -354,7 +370,10 @@ public sealed partial class EditorPageViewModel
         return importedCount;
     }
 
-    private async Task<int> ImportPsdAsync(string psdPath, CancellationToken cancellationToken)
+    private async Task<int> ImportPsdAsync(
+        string psdPath,
+        Editor2DPoint? insertionPoint,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -362,7 +381,7 @@ public sealed partial class EditorPageViewModel
             var mode = await _psdImportModePromptService.PromptAsync(import, cancellationToken).ConfigureAwait(true);
             if (mode is null)
                 return 0;
-            var result = _twoDWorkspace.ImportPsd(import, mode.Value);
+            var result = _twoDWorkspace.ImportPsd(import, mode.Value, insertionPoint);
             if (!CompleteTwoDWorkspaceOperation(result))
                 return 0;
             return 1;

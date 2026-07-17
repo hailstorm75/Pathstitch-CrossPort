@@ -5573,6 +5573,9 @@ Selection:
     private Editor2DPoint ScreenToWorld(Point point)
         => ScreenToWorld(point, Zoom);
 
+    public Editor2DPoint ScreenPointToWorld(Point point)
+        => ScreenToWorld(point);
+
     private Editor2DPoint ScreenToWorld(Point point, double zoom)
         => DxfCanvasViewportTransform.ScreenToWorld(point, Bounds.Size, zoom, OffsetX, OffsetY);
 

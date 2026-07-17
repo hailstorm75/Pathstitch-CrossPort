@@ -34,9 +34,51 @@ public partial class Editor2DView : EditorInteractionControlBase
         TwoDPreviewCanvas.PathReplacementRequested += OnPathReplacementRequested;
         TwoDPreviewCanvas.VertexEditRequested += OnVertexEditRequested;
         TwoDPreviewCanvas.ReferenceCalibrationRequested += OnReferenceCalibrationRequested;
+        DragDrop.SetAllowDrop(TwoDPreviewCanvas, true);
+        DragDrop.AddDragEnterHandler(TwoDPreviewCanvas, OnFileDragEnter);
+        DragDrop.AddDragLeaveHandler(TwoDPreviewCanvas, OnFileDragLeave);
+        DragDrop.AddDragOverHandler(TwoDPreviewCanvas, OnFileDragOver);
+        DragDrop.AddDropHandler(TwoDPreviewCanvas, OnFileDrop);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
+
+    private void OnFileDragEnter(object? sender, DragEventArgs e)
+        => SetFileDropState(IsFileDrop(e));
+
+    private void OnFileDragLeave(object? sender, DragEventArgs e)
+        => SetFileDropState(false);
+
+    private void OnFileDragOver(object? sender, DragEventArgs e)
+    {
+        var acceptsFiles = IsFileDrop(e);
+        e.DragEffects = acceptsFiles ? DragDropEffects.Copy : DragDropEffects.None;
+        SetFileDropState(acceptsFiles);
+    }
+
+    private async void OnFileDrop(object? sender, DragEventArgs e)
+    {
+        SetFileDropState(false);
+        if (!IsFileDrop(e) || DataContext is not Domain.App.ViewModels.EditorPageViewModel viewModel)
+            return;
+
+        var paths = e.DataTransfer.TryGetFiles()
+            ?.Select(file => file.Path.LocalPath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .ToArray()
+            ?? [];
+        if (paths.Length == 0)
+            return;
+
+        var insertionPoint = TwoDPreviewCanvas.ScreenPointToWorld(e.GetPosition(TwoDPreviewCanvas));
+        await viewModel.OpenDroppedFilesAsync(paths, insertionPoint).ConfigureAwait(true);
+    }
+
+    private static bool IsFileDrop(DragEventArgs e)
+        => e.DataTransfer.Formats.Contains(DataFormat.File);
+
+    private void SetFileDropState(bool active)
+        => FileDropOverlay.IsVisible = active;
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {

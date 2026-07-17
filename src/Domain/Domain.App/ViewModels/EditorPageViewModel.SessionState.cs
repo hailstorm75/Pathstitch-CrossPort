@@ -254,7 +254,7 @@ public sealed partial class EditorPageViewModel
 
         if (_pendingReferenceImagePaths.Count > 0)
         {
-            await ImportReferenceImagesAsync(_pendingReferenceImagePaths, token).ConfigureAwait(true);
+            await ImportReferenceImagesAsync(_pendingReferenceImagePaths, insertionPoint: null, token).ConfigureAwait(true);
             _pendingReferenceImagePaths = [];
         }
     }

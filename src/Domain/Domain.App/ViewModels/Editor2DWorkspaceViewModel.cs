@@ -1848,7 +1848,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         string fileName,
         string dataBase64,
         int pixelWidth,
-        int pixelHeight)
+        int pixelHeight,
+        Editor2DPoint? insertionPoint = null)
     {
         if (string.IsNullOrWhiteSpace(dataBase64))
             throw new ArgumentException("Reference image data is required.", nameof(dataBase64));
@@ -1865,8 +1866,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             dataBase64,
             pixelWidth,
             pixelHeight,
-            X: 0.0,
-            Y: 0.0,
+            X: insertionPoint?.X ?? 0.0,
+            Y: insertionPoint?.Y ?? 0.0,
             Width: pixelWidth * scale,
             Height: pixelHeight * scale,
             CalibrationUnitsPerPixel: scale);

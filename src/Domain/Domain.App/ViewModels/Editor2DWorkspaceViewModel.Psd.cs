@@ -5,7 +5,10 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class Editor2DWorkspaceViewModel
 {
-    public Editor2DWorkspaceOperationResult ImportPsd(PsdImportData import, PsdImportMode mode)
+    public Editor2DWorkspaceOperationResult ImportPsd(
+        PsdImportData import,
+        PsdImportMode mode,
+        Editor2DPoint? insertionPoint = null)
     {
         if (import.CanvasWidth <= 0 || import.CanvasHeight <= 0 || import.TotalLayerCount == 0)
             return Editor2DWorkspaceOperationResult.Failure("The Photoshop file contains no importable layers");
@@ -27,7 +30,9 @@ public sealed partial class Editor2DWorkspaceViewModel
                 .Select(entity => new Editor2DPreviewPath(
                     $"psd-vector-{Guid.NewGuid():N}",
                     "LWPOLYLINE",
-                    entity.Points.Select(point => new Editor2DPoint(point.X * fit, point.Y * fit)).ToArray(),
+                    entity.Points.Select(point => new Editor2DPoint(
+                        (point.X * fit) + (insertionPoint?.X ?? 0.0),
+                        (point.Y * fit) + (insertionPoint?.Y ?? 0.0))).ToArray(),
                     entity.IsClosed))
                 .ToArray();
             if (paths.Length == 0)
@@ -62,8 +67,8 @@ public sealed partial class Editor2DWorkspaceViewModel
                 dataBase64,
                 pixelWidth,
                 pixelHeight,
-                centerX * fit,
-                centerY * fit,
+                (centerX * fit) + (insertionPoint?.X ?? 0.0),
+                (centerY * fit) + (insertionPoint?.Y ?? 0.0),
                 pixelWidth * fit,
                 pixelHeight * fit,
                 Opacity: 0.5,

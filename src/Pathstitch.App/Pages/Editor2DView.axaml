@@ -166,5 +166,23 @@
         </Grid>
       </Border>
     </Canvas>
+    <Border
+      x:Name="FileDropOverlay"
+      AutomationProperties.AutomationId="editor.canvas.2d.drop-overlay"
+      IsVisible="False"
+      IsHitTestVisible="False"
+      Margin="12"
+      Background="#33151A26"
+      BorderBrush="{StaticResource AccentBrush}"
+      BorderThickness="2"
+      CornerRadius="10">
+      <TextBlock
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        FontSize="16"
+        FontWeight="SemiBold"
+        Foreground="{StaticResource PrimaryTextBrush}"
+        Text="Drop files into the 2D workspace" />
+    </Border>
   </Grid>
 </UserControl>
