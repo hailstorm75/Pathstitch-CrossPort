@@ -159,6 +159,81 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task SuccessfulUnfoldAppendPreservesSemanticTwoDWorkspaceAndAddsGeneratedLayer()
+    {
+        var sourcePath = Path.Combine(Path.GetTempPath(), $"pathstitch-semantic-{Guid.NewGuid():N}.obj");
+        await File.WriteAllTextAsync(sourcePath, "v 0 0 0");
+        var operations = new AppendingGeneratedOutputOperationService();
+        var viewModel = CreateViewModelForTests(
+            outputPreviewService: new DxfOutputPreviewService(),
+            threeDOperationService: operations);
+        var cutPath = new Editor2DPreviewPath("cut-path", "LINE", [new(0, 0), new(10, 0)], false);
+        var scorePath = new Editor2DPreviewPath("score-path", "LINE", [new(0, 5), new(10, 5)], false);
+        const string onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+        var reference = new Editor2DReferenceImage("reference", "Pattern", onePixelPng, 1, 1, 4, 2, 20, 20);
+        var cutLayer = new Editor2DLayer("cut", "Cut", [cutPath.Id], ColorHex: "#FF0000", ParentFolderId: "geometry");
+        var scoreLayer = new Editor2DLayer("score", "Score", [scorePath.Id], IsVisible: false, IsLocked: true, Order: 1, ColorHex: "#0000FF", ParentFolderId: "geometry");
+        var referenceLayer = new Editor2DLayer("reference", "Pattern", [], Order: 2, Kind: Editor2DLayerKind.ReferenceImage, ReferenceImage: reference);
+        var measurement = new Editor2DMeasurement("measurement", cutPath.Points[0], cutPath.Points[1], EntityPathId: cutPath.Id);
+        var importGroup = new Editor2DImportGroup("import", "source.dxf", 1, [cutPath.Id], cutLayer.Id, 0, 0);
+        var state = Editor2DWorkspaceState.Empty with
+        {
+            IsInitialized = true,
+            Document = new Editor2DPreviewDocument(
+                [cutPath, scorePath],
+                new Editor2DBounds(0, 0, 10, 5),
+                new Dictionary<string, int> { ["LINE"] = 2 },
+                []),
+            Layers = [cutLayer, scoreLayer, referenceLayer],
+            ActiveLayerId = scoreLayer.Id,
+            Folders = [new Editor2DLayerFolder("geometry", "Geometry")],
+            Measurements = [measurement],
+            ImportGroups = [importGroup],
+            ViewportZoom = 1.5,
+            ViewportOffsetX = 12,
+            ViewportOffsetY = -4,
+        };
+        viewModel.ApplyPersistedTwoDWorkspaceState(state);
+        viewModel.ThreeDWorkspace.ReplaceBodies([new Body3D(0, "body", [])], "{}", sourcePath);
+
+        try
+        {
+            await viewModel.RequestUnfoldEntireBodyAsync();
+
+            Assert.Contains(viewModel.TwoDDocument!.Paths, path => path.Id == cutPath.Id);
+            Assert.Contains(viewModel.TwoDDocument.Paths, path => path.Id == scorePath.Id);
+            Assert.Equal(3, viewModel.TwoDDocument.Paths.Count);
+            Assert.Equal([cutPath.Id], viewModel.TwoDLayers.Single(layer => layer.Id == cutLayer.Id).PathIds);
+            var restoredScore = viewModel.TwoDLayers.Single(layer => layer.Id == scoreLayer.Id);
+            Assert.Equal([scorePath.Id], restoredScore.PathIds);
+            Assert.False(restoredScore.IsVisible);
+            Assert.True(restoredScore.IsLocked);
+            Assert.Equal(reference, viewModel.TwoDLayers.Single(layer => layer.Id == referenceLayer.Id).ReferenceImage);
+            var generated = Assert.Single(viewModel.TwoDLayers, layer => layer.Name == "Unfolded 3D");
+            Assert.Single(generated.PathIds);
+            Assert.Contains(viewModel.TwoDDocument.Paths, path => path.Id == generated.PathIds[0]);
+            Assert.Equal(measurement, Assert.Single(viewModel.TwoDMeasurements));
+            var restoredImport = Assert.Single(viewModel.TwoDWorkspace.ImportGroups);
+            Assert.Equal(importGroup.Id, restoredImport.Id);
+            Assert.Equal(importGroup.SourceFilePath, restoredImport.SourceFilePath);
+            Assert.Equal(importGroup.GeneratedPathIds, restoredImport.GeneratedPathIds);
+            Assert.Equal(importGroup.OwningLayerId, restoredImport.OwningLayerId);
+            Assert.Equal("geometry", Assert.Single(viewModel.TwoDWorkspace.Folders).Id);
+            Assert.Equal(scoreLayer.Id, viewModel.TwoDWorkspace.ActiveLayerId);
+            Assert.Equal(1.5, viewModel.TwoDViewportZoom);
+            Assert.Equal(12, viewModel.TwoDViewportOffsetX);
+            Assert.Equal(-4, viewModel.TwoDViewportOffsetY);
+            Assert.False(File.Exists(operations.ExistingDxfPath));
+        }
+        finally
+        {
+            viewModel.Dispose();
+            File.Delete(sourcePath);
+            File.Delete(operations.OutputPath);
+        }
+    }
+
+    [Fact]
     public void SelectedSeamDecoration_DefaultClearsOverrideAndUsesGlobalDecoration()
     {
         var viewModel = CreateViewModelForTests();
@@ -2499,6 +2574,42 @@ public sealed class EditorPageViewModelModeTests
             if (ExistingDxfExistedDuringCall)
                 ExistingDocument = EditorDxfDocument.LoadPreviewDocument(request.ExistingDxfPath!);
             return Task.FromResult(new EditorOperationResult(false, "Deliberate failure"));
+        }
+
+        public Task<EditorOperationResult> ProjectEdgesAsync(EditorProjectionRequest request, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class AppendingGeneratedOutputOperationService : IEditor3DOperationService
+    {
+        public string OutputPath { get; } = Path.Combine(Path.GetTempPath(), $"pathstitch-appended-{Guid.NewGuid():N}.dxf");
+        public string? ExistingDxfPath { get; private set; }
+
+        public Task<EditorModelLoadResult> LoadModelAsync(string sourceModelPath, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<EditorModelLoadResult> LoadModelsAsync(
+            IReadOnlyList<string> sourceModelPaths,
+            string? existingSourceModelPath = null,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<EditorFaceDistortionResult> ComputeFaceDistortionAsync(
+            string? sourceModelPath,
+            SelectedFace3D selectedFace,
+            string distortionMode,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<EditorOperationResult> UnfoldAsync(EditorUnfoldRequest request, CancellationToken cancellationToken = default)
+        {
+            ExistingDxfPath = request.ExistingDxfPath;
+            EditorDxfDocument.SaveOrAppendLwPolylines(
+                OutputPath,
+                "UNFOLDED_3D",
+                [new DxfPolyline([new DxfPoint(0, 0), new DxfPoint(5, 0), new DxfPoint(5, 5)], true)],
+                request.ExistingDxfPath);
+            return Task.FromResult(new EditorOperationResult(true, "Appended", OutputPath));
         }
 
         public Task<EditorOperationResult> ProjectEdgesAsync(EditorProjectionRequest request, CancellationToken cancellationToken = default)
