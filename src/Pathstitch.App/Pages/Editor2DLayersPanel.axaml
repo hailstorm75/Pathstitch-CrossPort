@@ -48,10 +48,23 @@
         <ItemsControl ItemsSource="{Binding TwoDLayerHierarchyItems}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="viewModels:Editor2DLayerHierarchyItem">
-              <Grid ColumnDefinitions="Auto,*">
+              <Grid
+                ColumnDefinitions="Auto,Auto,*"
+                DragDrop.AllowDrop="True"
+                DragDrop.DragOver="OnHierarchyDragOver"
+                DragDrop.Drop="OnHierarchyDrop">
                 <Border Width="{Binding IndentWidth}" />
-                <StackPanel
+                <TextBlock
                   Grid.Column="1"
+                  Width="14"
+                  Margin="0,0,4,0"
+                  VerticalAlignment="Center"
+                  Cursor="SizeAll"
+                  Text="⠿"
+                  ToolTip.Tip="Drag to move or reorder"
+                  PointerPressed="OnHierarchyDragStarted" />
+                <StackPanel
+                  Grid.Column="2"
                   IsVisible="{Binding IsFolder}"
                   Orientation="Horizontal"
                   Spacing="4"
@@ -66,10 +79,21 @@
                   <TextBlock VerticalAlignment="Center" Text="📁" />
                   <TextBox Width="120" Text="{Binding Name, Mode=OneWay}" Tag="{Binding Id}" />
                   <Button Padding="5,2" Content="Rename" Tag="{Binding Id}" Click="OnRenameFolderClicked" />
+                  <Button Padding="5,2" Content="↑" Tag="{Binding Id}" Click="OnMoveFolderUpClicked" />
+                  <Button Padding="5,2" Content="↓" Tag="{Binding Id}" Click="OnMoveFolderDownClicked" />
+                  <Button Padding="5,2" Content="Root" Tag="{Binding Id}" Click="OnMoveFolderToRootClicked" />
                   <Button Padding="5,2" Content="+ Subfolder" Tag="{Binding Id}" Click="OnCreateSubfolderClicked" />
                   <Button Padding="5,2" Content="Delete" Tag="{Binding Id}" Click="OnDeleteFolderClicked" />
+                  <ComboBox
+                    Width="120"
+                    Tag="{Binding Id}"
+                    PlaceholderText="Move to folder"
+                    ItemsSource="{Binding $parent[UserControl].DataContext.TwoDFolders}"
+                    SelectedValue="{Binding Folder.ParentFolderId, Mode=OneWay}"
+                    SelectedValueBinding="{Binding Id}"
+                    SelectionChanged="OnFolderParentChanged" />
                 </StackPanel>
-                <ContentControl Grid.Column="1" IsVisible="{Binding IsLayer}" Content="{Binding Layer}">
+                <ContentControl Grid.Column="2" IsVisible="{Binding IsLayer}" Content="{Binding Layer}">
                   <ContentControl.ContentTemplate>
                     <DataTemplate x:DataType="models:Editor2DLayer">
                       <Border
@@ -101,6 +125,7 @@
                     SelectedValue="{Binding ParentFolderId, Mode=OneWay}"
                     SelectedValueBinding="{Binding Id}"
                     SelectionChanged="OnLayerFolderChanged" />
+                  <Button Padding="5,2" Content="Move to root" Tag="{Binding Id}" Click="OnMoveLayerToRootClicked" />
                   <StackPanel Orientation="Horizontal" Spacing="4">
                     <TextBlock VerticalAlignment="Center" Text="Color" />
                     <TextBox Width="88" Text="{Binding ColorHex, Mode=OneWay}" Tag="{Binding Id}" />

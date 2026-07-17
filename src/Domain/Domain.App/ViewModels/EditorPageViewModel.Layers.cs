@@ -183,6 +183,31 @@ public sealed partial class EditorPageViewModel
         }
     }
 
+    public void MoveTwoDFolderToFolder(string folderId, string? parentFolderId)
+    {
+        if (_twoDWorkspace.MoveFolderToFolder(folderId, parentFolderId))
+        {
+            ExpandTwoDFolderAncestry(parentFolderId);
+            RefreshTwoDLayerFacade();
+        }
+    }
+
+    public void MoveTwoDFolder(string folderId, int direction)
+    {
+        if (_twoDWorkspace.MoveFolder(folderId, direction))
+            RefreshTwoDLayerFacade();
+    }
+
+    public void ReorderTwoDHierarchyItem(string sourceId, string targetId)
+    {
+        if (!_twoDWorkspace.ReorderHierarchyItem(sourceId, targetId))
+            return;
+        var destinationFolderId = TwoDFolders.FirstOrDefault(folder => folder.Id == sourceId)?.ParentFolderId
+            ?? TwoDLayers.FirstOrDefault(layer => layer.Id == sourceId)?.ParentFolderId;
+        ExpandTwoDFolderAncestry(destinationFolderId);
+        RefreshTwoDLayerFacade();
+    }
+
     public async Task ImportTwoDReferenceImageAsync(CancellationToken cancellationToken = default)
     {
         var imagePath = await _projectFileDialogService

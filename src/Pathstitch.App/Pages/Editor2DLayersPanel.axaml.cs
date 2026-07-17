@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Domain.App.Models;
 using Domain.App.ViewModels;
@@ -33,6 +34,55 @@ public partial class Editor2DLayersPanel : UserControl
     }
 
     private void OnDeleteFolderClicked(object? sender, RoutedEventArgs e) => WithFolder(sender, id => ViewModel?.DeleteTwoDFolder(id));
+
+    private void OnMoveFolderUpClicked(object? sender, RoutedEventArgs e)
+        => WithFolder(sender, id => ViewModel?.MoveTwoDFolder(id, -1));
+
+    private void OnMoveFolderDownClicked(object? sender, RoutedEventArgs e)
+        => WithFolder(sender, id => ViewModel?.MoveTwoDFolder(id, 1));
+
+    private void OnMoveFolderToRootClicked(object? sender, RoutedEventArgs e)
+        => WithFolder(sender, id => ViewModel?.MoveTwoDFolderToFolder(id, null));
+
+    private void OnFolderParentChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (ViewModel is not null
+            && sender is ComboBox { Tag: string folderId }
+            && e.AddedItems.Count > 0)
+            ViewModel.MoveTwoDFolderToFolder(folderId, (e.AddedItems[0] as Editor2DLayerFolder)?.Id);
+    }
+
+    private void OnMoveLayerToRootClicked(object? sender, RoutedEventArgs e)
+        => WithLayer(sender, id => ViewModel?.MoveTwoDLayerToFolder(id, null));
+
+    private async void OnHierarchyDragStarted(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control { DataContext: Editor2DLayerHierarchyItem item }
+            || !e.GetCurrentPoint((Control)sender).Properties.IsLeftButtonPressed)
+            return;
+        var data = new DataTransfer();
+        data.Add(DataTransferItem.CreateText(item.Id));
+        await DragDrop.DoDragDropAsync(e, data, DragDropEffects.Move);
+    }
+
+    private static void OnHierarchyDragOver(object? sender, DragEventArgs e)
+    {
+        var sourceId = e.DataTransfer.TryGetText();
+        e.DragEffects = sender is Control { DataContext: Editor2DLayerHierarchyItem target }
+            && !string.IsNullOrWhiteSpace(sourceId)
+            && !string.Equals(sourceId, target.Id, StringComparison.Ordinal)
+                ? DragDropEffects.Move
+                : DragDropEffects.None;
+    }
+
+    private void OnHierarchyDrop(object? sender, DragEventArgs e)
+    {
+        var sourceId = e.DataTransfer.TryGetText();
+        if (ViewModel is not null
+            && sender is Control { DataContext: Editor2DLayerHierarchyItem target }
+            && !string.IsNullOrWhiteSpace(sourceId))
+            ViewModel.ReorderTwoDHierarchyItem(sourceId, target.Id);
+    }
 
     private void OnLayerFolderChanged(object? sender, SelectionChangedEventArgs e)
     {

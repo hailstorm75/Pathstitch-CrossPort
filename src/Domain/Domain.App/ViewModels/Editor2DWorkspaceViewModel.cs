@@ -252,6 +252,95 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         return true;
     }
 
+    public bool MoveFolderToFolder(string folderId, string? parentFolderId)
+    {
+        var folder = Folders.FirstOrDefault(item => item.Id == folderId);
+        if (folder is null
+            || string.Equals(folder.ParentFolderId, parentFolderId, StringComparison.Ordinal)
+            || WouldCreateFolderCycle(folderId, parentFolderId))
+            return false;
+
+        Apply(_state with
+        {
+            Folders = Folders.Select(item => item.Id == folderId
+                ? item with { ParentFolderId = parentFolderId }
+                : item).ToArray(),
+        });
+        return true;
+    }
+
+    public bool MoveFolder(string folderId, int direction)
+    {
+        var folder = Folders.FirstOrDefault(item => item.Id == folderId);
+        if (folder is null || direction == 0)
+            return false;
+        var siblings = Folders
+            .Where(item => item.ParentFolderId == folder.ParentFolderId)
+            .ToList();
+        var siblingIndex = siblings.FindIndex(item => item.Id == folderId);
+        var targetSiblingIndex = siblingIndex + Math.Sign(direction);
+        if (siblingIndex < 0 || targetSiblingIndex < 0 || targetSiblingIndex >= siblings.Count)
+            return false;
+
+        var folders = Folders.ToList();
+        var sourceIndex = folders.FindIndex(item => item.Id == folderId);
+        var targetIndex = folders.FindIndex(item => item.Id == siblings[targetSiblingIndex].Id);
+        (folders[sourceIndex], folders[targetIndex]) = (folders[targetIndex], folders[sourceIndex]);
+        Apply(_state with { Folders = folders });
+        return true;
+    }
+
+    public bool ReorderHierarchyItem(string sourceId, string targetId)
+    {
+        if (string.Equals(sourceId, targetId, StringComparison.Ordinal))
+            return false;
+        var sourceFolder = Folders.FirstOrDefault(item => item.Id == sourceId);
+        var targetFolder = Folders.FirstOrDefault(item => item.Id == targetId);
+        var sourceLayer = Layers.FirstOrDefault(item => item.Id == sourceId);
+        var targetLayer = Layers.FirstOrDefault(item => item.Id == targetId);
+        if ((sourceFolder is null && sourceLayer is null) || (targetFolder is null && targetLayer is null))
+            return false;
+
+        var destinationFolderId = targetFolder?.Id ?? targetLayer?.ParentFolderId;
+        if (sourceFolder is not null)
+        {
+            if (WouldCreateFolderCycle(sourceFolder.Id, destinationFolderId))
+                return false;
+            var folders = Folders.Where(item => item.Id != sourceFolder.Id).ToList();
+            folders.Insert(0, sourceFolder with { ParentFolderId = destinationFolderId });
+            Apply(_state with { Folders = folders });
+            return true;
+        }
+
+        var layers = Layers.OrderBy(item => item.Order)
+            .Where(item => item.Id != sourceLayer!.Id)
+            .ToList();
+        var insertionIndex = targetFolder is not null
+            ? 0
+            : Math.Max(0, layers.FindIndex(item => item.Id == targetLayer!.Id));
+        layers.Insert(insertionIndex, sourceLayer! with { ParentFolderId = destinationFolderId });
+        Apply(_state with
+        {
+            Layers = layers.Select((item, order) => item with { Order = order }).ToArray(),
+        });
+        return true;
+    }
+
+    private bool WouldCreateFolderCycle(string folderId, string? parentFolderId)
+    {
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        while (parentFolderId is not null && visited.Add(parentFolderId))
+        {
+            if (string.Equals(parentFolderId, folderId, StringComparison.Ordinal))
+                return true;
+            var parent = Folders.FirstOrDefault(item => item.Id == parentFolderId);
+            if (parent is null)
+                return true;
+            parentFolderId = parent.ParentFolderId;
+        }
+        return parentFolderId is not null;
+    }
+
     public IReadOnlyList<Editor2DCornerParameter> CornerParameters => _state.CornerParameters ?? [];
 
     public Editor2DSewingHoleParameters SewingHoleParameters => _state.SewingHoleParameters ?? Editor2DSewingHoleParameters.Default;
