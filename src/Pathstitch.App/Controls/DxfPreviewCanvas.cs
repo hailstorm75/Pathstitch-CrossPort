@@ -1038,6 +1038,8 @@ public sealed class DxfPreviewCanvas : Control
     }
 
     public event Action<string, double, double, double, double, double>? ReferenceImageTransformChanged;
+    public event Action? MeasurementEditStarted;
+    public event Action? MeasurementEditCompleted;
     internal event Action<DxfCanvasTransformPrecisionRequest>? TransformPrecisionRequested;
     internal event Action? TransformPrecisionDismissed;
     internal event Action<DxfCanvasDimensionExpressionRequest>? DimensionExpressionRequested;
@@ -1212,6 +1214,8 @@ public sealed class DxfPreviewCanvas : Control
         _editingVertexIsConstrainedRectangle = false;
         _referenceImageDragStart = null;
         _referenceImageDragMode = default;
+        if (_editingMeasurementId is not null)
+            MeasurementEditCompleted?.Invoke();
         _editingMeasurementId = null;
         _editingMeasurementStart = false;
         _pressedPathId = null;
@@ -1532,6 +1536,7 @@ public sealed class DxfPreviewCanvas : Control
             _editingMeasurementStart = editingStart;
             SetCurrentValue(SelectedMeasurementIdProperty, measurementId);
             SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
+            MeasurementEditStarted?.Invoke();
             e.Pointer.Capture(this);
             e.Handled = true;
             return;
@@ -1840,6 +1845,7 @@ Hover:
         {
             _editingMeasurementId = null;
             _editingMeasurementStart = false;
+            MeasurementEditCompleted?.Invoke();
             e.Pointer.Capture(null);
             InvalidateVisual();
             e.Handled = true;

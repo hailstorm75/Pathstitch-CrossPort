@@ -149,6 +149,15 @@ public sealed partial class EditorPageViewModel
 
     public bool CanRedoTwoDWorkspace => _twoDWorkspace.CanRedo;
 
+    public void BeginTwoDMeasurementEdit() => _twoDWorkspace.BeginMeasurementEdit();
+
+    public void EndTwoDMeasurementEdit()
+    {
+        _twoDWorkspace.EndMeasurementEdit();
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        NotifyTwoDHistoryCommands();
+    }
+
     [RelayCommand(CanExecute = nameof(CanUndoTwoDWorkspace))]
     private void UndoTwoD() => UndoTwoDWorkspace();
 

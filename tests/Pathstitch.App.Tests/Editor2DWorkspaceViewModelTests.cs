@@ -8,6 +8,46 @@ namespace Pathstitch.App.Tests;
 public sealed class Editor2DWorkspaceViewModelTests
 {
     [Fact]
+    public void MeasurementEndpointDragCreatesSingleUndoEntry()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var original = new Editor2DMeasurement("d1", new(0, 0), new(10, 0));
+        workspace.Apply(new Editor2DWorkspaceState(
+            Editor2DWorkspaceState.Empty.Document,
+            Measurements: [original]), recordHistory: false);
+        workspace.ClearHistory();
+
+        workspace.BeginMeasurementEdit();
+        workspace.SetMeasurements([original with { End = new(12, 0) }]);
+        var final = original with { End = new(15, 2) };
+        workspace.SetMeasurements([final]);
+        workspace.EndMeasurementEdit();
+
+        Assert.True(workspace.CanUndo);
+        Assert.True(workspace.Undo());
+        Assert.Equal(original, Assert.Single(workspace.Measurements));
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.Redo());
+        Assert.Equal(final, Assert.Single(workspace.Measurements));
+    }
+
+    [Fact]
+    public void MeasurementEndpointClickWithoutMoveCreatesNoUndoEntry()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var measurement = new Editor2DMeasurement("d1", new(0, 0), new(10, 0));
+        workspace.Apply(new Editor2DWorkspaceState(
+            Editor2DWorkspaceState.Empty.Document,
+            Measurements: [measurement]), recordHistory: false);
+
+        workspace.BeginMeasurementEdit();
+        workspace.SetSelectedMeasurement(measurement.Id);
+        workspace.EndMeasurementEdit();
+
+        Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
     public void SewingHoleGeometry_CountModePlacesExactClosedLoopCount()
     {
         var document = new Editor2DPreviewDocument(

@@ -34,6 +34,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private readonly Stack<Editor2DWorkspaceState> _undo = new();
     private readonly Stack<Editor2DWorkspaceState> _redo = new();
     private readonly Dictionary<string, Editor2DMirrorLink> _mirrorLinks = new(StringComparer.Ordinal);
+    private Editor2DWorkspaceState? _measurementEditOrigin;
     private CornerToolSession? _cornerToolSession;
     private Editor2DWorkspaceState _state = Editor2DWorkspaceState.Empty;
     private int _polygonSides = 6;
@@ -620,8 +621,30 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         bool recordHistory = true)
         => Apply(
             _state with { Measurements = measurements, SelectedMeasurementId = selectedMeasurementId },
-            recordHistory,
+            recordHistory && _measurementEditOrigin is null,
             rebuildMeasurementCaches: false);
+
+    public void BeginMeasurementEdit()
+        => _measurementEditOrigin ??= _state;
+
+    public void EndMeasurementEdit()
+    {
+        if (_measurementEditOrigin is not { } origin)
+            return;
+
+        _measurementEditOrigin = null;
+        if ((origin.Measurements ?? []).SequenceEqual(_state.Measurements ?? []))
+            return;
+
+        _undo.Push(origin with
+        {
+            SelectedPathIds = _state.SelectedPathIds,
+            SelectedMeasurementId = _state.SelectedMeasurementId,
+        });
+        _redo.Clear();
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+    }
 
     public void SetSelectedMeasurement(string? selectedMeasurementId)
         => Apply(_state with { SelectedMeasurementId = selectedMeasurementId }, recordHistory: false);
@@ -2142,6 +2165,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public bool Undo()
     {
+        EndMeasurementEdit();
         if (_undo.Count == 0)
             return false;
 
@@ -2154,6 +2178,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public bool Redo()
     {
+        EndMeasurementEdit();
         if (_redo.Count == 0)
             return false;
 
@@ -2166,6 +2191,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public void ClearHistory()
     {
+        _measurementEditOrigin = null;
         if (_undo.Count == 0 && _redo.Count == 0)
             return;
 
