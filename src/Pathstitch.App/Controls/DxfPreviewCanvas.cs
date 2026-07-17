@@ -2228,6 +2228,16 @@ Selection:
         }
 
         else if (e.Key == Key.Enter
+                 && e.KeyModifiers == KeyModifiers.None
+                 && ActiveTool == Editor2DTool.SketchLine
+                 && _pendingLineStart is not null
+                 && _pendingLineEnd is not null)
+        {
+            CommitPendingSketchLine();
+            e.Handled = true;
+        }
+
+        else if (e.Key == Key.Enter
             && e.KeyModifiers == KeyModifiers.None
             && ActiveTool == Editor2DTool.Scale
             && DataContext is EditorPageViewModel scaleViewModel)
@@ -4459,6 +4469,26 @@ Selection:
                || path.IsAxisAlignedRectangle);
 
     private readonly record struct CornerHandleHit(string PathId, int CornerIndex);
+
+    private void CommitPendingSketchLine()
+    {
+        if (_pendingLineStart is not { } startPoint || _pendingLineEnd is not { } endPoint)
+            return;
+
+        var startScreen = WorldToScreen(startPoint, Bounds.Size);
+        var endScreen = WorldToScreen(endPoint, Bounds.Size);
+        var screenDistance = Math.Sqrt(
+            Math.Pow(endScreen.X - startScreen.X, 2.0)
+            + Math.Pow(endScreen.Y - startScreen.Y, 2.0));
+        if (screenDistance >= 5.0)
+        {
+            HandleSketchLineClick(endScreen);
+            return;
+        }
+
+        CancelPendingLine();
+        InvalidateVisual();
+    }
 
     private void HandleSketchLineClick(Point screenPoint)
     {
