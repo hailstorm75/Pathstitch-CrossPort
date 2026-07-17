@@ -11,6 +11,45 @@ namespace Pathstitch.App.Tests;
 public sealed class EditorFileCommandTests
 {
     [Fact]
+    public async Task CommandPalette_ImportAndSaveDispatchExistingAsyncCommands()
+    {
+        await using var fixture = await Fixture.CreateAsync(UnsavedChangesPromptResult.Discard);
+
+        fixture.ViewModel.CommandSearchQuery = "import";
+        var import = Assert.Single(fixture.ViewModel.CommandSearchResults,
+            item => item.Identifier == EditorCommandPaletteCatalog.ImportIdentifier);
+        Assert.True(import.IsEnabled);
+        await fixture.ViewModel.ActivateCommandSearchItemAsync(import.Identifier);
+        Assert.Equal(1, fixture.Dialog.WorkspaceCount);
+        Assert.False(fixture.ViewModel.IsCommandSearchOpen);
+
+        await fixture.ViewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        fixture.ViewModel.TwoDDocument = Document(
+            new Editor2DPreviewPath("dirty", "LINE", [new(0, 0), new(2, 0)], false));
+        fixture.ViewModel.CommandSearchQuery = "save project";
+        var save = Assert.Single(fixture.ViewModel.CommandSearchResults,
+            item => item.Identifier == EditorCommandPaletteCatalog.SaveIdentifier);
+        Assert.True(save.IsEnabled);
+        await fixture.ViewModel.ActivateCommandSearchItemAsync(save.Identifier);
+        Assert.False(fixture.ViewModel.IsDirty);
+    }
+
+    [Fact]
+    public async Task CommandPalette_DisabledSaveDoesNotDispatchOrClose()
+    {
+        await using var fixture = await Fixture.CreateAsync(UnsavedChangesPromptResult.Discard);
+        fixture.ViewModel.CommandSearchQuery = "save project";
+        var save = Assert.Single(fixture.ViewModel.CommandSearchResults,
+            item => item.Identifier == EditorCommandPaletteCatalog.SaveIdentifier);
+        Assert.False(save.IsEnabled);
+
+        await fixture.ViewModel.ActivateCommandSearchItemAsync(save.Identifier);
+
+        Assert.Equal("save project", fixture.ViewModel.CommandSearchQuery);
+        Assert.True(fixture.ViewModel.IsCommandSearchOpen);
+    }
+
+    [Fact]
     public async Task OpenProject_NewWindowDispositionPreservesCurrentDocument()
     {
         var windows = new RecordingDocumentWindowService();

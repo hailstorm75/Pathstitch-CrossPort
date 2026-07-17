@@ -1581,7 +1581,9 @@ public sealed class EditorPageViewModelModeTests
             .Order()
             .ToArray();
         Assert.Equal("2d.circle", railIdentifiers[0]);
-        Assert.Equal(railIdentifiers, searchIdentifiers);
+        Assert.All(railIdentifiers, identifier => Assert.Contains(identifier, searchIdentifiers));
+        Assert.Contains(EditorCommandPaletteCatalog.SaveIdentifier, searchIdentifiers);
+        Assert.Contains(EditorCommandPaletteCatalog.PreferencesIdentifier, searchIdentifiers);
         Assert.Equal(railIdentifiers.Order(), persistedIdentifiers);
         Assert.Equal(
             EditorToolCatalog.ForMode(EditorMode.TwoD).Select(descriptor => descriptor.Identifier).Order(),
@@ -1614,6 +1616,152 @@ public sealed class EditorPageViewModelModeTests
         Assert.True(viewModel.IsCommandSearchOpen);
         Assert.True(viewModel.IsCommandSearchEmpty);
         Assert.Empty(viewModel.CommandSearchResults);
+    }
+
+    [Fact]
+    public async Task CommandSearch_OpensWithAllCommandsAndRanksTitlePrefixesFirst()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+
+        viewModel.OpenCommandSearch();
+
+        Assert.True(viewModel.IsCommandSearchOpen);
+        Assert.Empty(viewModel.CommandSearchQuery);
+        Assert.Contains(viewModel.CommandSearchResults, item => item.Identifier == EditorCommandPaletteCatalog.SaveIdentifier);
+        Assert.Contains(viewModel.CommandSearchResults, item => item.Identifier == EditorCommandPaletteCatalog.PreferencesIdentifier);
+        Assert.Contains(viewModel.CommandSearchResults, item => item.Identifier == "2d.select");
+
+        viewModel.CommandSearchQuery = "save";
+        Assert.StartsWith("Save", viewModel.CommandSearchResults[0].Label, StringComparison.OrdinalIgnoreCase);
+        viewModel.CloseCommandSearch();
+        Assert.False(viewModel.IsCommandSearchOpen);
+    }
+
+    [Theory]
+    [InlineData(EditorMode.TwoD)]
+    [InlineData(EditorMode.ThreeD)]
+    [InlineData(EditorMode.Batch)]
+    public async Task CommandSearch_FileAndAppCommandsRemainVisibleAcrossModes(EditorMode mode)
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(mode);
+
+        foreach (var identifier in new[]
+        {
+            EditorCommandPaletteCatalog.NewIdentifier,
+            EditorCommandPaletteCatalog.OpenIdentifier,
+            EditorCommandPaletteCatalog.ImportIdentifier,
+            EditorCommandPaletteCatalog.SaveIdentifier,
+            EditorCommandPaletteCatalog.SaveAsIdentifier,
+            EditorCommandPaletteCatalog.StartScreenIdentifier,
+            EditorCommandPaletteCatalog.PreferencesIdentifier,
+            EditorCommandPaletteCatalog.DocumentationIdentifier,
+        })
+        {
+            viewModel.CommandSearchQuery = identifier;
+            Assert.Contains(viewModel.CommandSearchResults, item => item.Identifier == identifier);
+        }
+    }
+
+    [Fact]
+    public async Task CommandSearch_ModeAndHostCommandsDispatchAndClose()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
+        EditorCommandPaletteHostAction? hostAction = null;
+        viewModel.CommandPaletteHostActionRequested += (_, action) => hostAction = action;
+
+        viewModel.OpenCommandSearch();
+        await viewModel.ActivateCommandSearchItemAsync(EditorCommandPaletteCatalog.SwitchToTwoDIdentifier);
+        Assert.Equal(EditorMode.TwoD, viewModel.ActiveEditorMode);
+        Assert.False(viewModel.IsCommandSearchOpen);
+
+        viewModel.OpenCommandSearch();
+        await viewModel.ActivateCommandSearchItemAsync(EditorCommandPaletteCatalog.PreferencesIdentifier);
+        Assert.Equal(EditorCommandPaletteHostAction.Preferences, hostAction);
+        Assert.False(viewModel.IsCommandSearchOpen);
+    }
+
+    [Fact]
+    public void CommandSearch_GlobalCatalogHasStableUniqueEntriesForEveryMode()
+    {
+        var expected = new[]
+        {
+            EditorCommandPaletteCatalog.UndoIdentifier,
+            EditorCommandPaletteCatalog.RedoIdentifier,
+            EditorCommandPaletteCatalog.DeleteIdentifier,
+            EditorCommandPaletteCatalog.SwitchToTwoDIdentifier,
+            EditorCommandPaletteCatalog.SwitchToThreeDIdentifier,
+            EditorCommandPaletteCatalog.SwitchToBatchIdentifier,
+            EditorCommandPaletteCatalog.NewIdentifier,
+            EditorCommandPaletteCatalog.OpenIdentifier,
+            EditorCommandPaletteCatalog.ImportIdentifier,
+            EditorCommandPaletteCatalog.SaveIdentifier,
+            EditorCommandPaletteCatalog.SaveAsIdentifier,
+            EditorCommandPaletteCatalog.ExportDxfIdentifier,
+            EditorCommandPaletteCatalog.ExportSvgIdentifier,
+            EditorCommandPaletteCatalog.ExportPngIdentifier,
+            EditorCommandPaletteCatalog.ExportPdfIdentifier,
+            EditorCommandPaletteCatalog.StartScreenIdentifier,
+            EditorCommandPaletteCatalog.ClearReferenceImageIdentifier,
+            EditorCommandPaletteCatalog.SearchIdentifier,
+            EditorCommandPaletteCatalog.PreferencesIdentifier,
+            EditorCommandPaletteCatalog.DocumentationIdentifier,
+        };
+
+        foreach (var mode in Enum.GetValues<EditorMode>())
+        {
+            var commands = EditorCommandPaletteCatalog.SearchOnly.Where(item => item.Mode == mode).ToArray();
+            Assert.Equal(commands.Length, commands.Select(item => item.Identifier).Distinct(StringComparer.Ordinal).Count());
+            Assert.All(expected, id => Assert.Contains(commands, item => item.Identifier == id));
+        }
+    }
+
+    [Fact]
+    public async Task CommandSearch_EditAndReferenceCommandsUseExistingWorkspaceActions()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var path = new Editor2DPreviewPath("delete-me", "LINE", [new(0, 0), new(2, 0)], false);
+        viewModel.TwoDDocument = new Editor2DPreviewDocument(
+            [path], new Editor2DBounds(0, 0, 2, 1), new Dictionary<string, int>(), []);
+        viewModel.TwoDSelectedPathIds = [path.Id];
+        viewModel.CommandSearchQuery = "delete selection";
+        Assert.True(viewModel.CommandSearchResults.Single(item => item.Identifier == EditorCommandPaletteCatalog.DeleteIdentifier).IsEnabled);
+
+        await viewModel.ActivateCommandSearchItemAsync(EditorCommandPaletteCatalog.DeleteIdentifier);
+        Assert.Empty(viewModel.TwoDDocument!.Paths);
+
+        viewModel.CommandSearchQuery = "undo";
+        await viewModel.ActivateCommandSearchItemAsync(EditorCommandPaletteCatalog.UndoIdentifier);
+        Assert.Single(viewModel.TwoDDocument!.Paths);
+
+        var reference = viewModel.TwoDWorkspace.ImportReferenceImage("Reference", "AA==", 1, 1);
+        viewModel.CommandSearchQuery = "clear active reference";
+        Assert.True(viewModel.CommandSearchResults.Single(item => item.Identifier == EditorCommandPaletteCatalog.ClearReferenceImageIdentifier).IsEnabled);
+        await viewModel.ActivateCommandSearchItemAsync(EditorCommandPaletteCatalog.ClearReferenceImageIdentifier);
+        Assert.DoesNotContain(viewModel.TwoDLayers, item => item.Id == reference.Id);
+    }
+
+    [Fact]
+    public async Task CommandSearch_ExportCommandsStayVisibleButDisableOutsideTwoD()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var exportIds = new[]
+        {
+            EditorCommandPaletteCatalog.ExportDxfIdentifier,
+            EditorCommandPaletteCatalog.ExportSvgIdentifier,
+            EditorCommandPaletteCatalog.ExportPngIdentifier,
+            EditorCommandPaletteCatalog.ExportPdfIdentifier,
+        };
+
+        viewModel.OpenCommandSearch();
+        Assert.All(exportIds, id => Assert.True(viewModel.CommandSearchResults.Single(item => item.Identifier == id).IsEnabled));
+
+        await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
+        Assert.All(exportIds, id => Assert.False(viewModel.CommandSearchResults.Single(item => item.Identifier == id).IsEnabled));
     }
 
     [Theory]
@@ -1726,20 +1874,21 @@ public sealed class EditorPageViewModelModeTests
     [Theory]
     [InlineData(EditorMode.ThreeD)]
     [InlineData(EditorMode.Batch)]
-    public async Task CommandSearch_TwoDViewCommandsAreUnavailableOutsideTwoD(EditorMode mode)
+    public async Task CommandSearch_TwoDViewCommandsStayVisibleButDisabledOutsideTwoD(EditorMode mode)
     {
         var viewModel = CreateViewModel();
         await viewModel.SetActiveEditorModeAsync(mode);
 
         viewModel.CommandSearchQuery = "toggle";
 
-        Assert.DoesNotContain(
-            viewModel.CommandSearchResults,
-            item => EditorCommandPaletteCatalog.SearchOnly.Any(command => command.Identifier == item.Identifier));
+        Assert.Contains(viewModel.CommandSearchResults,
+            item => item.Identifier == EditorCommandPaletteCatalog.ToggleGridIdentifier && !item.IsEnabled);
+        Assert.Contains(viewModel.CommandSearchResults,
+            item => item.Identifier == EditorCommandPaletteCatalog.ToggleSnappingIdentifier && !item.IsEnabled);
     }
 
     [Fact]
-    public async Task CommandSearch_ModeChangeRemovesTwoDViewCommandsAndRefreshesEmptyState()
+    public async Task CommandSearch_ModeChangeDisablesTwoDViewCommandsAndRefreshesResults()
     {
         var viewModel = CreateViewModel();
         await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
@@ -1752,8 +1901,8 @@ public sealed class EditorPageViewModelModeTests
 
         await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
 
-        Assert.Empty(viewModel.CommandSearchResults);
-        Assert.True(viewModel.IsCommandSearchEmpty);
+        Assert.False(viewModel.IsCommandSearchEmpty);
+        Assert.Contains(viewModel.CommandSearchResults, item => item.Identifier == EditorCommandPaletteCatalog.ToggleGridIdentifier && !item.IsEnabled);
         Assert.Contains(nameof(EditorPageViewModel.CommandSearchResults), changes);
         Assert.Contains(nameof(EditorPageViewModel.IsCommandSearchEmpty), changes);
     }

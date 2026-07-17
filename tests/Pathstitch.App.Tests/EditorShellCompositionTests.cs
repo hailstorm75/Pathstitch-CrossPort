@@ -173,6 +173,11 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("ScrollIntoView", codeBehind, StringComparison.Ordinal);
         Assert.Contains("ActivateSelected", codeBehind, StringComparison.Ordinal);
         Assert.Contains("IsCommandSearchSelected", codeBehind + ReadPage("EditorCommandPalette.axaml"), StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"{Binding IsEnabled}\"", ReadPage("EditorCommandPalette.axaml"), StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding GroupKey}\"", ReadPage("EditorCommandPalette.axaml"), StringComparison.Ordinal);
+        Assert.Contains("OpenCommandSearch", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ActivateCommandSearchItemAsync", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("CommandPaletteHostActionRequested", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorShellView.axaml.cs"), StringComparison.Ordinal);
         Assert.Contains("Button.command-result.selected", ReadPage("EditorCommandPalette.axaml"), StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CommandSearchResults\"", ReadPage("EditorCommandPalette.axaml"), StringComparison.Ordinal);
         Assert.Contains("FocusSearch", codeBehind, StringComparison.Ordinal);
