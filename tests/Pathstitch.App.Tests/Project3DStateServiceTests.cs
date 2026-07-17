@@ -4,11 +4,66 @@ using System.Text.Json;
 using Domain.App.Models;
 using Domain.App.Services;
 using Domain.App.ViewModels;
+using Pathstitch.App.Services;
 
 namespace Pathstitch.App.Tests;
 
 public sealed class Project3DStateServiceTests
 {
+    [Fact]
+    public async Task SaveAsync_WritesAndReplacesProjectPreviewEntry()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("preview.stch");
+        var service = new Project3DStateService();
+        var preview = await new ProjectPreviewRenderer().RenderAsync(null);
+        Assert.NotNull(preview);
+
+        await service.SaveAsync(
+            projectPath,
+            new Project3DState(null, [], [], PreviewImageData: preview));
+
+        await using (var file = File.OpenRead(projectPath))
+        using (var archive = new ZipArchive(file, ZipArchiveMode.Read))
+        {
+            var entry = archive.GetEntry("preview.png");
+            Assert.NotNull(entry);
+            await using var stream = entry.Open();
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            Assert.Equal(preview, memory.ToArray());
+        }
+
+        await service.SaveAsync(projectPath, Project3DState.Empty);
+
+        await using var replacedFile = File.OpenRead(projectPath);
+        using var replacedArchive = new ZipArchive(replacedFile, ZipArchiveMode.Read);
+        Assert.Null(replacedArchive.GetEntry("preview.png"));
+    }
+
+    [Fact]
+    public async Task SaveAsync_OmitsInvalidAndOversizedPreviewData()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("invalid-preview.stch");
+        var service = new Project3DStateService();
+        byte[][] invalidPreviews =
+        [
+            [1, 2, 3, 4, 5, 6, 7, 8, 9],
+            new byte[4 * 1024 * 1024 + 1],
+        ];
+
+        foreach (var preview in invalidPreviews)
+        {
+            await service.SaveAsync(
+                projectPath,
+                new Project3DState(null, [], [], PreviewImageData: preview));
+            await using var file = File.OpenRead(projectPath);
+            using var archive = new ZipArchive(file, ZipArchiveMode.Read);
+            Assert.Null(archive.GetEntry("preview.png"));
+        }
+    }
+
     [Fact]
     public async Task SaveAndLoadAsync_RoundTripsActivityLog()
     {

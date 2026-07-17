@@ -2087,12 +2087,13 @@ public sealed class EditorPageViewModelModeTests
         ProjectSessionService? projectSessionService = null,
         IReferenceImageTraceService? referenceImageTraceService = null,
         IReferenceImagePreparationService? referenceImagePreparationService = null,
+        IProjectPreviewRenderer? projectPreviewRenderer = null,
         IPsdImportService? psdImportService = null,
         IPsdImportModePromptService? psdImportModePromptService = null,
         IDocumentWindowService? documentWindowService = null,
         IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null,
         IEditorOutputLauncherService? outputLauncherService = null)
-        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, referenceImagePreparationService, psdImportService, psdImportModePromptService, documentWindowService, projectOpenDispositionPromptService, outputLauncherService);
+        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, referenceImagePreparationService, projectPreviewRenderer, psdImportService, psdImportModePromptService, documentWindowService, projectOpenDispositionPromptService, outputLauncherService);
 
     private static EditorPageViewModel CreateViewModel(
         IProjectFileDialogService? projectFileDialogService = null,
@@ -2103,6 +2104,7 @@ public sealed class EditorPageViewModelModeTests
         ProjectSessionService? projectSessionService = null,
         IReferenceImageTraceService? referenceImageTraceService = null,
         IReferenceImagePreparationService? referenceImagePreparationService = null,
+        IProjectPreviewRenderer? projectPreviewRenderer = null,
         IPsdImportService? psdImportService = null,
         IPsdImportModePromptService? psdImportModePromptService = null,
         IDocumentWindowService? documentWindowService = null,
@@ -2120,6 +2122,7 @@ public sealed class EditorPageViewModelModeTests
             new StubGeometryKernelDescriptorProvider(),
             referenceImageTraceService: referenceImageTraceService,
             referenceImagePreparationService: referenceImagePreparationService,
+            projectPreviewRenderer: projectPreviewRenderer,
             unsavedChangesPromptService: unsavedChangesPromptService,
             importUnitsPromptService: importUnitsPromptService,
             projectSessionService: projectSessionService,

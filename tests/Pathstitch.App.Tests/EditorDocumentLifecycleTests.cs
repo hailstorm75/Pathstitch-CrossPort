@@ -42,6 +42,69 @@ public sealed class EditorDocumentLifecycleTests
     }
 
     [Fact]
+    public async Task SaveDocument_WritesPreviewConsumedByRecentProjects()
+    {
+        await using var fixture = await LifecycleFixture.CreateAsync(
+            projectPreviewRenderer: new ProjectPreviewRenderer());
+        fixture.ViewModel.TwoDDocument = new Editor2DPreviewDocument(
+            [new Editor2DPreviewPath("line", "LINE", [new(0, 0), new(20, 10)], false)],
+            new Editor2DBounds(0, 0, 20, 10),
+            new Dictionary<string, int> { ["LINE"] = 1 },
+            []);
+
+        await fixture.ViewModel.SaveDocumentAsync();
+
+        var recent = new RecentProjectsService(Path.Combine(Path.GetDirectoryName(fixture.ProjectPath)!, "recent.json"));
+        recent.RecordProject(fixture.ViewModel.ProjectSession!);
+        var summary = Assert.Single(recent.GetRecentProjects());
+        Assert.True(summary.HasThumbnail);
+        using var bitmap = SkiaSharp.SKBitmap.Decode(Convert.FromBase64String(summary.ThumbnailDataBase64!));
+        Assert.NotNull(bitmap);
+        Assert.True(bitmap.Width > 1);
+        Assert.True(bitmap.Height > 1);
+    }
+
+    [Fact]
+    public async Task SaveDocument_RendererFailureDoesNotFailProjectSave()
+    {
+        await using var fixture = await LifecycleFixture.CreateAsync(
+            projectPreviewRenderer: new ThrowingProjectPreviewRenderer());
+        await fixture.ViewModel.SetActiveEditorModeAsync(EditorMode.Batch);
+
+        await fixture.ViewModel.SaveDocumentAsync();
+
+        Assert.False(fixture.ViewModel.IsDirty);
+        Assert.Null(fixture.ViewModel.ErrorMessage);
+        var persisted = await new Project3DStateService().LoadAsync(fixture.ProjectPath);
+        Assert.Equal(EditorMode.Batch, persisted.WorkspaceState?.ActiveEditorMode);
+    }
+
+    [Fact]
+    public async Task SaveDocument_PreviewExcludesGeometryOnHiddenLayers()
+    {
+        var renderer = new RecordingProjectPreviewRenderer();
+        await using var fixture = await LifecycleFixture.CreateAsync(projectPreviewRenderer: renderer);
+        var visible = new Editor2DPreviewPath("visible", "LINE", [new(0, 0), new(10, 0)], false);
+        var hidden = new Editor2DPreviewPath("hidden", "LINE", [new(0, 5), new(10, 5)], false);
+        fixture.ViewModel.TwoDDocument = new Editor2DPreviewDocument(
+            [visible, hidden],
+            new Editor2DBounds(0, 0, 10, 5),
+            new Dictionary<string, int> { ["LINE"] = 2 },
+            []);
+        var originalLayer = Assert.Single(fixture.ViewModel.TwoDLayers);
+        fixture.ViewModel.CreateTwoDLayer();
+        var hiddenLayer = fixture.ViewModel.TwoDLayers.Single(layer => layer.Id != originalLayer.Id);
+        fixture.ViewModel.TwoDSelectedPathIds = [hidden.Id];
+        fixture.ViewModel.AssignTwoDSelectionToLayer(hiddenLayer.Id);
+        fixture.ViewModel.ToggleTwoDLayerVisibility(hiddenLayer.Id);
+
+        await fixture.ViewModel.SaveDocumentAsync();
+
+        Assert.NotNull(renderer.Document);
+        Assert.Equal([visible.Id], renderer.Document.Geometry.Paths.Select(path => path.Id).ToArray());
+    }
+
+    [Fact]
     public async Task SaveAndReopen_RestoresEmbeddedBatchInputsSettingsAndSelection()
     {
         await using var fixture = await LifecycleFixture.CreateAsync();
@@ -283,7 +346,9 @@ public sealed class EditorDocumentLifecycleTests
 
         public EditorPageViewModel ViewModel { get; }
 
-        public static async Task<LifecycleFixture> CreateAsync(IUnsavedChangesPromptService? prompt = null)
+        public static async Task<LifecycleFixture> CreateAsync(
+            IUnsavedChangesPromptService? prompt = null,
+            IProjectPreviewRenderer? projectPreviewRenderer = null)
         {
             var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-lifecycle-{Guid.NewGuid():N}");
             Directory.CreateDirectory(directory);
@@ -291,7 +356,8 @@ public sealed class EditorDocumentLifecycleTests
             await new Project3DStateService().SaveAsync(projectPath, Project3DState.Empty);
 
             var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
-                unsavedChangesPromptService: prompt);
+                unsavedChangesPromptService: prompt,
+                projectPreviewRenderer: projectPreviewRenderer);
             var session = new ProjectSession(
                 Guid.NewGuid(),
                 "Lifecycle",
@@ -315,6 +381,27 @@ public sealed class EditorDocumentLifecycleTests
             ViewModel.Dispose();
             Directory.Delete(_directory, recursive: true);
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingProjectPreviewRenderer : IProjectPreviewRenderer
+    {
+        public Task<byte[]?> RenderAsync(
+            Editor2DExportDocument? document,
+            CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("preview unavailable");
+    }
+
+    private sealed class RecordingProjectPreviewRenderer : IProjectPreviewRenderer
+    {
+        public Editor2DExportDocument? Document { get; private set; }
+
+        public Task<byte[]?> RenderAsync(
+            Editor2DExportDocument? document,
+            CancellationToken cancellationToken = default)
+        {
+            Document = document;
+            return new ProjectPreviewRenderer().RenderAsync(document, cancellationToken);
         }
     }
 }
