@@ -388,7 +388,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                         EditorBatchExportFormat.Png => ".png",
                         _ => ".dxf",
                     };
-                    var outputPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(item.FilePath)}-batch{extension}");
+                    var outputPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(item.FileName)}-batch{extension}");
                     await outputPreviewService.SavePreviewDocumentAsync(
                         document,
                         outputPath,

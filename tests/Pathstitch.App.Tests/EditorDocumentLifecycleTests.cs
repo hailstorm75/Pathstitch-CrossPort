@@ -96,6 +96,7 @@ public sealed class EditorDocumentLifecycleTests
             await reopened.BatchWorkspace.ExportDxfAsync(new DxfOutputPreviewService());
 
             Assert.True(File.Exists(reopened.BatchWorkspace.Items[0].OutputPath));
+            Assert.Equal("first-batch.dxf", Path.GetFileName(reopened.BatchWorkspace.Items[0].OutputPath));
             Assert.Null(reopened.BatchWorkspace.Items[1].OutputPath);
         }
         finally
