@@ -18,6 +18,8 @@ public partial class EditorShellView : EditorInteractionControlBase
 {
     private readonly UserPreferencesStore _preferencesStore = new();
     private IReadOnlyDictionary<string, string?> _appShortcuts = new Dictionary<string, string?>();
+    private Editor2DTool? _toolBeforeTemporaryPan;
+    private Window? _ownerWindow;
 
     public EditorShellView()
     {
@@ -28,11 +30,15 @@ public partial class EditorShellView : EditorInteractionControlBase
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         KeyDown += OnEditorKeyDown;
+        KeyUp += OnEditorKeyUp;
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         Focus();
+        _ownerWindow = TopLevel.GetTopLevel(this) as Window;
+        if (_ownerWindow is not null)
+            _ownerWindow.Deactivated += OnOwnerWindowDeactivated;
         if (DataContext is EditorPageViewModel viewModel)
         {
             ApplyCommandShortcutOverrides(viewModel);
@@ -44,10 +50,15 @@ public partial class EditorShellView : EditorInteractionControlBase
 
     private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not EditorPageViewModel viewModel)
-            return;
-        viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        viewModel.CommandPaletteHostActionRequested -= OnCommandPaletteHostActionRequested;
+        RestoreToolAfterTemporaryPan();
+        if (_ownerWindow is not null)
+            _ownerWindow.Deactivated -= OnOwnerWindowDeactivated;
+        _ownerWindow = null;
+        if (DataContext is EditorPageViewModel viewModel)
+        {
+            viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            viewModel.CommandPaletteHostActionRequested -= OnCommandPaletteHostActionRequested;
+        }
     }
 
     private async void OnCommandPaletteHostActionRequested(object? sender, EditorCommandPaletteHostAction action)
@@ -278,6 +289,19 @@ public partial class EditorShellView : EditorInteractionControlBase
             || IsShortcutSuppressedByFocusedElement())
             return;
 
+        if (e.Key == Key.Space
+            && e.KeyModifiers == KeyModifiers.None
+            && viewModel.ActiveEditorMode == EditorMode.TwoD)
+        {
+            if (_toolBeforeTemporaryPan is null)
+            {
+                _toolBeforeTemporaryPan = viewModel.TwoDActiveTool;
+                viewModel.TwoDActiveTool = Editor2DTool.Pan;
+            }
+            e.Handled = true;
+            return;
+        }
+
         if (EditorShortcutGesture.TryCapture(e.Key, e.KeyModifiers, out var canonical)
             && canonical is not null)
         {
@@ -309,6 +333,26 @@ public partial class EditorShellView : EditorInteractionControlBase
             return;
 
         e.Handled = true;
+    }
+
+    private void OnEditorKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Space || _toolBeforeTemporaryPan is null)
+            return;
+        RestoreToolAfterTemporaryPan();
+        e.Handled = true;
+    }
+
+    private void OnOwnerWindowDeactivated(object? sender, System.EventArgs e)
+        => RestoreToolAfterTemporaryPan();
+
+    private void RestoreToolAfterTemporaryPan()
+    {
+        if (_toolBeforeTemporaryPan is not { } previousTool)
+            return;
+        _toolBeforeTemporaryPan = null;
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.TwoDActiveTool = previousTool;
     }
 
     private void RefreshShortcutBindings()
