@@ -880,8 +880,10 @@ public sealed class Editor2DWorkspaceViewModelTests
         var detailLayer = workspace.CreateLayer("Details");
 
         Assert.True(workspace.AssignPathsToLayer(detailLayer.Id, [second.Id]));
+        workspace.SetActiveTool(Editor2DTool.SketchLine);
         Assert.True(workspace.SelectLayer(detailLayer.Id));
         Assert.Equal([second.Id], workspace.SelectedPathIds);
+        Assert.Equal(Editor2DTool.Select, workspace.ActiveTool);
         Assert.True(workspace.ToggleLayerVisibility(detailLayer.Id));
         Assert.False(workspace.Layers.Single(layer => layer.Id == detailLayer.Id).IsVisible);
         Assert.True(workspace.ToggleLayerLock(detailLayer.Id));
@@ -889,6 +891,19 @@ public sealed class Editor2DWorkspaceViewModelTests
         Assert.True(workspace.MoveLayer(detailLayer.Id, -1));
         Assert.Equal(detailLayer.Id, workspace.Layers[0].Id);
         Assert.Equal([first.Id], workspace.Layers.Single(layer => layer.Id == baseLayer.Id).PathIds);
+    }
+
+    [Fact]
+    public void Layers_SelectingEmptyGeometryLayerPreservesActiveDrawingTool()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var emptyLayer = workspace.CreateLayer("Empty");
+        workspace.SetActiveTool(Editor2DTool.SketchLine);
+
+        Assert.True(workspace.SelectLayer(emptyLayer.Id));
+
+        Assert.Empty(workspace.SelectedPathIds);
+        Assert.Equal(Editor2DTool.SketchLine, workspace.ActiveTool);
     }
 
     [Fact]

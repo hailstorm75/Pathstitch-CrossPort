@@ -2076,8 +2076,17 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
         if (_referenceImageTransformLayerId != layerId)
             CommitReferenceImageTransformEdit();
+        var documentPathIds = Document.Paths.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
+        var selectedPathIds = layer.PathIds.Where(documentPathIds.Contains).ToArray();
         Apply(
-            _state with { ActiveLayerId = layer.Id, SelectedPathIds = layer.PathIds },
+            _state with
+            {
+                ActiveLayerId = layer.Id,
+                SelectedPathIds = selectedPathIds,
+                ActiveTool = !layer.IsReferenceImage && selectedPathIds.Length > 0
+                    ? Editor2DTool.Select
+                    : ActiveTool,
+            },
             recordHistory: false);
         if (layer.IsReferenceImage && layer.IsVisible && !layer.IsLocked)
             BeginReferenceImageTransformEdit(layer.Id);
