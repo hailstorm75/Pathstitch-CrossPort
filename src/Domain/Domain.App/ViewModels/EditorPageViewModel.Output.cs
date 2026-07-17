@@ -3123,7 +3123,7 @@ public sealed partial class EditorPageViewModel
     }
 
     private static string GetGeneratedLayerName(EditorGeneratedOutputContext context)
-        => context.SourceTool.Equals("Projection", StringComparison.OrdinalIgnoreCase)
+        => context.SourceTool.StartsWith("Projection", StringComparison.OrdinalIgnoreCase)
             ? "Projected 3D"
             : "Unfolded 3D";
 
