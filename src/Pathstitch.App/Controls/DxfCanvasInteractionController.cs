@@ -23,6 +23,12 @@ internal enum DxfPenCompletion { Open, Closed }
 
 internal static class DxfCanvasPenInteraction
 {
+    public static bool ShouldCompletePath(bool isEditing, DxfPenCompletion? completion)
+        => !isEditing && completion is not null;
+
+    public static bool ShouldAppendAnchor(bool isEditing, bool isClosed)
+        => !isEditing || !isClosed;
+
     public static DxfPenCompletion? GetCompletionForClick(
         IReadOnlyList<Editor2DPoint> points,
         Point screenPoint,

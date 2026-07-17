@@ -4632,7 +4632,7 @@ Selection:
             screenPoint,
             point => WorldToScreen(point, Bounds.Size),
             PenCloseHitTolerance);
-        if (completion is not null)
+        if (DxfCanvasPenInteraction.ShouldCompletePath(_editingPenPathId is not null, completion))
         {
             CommitPendingPenPath(isClosed: completion == DxfPenCompletion.Closed);
             return;
@@ -4662,6 +4662,14 @@ Selection:
             _pendingPenDragControl = DxfCanvasInteractionSession.PenDragControl.Anchor;
             _pointerPressPosition = screenPoint;
             pointer.Capture(this);
+            InvalidateVisual();
+            return;
+        }
+
+        if (!DxfCanvasPenInteraction.ShouldAppendAnchor(
+                _editingPenPathId is not null,
+                _editingPenClosed))
+        {
             InvalidateVisual();
             return;
         }
