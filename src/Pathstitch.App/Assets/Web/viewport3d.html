@@ -586,6 +586,9 @@
                         window.webkit.messageHandlers.pathstitch.postMessage(JSON.stringify({ op: "bodyMoveBegin" }));
                     }
                 } else {
+                    if (gizmoWasDragging && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.pathstitch) {
+                        window.webkit.messageHandlers.pathstitch.postMessage(JSON.stringify({ op: "bodyMoveEnd" }));
+                    }
                     setTimeout(function() { gizmoWasDragging = false; }, 0);
                 }
             });

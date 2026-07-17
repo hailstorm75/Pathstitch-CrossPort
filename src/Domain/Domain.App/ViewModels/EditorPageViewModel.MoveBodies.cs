@@ -6,6 +6,8 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class EditorPageViewModel
 {
+    private bool _isViewportBodyMoveActive;
+
     public int? SelectedBodyIndex
     {
         get => _threeDWorkspace.SelectedBodyIndex;
@@ -383,7 +385,13 @@ public sealed partial class EditorPageViewModel
         UpdateSelectedBodyOffset(offset[0], offset[1], offset[2], syncText: false);
     }
 
-    private void UpdateSelectedBodyOffset(double x, double y, double z, bool syncText = true)
+    private void UpdateSelectedBodyOffset(
+        double x,
+        double y,
+        double z,
+        bool syncText = true,
+        bool captureUndo = true,
+        bool syncViewport = true)
     {
         if (SelectedBodyIndex is not int bodyIndex)
             return;
@@ -394,7 +402,8 @@ public sealed partial class EditorPageViewModel
             && Math.Abs(previous[2] - z) < 1e-9)
             return;
 
-        CaptureBodyMoveUndo();
+        if (captureUndo)
+            CaptureBodyMoveUndo();
 
         var normalizedOffsets = BodyOffsets
             .Where(existingOffset => existingOffset.BodyIndex != bodyIndex)
@@ -411,7 +420,8 @@ public sealed partial class EditorPageViewModel
         StatusText = IsZeroOffset(x, y, z)
             ? $"Body reset: {SelectedBodySummary}"
             : $"Body moved: {SelectedBodySummary}";
-        RequestBodyMoveStateSync();
+        if (syncViewport)
+            RequestBodyMoveStateSync();
         Request3DStatePersistence(TimeSpan.FromMilliseconds(350));
 
         if (syncText)
@@ -549,7 +559,33 @@ public sealed partial class EditorPageViewModel
             return;
 
         SelectedBodyIndex = message.BodyIndex;
-        UpdateSelectedBodyOffset(message.X.Value, message.Y.Value, message.Z.Value);
+        UpdateSelectedBodyOffset(
+            message.X.Value,
+            message.Y.Value,
+            message.Z.Value,
+            captureUndo: !_isViewportBodyMoveActive,
+            syncViewport: !_isViewportBodyMoveActive);
+    }
+
+    private void BeginViewportBodyMove()
+    {
+        if (_isViewportBodyMoveActive)
+            return;
+
+        _isViewportBodyMoveActive = true;
+        CaptureBodyMoveUndo();
+        StatusText = "Body move started";
+    }
+
+    private void EndViewportBodyMove()
+    {
+        if (!_isViewportBodyMoveActive)
+            return;
+
+        _isViewportBodyMoveActive = false;
+        StatusText = HasSelectedBody
+            ? $"Body moved: {SelectedBodySummary}"
+            : "Body move completed";
     }
 
     private void RequestBodyMoveStateSync() => RequestViewportScript(BuildSetBodyMoveStateScript());

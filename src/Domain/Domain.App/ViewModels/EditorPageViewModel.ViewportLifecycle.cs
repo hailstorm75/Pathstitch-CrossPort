@@ -53,11 +53,15 @@ public sealed partial class EditorPageViewModel
                 break;
 
             case "bodyMoveBegin":
-                StatusText = "Body move started";
+                BeginViewportBodyMove();
                 break;
 
             case "bodyMoved":
                 ApplyBodyMove(message);
+                break;
+
+            case "bodyMoveEnd":
+                EndViewportBodyMove();
                 break;
 
             case "selectProjectionPlane":
