@@ -16,6 +16,22 @@ public partial class Editor2DLayersPanel : UserControl
 
     private void OnCreateFolderClicked(object? sender, RoutedEventArgs e) => ViewModel?.CreateTwoDFolder();
 
+    private void OnCreateSubfolderClicked(object? sender, RoutedEventArgs e)
+        => WithFolder(sender, id => ViewModel?.CreateTwoDFolder(id));
+
+    private void OnToggleFolderExpandedClicked(object? sender, RoutedEventArgs e)
+        => WithFolder(sender, id => ViewModel?.ToggleTwoDFolderExpanded(id));
+
+    private void OnRenameFolderClicked(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null || sender is not Button { Tag: string folderId })
+            return;
+        var textBox = (sender as Control)?.GetLogicalAncestors().OfType<StackPanel>().FirstOrDefault()?
+            .GetLogicalDescendants().OfType<TextBox>().FirstOrDefault(control => Equals(control.Tag, folderId));
+        if (textBox is not null)
+            ViewModel.RenameTwoDFolder(folderId, textBox.Text ?? string.Empty);
+    }
+
     private void OnDeleteFolderClicked(object? sender, RoutedEventArgs e) => WithFolder(sender, id => ViewModel?.DeleteTwoDFolder(id));
 
     private void OnLayerFolderChanged(object? sender, SelectionChangedEventArgs e)

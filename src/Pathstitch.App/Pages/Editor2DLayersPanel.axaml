@@ -11,7 +11,7 @@
     BorderBrush="{StaticResource BorderBrush}"
     BorderThickness="0,0,1,0"
     Padding="14">
-    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
       <DockPanel>
         <TextBlock
           FontSize="13"
@@ -44,22 +44,35 @@
           Content="+ Image"
           Click="OnImportReferenceImageClicked" />
       </DockPanel>
-      <ItemsControl Grid.Row="1" ItemsSource="{Binding TwoDFolders}" Margin="0,12,0,0">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="models:Editor2DLayerFolder">
-            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,0,4">
-              <TextBlock VerticalAlignment="Center" Text="📁" />
-              <TextBlock Width="150" VerticalAlignment="Center" Text="{Binding Name}" />
-              <Button Padding="5,2" Content="Delete" Tag="{Binding Id}" Click="OnDeleteFolderClicked" />
-            </StackPanel>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-      <ScrollViewer Grid.Row="2" Margin="0,12,0,0">
-        <ItemsControl ItemsSource="{Binding TwoDLayers}">
+      <ScrollViewer Grid.Row="1" Margin="0,12,0,0">
+        <ItemsControl ItemsSource="{Binding TwoDLayerHierarchyItems}">
           <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="models:Editor2DLayer">
-              <Border
+            <DataTemplate x:DataType="viewModels:Editor2DLayerHierarchyItem">
+              <Grid ColumnDefinitions="Auto,*">
+                <Border Width="{Binding IndentWidth}" />
+                <StackPanel
+                  Grid.Column="1"
+                  IsVisible="{Binding IsFolder}"
+                  Orientation="Horizontal"
+                  Spacing="4"
+                  Margin="0,0,0,4"
+                  AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.folder.{0}}">
+                  <Button
+                    AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.folder.toggle.{0}}"
+                    Padding="5,2"
+                    Content="{Binding ExpansionGlyph}"
+                    Tag="{Binding Id}"
+                    Click="OnToggleFolderExpandedClicked" />
+                  <TextBlock VerticalAlignment="Center" Text="📁" />
+                  <TextBox Width="120" Text="{Binding Name, Mode=OneWay}" Tag="{Binding Id}" />
+                  <Button Padding="5,2" Content="Rename" Tag="{Binding Id}" Click="OnRenameFolderClicked" />
+                  <Button Padding="5,2" Content="+ Subfolder" Tag="{Binding Id}" Click="OnCreateSubfolderClicked" />
+                  <Button Padding="5,2" Content="Delete" Tag="{Binding Id}" Click="OnDeleteFolderClicked" />
+                </StackPanel>
+                <ContentControl Grid.Column="1" IsVisible="{Binding IsLayer}" Content="{Binding Layer}">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate x:DataType="models:Editor2DLayer">
+                      <Border
                 AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.layer.{0}}"
                 Margin="0,0,0,8"
                 Padding="8"
@@ -170,12 +183,16 @@
                     </StackPanel>
                   </StackPanel>
                 </StackPanel>
-              </Border>
+                      </Border>
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
+              </Grid>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </ScrollViewer>
-      <StackPanel Grid.Row="3" Margin="0,8,0,0" Spacing="8">
+      <StackPanel Grid.Row="2" Margin="0,8,0,0" Spacing="8">
         <Border
           IsVisible="{Binding HasTwoDReferenceTraceSession}"
           Padding="8"
@@ -228,7 +245,7 @@
         </StackPanel>
       </StackPanel>
       <TextBlock
-        Grid.Row="4"
+        Grid.Row="3"
         Margin="0,8,0,0"
         FontSize="10"
         TextWrapping="Wrap"

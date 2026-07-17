@@ -5,9 +5,14 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class EditorPageViewModel
 {
+    private readonly HashSet<string> _expandedTwoDFolderIds = new(StringComparer.Ordinal);
+
     public IReadOnlyList<Editor2DLayer> TwoDLayers => _twoDWorkspace.Layers;
 
     public IReadOnlyList<Editor2DLayerFolder> TwoDFolders => _twoDWorkspace.Folders;
+
+    public IReadOnlyList<Editor2DLayerHierarchyItem> TwoDLayerHierarchyItems
+        => BuildTwoDLayerHierarchyItems();
 
     public string? TwoDActiveLayerId => _twoDWorkspace.ActiveLayerId;
 
@@ -136,22 +141,46 @@ public sealed partial class EditorPageViewModel
         RefreshTwoDLayerFacade();
     }
 
-    public void CreateTwoDFolder()
+    public void CreateTwoDFolder(string? parentFolderId = null)
     {
-        _twoDWorkspace.CreateFolder();
+        var folder = _twoDWorkspace.CreateFolder(parentFolderId: parentFolderId);
+        _expandedTwoDFolderIds.Add(folder.Id);
+        ExpandTwoDFolderAncestry(parentFolderId);
         RefreshTwoDLayerFacade();
+    }
+
+    public bool ToggleTwoDFolderExpanded(string folderId)
+    {
+        if (!TwoDFolders.Any(folder => folder.Id == folderId))
+            return false;
+        if (!_expandedTwoDFolderIds.Add(folderId))
+            _expandedTwoDFolderIds.Remove(folderId);
+        OnPropertyChanged(nameof(TwoDLayerHierarchyItems));
+        return true;
+    }
+
+    public void RenameTwoDFolder(string folderId, string name)
+    {
+        if (_twoDWorkspace.RenameFolder(folderId, name))
+            RefreshTwoDLayerFacade();
     }
 
     public void DeleteTwoDFolder(string folderId)
     {
         if (_twoDWorkspace.DeleteFolder(folderId))
+        {
+            _expandedTwoDFolderIds.Remove(folderId);
             RefreshTwoDLayerFacade();
+        }
     }
 
     public void MoveTwoDLayerToFolder(string layerId, string? folderId)
     {
         if (_twoDWorkspace.MoveLayerToFolder(layerId, folderId))
+        {
+            ExpandTwoDFolderAncestry(folderId);
             RefreshTwoDLayerFacade();
+        }
     }
 
     public async Task ImportTwoDReferenceImageAsync(CancellationToken cancellationToken = default)
@@ -474,9 +503,11 @@ public sealed partial class EditorPageViewModel
 
     private void RefreshTwoDLayerFacade(bool requestPersistence = true)
     {
+        ReconcileExpandedTwoDFolderIds();
         NotifyTwoDWorkspaceFacadeProperties();
         OnPropertyChanged(nameof(TwoDLayers));
         OnPropertyChanged(nameof(TwoDFolders));
+        OnPropertyChanged(nameof(TwoDLayerHierarchyItems));
         OnPropertyChanged(nameof(TwoDActiveLayerId));
         OnPropertyChanged(nameof(TwoDHiddenPathIds));
         OnPropertyChanged(nameof(TwoDReferenceImages));
@@ -512,4 +543,45 @@ public sealed partial class EditorPageViewModel
 
     private Editor2DReferenceImage? GetReferenceImage(string layerId)
         => TwoDLayers.FirstOrDefault(layer => layer.Id == layerId)?.ReferenceImage;
+
+    private IReadOnlyList<Editor2DLayerHierarchyItem> BuildTwoDLayerHierarchyItems()
+    {
+        var rows = new List<Editor2DLayerHierarchyItem>(TwoDFolders.Count + TwoDLayers.Count);
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+
+        void AddChildren(string? parentFolderId, int depth)
+        {
+            foreach (var folder in TwoDFolders.Where(item => item.ParentFolderId == parentFolderId))
+            {
+                if (!visited.Add(folder.Id))
+                    continue;
+                var isExpanded = _expandedTwoDFolderIds.Contains(folder.Id);
+                rows.Add(new(folder.Id, folder.Name, depth, true, isExpanded, Folder: folder));
+                if (isExpanded)
+                    AddChildren(folder.Id, depth + 1);
+            }
+
+            foreach (var layer in TwoDLayers.Where(item => item.ParentFolderId == parentFolderId))
+                rows.Add(new(layer.Id, layer.Name, depth, false, false, Layer: layer));
+        }
+
+        AddChildren(null, 0);
+        return rows;
+    }
+
+    private void ExpandTwoDFolderAncestry(string? folderId)
+    {
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        while (folderId is not null && visited.Add(folderId))
+        {
+            _expandedTwoDFolderIds.Add(folderId);
+            folderId = TwoDFolders.FirstOrDefault(folder => folder.Id == folderId)?.ParentFolderId;
+        }
+    }
+
+    private void ReconcileExpandedTwoDFolderIds()
+    {
+        var folderIds = TwoDFolders.Select(folder => folder.Id).ToHashSet(StringComparer.Ordinal);
+        _expandedTwoDFolderIds.RemoveWhere(id => !folderIds.Contains(id));
+    }
 }

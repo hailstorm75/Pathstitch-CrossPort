@@ -208,6 +208,7 @@ public sealed partial class EditorPageViewModel
 
     private void ApplyTwoDWorkspaceSnapshot(Editor2DWorkspaceState state)
     {
+        ReconcileExpandedTwoDFolderIds();
         _isApplyingTwoDWorkspaceState = true;
         try
         {
@@ -272,6 +273,8 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDDimensionParameters));
         OnPropertyChanged(nameof(TwoDSelectedMeasurementId));
         OnPropertyChanged(nameof(TwoDLayers));
+        OnPropertyChanged(nameof(TwoDFolders));
+        OnPropertyChanged(nameof(TwoDLayerHierarchyItems));
         OnPropertyChanged(nameof(TwoDActiveLayerId));
         OnPropertyChanged(nameof(TwoDHiddenPathIds));
         OnPropertyChanged(nameof(TwoDCornerParameters));
