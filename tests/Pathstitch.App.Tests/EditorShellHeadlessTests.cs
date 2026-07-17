@@ -18,6 +18,37 @@ public sealed class EditorShellHeadlessTests
 {
     private readonly HeadlessUiFixture _ui = new();
 
+    [Fact]
+    public async Task SpacebarPanTemporarilyOverridesToolAndRestoresOnRelease()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+        await _ui.RunAsync(() => viewModel.TwoDActiveTool = Editor2DTool.SketchRectangle);
+
+        await _ui.RunAsync(() =>
+        {
+            var firstDown = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Space };
+            shell.RaiseEvent(firstDown);
+            Assert.True(firstDown.Handled);
+            Assert.Equal(Editor2DTool.Pan, viewModel.TwoDActiveTool);
+
+            shell.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Space });
+            Assert.Equal(Editor2DTool.Pan, viewModel.TwoDActiveTool);
+
+            var keyUp = new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Space };
+            shell.RaiseEvent(keyUp);
+            Assert.True(keyUp.Handled);
+            Assert.Equal(Editor2DTool.SketchRectangle, viewModel.TwoDActiveTool);
+
+            var textBox = shell.GetVisualDescendants().OfType<TextBox>().First(control => control.IsVisible);
+            textBox.Focus();
+            textBox.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Space });
+            Assert.Equal(Editor2DTool.SketchRectangle, viewModel.TwoDActiveTool);
+        });
+    }
+
     [Theory]
     [InlineData("line", "length")]
     [InlineData("circle", "radius")]
