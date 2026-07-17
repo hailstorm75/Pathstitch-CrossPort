@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -3544,10 +3545,12 @@ Selection:
         endOffset = Math.Max(0.0, endOffset);
     }
 
-    private bool TryGetSelectedOffsetHandle(out Editor2DPoint anchor, out Editor2DPoint handle)
+    private bool TryGetSelectedOffsetHandle(
+        [NotNullWhen(true)] out Editor2DPoint? anchor,
+        [NotNullWhen(true)] out Editor2DPoint? handle)
     {
-        anchor = default;
-        handle = default;
+        anchor = null;
+        handle = null;
         if (!double.TryParse(OffsetDistanceText, NumberStyles.Float, CultureInfo.InvariantCulture, out var distance)
             || !double.IsFinite(distance))
             distance = 12.0;
@@ -3572,8 +3575,8 @@ Selection:
             return false;
         var segmentCount = path.IsClosed ? path.Points.Count : path.Points.Count - 1;
         var bestLength = 0.0;
-        Editor2DPoint bestStart = default;
-        Editor2DPoint bestEnd = default;
+        var bestStart = path.Points[0];
+        var bestEnd = path.Points[1];
         for (var index = 0; index < segmentCount; index++)
         {
             var start = path.Points[index];
@@ -3598,26 +3601,31 @@ Selection:
         return true;
     }
 
-    private bool TryGetSelectedSewingHoleHandle(out Editor2DPoint anchor, out Editor2DPoint handle)
+    private bool TryGetSelectedSewingHoleHandle(
+        [NotNullWhen(true)] out Editor2DPoint? anchor,
+        [NotNullWhen(true)] out Editor2DPoint? handle)
     {
-        anchor = default;
-        handle = default;
+        anchor = null;
+        handle = null;
         var selected = new HashSet<string>(SelectedPathIds, StringComparer.Ordinal);
         var path = GetVisiblePaths().FirstOrDefault(candidate => selected.Contains(candidate.Id));
         return path is not null && TryGetSewingHoleHandle(path, out anchor, out handle);
     }
 
-    private bool TryGetSewingHoleHandle(Editor2DPreviewPath path, out Editor2DPoint anchor, out Editor2DPoint handle)
+    private bool TryGetSewingHoleHandle(
+        Editor2DPreviewPath path,
+        [NotNullWhen(true)] out Editor2DPoint? anchor,
+        [NotNullWhen(true)] out Editor2DPoint? handle)
     {
-        anchor = default;
-        handle = default;
+        anchor = null;
+        handle = null;
         if (path.Points.Count < 2)
             return false;
 
         var segmentCount = path.IsClosed ? path.Points.Count : path.Points.Count - 1;
         var bestLength = 0.0;
-        Editor2DPoint bestStart = default;
-        Editor2DPoint bestEnd = default;
+        var bestStart = path.Points[0];
+        var bestEnd = path.Points[1];
         for (var index = 0; index < segmentCount; index++)
         {
             var start = path.Points[index];
