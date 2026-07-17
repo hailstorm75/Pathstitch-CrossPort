@@ -336,11 +336,11 @@ public sealed class EditorQuickDxfExportTests
             await new DxfOutputPreviewService().SavePreviewDocumentAsync(document, outputPath);
 
             var dxf = await File.ReadAllTextAsync(outputPath);
-            Assert.Contains("0\nLTYPE\n2\nDASHED\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("100\nAcDbLinetypeTableRecord\n2\nDASHED\n", dxf, StringComparison.Ordinal);
             Assert.Contains("3\nDashed __ __ __\n72\n65\n73\n2\n40\n0.75\n49\n0.5\n74\n0\n49\n-0.25\n", dxf, StringComparison.Ordinal);
-            Assert.Contains("0\nLAYER\n2\nCONSTRUCTION\n70\n0\n62\n8\n6\nDASHED\n", dxf, StringComparison.Ordinal);
-            Assert.Contains("0\nLWPOLYLINE\n8\nCONSTRUCTION\n6\nDASHED\n62\n8\n", dxf, StringComparison.Ordinal);
-            Assert.Contains("0\nLWPOLYLINE\n8\nEDITED_OUTPUT\n90\n2\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("100\nAcDbLayerTableRecord\n2\nCONSTRUCTION\n70\n0\n62\n8\n6\nDASHED\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("0\nLWPOLYLINE\n100\nAcDbEntity\n8\nCONSTRUCTION\n6\nDASHED\n62\n8\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("0\nLWPOLYLINE\n100\nAcDbEntity\n8\nEDITED_OUTPUT\n100\nAcDbPolyline\n90\n2\n", dxf, StringComparison.Ordinal);
             Assert.Equal(4, dxf.Split("8\nCONSTRUCTION\n6\nDASHED\n62\n8\n", StringSplitOptions.None).Length - 1);
         }
         finally
@@ -397,9 +397,9 @@ public sealed class EditorQuickDxfExportTests
                 export, outputPath, Editor2DExportOptions.Defaults);
 
             var dxf = await File.ReadAllTextAsync(outputPath);
-            Assert.Contains("0\nLAYER\n2\nCut\n70\n0\n62\n7\n420\n16711680\n6\nCONTINUOUS\n", dxf, StringComparison.Ordinal);
-            Assert.Contains("0\nLAYER\n2\nScore\n70\n0\n62\n7\n420\n255\n6\nCONTINUOUS\n", dxf, StringComparison.Ordinal);
-            Assert.Contains("0\nLAYER\n2\nCONSTRUCTION\n70\n0\n62\n8\n6\nDASHED\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("100\nAcDbLayerTableRecord\n2\nCut\n70\n0\n62\n7\n420\n16711680\n6\nCONTINUOUS\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("100\nAcDbLayerTableRecord\n2\nScore\n70\n0\n62\n7\n420\n255\n6\nCONTINUOUS\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("100\nAcDbLayerTableRecord\n2\nCONSTRUCTION\n70\n0\n62\n8\n6\nDASHED\n", dxf, StringComparison.Ordinal);
             Assert.Equal(1, dxf.Split("8\nCut\n", StringSplitOptions.None).Length - 1);
             Assert.Equal(1, dxf.Split("8\nScore\n", StringSplitOptions.None).Length - 1);
             Assert.Contains("8\nCONSTRUCTION\n6\nDASHED\n62\n8\n", dxf, StringComparison.Ordinal);
@@ -436,8 +436,8 @@ public sealed class EditorQuickDxfExportTests
                 export, outputPath, Editor2DExportOptions.Defaults);
 
             var dxf = await File.ReadAllTextAsync(outputPath);
-            Assert.Contains("0\nLAYER\n2\nCut_Layer\n", dxf, StringComparison.Ordinal);
-            Assert.Contains("0\nLAYER\n2\nCut_Layer_1\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("100\nAcDbLayerTableRecord\n2\nCut_Layer\n", dxf, StringComparison.Ordinal);
+            Assert.Contains("100\nAcDbLayerTableRecord\n2\nCut_Layer_1\n", dxf, StringComparison.Ordinal);
             Assert.Equal(1, dxf.Split("8\nCut_Layer\n", StringSplitOptions.None).Length - 1);
             Assert.Equal(1, dxf.Split("8\nCut_Layer_1\n", StringSplitOptions.None).Length - 1);
         }
