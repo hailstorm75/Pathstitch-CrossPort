@@ -98,6 +98,54 @@ public sealed class Project3DStateServiceTests
         Assert.False(restored.LearnModeEnabled);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoadAsync_RestoresLegacyMacLearnModeSetting(bool zipContainer)
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath(zipContainer ? "legacy-learn-zip.stch" : "legacy-learn-json.stch");
+        const string payload = "{\"isLearnModeEnabled\":false}";
+        if (zipContainer)
+        {
+            await using var file = File.Create(projectPath);
+            using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+            var entry = archive.CreateEntry("project.json");
+            await using var entryStream = entry.Open();
+            await using var writer = new StreamWriter(entryStream);
+            await writer.WriteAsync(payload);
+        }
+        else
+        {
+            File.WriteAllText(projectPath, payload);
+        }
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        Assert.False(state.LearnModeEnabled);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task LoadAsync_PrefersCanonicalLearnModeSetting(bool canonical, bool legacy)
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.WriteText(
+            "conflicting-learn-mode.stch",
+            JsonSerializer.Serialize(new
+            {
+                savedLearnModeEnabled = canonical,
+                isLearnModeEnabled = legacy,
+            }));
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        Assert.Equal(canonical, state.LearnModeEnabled);
+    }
+
     [Fact]
     public async Task LoadAsync_MapsLegacySavedStepJsonToViewportJson()
     {
