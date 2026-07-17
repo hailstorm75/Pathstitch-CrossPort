@@ -1,8 +1,9 @@
 import subprocess
 import json
 import os
+import sys
 
-PYTHON_BIN = "/opt/homebrew/Caskroom/miniconda/base/envs/pathstitch/bin/python"
+PYTHON_BIN = os.environ.get("PATHSTITCH_TEST_PYTHON", sys.executable)
 
 def run_cli(op, args):
     payload = json.dumps({"op": op, "args": args})
@@ -18,6 +19,15 @@ def run_cli(op, args):
 
 def test_dxf_ops():
     input_dxf = "TestFiles/test.dxf"
+    os.makedirs(os.path.dirname(input_dxf), exist_ok=True)
+    if not os.path.exists(input_dxf):
+        import ezdxf
+        fixture = ezdxf.new(dxfversion="R2010")
+        fixture_space = fixture.modelspace()
+        fixture_space.add_line((0.0, 0.0), (100.0, 0.0))
+        fixture_space.add_line((100.0, 0.0), (100.0, 50.0))
+        fixture_space.add_line((100.0, 50.0), (0.0, 50.0))
+        fixture.saveas(input_dxf)
     
     # 1. Test list_entities
     print("Testing list_entities...")

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Domain.App.Models;
+using Domain.App.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Pathstitch.App.Services;
 
@@ -51,6 +52,64 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
         Assert.EndsWith(".json", result.SourceModelPath, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(2, result.Bodies?.Count);
         Assert.Equal([0, 1], result.Bodies!.Select(static body => body.BodyIndex).ToArray());
+    }
+
+    [Fact]
+    public async Task LoadModelsAsync_AppendsMultipleStepDocumentsAndKeepsFinalCombinedSource()
+    {
+        using var workspace = TestWorkspace.Create();
+        var existing = workspace.WriteText("existing.step", "existing");
+        var second = workspace.WriteText("second.step", "second");
+        var third = workspace.WriteText("third.stp", "third");
+        var kernel = new RecordingStepKernel(workspace);
+        var service = CreateService(kernel);
+
+        var result = await service.LoadModelsAsync([second, third], existing);
+
+        Assert.True(result.IsSuccess, result.Message);
+        Assert.Equal(2, kernel.CombineCalls.Count);
+        Assert.Equal((existing, second), kernel.CombineCalls[0]);
+        Assert.Equal((kernel.CombinedPaths[0], third), kernel.CombineCalls[1]);
+        Assert.Equal(kernel.CombinedPaths[1], result.SourceModelPath);
+        Assert.Equal(kernel.CombinedPaths[1], kernel.ImportedPath);
+        Assert.False(File.Exists(kernel.CombinedPaths[0]));
+        Assert.True(File.Exists(kernel.CombinedPaths[1]));
+        Assert.Equal(3, result.Bodies?.Count);
+        Assert.Equal("existing", await File.ReadAllTextAsync(existing));
+    }
+
+    [Fact]
+    public async Task LoadModelsAsync_StepCombineFailureLeavesExistingSourceUntouched()
+    {
+        using var workspace = TestWorkspace.Create();
+        var existing = workspace.WriteText("existing.step", "existing");
+        var incoming = workspace.WriteText("incoming.step", "incoming");
+        var kernel = new RecordingStepKernel(workspace) { FailCombine = true };
+        var service = CreateService(kernel);
+
+        var result = await service.LoadModelsAsync([incoming], existing);
+
+        Assert.False(result.IsSuccess);
+        Assert.Null(kernel.ImportedPath);
+        Assert.Empty(kernel.CombinedPaths);
+        Assert.Equal("existing", await File.ReadAllTextAsync(existing));
+    }
+
+    [Fact]
+    public async Task LoadModelsAsync_RejectsMixedStepAndMeshWithoutCallingKernel()
+    {
+        using var workspace = TestWorkspace.Create();
+        var step = workspace.WriteText("part.step", "step");
+        var mesh = workspace.WriteText("part.obj", TriangleObj);
+        var kernel = new RecordingStepKernel(workspace);
+        var service = CreateService(kernel);
+
+        var result = await service.LoadModelsAsync([step, mesh]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Empty(kernel.CombineCalls);
+        Assert.Null(kernel.ImportedPath);
+        Assert.Contains("cannot be combined", result.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -272,12 +331,72 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
         Assert.Contains("app-owned STEP geometry worker", result.Message, StringComparison.Ordinal);
     }
 
-    private static OpenGeometryEditor3DOperationService CreateService()
+    private static OpenGeometryEditor3DOperationService CreateService(IStepGeometryKernelService? stepKernel = null)
     {
         var bridge = new OpenGeometryKernelBridge(NullLogger<OpenGeometryKernelBridge>.Instance);
         return new OpenGeometryEditor3DOperationService(
             NullLogger<OpenGeometryEditor3DOperationService>.Instance,
-            bridge);
+            bridge,
+            stepKernel);
+    }
+
+    private sealed class RecordingStepKernel(TestWorkspace workspace) : IStepGeometryKernelService
+    {
+        public List<(string Existing, string Incoming)> CombineCalls { get; } = [];
+        public List<string> CombinedPaths { get; } = [];
+        public string? ImportedPath { get; private set; }
+        public bool FailCombine { get; init; }
+
+        public Task<StepGeometryProtocolInfo> HandshakeAsync(CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<StepGeometryCombineResult> CombineAsync(
+            string existingSourcePath,
+            string incomingSourcePath,
+            CancellationToken cancellationToken = default)
+        {
+            CombineCalls.Add((existingSourcePath, incomingSourcePath));
+            if (FailCombine)
+            {
+                return Task.FromResult(new StepGeometryCombineResult(
+                    false,
+                    "combine failed",
+                    Failure: new GeometryKernelFailure(
+                        GeometryKernelFailureCode.BackendFailure,
+                        GeometryKernelOperation.Import,
+                        "combine failed")));
+            }
+            var output = workspace.GetPath($"combined-{CombinedPaths.Count + 1}.step");
+            File.WriteAllText(output, $"{existingSourcePath}|{incomingSourcePath}");
+            CombinedPaths.Add(output);
+            return Task.FromResult(new StepGeometryCombineResult(true, "combined", output, CombinedPaths.Count + 1));
+        }
+
+        public Task<StepGeometryImportResult> ImportAsync(string sourcePath, CancellationToken cancellationToken = default)
+        {
+            ImportedPath = sourcePath;
+            var bodies = Enumerable.Range(0, CombineCalls.Count + 1)
+                .Select(index => new Body3D(index, $"Body {index + 1}", []))
+                .ToArray();
+            return Task.FromResult(new StepGeometryImportResult(
+                true,
+                "imported",
+                ViewportJson: "{}",
+                ViewportBodies: bodies));
+        }
+
+        public Task<EditorOperationResult> ProjectAsync(EditorProjectionRequest request, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<EditorOperationResult> UnfoldAsync(EditorUnfoldRequest request, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<EditorFaceDistortionResult> ComputeDistortionAsync(
+            string sourcePath,
+            SelectedFace3D face,
+            string distortionMode,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 
     private static int CountDxfEntities(string dxf, string entityName)

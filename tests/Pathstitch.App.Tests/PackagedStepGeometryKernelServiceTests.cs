@@ -33,6 +33,36 @@ public sealed class PackagedStepGeometryKernelServiceTests
     }
 
     [Fact]
+    public async Task PinnedWorker_CombinesStepDocumentsAndReimportsAllBodies()
+    {
+        var runtime = TryFindPinnedRuntime();
+        if (runtime is null)
+            return;
+        using var service = CreateService(runtime);
+        var fixture = FindRepositoryFile("tests", "Pathstitch.App.Tests", "Fixtures", "box-cylinder.step");
+
+        var handshake = await service.HandshakeAsync();
+        var combined = await service.CombineAsync(fixture, fixture);
+        try
+        {
+            Assert.Contains("step-combine", handshake.Capabilities);
+            Assert.True(combined.IsSuccess, combined.Message);
+            Assert.Equal(4, combined.BodyCount);
+            Assert.True(File.Exists(combined.OutputPath));
+
+            var imported = await service.ImportAsync(combined.OutputPath!);
+            Assert.True(imported.IsSuccess, imported.Message);
+            Assert.Equal(4, imported.ViewportBodies?.Count);
+            Assert.Equal(4, imported.Document?.Bodies.Count);
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(combined.OutputPath))
+                File.Delete(combined.OutputPath);
+        }
+    }
+
+    [Fact]
     public async Task PinnedWorker_ImportsStableExactTopologyAndRunsLifecycleOperations()
     {
         var runtime = TryFindPinnedRuntime();
@@ -386,6 +416,7 @@ public sealed class PackagedStepGeometryKernelServiceTests
         var macLock = File.ReadAllText(FindRepositoryFile("geometry-worker", "locks", "osx-arm64.lock"));
         var resolver = File.ReadAllText(FindRepositoryFile("src", "Pathstitch.App", "Services", "PackagedStepGeometryKernelService.cs"));
         var project = File.ReadAllText(FindRepositoryFile("src", "Pathstitch.App", "Pathstitch.App.csproj"));
+        var runtimeSpec = File.ReadAllText(FindRepositoryFile("geometry-worker", "runtime-spec.json"));
 
         Assert.Contains("@EXPLICIT", windowsLock, StringComparison.Ordinal);
         Assert.Contains("pythonocc-core", windowsLock, StringComparison.OrdinalIgnoreCase);
@@ -393,6 +424,7 @@ public sealed class PackagedStepGeometryKernelServiceTests
         Assert.Contains("pythonocc-core", macLock, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("GetEnvironmentVariable(\"PATH\")", resolver, StringComparison.Ordinal);
         Assert.Contains("GeometryWorker", project, StringComparison.Ordinal);
+        Assert.Contains("step-combine", runtimeSpec, StringComparison.Ordinal);
     }
 
     private static PackagedStepGeometryKernelService CreateService(GeometryWorkerRuntime runtime)
