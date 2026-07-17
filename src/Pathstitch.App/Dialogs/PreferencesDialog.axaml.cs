@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Styling;
 using Domain.App.Models;
@@ -20,7 +21,11 @@ public sealed partial class PreferencesDialog : Window
     private readonly EditorPageViewModel? _viewModel;
     private readonly EditorMode _mode;
     private readonly UserPreferencesStore _preferencesStore;
-    private readonly List<(string Identifier, TextBox Shortcut)> _shortcutEditors = [];
+    private readonly List<ShortcutEditor> _shortcutEditors = [];
+    private string? _lastEditedShortcutIdentifier;
+    private bool _suppressShortcutEditTracking;
+
+    private sealed record ShortcutEditor(string Identifier, TextBox Shortcut, bool IsAppCommand);
 
     public PreferencesDialog()
     {
@@ -158,8 +163,25 @@ public sealed partial class PreferencesDialog : Window
 
     private void BuildShortcutEditors()
     {
+        var resolvedAppShortcuts = EditorAppShortcutCatalog.Resolve(_preferencesStore.Load());
+        foreach (var category in EditorAppShortcutCatalog.All
+                     .GroupBy(definition => definition.Category, StringComparer.Ordinal))
+        {
+            AddSectionHeader(category.Key);
+            foreach (var definition in category)
+            {
+                AddShortcutEditor(
+                    definition.Identifier,
+                    definition.Label,
+                    EditorShortcutGesture.ToDisplayText(resolvedAppShortcuts[definition.Identifier]),
+                    isAppCommand: true);
+            }
+        }
+
         if (_viewModel is null)
             return;
+
+        AddSectionHeader($"{_mode} tools");
 
         foreach (var customization in _viewModel.ToolCustomizations
                      .Where(item => FindDescriptor(item.Identifier) is not null)
@@ -167,68 +189,204 @@ public sealed partial class PreferencesDialog : Window
                      .ThenBy(item => item.Identifier, StringComparer.Ordinal))
         {
             var descriptor = FindDescriptor(customization.Identifier)!;
-            var shortcut = new TextBox
-            {
-                Width = 90,
-                Text = customization.ShortcutText ?? string.Empty,
-                Tag = customization.Identifier,
-            };
-            AutomationProperties.SetAutomationId(shortcut, $"preferences.shortcut.{customization.Identifier}");
-            var row = new Grid
-            {
-                ColumnDefinitions = new ColumnDefinitions("*,Auto"),
-                Children =
-                {
-                    new TextBlock { Text = descriptor.Label, VerticalAlignment = VerticalAlignment.Center },
-                    shortcut,
-                },
-            };
-            Grid.SetColumn(shortcut, 1);
-            ToolRows.Children.Add(row);
-            _shortcutEditors.Add((customization.Identifier, shortcut));
+            AddShortcutEditor(
+                customization.Identifier,
+                descriptor.Label,
+                customization.ShortcutText ?? string.Empty,
+                isAppCommand: false);
         }
+    }
+
+    private void AddSectionHeader(string title)
+        => ToolRows.Children.Add(new TextBlock
+        {
+            Text = title.ToUpperInvariant(),
+            FontSize = 11,
+            FontWeight = Avalonia.Media.FontWeight.SemiBold,
+            Foreground = Avalonia.Media.Brushes.Gray,
+            Margin = new Thickness(0, 10, 0, 2),
+        });
+
+    private void AddShortcutEditor(string identifier, string label, string value, bool isAppCommand)
+    {
+        var shortcut = new TextBox
+        {
+            Width = 130,
+            Text = value,
+            Tag = identifier,
+            IsReadOnly = true,
+            PlaceholderText = "Unassigned",
+        };
+        shortcut.KeyDown += OnShortcutEditorKeyDown;
+        shortcut.TextChanged += OnShortcutEditorTextChanged;
+        AutomationProperties.SetAutomationId(shortcut, $"preferences.shortcut.{identifier}");
+        var clear = new Button
+        {
+            Content = "×",
+            Tag = shortcut,
+            Padding = new Thickness(7, 2),
+        };
+        clear.Click += OnClearShortcutClicked;
+        AutomationProperties.SetAutomationId(clear, $"preferences.shortcut.{identifier}.clear");
+        var row = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"),
+            Children =
+            {
+                new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center },
+                shortcut,
+                clear,
+            },
+        };
+        Grid.SetColumn(shortcut, 1);
+        Grid.SetColumn(clear, 2);
+        ToolRows.Children.Add(row);
+        _shortcutEditors.Add(new ShortcutEditor(identifier, shortcut, isAppCommand));
+    }
+
+    private void OnShortcutEditorKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox shortcut || e.Key == Key.Escape)
+            return;
+        if (EditorShortcutGesture.TryCapture(e.Key, e.KeyModifiers, out var canonical))
+            shortcut.Text = EditorShortcutGesture.ToDisplayText(canonical);
+        e.Handled = true;
+    }
+
+    private void OnShortcutEditorTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (_suppressShortcutEditTracking || sender is not TextBox { Tag: string identifier })
+            return;
+        _lastEditedShortcutIdentifier = identifier;
+        ResolveConflictButton.IsVisible = false;
+    }
+
+    private static void OnClearShortcutClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: TextBox shortcut })
+            shortcut.Text = string.Empty;
     }
 
     private void OnApplyClicked(object? sender, RoutedEventArgs e)
     {
-        if (_viewModel is null)
-        {
-            SvgPreviewDocumentParser.ImportThickness = ParseImportThickness();
-            SavePreferences();
-            Close();
-            return;
-        }
-
         try
         {
             SvgPreviewDocumentParser.ImportThickness = ParseImportThickness();
-            var current = _viewModel.ToolCustomizations.ToDictionary(item => item.Identifier, StringComparer.Ordinal);
-            foreach (var (identifier, shortcut) in _shortcutEditors)
+            SavePreferences();
+            var appShortcuts = new Dictionary<string, string?>(StringComparer.Ordinal);
+            var toolShortcutUpdates = new Dictionary<string, string?>(StringComparer.Ordinal);
+            foreach (var editor in _shortcutEditors)
             {
-                var customization = current[identifier];
-                _viewModel.CustomizeTool(identifier, customization.Order, shortcut.Text);
+                if (!EditorShortcutGesture.TryNormalize(editor.Shortcut.Text, out var normalized))
+                    throw new InvalidOperationException($"'{editor.Shortcut.Text}' is not a valid shortcut.");
+                if (editor.IsAppCommand)
+                    appShortcuts[editor.Identifier] = normalized;
+                else
+                    toolShortcutUpdates[editor.Identifier] = EditorShortcutGesture.ToToolShortcutText(normalized);
             }
-            Close(true);
+
+            var allToolShortcuts = _viewModel?.ToolCustomizations
+                .Select(customization => toolShortcutUpdates.TryGetValue(customization.Identifier, out var shortcut)
+                    ? customization with { ShortcutText = shortcut }
+                    : customization)
+                .ToArray() ?? [];
+            var conflict = EditorShortcutGesture.FindConflict(
+                appShortcuts,
+                allToolShortcuts,
+                identifier => EditorToolCatalog.All.FirstOrDefault(descriptor =>
+                    string.Equals(descriptor.Identifier, identifier, StringComparison.Ordinal))?.Mode);
+            if (conflict is not null)
+            {
+                StatusText.Text = $"{conflict} Choose Reassign to replace the previous binding.";
+                ResolveConflictButton.IsVisible = _lastEditedShortcutIdentifier is not null;
+                return;
+            }
+
+            ResolveConflictButton.IsVisible = false;
+            _viewModel?.CustomizeToolShortcuts(toolShortcutUpdates);
+            _viewModel?.ApplyCommandShortcutOverrides(appShortcuts.ToDictionary(
+                    pair => pair.Key,
+                    pair => (string?)EditorShortcutGesture.ToDisplayText(pair.Value),
+                    StringComparer.Ordinal));
+            var persistedShortcuts = appShortcuts.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value ?? string.Empty,
+                StringComparer.Ordinal);
+            _preferencesStore.Save(_preferencesStore.Load() with { AppCommandShortcuts = persistedShortcuts });
+            if (_viewModel is null)
+                Close();
+            else
+                Close(true);
         }
         catch (InvalidOperationException exception)
         {
+            ResolveConflictButton.IsVisible = false;
             StatusText.Text = exception.Message;
         }
+    }
+
+    private void OnResolveConflictClicked(object? sender, RoutedEventArgs e)
+    {
+        var winner = _shortcutEditors.FirstOrDefault(editor =>
+            string.Equals(editor.Identifier, _lastEditedShortcutIdentifier, StringComparison.Ordinal));
+        if (winner is null
+            || !EditorShortcutGesture.TryNormalize(winner.Shortcut.Text, out var winnerGesture)
+            || winnerGesture is null)
+            return;
+
+        _suppressShortcutEditTracking = true;
+        try
+        {
+            foreach (var editor in _shortcutEditors)
+            {
+                if (ReferenceEquals(editor, winner)
+                    || !EditorShortcutGesture.TryNormalize(editor.Shortcut.Text, out var otherGesture)
+                    || !string.Equals(winnerGesture, otherGesture, StringComparison.Ordinal)
+                    || !ShortcutScopesOverlap(winner, editor))
+                    continue;
+                editor.Shortcut.Text = string.Empty;
+            }
+        }
+        finally
+        {
+            _suppressShortcutEditTracking = false;
+        }
+        ResolveConflictButton.IsVisible = false;
+        OnApplyClicked(sender, e);
+    }
+
+    private bool ShortcutScopesOverlap(ShortcutEditor first, ShortcutEditor second)
+    {
+        if (first.IsAppCommand || second.IsAppCommand)
+            return true;
+        return FindDescriptor(first.Identifier)?.Mode == FindDescriptor(second.Identifier)?.Mode;
     }
 
     private void OnResetClicked(object? sender, RoutedEventArgs e)
     {
         _viewModel?.ResetToolbarCustomizationForActiveMode();
-        foreach (var (identifier, shortcut) in _shortcutEditors)
-            shortcut.Text = FindDescriptor(identifier)?.ShortcutText ?? string.Empty;
+        foreach (var editor in _shortcutEditors.Where(editor => !editor.IsAppCommand))
+            editor.Shortcut.Text = FindDescriptor(editor.Identifier)?.ShortcutText ?? string.Empty;
         StatusText.Text = "Toolbar and shortcuts reset for active mode.";
     }
 
     private void OnResetAllClicked(object? sender, RoutedEventArgs e)
     {
         _viewModel?.ResetToolbarCustomizationForAllModes();
-        foreach (var (identifier, shortcut) in _shortcutEditors)
-            shortcut.Text = FindDescriptor(identifier)?.ShortcutText ?? string.Empty;
+        foreach (var editor in _shortcutEditors)
+        {
+            editor.Shortcut.Text = editor.IsAppCommand
+                ? EditorShortcutGesture.ToDisplayText(EditorAppShortcutCatalog.Find(editor.Identifier)?.DefaultGesture)
+                : FindDescriptor(editor.Identifier)?.ShortcutText ?? string.Empty;
+        }
+        _preferencesStore.Save(_preferencesStore.Load() with { AppCommandShortcuts = null });
+        if (_viewModel is not null)
+        {
+            _viewModel.ApplyCommandShortcutOverrides(EditorAppShortcutCatalog.All.ToDictionary(
+                definition => definition.Identifier,
+                definition => (string?)EditorShortcutGesture.ToDisplayText(definition.DefaultGesture),
+                StringComparer.Ordinal));
+        }
         StatusText.Text = "Toolbar and shortcuts reset for all editor modes.";
     }
 

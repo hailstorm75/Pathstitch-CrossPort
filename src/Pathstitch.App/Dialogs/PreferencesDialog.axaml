@@ -14,7 +14,7 @@
     <TextBlock FontSize="20" FontWeight="SemiBold" Text="Preferences" />
     <TextBlock Grid.Row="1" Margin="0,6,0,14"
                Foreground="Gray"
-               Text="Customize shortcuts for the active editor mode." />
+               Text="Record app commands and active-mode tool shortcuts. Select a field, then press the desired keys." />
     <Grid Grid.Row="2" ColumnDefinitions="Auto,*" Margin="0,0,0,8">
       <TextBlock VerticalAlignment="Center" Text="Appearance" />
       <ComboBox x:Name="AppearanceSelector"
@@ -69,8 +69,17 @@
     <ScrollViewer Grid.Row="7" VerticalScrollBarVisibility="Auto">
       <StackPanel x:Name="ToolRows" Spacing="6" />
     </ScrollViewer>
-    <TextBlock Grid.Row="8" x:Name="StatusText" Margin="0,10,0,0"
-               Foreground="IndianRed" TextWrapping="Wrap" />
+    <Grid Grid.Row="8" Margin="0,10,0,0" ColumnDefinitions="*,Auto">
+      <TextBlock x:Name="StatusText"
+                 Foreground="IndianRed" TextWrapping="Wrap" />
+      <Button x:Name="ResolveConflictButton"
+              Grid.Column="1"
+              Margin="10,0,0,0"
+              Content="Reassign"
+              IsVisible="False"
+              Click="OnResolveConflictClicked"
+              AutomationProperties.AutomationId="dialog.preferences.shortcut-reassign" />
+    </Grid>
     <StackPanel Grid.Row="9" Margin="0,16,0,0" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button AutomationProperties.AutomationId="dialog.preferences.reset"
               Content="Reset Toolbar" Click="OnResetClicked" />

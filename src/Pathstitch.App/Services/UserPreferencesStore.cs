@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
@@ -15,7 +16,8 @@ public sealed record UserPreferences(
     bool TutorialCompleted = false,
     bool ConsolidateSvgStrokes = true,
     string SvgFillMode = "strokes",
-    double SvgImportThickness = 3.0);
+    double SvgImportThickness = 3.0,
+    IReadOnlyDictionary<string, string>? AppCommandShortcuts = null);
 
 public sealed class UserPreferencesStore
 {

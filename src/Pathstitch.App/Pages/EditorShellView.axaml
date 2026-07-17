@@ -165,10 +165,12 @@
             Header="Scalable Vector Graphics (.svg)"
             Command="{Binding ExportSvgCommand}" />
           <MenuItem
+            x:Name="ExportPngMenuItem"
             AutomationProperties.AutomationId="editor.menu.file.export.png"
             Header="Raster Image (.png)"
             Command="{Binding ExportPngCommand}" />
           <MenuItem
+            x:Name="ExportPdfMenuItem"
             AutomationProperties.AutomationId="editor.menu.file.export.pdf"
             Header="Document PDF (.pdf)"
             Command="{Binding ExportPdfCommand}" />
@@ -185,15 +187,18 @@
         AutomationProperties.AutomationId="editor.menu.edit"
         Header="_Edit">
         <MenuItem
+          x:Name="UndoMenuItem"
           AutomationProperties.AutomationId="editor.menu.edit.undo"
           Command="{Binding UndoCommand}"
           Header="_Undo" />
         <MenuItem
+          x:Name="RedoMenuItem"
           AutomationProperties.AutomationId="editor.menu.edit.redo"
           Command="{Binding RedoCommand}"
           Header="_Redo" />
         <Separator />
         <MenuItem
+          x:Name="DeleteMenuItem"
           AutomationProperties.AutomationId="editor.menu.edit.delete"
           Command="{Binding DeleteCommand}"
           Header="_Delete" />
@@ -220,18 +225,21 @@
         AutomationProperties.AutomationId="editor.menu.view"
         Header="_View">
         <MenuItem
+          x:Name="ZoomInMenuItem"
           AutomationProperties.AutomationId="editor.menu.view.zoom-in"
           Header="Zoom _In"
           HotKey="Ctrl+OemPlus"
           IsEnabled="{Binding IsShowingTwoDWorkspace}"
           Click="OnZoomInClicked" />
         <MenuItem
+          x:Name="ZoomOutMenuItem"
           AutomationProperties.AutomationId="editor.menu.view.zoom-out"
           Header="Zoom _Out"
           HotKey="Ctrl+OemMinus"
           IsEnabled="{Binding IsShowingTwoDWorkspace}"
           Click="OnZoomOutClicked" />
         <MenuItem
+          x:Name="ZoomToFitMenuItem"
           AutomationProperties.AutomationId="editor.menu.view.zoom-to-fit"
           Header="Zoom to _Fit"
           HotKey="Ctrl+D0"
@@ -242,6 +250,7 @@
         AutomationProperties.AutomationId="editor.menu.help"
         Header="_Help">
         <MenuItem
+          x:Name="DocumentationMenuItem"
           AutomationProperties.AutomationId="editor.menu.help.documentation"
           Header="_Documentation"
           Click="OnDocumentationClicked" />
@@ -250,6 +259,7 @@
           Header="Check for _Updates…"
           Click="OnCheckForUpdatesClicked" />
         <MenuItem
+          x:Name="PreferencesMenuItem"
           AutomationProperties.AutomationId="editor.menu.help.preferences"
           Header="_Preferences"
           Click="OnPreferencesClicked" />

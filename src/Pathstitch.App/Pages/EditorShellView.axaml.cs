@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Automation;
@@ -15,19 +16,15 @@ namespace Pathstitch.App.Pages;
 
 public partial class EditorShellView : EditorInteractionControlBase
 {
+    private readonly UserPreferencesStore _preferencesStore = new();
+    private IReadOnlyDictionary<string, string?> _appShortcuts = new Dictionary<string, string?>();
+
     public EditorShellView()
     {
         InitializeComponent();
-        NewProjectMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.N);
-        OpenProjectMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.O);
-        ImportFilesMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.I, shift: true);
-        SaveMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.S);
-        SaveAsMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.S, shift: true);
         SaveAndCloseMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.W, shift: true);
         CloseDocumentMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.W);
-        ExportDxfMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.E);
-        ExportSvgMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.E, shift: true);
-        SearchCommandsMenuItem.HotKey = DesktopPrimaryShortcut.Create(Key.K);
+        RefreshShortcutBindings();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         KeyDown += OnEditorKeyDown;
@@ -38,6 +35,7 @@ public partial class EditorShellView : EditorInteractionControlBase
         Focus();
         if (DataContext is EditorPageViewModel viewModel)
         {
+            ApplyCommandShortcutOverrides(viewModel);
             viewModel.PropertyChanged += OnViewModelPropertyChanged;
             viewModel.CommandPaletteHostActionRequested += OnCommandPaletteHostActionRequested;
             _ = ShowModeIntroIfNeededAsync(viewModel);
@@ -63,7 +61,11 @@ public partial class EditorShellView : EditorInteractionControlBase
             return;
         if (action == EditorCommandPaletteHostAction.Preferences
             && DataContext is EditorPageViewModel viewModel)
+        {
             await new PreferencesDialog(viewModel).ShowDialog(owner);
+            RefreshShortcutBindings();
+            ApplyCommandShortcutOverrides(viewModel);
+        }
         else if (action == EditorCommandPaletteHostAction.Documentation)
             await new DocumentationDialog().ShowDialog(owner);
     }
@@ -233,6 +235,8 @@ public partial class EditorShellView : EditorInteractionControlBase
 
         var dialog = new PreferencesDialog(viewModel);
         await dialog.ShowDialog(owner);
+        RefreshShortcutBindings();
+        ApplyCommandShortcutOverrides(viewModel);
     }
 
     private async void OnDocumentationClicked(object? sender, RoutedEventArgs e)
@@ -250,81 +254,34 @@ public partial class EditorShellView : EditorInteractionControlBase
             await viewModel.SetActiveEditorModeAsync(EditorMode.Batch);
     }
 
-    private void OnEditorKeyDown(object? sender, KeyEventArgs e)
+    private async void OnEditorKeyDown(object? sender, KeyEventArgs e)
     {
-        var commandModifier = DesktopPrimaryShortcut.Matches(e.KeyModifiers);
-        var commandShiftModifier = DesktopPrimaryShortcut.Matches(e.KeyModifiers, shift: true);
-        var validModifiedShortcut = (e.Key == Key.K && commandModifier)
-            || (e.Key == Key.D && commandModifier)
-            || (e.Key == Key.Z && (commandModifier || commandShiftModifier))
-            || (e.Key is Key.H or Key.J && commandShiftModifier)
-            || (e.Key == Key.G && e.KeyModifiers == KeyModifiers.Shift);
         if (DataContext is not EditorPageViewModel viewModel
-            || IsShortcutSuppressedByFocusedElement()
-            || (e.KeyModifiers != KeyModifiers.None
-                && !validModifiedShortcut))
+            || IsShortcutSuppressedByFocusedElement())
             return;
 
-        if (e.Key == Key.K && e.KeyModifiers is (KeyModifiers.Control or KeyModifiers.Meta))
+        if (EditorShortcutGesture.TryCapture(e.Key, e.KeyModifiers, out var canonical)
+            && canonical is not null)
         {
-            CommandPalette.FocusSearch();
-            e.Handled = true;
-            return;
+            var appCommand = _appShortcuts.FirstOrDefault(pair =>
+                string.Equals(pair.Value, canonical, System.StringComparison.Ordinal));
+            if (!string.IsNullOrWhiteSpace(appCommand.Key))
+            {
+                if (string.Equals(appCommand.Key, EditorCommandPaletteCatalog.SearchIdentifier, System.StringComparison.Ordinal))
+                    CommandPalette.FocusSearch();
+                else
+                    await viewModel.ActivateCommandSearchItemAsync(appCommand.Key);
+                e.Handled = true;
+                return;
+            }
         }
 
-        if (e.Key == Key.Z && (commandModifier || commandShiftModifier))
-        {
-            var command = commandShiftModifier ? viewModel.RedoCommand : viewModel.UndoCommand;
-            if (command.CanExecute(null))
-                command.Execute(null);
-            e.Handled = true;
-            return;
-        }
-
-        var shortcutToken = GetShortcutText(e.Key);
+        var shortcutToken = e.KeyModifiers == KeyModifiers.None
+            ? GetShortcutText(e.Key)
+            : EditorShortcutGesture.ToDisplayText(canonical, isMacOS: false);
 
         if (shortcutToken is null)
             return;
-
-        if ((e.Key == Key.D
-                && e.KeyModifiers is (KeyModifiers.Control or KeyModifiers.Meta)
-            || e.Key is Key.H or Key.J
-                && (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift)) == (KeyModifiers.Control | KeyModifiers.Shift)
-            || e.Key is Key.H or Key.J
-                && (e.KeyModifiers & (KeyModifiers.Meta | KeyModifiers.Shift)) == (KeyModifiers.Meta | KeyModifiers.Shift))
-            && viewModel.ActiveEditorMode == EditorMode.TwoD)
-        {
-            var modifier = e.Key == Key.D ? "Ctrl+D" : e.Key == Key.H ? "Ctrl+Shift+H" : "Ctrl+Shift+J";
-            if (viewModel.TryActivateEditorShortcut(modifier))
-                e.Handled = true;
-            return;
-        }
-
-        if (shortcutToken.Equals("N", System.StringComparison.OrdinalIgnoreCase)
-            && viewModel.ActiveEditorMode == EditorMode.TwoD)
-        {
-            viewModel.ToggleTwoDSnapping();
-            e.Handled = true;
-            return;
-        }
-
-        if (shortcutToken.Equals("G", System.StringComparison.OrdinalIgnoreCase)
-            && e.KeyModifiers == KeyModifiers.Shift
-            && viewModel.ActiveEditorMode == EditorMode.TwoD)
-        {
-            viewModel.ToggleTwoDGrid();
-            e.Handled = true;
-            return;
-        }
-
-        if (shortcutToken.Equals("A", System.StringComparison.OrdinalIgnoreCase)
-            && e.KeyModifiers == KeyModifiers.None
-            && viewModel.ActiveEditorMode == EditorMode.TwoD)
-        {
-            viewModel.ToggleTwoDChainSelection();
-            e.Handled = true;
-            return;
-        }
 
         if (shortcutToken == "escape" && viewModel.ActiveEditorMode == EditorMode.TwoD)
             TwoDWorkspace.CancelActiveInteraction();
@@ -335,6 +292,43 @@ public partial class EditorShellView : EditorInteractionControlBase
 
         e.Handled = true;
     }
+
+    private void RefreshShortcutBindings()
+    {
+        _appShortcuts = EditorAppShortcutCatalog.Resolve(_preferencesStore.Load());
+        SetHotKey(NewProjectMenuItem, EditorCommandPaletteCatalog.NewIdentifier);
+        SetHotKey(OpenProjectMenuItem, EditorCommandPaletteCatalog.OpenIdentifier);
+        SetHotKey(ImportFilesMenuItem, EditorCommandPaletteCatalog.ImportIdentifier);
+        SetHotKey(SaveMenuItem, EditorCommandPaletteCatalog.SaveIdentifier);
+        SetHotKey(SaveAsMenuItem, EditorCommandPaletteCatalog.SaveAsIdentifier);
+        SetHotKey(ExportDxfMenuItem, EditorCommandPaletteCatalog.ExportDxfIdentifier);
+        SetHotKey(ExportSvgMenuItem, EditorCommandPaletteCatalog.ExportSvgIdentifier);
+        SetHotKey(ExportPngMenuItem, EditorCommandPaletteCatalog.ExportPngIdentifier);
+        SetHotKey(ExportPdfMenuItem, EditorCommandPaletteCatalog.ExportPdfIdentifier);
+        SetHotKey(UndoMenuItem, EditorCommandPaletteCatalog.UndoIdentifier);
+        SetHotKey(RedoMenuItem, EditorCommandPaletteCatalog.RedoIdentifier);
+        SetHotKey(DeleteMenuItem, EditorCommandPaletteCatalog.DeleteIdentifier);
+        SetHotKey(SearchCommandsMenuItem, EditorCommandPaletteCatalog.SearchIdentifier);
+        SetHotKey(ZoomInMenuItem, EditorCommandPaletteCatalog.ZoomInIdentifier);
+        SetHotKey(ZoomOutMenuItem, EditorCommandPaletteCatalog.ZoomOutIdentifier);
+        SetHotKey(ZoomToFitMenuItem, EditorCommandPaletteCatalog.ZoomToFitIdentifier);
+        SetHotKey(DocumentationMenuItem, EditorCommandPaletteCatalog.DocumentationIdentifier);
+        SetHotKey(PreferencesMenuItem, EditorCommandPaletteCatalog.PreferencesIdentifier);
+    }
+
+    private void SetHotKey(MenuItem menuItem, string identifier)
+    {
+        menuItem.HotKey = _appShortcuts.TryGetValue(identifier, out var canonical)
+            && EditorShortcutGesture.TryCreateKeyGesture(canonical, out var gesture)
+                ? gesture
+                : null;
+    }
+
+    private void ApplyCommandShortcutOverrides(EditorPageViewModel viewModel)
+        => viewModel.ApplyCommandShortcutOverrides(_appShortcuts.ToDictionary(
+            pair => pair.Key,
+            pair => (string?)EditorShortcutGesture.ToDisplayText(pair.Value),
+            System.StringComparer.Ordinal));
 
     private static string? GetShortcutText(Key key)
     {

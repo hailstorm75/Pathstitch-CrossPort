@@ -6,6 +6,8 @@ namespace Domain.App.ViewModels;
 public sealed class EditorSidebarToolItemViewModel : ObservableObject
 {
     private bool _isActive;
+    private string? _shortcutText;
+    private string _tooltipText;
 
     public EditorSidebarToolItemViewModel(EditorToolDescriptor descriptor)
     {
@@ -17,8 +19,8 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
         Action = descriptor.Action;
         Label = descriptor.Label;
         Hint = descriptor.Hint;
-        ShortcutText = descriptor.ShortcutText;
-        TooltipText = string.IsNullOrWhiteSpace(descriptor.ShortcutText)
+        _shortcutText = descriptor.ShortcutText;
+        _tooltipText = string.IsNullOrWhiteSpace(descriptor.ShortcutText)
             ? $"{descriptor.Label} - {descriptor.Hint}"
             : $"{descriptor.Label} ({descriptor.ShortcutText}) - {descriptor.Hint}";
         IconKey = descriptor.IconKey;
@@ -51,9 +53,17 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
 
     public string Hint { get; }
 
-    public string? ShortcutText { get; }
+    public string? ShortcutText
+    {
+        get => _shortcutText;
+        private set => SetProperty(ref _shortcutText, value);
+    }
 
-    public string TooltipText { get; }
+    public string TooltipText
+    {
+        get => _tooltipText;
+        private set => SetProperty(ref _tooltipText, value);
+    }
 
     public string IconKey { get; }
 
@@ -97,5 +107,13 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
     {
         get => _isCommandSearchSelected;
         set => SetProperty(ref _isCommandSearchSelected, value);
+    }
+
+    public void UpdateShortcut(string? shortcutText)
+    {
+        ShortcutText = shortcutText;
+        TooltipText = string.IsNullOrWhiteSpace(shortcutText)
+            ? $"{Label} - {Hint}"
+            : $"{Label} ({shortcutText}) - {Hint}";
     }
 }

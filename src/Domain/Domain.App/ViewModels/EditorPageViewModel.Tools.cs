@@ -240,6 +240,33 @@ public sealed partial class EditorPageViewModel
         ApplyToolCustomizations(customizations, requestPersistence: true);
     }
 
+    public void CustomizeToolShortcuts(IReadOnlyDictionary<string, string?> shortcutTexts)
+    {
+        ArgumentNullException.ThrowIfNull(shortcutTexts);
+        var customizations = ToolCustomizations
+            .Select(customization => shortcutTexts.TryGetValue(customization.Identifier, out var shortcut)
+                ? customization with { ShortcutText = shortcut }
+                : customization)
+            .ToArray();
+        ApplyToolCustomizations(customizations, requestPersistence: true);
+    }
+
+    public void ApplyCommandShortcutOverrides(IReadOnlyDictionary<string, string?> shortcutTexts)
+    {
+        ArgumentNullException.ThrowIfNull(shortcutTexts);
+        foreach (var item in _commandPaletteOnlyItems)
+        {
+            var defaultShortcut = EditorCommandPaletteCatalog.SearchOnly.First(descriptor =>
+                descriptor.Mode == item.Mode
+                && string.Equals(descriptor.Identifier, item.Identifier, StringComparison.Ordinal)).ShortcutText;
+            item.UpdateShortcut(shortcutTexts.TryGetValue(item.Identifier, out var shortcut)
+                ? shortcut
+                : defaultShortcut);
+        }
+        OnPropertyChanged(nameof(CommandSearchResults));
+        OnPropertyChanged(nameof(IsCommandSearchEmpty));
+    }
+
     public bool MoveToolCustomization(string identifier, int direction)
     {
         var ordered = _toolDescriptors
