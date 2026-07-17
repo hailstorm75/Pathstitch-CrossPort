@@ -5342,14 +5342,15 @@ Selection:
         }
 
         var resolvedClosed = isClosed && _pendingPenAnchors.Count >= 3;
+        var editedPathId = _editingPenPathId;
         var nextDocument = _editingPenPathId is string editingPathId && Document is not null
             ? DxfCanvasPenEditing.ReplacePath(Document, editingPathId, _pendingPenAnchors, resolvedClosed)
             : AddPenPathToDocument(_pendingPenAnchors, resolvedClosed);
         if (nextDocument is not null)
         {
             SetCurrentValue(DocumentProperty, nextDocument);
-            var newPathId = nextDocument.Paths[^1].Id;
-            SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
+            var committedPathId = editedPathId ?? nextDocument.Paths[^1].Id;
+            SetCurrentValue(SelectedPathIdsProperty, new[] { committedPathId });
             SetCurrentValue(SelectedMeasurementIdProperty, null);
         }
 
