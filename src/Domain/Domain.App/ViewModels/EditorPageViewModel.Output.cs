@@ -2861,7 +2861,8 @@ public sealed partial class EditorPageViewModel
         CancellationToken cancellationToken,
         bool persistState = true,
         GeneratedOutputAppendContext? appendContext = null,
-        string generatedLayerName = "Generated 3D")
+        string generatedLayerName = "Generated 3D",
+        bool replaceGeneratedLayer = false)
     {
         ApplyGeneratedOutput(outputPath);
 
@@ -2897,7 +2898,12 @@ public sealed partial class EditorPageViewModel
         }
         else
         {
-            ApplyGeneratedOutputAppend(appendContext, previewDocument, generatedLayerName, activatePreviewWorkspace);
+            ApplyGeneratedOutputAppend(
+                appendContext,
+                previewDocument,
+                generatedLayerName,
+                activatePreviewWorkspace,
+                replaceGeneratedLayer);
         }
 
         if (persistState)
@@ -3040,7 +3046,8 @@ public sealed partial class EditorPageViewModel
         GeneratedOutputAppendContext context,
         Editor2DPreviewDocument? generatedDocument,
         string generatedLayerName,
-        bool activatePreviewWorkspace)
+        bool activatePreviewWorkspace,
+        bool replaceGeneratedLayer)
     {
         if (generatedDocument is null || generatedDocument.Paths.Count < context.BasePathCount)
         {
@@ -3051,7 +3058,10 @@ public sealed partial class EditorPageViewModel
             return;
         }
 
-        var existingIds = context.Snapshot.Document.Paths.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
+        var baseSnapshot = replaceGeneratedLayer
+            ? RemoveGeneratedLayer(context.Snapshot, generatedLayerName)
+            : context.Snapshot;
+        var existingIds = baseSnapshot.Document.Paths.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
         var appendedPaths = generatedDocument.Paths
             .Skip(context.BasePathCount)
             .Select((path, index) => path with
@@ -3069,25 +3079,49 @@ public sealed partial class EditorPageViewModel
             return;
         }
 
-        var combinedPaths = context.Snapshot.Document.Paths.Concat(appendedPaths).ToArray();
+        var combinedPaths = baseSnapshot.Document.Paths.Concat(appendedPaths).ToArray();
         var generatedLayerId = $"generated-3d-{Guid.NewGuid():N}";
-        var layers = (context.Snapshot.Layers ?? [])
+        var layers = (baseSnapshot.Layers ?? [])
             .Append(new Editor2DLayer(
                 generatedLayerId,
                 generatedLayerName,
                 appendedPaths.Select(path => path.Id).ToArray(),
-                Order: context.Snapshot.Layers?.Count ?? 0,
+                Order: baseSnapshot.Layers?.Count ?? 0,
                 ColorHex: "#7C9CFF"))
             .ToArray();
-        var nextState = context.Snapshot with
+        var nextState = baseSnapshot with
         {
-            Document = RebuildGeneratedOutputDocument(context.Snapshot.Document, combinedPaths, generatedDocument.UnsupportedEntityTypes),
+            Document = RebuildGeneratedOutputDocument(baseSnapshot.Document, combinedPaths, generatedDocument.UnsupportedEntityTypes),
             Layers = layers,
         };
         _twoDWorkspace.Apply(nextState, recordHistory: false);
         ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
         if (activatePreviewWorkspace)
             ActiveEditorMode = EditorMode.TwoD;
+    }
+
+    private static Editor2DWorkspaceState RemoveGeneratedLayer(Editor2DWorkspaceState state, string layerName)
+    {
+        var layers = state.Layers ?? [];
+        var removedPathIds = layers
+            .Where(layer => layer.Kind == Editor2DLayerKind.Geometry
+                && string.Equals(layer.Name, layerName, StringComparison.Ordinal))
+            .SelectMany(layer => layer.PathIds)
+            .ToHashSet(StringComparer.Ordinal);
+        if (removedPathIds.Count == 0)
+            return state;
+        var remainingPaths = state.Document.Paths.Where(path => !removedPathIds.Contains(path.Id)).ToArray();
+        return state with
+        {
+            Document = RebuildGeneratedOutputDocument(state.Document, remainingPaths, state.Document.UnsupportedEntityTypes),
+            Layers = layers.Where(layer => !string.Equals(layer.Name, layerName, StringComparison.Ordinal)
+                || layer.Kind != Editor2DLayerKind.Geometry).ToArray(),
+            SelectedPathIds = (state.SelectedPathIds ?? []).Where(id => !removedPathIds.Contains(id)).ToArray(),
+            Measurements = (state.Measurements ?? []).Where(measurement => measurement.EntityPathId is null
+                || !removedPathIds.Contains(measurement.EntityPathId)).ToArray(),
+            ImportGroups = (state.ImportGroups ?? []).Where(group => group.GeneratedPathIds.All(id => !removedPathIds.Contains(id))).ToArray(),
+            ConvertLineGroups = (state.ConvertLineGroups ?? []).Where(group => group.GeneratedPathIds.All(id => !removedPathIds.Contains(id))).ToArray(),
+        };
     }
 
     private static string CreateGeneratedPathId(string layerName, int index, ISet<string> existingIds)
