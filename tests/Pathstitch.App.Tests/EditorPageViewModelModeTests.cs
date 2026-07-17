@@ -223,6 +223,17 @@ public sealed class EditorPageViewModelModeTests
             Assert.Equal(1.5, viewModel.TwoDViewportZoom);
             Assert.Equal(12, viewModel.TwoDViewportOffsetX);
             Assert.Equal(-4, viewModel.TwoDViewportOffsetY);
+            var firstGeneratedPathId = generated.PathIds[0];
+
+            await viewModel.RefreshActiveUnfoldPreviewAsync();
+
+            Assert.Equal(3, viewModel.TwoDDocument.Paths.Count);
+            var refreshedLayer = Assert.Single(viewModel.TwoDLayers, layer => layer.Name == "Unfolded 3D");
+            Assert.Single(refreshedLayer.PathIds);
+            Assert.NotEqual(firstGeneratedPathId, refreshedLayer.PathIds[0]);
+            Assert.DoesNotContain(viewModel.TwoDDocument.Paths, path => path.Id == firstGeneratedPathId);
+            Assert.Equal([cutPath.Id], viewModel.TwoDLayers.Single(layer => layer.Id == cutLayer.Id).PathIds);
+            Assert.Equal(measurement, Assert.Single(viewModel.TwoDMeasurements));
             Assert.False(File.Exists(operations.ExistingDxfPath));
         }
         finally
