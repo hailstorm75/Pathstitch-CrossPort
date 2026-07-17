@@ -9,7 +9,7 @@ public sealed partial class EditorPageViewModel
 {
     private static readonly HashSet<string> SupportedImportedDrawingExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".dxf", ".svg",
+        ".dxf", ".svg", ".pdf",
     };
     private static readonly HashSet<string> SupportedImportedImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {

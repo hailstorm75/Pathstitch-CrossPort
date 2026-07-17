@@ -38,6 +38,7 @@ public partial class App : Application
                 DesktopFileIntegrationServiceFactory.CreateForCurrentPlatform(
                     services.GetRequiredService<IProcessLauncher>()))
             .AddSingleton<IEditorOutputLauncherService, EditorOutputLauncherService>()
+            .AddSingleton<IPdfVectorImportService, PackagedPdfVectorImportService>()
             .AddSingleton<IEditorOutputPreviewService, DxfOutputPreviewService>()
             .AddSingleton<IGeometryKernelDescriptorProvider, OpenGeometryKernelDescriptorProvider>()
             .AddSingleton<IEditorViewportAssetLocator, EditorViewportAssetLocator>()

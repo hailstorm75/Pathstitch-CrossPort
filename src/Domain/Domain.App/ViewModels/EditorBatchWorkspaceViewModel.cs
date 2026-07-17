@@ -223,7 +223,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 item.Status = EditorBatchItemStatus.Running;
-                    item.Message = $"Exporting {SelectedExportFormat}";
+                item.Message = $"Exporting {SelectedExportFormat}";
                 try
                 {
                     var document = item.Document
@@ -407,6 +407,16 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                     throw new InvalidDataException("SVG input is malformed.", exception);
                 }
             }
+            else if (Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                var header = new byte[5];
+                await using var pdfStream = File.OpenRead(path);
+                if (await pdfStream.ReadAsync(header, cancellationToken).ConfigureAwait(false) != header.Length
+                    || !header.AsSpan().SequenceEqual("%PDF-"u8))
+                {
+                    throw new InvalidDataException("PDF input is malformed.");
+                }
+            }
             return;
         }
 
@@ -434,7 +444,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     {
         var extension = Path.GetExtension(path);
         return extension.Equals(".dxf", StringComparison.OrdinalIgnoreCase)
-               || extension.Equals(".svg", StringComparison.OrdinalIgnoreCase);
+               || extension.Equals(".svg", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase);
     }
 
     private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

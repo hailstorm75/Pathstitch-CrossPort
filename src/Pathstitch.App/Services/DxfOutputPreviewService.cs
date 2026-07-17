@@ -9,7 +9,7 @@ using Domain.App.Services;
 
 namespace Pathstitch.App.Services;
 
-public sealed class DxfOutputPreviewService : IEditorOutputPreviewService
+public sealed class DxfOutputPreviewService(IPdfVectorImportService? pdfVectorImportService = null) : IEditorOutputPreviewService
 {
     public Task<Editor2DImportUnitsInfo?> InspectImportUnitsAsync(string outputPath, CancellationToken cancellationToken = default)
     {
@@ -31,19 +31,30 @@ public sealed class DxfOutputPreviewService : IEditorOutputPreviewService
             Math.Max(maxY - minY, 0.0)));
     }
 
-    public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
+    public async Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         if (string.IsNullOrWhiteSpace(outputPath) || !File.Exists(outputPath))
-            return Task.FromResult<Editor2DPreviewDocument?>(null);
+            return null;
 
-        var previewDocument = EditorDxfDocument.LoadPreviewDocument(outputPath);
-        var hasBounds = TryMeasureBounds(previewDocument.Paths, out var minX, out var minY, out var maxX, out var maxY);
+        string? convertedPath = null;
+        if (Path.GetExtension(outputPath).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            if (pdfVectorImportService is null)
+                throw new InvalidOperationException("PDF vector import runtime is unavailable.");
+            convertedPath = await pdfVectorImportService.ConvertToDxfAsync(outputPath, cancellationToken).ConfigureAwait(false);
+            outputPath = convertedPath;
+        }
 
-        var document = new Editor2DPreviewDocument(
-            previewDocument.Paths
-                .Select(static path => new Editor2DPreviewPath(
+        try
+        {
+            var previewDocument = EditorDxfDocument.LoadPreviewDocument(outputPath);
+            var hasBounds = TryMeasureBounds(previewDocument.Paths, out var minX, out var minY, out var maxX, out var maxY);
+
+            return new Editor2DPreviewDocument(
+                previewDocument.Paths
+                    .Select(static path => new Editor2DPreviewPath(
                     Id: path.Id,
                     EntityType: path.EntityType,
                     Points: path.Points.Select(static point => new Editor2DPoint(point.X, point.Y)).ToArray(),
@@ -59,25 +70,29 @@ public sealed class DxfOutputPreviewService : IEditorOutputPreviewService
                     StartAngleDegrees: path.StartAngleDegrees,
                     EndAngleDegrees: path.EndAngleDegrees,
                     IsFilled: path.IsFilled))
-                .ToArray(),
-            hasBounds
-                ? new Editor2DBounds(minX, minY, maxX, maxY)
-                : new Editor2DBounds(0.0, 0.0, 0.0, 0.0),
-            new Dictionary<string, int>(previewDocument.EntityCounts, StringComparer.OrdinalIgnoreCase),
-            previewDocument.UnsupportedEntityTypes.ToArray());
-
-        return Task.FromResult<Editor2DPreviewDocument?>(document);
+                    .ToArray(),
+                hasBounds
+                    ? new Editor2DBounds(minX, minY, maxX, maxY)
+                    : new Editor2DBounds(0.0, 0.0, 0.0, 0.0),
+                new Dictionary<string, int>(previewDocument.EntityCounts, StringComparer.OrdinalIgnoreCase),
+                previewDocument.UnsupportedEntityTypes.ToArray());
+        }
+        finally
+        {
+            if (convertedPath is not null)
+            {
+                try { File.Delete(convertedPath); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
     }
 
     public Task SavePreviewDocumentAsync(
         Editor2DPreviewDocument document,
         string outputPath,
         CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        EditorDxfDocument.SavePreviewDocument(outputPath, document);
-        return Task.CompletedTask;
-    }
+        => SavePreviewDocumentAsync(document, outputPath, Editor2DExportOptions.Defaults, cancellationToken);
 
     public Task SaveExportDocumentAsync(
         Editor2DExportDocument document,

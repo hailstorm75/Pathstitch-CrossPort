@@ -21,6 +21,7 @@ public sealed class ProjectSessionService(
     {
         ".dxf",
         ".svg",
+        ".pdf",
     };
     private static readonly HashSet<string> SupportedReferenceImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -152,7 +153,7 @@ public sealed class ProjectSessionService(
             .ToArray();
 
         if (unsupportedFiles.Length > 0)
-            throw new InvalidOperationException("The home screen supports .stch projects, DXF/SVG drawings, PNG/JPG/BMP/GIF/WebP/TIFF/AVIF/HEIC reference images, STEP/STP B-rep models, and OBJ/STL meshes.");
+            throw new InvalidOperationException("The home screen supports .stch projects, DXF/SVG/PDF drawings, PNG/JPG/BMP/GIF/WebP/TIFF/AVIF/HEIC reference images, STEP/STP B-rep models, and OBJ/STL meshes.");
 
         if (projectFiles.Length > 1)
         {
