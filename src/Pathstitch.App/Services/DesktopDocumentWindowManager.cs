@@ -72,12 +72,6 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
             var projectPaths = normalizedPaths
                 .Where(path => Path.GetExtension(path).Equals(".stch", StringComparison.OrdinalIgnoreCase))
                 .ToArray();
-            if (projectPaths.Length <= 1)
-            {
-                await OpenFileBatchAsync(normalizedPaths, cancellationToken).ConfigureAwait(true);
-                return;
-            }
-
             foreach (var projectPath in projectPaths)
                 await OpenFileBatchAsync([projectPath], cancellationToken).ConfigureAwait(true);
             var importPaths = normalizedPaths.Except(projectPaths, StringComparer.OrdinalIgnoreCase).ToArray();
