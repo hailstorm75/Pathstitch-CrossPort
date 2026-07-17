@@ -11,6 +11,9 @@ namespace Domain.App.ViewModels;
 
 public sealed partial class EditorPageViewModel
 {
+    private const string CommittedGeneratedLayerIdPrefix = "generated-3d-";
+    private const string TransientUnfoldPreviewLayerIdPrefix = "preview-unfold-";
+
     private string? _twoDTextFontPreview;
     private double _twoDRectangleFilletRadius;
     private string _twoDTextToolDraft = "Label";
@@ -2862,7 +2865,7 @@ public sealed partial class EditorPageViewModel
         bool persistState = true,
         GeneratedOutputAppendContext? appendContext = null,
         string generatedLayerName = "Generated 3D",
-        bool replaceGeneratedLayer = false)
+        bool replaceGeneratedPreviewLayer = false)
     {
         ApplyGeneratedOutput(outputPath);
 
@@ -2903,7 +2906,7 @@ public sealed partial class EditorPageViewModel
                 previewDocument,
                 generatedLayerName,
                 activatePreviewWorkspace,
-                replaceGeneratedLayer);
+                replaceGeneratedPreviewLayer);
         }
 
         if (persistState)
@@ -3047,7 +3050,7 @@ public sealed partial class EditorPageViewModel
         Editor2DPreviewDocument? generatedDocument,
         string generatedLayerName,
         bool activatePreviewWorkspace,
-        bool replaceGeneratedLayer)
+        bool replaceGeneratedPreviewLayer)
     {
         if (generatedDocument is null || generatedDocument.Paths.Count < context.BasePathCount)
         {
@@ -3058,8 +3061,8 @@ public sealed partial class EditorPageViewModel
             return;
         }
 
-        var baseSnapshot = replaceGeneratedLayer
-            ? RemoveGeneratedLayer(context.Snapshot, generatedLayerName)
+        var baseSnapshot = replaceGeneratedPreviewLayer
+            ? RemoveGeneratedPreviewLayer(context.Snapshot)
             : context.Snapshot;
         var existingIds = baseSnapshot.Document.Paths.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
         var appendedPaths = generatedDocument.Paths
@@ -3072,7 +3075,7 @@ public sealed partial class EditorPageViewModel
             .ToArray();
         if (appendedPaths.Length == 0)
         {
-            _twoDWorkspace.Apply(context.Snapshot, recordHistory: false);
+            _twoDWorkspace.Apply(baseSnapshot, recordHistory: false);
             ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
             if (activatePreviewWorkspace)
                 ActiveEditorMode = EditorMode.TwoD;
@@ -3080,7 +3083,10 @@ public sealed partial class EditorPageViewModel
         }
 
         var combinedPaths = baseSnapshot.Document.Paths.Concat(appendedPaths).ToArray();
-        var generatedLayerId = $"generated-3d-{Guid.NewGuid():N}";
+        var generatedLayerIdPrefix = replaceGeneratedPreviewLayer
+            ? TransientUnfoldPreviewLayerIdPrefix
+            : CommittedGeneratedLayerIdPrefix;
+        var generatedLayerId = $"{generatedLayerIdPrefix}{Guid.NewGuid():N}";
         var layers = (baseSnapshot.Layers ?? [])
             .Append(new Editor2DLayer(
                 generatedLayerId,
@@ -3100,12 +3106,11 @@ public sealed partial class EditorPageViewModel
             ActiveEditorMode = EditorMode.TwoD;
     }
 
-    private static Editor2DWorkspaceState RemoveGeneratedLayer(Editor2DWorkspaceState state, string layerName)
+    private static Editor2DWorkspaceState RemoveGeneratedPreviewLayer(Editor2DWorkspaceState state)
     {
         var layers = state.Layers ?? [];
         var removedPathIds = layers
-            .Where(layer => layer.Kind == Editor2DLayerKind.Geometry
-                && string.Equals(layer.Name, layerName, StringComparison.Ordinal))
+            .Where(IsGeneratedPreviewLayer)
             .SelectMany(layer => layer.PathIds)
             .ToHashSet(StringComparer.Ordinal);
         if (removedPathIds.Count == 0)
@@ -3114,8 +3119,7 @@ public sealed partial class EditorPageViewModel
         return state with
         {
             Document = RebuildGeneratedOutputDocument(state.Document, remainingPaths, state.Document.UnsupportedEntityTypes),
-            Layers = layers.Where(layer => !string.Equals(layer.Name, layerName, StringComparison.Ordinal)
-                || layer.Kind != Editor2DLayerKind.Geometry).ToArray(),
+            Layers = layers.Where(layer => !IsGeneratedPreviewLayer(layer)).ToArray(),
             SelectedPathIds = (state.SelectedPathIds ?? []).Where(id => !removedPathIds.Contains(id)).ToArray(),
             Measurements = (state.Measurements ?? []).Where(measurement => measurement.EntityPathId is null
                 || !removedPathIds.Contains(measurement.EntityPathId)).ToArray(),
@@ -3123,6 +3127,11 @@ public sealed partial class EditorPageViewModel
             ConvertLineGroups = (state.ConvertLineGroups ?? []).Where(group => group.GeneratedPathIds.All(id => !removedPathIds.Contains(id))).ToArray(),
         };
     }
+
+    private static bool IsGeneratedPreviewLayer(Editor2DLayer layer)
+        => layer.Kind == Editor2DLayerKind.Geometry
+            && layer.Id.StartsWith(TransientUnfoldPreviewLayerIdPrefix, StringComparison.Ordinal);
+
 
     private static string CreateGeneratedPathId(string layerName, int index, ISet<string> existingIds)
     {

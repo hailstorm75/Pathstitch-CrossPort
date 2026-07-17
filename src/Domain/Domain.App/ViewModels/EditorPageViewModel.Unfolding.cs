@@ -193,7 +193,7 @@ public sealed partial class EditorPageViewModel
             cancellationToken,
             appendContext: appendContext,
             generatedLayerName: "Unfolded 3D",
-            replaceGeneratedLayer: true).ConfigureAwait(true);
+            replaceGeneratedPreviewLayer: true).ConfigureAwait(true);
     }
 
     private EditorGeneratedOutputContext BuildUnfoldOutputContext(bool wholeBody, string actionLabel)
