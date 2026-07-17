@@ -97,7 +97,7 @@ public sealed class Editor3DWorkspaceViewModelTests
             [new SelectedFace3D(0, 0)],
             [new SelectedFaceDetails(0, "Body 1", 0, "PLANAR", 12)]);
         var projection = new EditorProjectionWorkspaceState("face", "face", 0, 0, 2.5);
-        var unfold = new EditorUnfoldWorkspaceState(0, 2, 2, 0, 0, true, false, "5", "1", "4", "2");
+        var unfold = new EditorUnfoldWorkspaceState(0, 2, 2, 0, 0, true, false, "7.5", "1.75", "6.25", "3.5");
 
         original.RestoreState(original.CaptureState() with { Projection = projection, Unfold = unfold });
         var json = JsonSerializer.Serialize(original.CaptureState());
@@ -114,6 +114,32 @@ public sealed class Editor3DWorkspaceViewModelTests
         Assert.Equal(new SelectedFace3D(0, 0), Assert.Single(roundTripped.SelectedFaces));
         Assert.Equal(projection, roundTripped.Projection);
         Assert.Equal(unfold, roundTripped.Unfold);
+    }
+
+    [Fact]
+    public void UnfoldStateNormalizationPreservesValidDimensionsAndRepairsInvalidValues()
+    {
+        var valid = new EditorUnfoldWorkspaceState(0, 0, 0, 0, 0, false, false, " 7.5 ", "1.75", "6.25", "0");
+        var normalizedValid = valid.NormalizeForOpenGeometryEditor();
+
+        Assert.Equal("7.5", normalizedValid.GlueTabHeightText);
+        Assert.Equal("1.75", normalizedValid.HoleDiameterText);
+        Assert.Equal("6.25", normalizedValid.HoleSpacingText);
+        Assert.Equal("0", normalizedValid.HoleMarginText);
+
+        var invalid = valid with
+        {
+            GlueTabHeightText = "0",
+            HoleDiameterText = "NaN",
+            HoleSpacingText = "-1",
+            HoleMarginText = "Infinity",
+        };
+        var normalizedInvalid = invalid.NormalizeForOpenGeometryEditor();
+
+        Assert.Equal("5", normalizedInvalid.GlueTabHeightText);
+        Assert.Equal("1", normalizedInvalid.HoleDiameterText);
+        Assert.Equal("4", normalizedInvalid.HoleSpacingText);
+        Assert.Equal("2", normalizedInvalid.HoleMarginText);
     }
 
     [Fact]

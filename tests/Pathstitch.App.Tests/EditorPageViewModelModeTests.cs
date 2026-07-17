@@ -128,6 +128,10 @@ public sealed class EditorPageViewModelModeTests
             new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["LINE"] = 1 },
             []);
         viewModel.TwoDDocument = original;
+        viewModel.TwoDGlueTabHeightText = "7.5";
+        viewModel.TwoDWorkspace.SewingHoleDiameter = 1.75;
+        viewModel.TwoDWorkspace.SewingHolePitch = 6.25;
+        viewModel.TwoDWorkspace.SewingHoleMargin = 3.5;
         viewModel.ThreeDWorkspace.ReplaceBodies([new Body3D(0, "body", [])], "{}", sourcePath);
         try
         {
@@ -141,6 +145,10 @@ public sealed class EditorPageViewModelModeTests
                     && path.Points[0] == new DxfPoint(2, 3)
                     && path.Points[1] == new DxfPoint(8, 3));
             Assert.False(File.Exists(operations.UnfoldRequest.ExistingDxfPath));
+            Assert.Equal(7.5, operations.UnfoldRequest.TabHeight);
+            Assert.Equal(1.75, operations.UnfoldRequest.HoleDiameter);
+            Assert.Equal(6.25, operations.UnfoldRequest.HoleSpacing);
+            Assert.Equal(3.5, operations.UnfoldRequest.HoleMargin);
             Assert.Equal(original, viewModel.TwoDDocument);
         }
         finally

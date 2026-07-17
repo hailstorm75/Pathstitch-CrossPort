@@ -22,7 +22,7 @@ public sealed class WorkspaceSemanticRoundTripTests
             var selectedFace = new SelectedFace3D(3, 7);
             var selectedDetails = new SelectedFaceDetails(3, "Body", 7, "Plane", 100);
             var projection = new EditorProjectionWorkspaceState("face", null, 7, 3, 1.25);
-            var unfold = new EditorUnfoldWorkspaceState(1, 2, 0, 0, 0, true, true, "5", "1", "4", "2");
+            var unfold = new EditorUnfoldWorkspaceState(1, 2, 0, 0, 0, true, true, "7.5", "1.75", "6.25", "3.5");
             var threeD = new Editor3DWorkspaceState(
                 Editor3DTool.Unfold,
                 true,
@@ -89,6 +89,7 @@ public sealed class WorkspaceSemanticRoundTripTests
             Assert.Equal(EditorMode.TwoD, restored.WorkspaceState!.ActiveEditorMode);
             Assert.Equal(Editor2DTool.Measure, restored.WorkspaceState.TwoDActiveTool);
             Assert.Equal(Editor3DTool.Unfold, restored.ThreeDWorkspaceState!.ActiveTool);
+            Assert.Equal(unfold, restored.UnfoldWorkspaceState);
             Assert.Equal(selectedFace, Assert.Single(restored.ThreeDWorkspaceState.SelectedFaces));
             Assert.Equal(offset, Assert.Single(restored.ThreeDWorkspaceState.BodyOffsets));
             Assert.Equal(path.Id, Assert.Single(restored.TwoDWorkspaceState!.SelectedPathIds!));
