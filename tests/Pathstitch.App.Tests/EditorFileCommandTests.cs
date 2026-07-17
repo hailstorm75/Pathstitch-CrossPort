@@ -11,6 +11,49 @@ namespace Pathstitch.App.Tests;
 public sealed class EditorFileCommandTests
 {
     [Fact]
+    public async Task OpenProject_NewWindowDispositionPreservesCurrentDocument()
+    {
+        var windows = new RecordingDocumentWindowService();
+        var disposition = new RecordingDispositionPrompt(ProjectOpenDisposition.NewWindow);
+        await using var fixture = await Fixture.CreateAsync(
+            UnsavedChangesPromptResult.Cancel,
+            documentWindowService: windows,
+            dispositionPrompt: disposition);
+        var other = Path.Combine(fixture.Directory, "other-window.stch");
+        await new Project3DStateService().SaveAsync(other, Project3DState.Empty);
+        fixture.Dialog.OpenPath = other;
+
+        await fixture.ViewModel.OpenProjectAsync(CancellationToken.None);
+
+        Assert.Equal(1, disposition.CallCount);
+        Assert.Equal(fixture.Session.SessionId, fixture.ViewModel.ProjectSession!.SessionId);
+        Assert.Equal(fixture.Session.SessionId, fixture.SessionService.CurrentSession!.SessionId);
+        Assert.Equal(Path.GetFullPath(other), Assert.Single(windows.Requests).Session.ProjectFilePath);
+        Assert.Empty(fixture.NavigationRequests);
+    }
+
+    [Fact]
+    public async Task OpenProject_CancelDispositionDoesNothing()
+    {
+        var windows = new RecordingDocumentWindowService();
+        var disposition = new RecordingDispositionPrompt(ProjectOpenDisposition.Cancel);
+        await using var fixture = await Fixture.CreateAsync(
+            UnsavedChangesPromptResult.Discard,
+            documentWindowService: windows,
+            dispositionPrompt: disposition);
+        var other = Path.Combine(fixture.Directory, "cancel.stch");
+        await new Project3DStateService().SaveAsync(other, Project3DState.Empty);
+        fixture.Dialog.OpenPath = other;
+
+        await fixture.ViewModel.OpenProjectAsync(CancellationToken.None);
+
+        Assert.Equal(1, disposition.CallCount);
+        Assert.Empty(windows.Requests);
+        Assert.Equal(0, fixture.Prompt.CallCount);
+        Assert.Equal(fixture.Session.SessionId, fixture.SessionService.CurrentSession!.SessionId);
+    }
+
+    [Fact]
     public async Task NewProject_WithDocumentWindowServicePreservesDirtyCurrentDocument()
     {
         var windows = new RecordingDocumentWindowService();
@@ -251,7 +294,8 @@ public sealed class EditorFileCommandTests
         public static async Task<Fixture> CreateAsync(
             UnsavedChangesPromptResult promptResult,
             IEditorOutputPreviewService? outputService = null,
-            IDocumentWindowService? documentWindowService = null)
+            IDocumentWindowService? documentWindowService = null,
+            IProjectOpenDispositionPromptService? dispositionPrompt = null)
         {
             var directory = Path.Combine(Path.GetTempPath(), $"editor-file-commands-{Guid.NewGuid():N}");
             System.IO.Directory.CreateDirectory(directory);
@@ -268,7 +312,8 @@ public sealed class EditorFileCommandTests
                 outputPreviewService: outputService,
                 unsavedChangesPromptService: prompt,
                 projectSessionService: sessionService,
-                documentWindowService: documentWindowService);
+                documentWindowService: documentWindowService,
+                projectOpenDispositionPromptService: dispositionPrompt);
             Assert.True(await viewModel.ConfigureParametersAsync(
                 new Dictionary<string, object> { [EditorNavigationParameterKeys.ProjectSession] = session },
                 CancellationToken.None));
@@ -309,6 +354,19 @@ public sealed class EditorFileCommandTests
     {
         public int CallCount { get; private set; }
         public Task<UnsavedChangesPromptResult> PromptToSaveAsync(string documentName, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class RecordingDispositionPrompt(ProjectOpenDisposition result) : IProjectOpenDispositionPromptService
+    {
+        public int CallCount { get; private set; }
+
+        public Task<ProjectOpenDisposition> PromptAsync(
+            string incomingProjectName,
+            CancellationToken cancellationToken = default)
         {
             CallCount++;
             return Task.FromResult(result);

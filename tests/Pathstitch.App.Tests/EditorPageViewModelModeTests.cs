@@ -1860,8 +1860,9 @@ public sealed class EditorPageViewModelModeTests
         IReferenceImageTraceService? referenceImageTraceService = null,
         IPsdImportService? psdImportService = null,
         IPsdImportModePromptService? psdImportModePromptService = null,
-        IDocumentWindowService? documentWindowService = null)
-        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, psdImportService, psdImportModePromptService, documentWindowService);
+        IDocumentWindowService? documentWindowService = null,
+        IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null)
+        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, psdImportService, psdImportModePromptService, documentWindowService, projectOpenDispositionPromptService);
 
     private static EditorPageViewModel CreateViewModel(
         IProjectFileDialogService? projectFileDialogService = null,
@@ -1873,7 +1874,8 @@ public sealed class EditorPageViewModelModeTests
         IReferenceImageTraceService? referenceImageTraceService = null,
         IPsdImportService? psdImportService = null,
         IPsdImportModePromptService? psdImportModePromptService = null,
-        IDocumentWindowService? documentWindowService = null)
+        IDocumentWindowService? documentWindowService = null,
+        IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null)
         => new(
             NullLogger<EditorPageViewModel>.Instance,
             new StubViewportAssetLocator(),
@@ -1890,7 +1892,8 @@ public sealed class EditorPageViewModelModeTests
             projectSessionService: projectSessionService,
             psdImportService: psdImportService,
             psdImportModePromptService: psdImportModePromptService,
-            documentWindowService: documentWindowService);
+            documentWindowService: documentWindowService,
+            projectOpenDispositionPromptService: projectOpenDispositionPromptService);
 
     private sealed class StubViewportAssetLocator : IEditorViewportAssetLocator
     {

@@ -73,6 +73,17 @@ public sealed class UiAutomationIdentifierTests
     }
 
     [Fact]
+    public void ProjectOpenDispositionDialog_ExposesStableChoiceIdentifiers()
+    {
+        var dialog = _ui.LoadXaml("src", "Pathstitch.App", "Dialogs", "ProjectOpenDispositionDialog.axaml");
+
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.project-open");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.project-open.combine");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.project-open.new-window");
+        _ui.FindXamlElementByAutomationId(dialog, "dialog.project-open.cancel");
+    }
+
+    [Fact]
     public void OutputInspector_ExposesGeneratedRefreshIdentifier()
     {
         var inspector = _ui.LoadXaml("src", "Pathstitch.App", "Pages", "EditorOutputInspector.axaml");
