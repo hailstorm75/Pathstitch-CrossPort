@@ -58,7 +58,7 @@ public sealed class Project3DStateService
                 payload.SavedStepTopology,
                 payload.SavedBatchWorkspaceState,
                 payload.SavedActivityLog ?? [],
-                payload.SavedLearnModeEnabled ?? true);
+                payload.SavedLearnModeEnabled ?? payload.IsLearnModeEnabled ?? true);
         }
         catch
         {
@@ -497,6 +497,7 @@ public sealed class Project3DStateService
         [property: JsonPropertyName("savedStepTopology")] StepGeometryDocument? SavedStepTopology,
         [property: JsonPropertyName("savedActivityLog")] IReadOnlyList<EditorActivityEntry>? SavedActivityLog,
         [property: JsonPropertyName("savedLearnModeEnabled")] bool? SavedLearnModeEnabled,
+        [property: JsonPropertyName("isLearnModeEnabled")] bool? IsLearnModeEnabled,
         string? SourceModelPath = null);
 
     private sealed record BodyOffsetPayload(
