@@ -90,6 +90,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private bool _isReferenceImageTracePreviewPending;
     private Editor2DWorkspaceState? _referenceImageTransformOrigin;
     private string? _referenceImageTransformLayerId;
+    private Editor2DWorkspaceState? _layerColorEditOrigin;
+    private string? _layerColorEditLayerId;
     private string? _editingSewingHoleOperationId;
     private Editor2DSewingHoleOperation? _selectedSewingHoleOperation;
 
@@ -462,6 +464,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         if (recordHistory)
         {
             CommitReferenceImageTransformEdit();
+            CommitLayerColorEdit();
             _undo.Push(_state);
             _redo.Clear();
         }
@@ -1697,8 +1700,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
 
     public bool SetLayerColor(string layerId, string colorHex)
     {
-        var normalized = colorHex.Trim().ToUpperInvariant();
-        if (!IsValidColorHex(normalized))
+        var normalized = NormalizeLayerColorHex(colorHex);
+        if (normalized is null)
             return false;
 
         var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId);
@@ -1711,6 +1714,68 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                 ? candidate with { ColorHex = normalized }
                 : candidate).ToArray(),
         });
+        return true;
+    }
+
+    public bool BeginLayerColorEdit(string layerId)
+    {
+        var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId && !candidate.IsReferenceImage);
+        if (layer is null)
+            return false;
+        if (_layerColorEditLayerId == layerId && _layerColorEditOrigin is not null)
+            return true;
+
+        CommitLayerColorEdit();
+        _layerColorEditOrigin = _state;
+        _layerColorEditLayerId = layerId;
+        return true;
+    }
+
+    public bool UpdateLayerColorEdit(string layerId, string colorHex)
+    {
+        var normalized = NormalizeLayerColorHex(colorHex);
+        var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId && !candidate.IsReferenceImage);
+        if (normalized is null
+            || layer is null
+            || _layerColorEditOrigin is null
+            || _layerColorEditLayerId != layerId
+            || string.Equals(layer.ColorHex, normalized, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        Apply(_state with
+        {
+            Layers = Layers.Select(candidate => candidate.Id == layerId
+                ? candidate with { ColorHex = normalized }
+                : candidate).ToArray(),
+        }, recordHistory: false);
+        return true;
+    }
+
+    public bool CommitLayerColorEdit()
+    {
+        if (_layerColorEditOrigin is not { } origin)
+            return false;
+        _layerColorEditOrigin = null;
+        _layerColorEditLayerId = null;
+        if (Equals(origin, _state))
+            return false;
+
+        _undo.Push(origin);
+        _redo.Clear();
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        return true;
+    }
+
+    public bool CancelLayerColorEdit()
+    {
+        if (_layerColorEditOrigin is not { } origin)
+            return false;
+        _layerColorEditOrigin = null;
+        _layerColorEditLayerId = null;
+        if (Equals(origin, _state))
+            return false;
+        Apply(origin, recordHistory: false);
         return true;
     }
 
@@ -2644,6 +2709,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     {
         EndMeasurementEdit();
         CommitReferenceImageTransformEdit();
+        CommitLayerColorEdit();
         CancelReferenceImageTrace();
         if (_undo.Count == 0)
             return false;
@@ -2659,6 +2725,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     {
         EndMeasurementEdit();
         CommitReferenceImageTransformEdit();
+        CommitLayerColorEdit();
         CancelReferenceImageTrace();
         if (_redo.Count == 0)
             return false;
@@ -2673,6 +2740,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public void ClearHistory()
     {
         _measurementEditOrigin = null;
+        _layerColorEditOrigin = null;
+        _layerColorEditLayerId = null;
         var transformEditWasActive = _referenceImageTransformOrigin is not null;
         _referenceImageTransformOrigin = null;
         _referenceImageTransformLayerId = null;
@@ -2986,10 +3055,15 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         return normalized < -180.0 ? normalized + 360.0 : normalized > 180.0 ? normalized - 360.0 : normalized;
     }
 
-    private static bool IsValidColorHex(string colorHex)
-        => (colorHex.Length is 7 or 9)
-            && colorHex[0] == '#'
-            && colorHex.Skip(1).All(Uri.IsHexDigit);
+    private static string? NormalizeLayerColorHex(string? colorHex)
+    {
+        var normalized = colorHex?.Trim().ToUpperInvariant();
+        return normalized is { Length: 7 }
+            && normalized[0] == '#'
+            && normalized.Skip(1).All(Uri.IsHexDigit)
+                ? normalized
+                : null;
+    }
 
     private static IReadOnlyList<Editor2DLayer> NormalizeLayers(
         Editor2DWorkspaceState state,
@@ -3005,6 +3079,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             .Select((layer, order) => layer with
             {
                 Name = string.IsNullOrWhiteSpace(layer.Name) ? $"Layer {order + 1}" : layer.Name.Trim(),
+                ColorHex = NormalizePersistedLayerColorHex(layer.ColorHex),
                 PathIds = layer.Kind == Editor2DLayerKind.ReferenceImage
                     ? []
                     : layer.PathIds.Where(documentPathIds.Contains).Distinct(StringComparer.Ordinal).ToArray(),
@@ -3040,6 +3115,15 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         }
 
         return layers;
+    }
+
+    private static string NormalizePersistedLayerColorHex(string? colorHex)
+    {
+        var normalized = colorHex?.Trim().ToUpperInvariant();
+        if (normalized is { Length: 9 } && normalized[0] == '#'
+            && normalized.Skip(1).All(Uri.IsHexDigit))
+            normalized = normalized[..7];
+        return NormalizeLayerColorHex(normalized) ?? "#4D7FFF";
     }
 
     private static IReadOnlyList<Editor2DLayerFolder> NormalizeFolders(IReadOnlyList<Editor2DLayerFolder>? source)

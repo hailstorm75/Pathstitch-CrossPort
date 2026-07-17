@@ -1,17 +1,27 @@
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Domain.App.Models;
 using Domain.App.ViewModels;
+using Pathstitch.App.Converters;
 
 namespace Pathstitch.App.Pages;
 
 public partial class Editor2DLayersPanel : UserControl
 {
-    public Editor2DLayersPanel() => InitializeComponent();
+    private CancellationTokenSource? _layerColorCommitCancellation;
+    private string? _editingLayerColorId;
+
+    public Editor2DLayersPanel()
+    {
+        InitializeComponent();
+        Unloaded += (_, _) => CommitPendingLayerColorEdit();
+    }
 
     private void OnCreateLayerClicked(object? sender, RoutedEventArgs e) => ViewModel?.CreateTwoDLayer();
 
@@ -134,7 +144,101 @@ public partial class Editor2DLayersPanel : UserControl
             .GetLogicalDescendants().OfType<TextBox>().FirstOrDefault(control => Equals(control.Tag, layerId)
                 && control.Width < 100);
         if (textBox is not null)
-            ViewModel.SetTwoDLayerColor(layerId, textBox.Text ?? string.Empty);
+            CommitLayerColorText(textBox, layerId);
+    }
+
+    private async void OnLayerColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        if (ViewModel is not { } viewModel || sender is not ColorPicker { Tag: string layerId })
+            return;
+        var colorHex = LayerColorHexToColorConverter.ToHex(e.NewColor);
+        if (string.Equals(
+                viewModel.TwoDLayers.FirstOrDefault(layer => layer.Id == layerId)?.ColorHex,
+                colorHex,
+                StringComparison.OrdinalIgnoreCase))
+            return;
+        if (!string.Equals(_editingLayerColorId, layerId, StringComparison.Ordinal))
+        {
+            CommitPendingLayerColorEdit();
+            if (!viewModel.BeginTwoDLayerColorEdit(layerId))
+                return;
+            _editingLayerColorId = layerId;
+        }
+        if (!viewModel.PreviewTwoDLayerColor(layerId, colorHex))
+            return;
+
+        _layerColorCommitCancellation?.Cancel();
+        _layerColorCommitCancellation?.Dispose();
+        var cancellation = new CancellationTokenSource();
+        _layerColorCommitCancellation = cancellation;
+        try
+        {
+            await Task.Delay(350, cancellation.Token);
+            if (!cancellation.IsCancellationRequested)
+                CommitPendingLayerColorEdit();
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+    }
+
+    private void OnLayerColorTextKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox { Tag: string layerId } textBox)
+            return;
+        if (e.Key == Key.Enter)
+        {
+            CommitLayerColorText(textBox, layerId);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && ViewModel?.TwoDLayers.FirstOrDefault(layer => layer.Id == layerId) is { } layer)
+        {
+            textBox.Text = layer.ColorHex;
+            SetLayerColorTextValidity(textBox, true);
+            e.Handled = true;
+        }
+    }
+
+    private void OnLayerColorTextLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox { Tag: string layerId } textBox)
+            CommitLayerColorText(textBox, layerId);
+    }
+
+    private void CommitLayerColorText(TextBox textBox, string layerId)
+    {
+        CommitPendingLayerColorEdit();
+        if (!TryNormalizeLayerColorHex(textBox.Text, out var normalized))
+        {
+            SetLayerColorTextValidity(textBox, false);
+            return;
+        }
+        ViewModel?.SetTwoDLayerColor(layerId, normalized);
+        textBox.Text = ViewModel?.TwoDLayers.FirstOrDefault(layer => layer.Id == layerId)?.ColorHex ?? normalized;
+        SetLayerColorTextValidity(textBox, true);
+    }
+
+    private void CommitPendingLayerColorEdit()
+    {
+        _layerColorCommitCancellation?.Cancel();
+        _layerColorCommitCancellation?.Dispose();
+        _layerColorCommitCancellation = null;
+        _editingLayerColorId = null;
+        ViewModel?.CommitTwoDLayerColorEdit();
+    }
+
+    private static void SetLayerColorTextValidity(TextBox textBox, bool isValid)
+    {
+        textBox.Classes.Set("invalid", !isValid);
+        ToolTip.SetTip(textBox, isValid ? null : "Use an opaque color in #RRGGBB format");
+    }
+
+    internal static bool TryNormalizeLayerColorHex(string? value, out string normalized)
+    {
+        normalized = value?.Trim().ToUpperInvariant() ?? string.Empty;
+        return normalized.Length == 7
+            && normalized[0] == '#'
+            && normalized.Skip(1).All(Uri.IsHexDigit);
     }
 
     private void OnReferenceMoveLeftClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, -5, 0));

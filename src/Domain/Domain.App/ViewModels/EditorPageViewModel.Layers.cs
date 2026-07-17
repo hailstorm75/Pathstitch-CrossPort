@@ -505,10 +505,32 @@ public sealed partial class EditorPageViewModel
             RefreshTwoDLayerFacade();
     }
 
-    public void SetTwoDLayerColor(string layerId, string colorHex)
+    public bool SetTwoDLayerColor(string layerId, string colorHex)
     {
-        if (_twoDWorkspace.SetLayerColor(layerId, colorHex))
-            RefreshTwoDLayerFacade();
+        _twoDWorkspace.CommitLayerColorEdit();
+        if (!_twoDWorkspace.SetLayerColor(layerId, colorHex))
+            return false;
+        RefreshTwoDLayerFacade();
+        return true;
+    }
+
+    public bool BeginTwoDLayerColorEdit(string layerId)
+        => _twoDWorkspace.BeginLayerColorEdit(layerId);
+
+    public bool PreviewTwoDLayerColor(string layerId, string colorHex)
+    {
+        if (!_twoDWorkspace.UpdateLayerColorEdit(layerId, colorHex))
+            return false;
+        RefreshTwoDLayerFacade(requestPersistence: false);
+        return true;
+    }
+
+    public bool CommitTwoDLayerColorEdit()
+    {
+        if (!_twoDWorkspace.CommitLayerColorEdit())
+            return false;
+        RefreshTwoDLayerFacade();
+        return true;
     }
 
     public void DeleteTwoDLayer(string layerId)

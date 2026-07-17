@@ -4,8 +4,19 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:models="using:Domain.App.Models"
   xmlns:viewModels="using:Domain.App.ViewModels"
+  xmlns:converters="using:Pathstitch.App.Converters"
+  xmlns:colorPicker="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.ColorPicker"
   x:DataType="viewModels:EditorPageViewModel"
   AutomationProperties.AutomationId="editor.context.2d-layers">
+  <UserControl.Resources>
+    <converters:LayerColorHexToColorConverter x:Key="LayerColorConverter" />
+  </UserControl.Resources>
+  <UserControl.Styles>
+    <Style Selector="TextBox.layer-color.invalid">
+      <Setter Property="BorderBrush" Value="#EF4444" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+  </UserControl.Styles>
   <Border
     Background="{StaticResource PanelBackgroundBrush}"
     BorderBrush="{StaticResource BorderBrush}"
@@ -126,9 +137,24 @@
                     SelectedValueBinding="{Binding Id}"
                     SelectionChanged="OnLayerFolderChanged" />
                   <Button Padding="5,2" Content="Move to root" Tag="{Binding Id}" Click="OnMoveLayerToRootClicked" />
-                  <StackPanel Orientation="Horizontal" Spacing="4">
+                  <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding !IsReferenceImage}">
                     <TextBlock VerticalAlignment="Center" Text="Color" />
-                    <TextBox Width="88" Text="{Binding ColorHex, Mode=OneWay}" Tag="{Binding Id}" />
+                    <colorPicker:ColorPicker
+                      AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.layer.color.{0}}"
+                      Width="28"
+                      Height="28"
+                      Padding="0"
+                      Color="{Binding ColorHex, Converter={StaticResource LayerColorConverter}, Mode=OneWay}"
+                      IsAlphaEnabled="False"
+                      Tag="{Binding Id}"
+                      ColorChanged="OnLayerColorChanged" />
+                    <TextBox
+                      Classes="layer-color"
+                      Width="88"
+                      Text="{Binding ColorHex, Mode=OneWay}"
+                      Tag="{Binding Id}"
+                      KeyDown="OnLayerColorTextKeyDown"
+                      LostFocus="OnLayerColorTextLostFocus" />
                     <Button Padding="5,2" Content="Set" Tag="{Binding Id}" Click="OnSetLayerColorClicked" />
                   </StackPanel>
                   <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding ContentSummary}" />
