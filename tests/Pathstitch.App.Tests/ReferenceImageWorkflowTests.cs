@@ -13,6 +13,56 @@ namespace Pathstitch.App.Tests;
 public sealed class ReferenceImageWorkflowTests
 {
     [Fact]
+    public void ReferenceImageTransformEdit_CommitsOneUndoForManyPreviewUpdates()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var layer = workspace.ImportReferenceImage("pattern.png", Convert.ToBase64String([1]), 100, 50);
+        var original = layer.ReferenceImage!;
+        workspace.ClearHistory();
+
+        Assert.True(workspace.BeginReferenceImageTransformEdit(layer.Id));
+        Assert.True(workspace.UpdateReferenceImageTransform(layer.Id, 10, 5, 120, 60, 10));
+        Assert.True(workspace.UpdateReferenceImageTransform(layer.Id, 20, 15, 140, 70, 25));
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.CommitReferenceImageTransformEdit());
+
+        var final = workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage!;
+        Assert.Equal(20, final.X);
+        Assert.Equal(15, final.Y);
+        Assert.Equal(140, final.Width);
+        Assert.Equal(70, final.Height);
+        Assert.Equal(25, final.RotationDegrees);
+        Assert.True(workspace.Undo());
+        Assert.Equal(original, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage);
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.Redo());
+        Assert.Equal(final, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage);
+    }
+
+    [Fact]
+    public void ReferenceImageTransformEdit_CancelRestoresExactStartWithoutHistory()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.SetDocument(Editor2DWorkspaceState.Empty.Document);
+        var layer = workspace.ImportReferenceImage("pattern.png", Convert.ToBase64String([1]), 100, 50);
+        var original = layer.ReferenceImage!;
+        workspace.ClearHistory();
+
+        Assert.True(workspace.BeginReferenceImageTransformEdit(layer.Id));
+        Assert.True(workspace.UpdateReferenceImageTransform(layer.Id, -8, 12, 80, 40, -35));
+        Assert.True(workspace.CancelReferenceImageTransformEdit());
+
+        Assert.Equal(original, workspace.Layers.Single(item => item.Id == layer.Id).ReferenceImage);
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.ToggleLayerLock(layer.Id));
+        workspace.ClearHistory();
+        Assert.False(workspace.BeginReferenceImageTransformEdit(layer.Id));
+        Assert.False(workspace.UpdateReferenceImageTransform(layer.Id, 1, 1, 1, 1, 1));
+        Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
     public void ReferenceImageDepth_JsonRoundTripsFrontAndLegacyDefaultsBack()
     {
         var image = new Editor2DReferenceImage(
@@ -490,6 +540,14 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Contains("TwoDReferenceTraceCornerSmoothness", panel, StringComparison.Ordinal);
         Assert.Contains("TwoDReferenceTracePathOptimization", panel, StringComparison.Ordinal);
         Assert.Contains("TracePreviewPaths=\"{Binding TwoDWorkspace.ReferenceImageTracePreviewPaths}\"", ReadPage("Editor2DView.axaml"), StringComparison.Ordinal);
+        var canvasSource = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+        var viewSource = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DView.axaml.cs");
+        Assert.Contains("ReferenceImageTransformStarted?.Invoke", canvasSource, StringComparison.Ordinal);
+        Assert.Contains("ReferenceImageTransformCompleted?.Invoke", canvasSource, StringComparison.Ordinal);
+        Assert.Contains("ReferenceImageTransformCanceled?.Invoke", canvasSource, StringComparison.Ordinal);
+        Assert.Contains("BeginTwoDReferenceImageTransform", viewSource, StringComparison.Ordinal);
+        Assert.Contains("CommitTwoDReferenceImageTransform", viewSource, StringComparison.Ordinal);
+        Assert.Contains("CancelTwoDReferenceImageTransform", viewSource, StringComparison.Ordinal);
         Assert.Contains("OnRemoveReferenceBackgroundClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnRestoreReferenceBackgroundClicked", panel, StringComparison.Ordinal);
     }
