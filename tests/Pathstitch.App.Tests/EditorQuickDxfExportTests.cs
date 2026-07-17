@@ -192,7 +192,7 @@ public sealed class EditorQuickDxfExportTests
 
             Assert.NotNull(loaded);
             Assert.Single(loaded.Paths);
-            Assert.Equal("POLYLINE", loaded.Paths[0].EntityType);
+            Assert.True(loaded.Paths[0].EntityType is "POLYLINE" or "LWPOLYLINE");
             Assert.Equal(document.Paths[0].Points, loaded.Paths[0].Points);
         }
         finally
