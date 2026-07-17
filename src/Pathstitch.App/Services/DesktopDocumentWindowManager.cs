@@ -190,8 +190,10 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
 
         handle.Scope.Dispose();
         if (ReferenceEquals(_activeDocument, handle))
+        {
             _activeDocument = null;
-        ResolveActiveDocument();
+            ResolveActiveDocument();
+        }
         if (_documents.Count == 0 && _welcome is not null)
         {
             _welcome.Window.Show();
