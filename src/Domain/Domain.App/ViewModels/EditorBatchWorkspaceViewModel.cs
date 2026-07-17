@@ -223,7 +223,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                 item.OriginalSourcePath,
                 sourceDataBase64,
                 item.Document,
-                item.IsSelected));
+                item.IsSelected,
+                Path.GetExtension(item.FilePath)));
         }
 
         return new(
@@ -271,7 +272,10 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                 if (itemState is null)
                     continue;
                 var fileName = Path.GetFileName(itemState.FileName);
-                if (string.IsNullOrWhiteSpace(fileName) || !IsAcceptedInput(fileName))
+                if (string.IsNullOrWhiteSpace(fileName))
+                    continue;
+                var recoveredFileName = GetRecoveredFileName(itemState, fileName);
+                if (recoveredFileName is null)
                     continue;
 
                 byte[]? sourceData = null;
@@ -291,7 +295,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                     continue;
 
                 Directory.CreateDirectory(cacheRoot);
-                var recoveredPath = Path.Combine(cacheRoot, $"{index++:D4}-{Guid.NewGuid():N}-{fileName}");
+                var recoveredPath = Path.Combine(cacheRoot, $"{index++:D4}-{Guid.NewGuid():N}-{recoveredFileName}");
                 await File.WriteAllBytesAsync(recoveredPath, sourceData ?? [], cancellationToken).ConfigureAwait(true);
                 var originalSourcePath = TryNormalizeOriginalPath(itemState.OriginalSourcePath) ?? recoveredPath;
                 var item = new EditorBatchItem(recoveredPath, originalSourcePath, fileName)
@@ -677,6 +681,21 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     private static bool IsAcceptedInput(string path)
         => Path.GetExtension(path).Equals(".stch", StringComparison.OrdinalIgnoreCase)
            || IsSupportedDrawingInput(path);
+
+    private static string? GetRecoveredFileName(EditorBatchItemState itemState, string fileName)
+    {
+        var sourceExtension = itemState.SourceFileExtension?.Trim();
+        if (string.IsNullOrWhiteSpace(sourceExtension))
+            return IsAcceptedInput(fileName) ? fileName : null;
+
+        if (!sourceExtension.StartsWith(".", StringComparison.Ordinal))
+            sourceExtension = $".{sourceExtension}";
+        if (!IsAcceptedInput($"embedded{sourceExtension}"))
+            return null;
+
+        var displayStem = Path.GetFileNameWithoutExtension(fileName);
+        return $"{(string.IsNullOrWhiteSpace(displayStem) ? "batch-item" : displayStem)}{sourceExtension}";
+    }
 
     private static async Task<byte[]> ReadEmbeddableSourceAsync(
         string path,

@@ -21,4 +21,5 @@ public sealed record EditorBatchItemState(
     string? OriginalSourcePath = null,
     string? SourceDataBase64 = null,
     Editor2DPreviewDocument? Document = null,
-    bool IsSelected = true);
+    bool IsSelected = true,
+    string? SourceFileExtension = null);

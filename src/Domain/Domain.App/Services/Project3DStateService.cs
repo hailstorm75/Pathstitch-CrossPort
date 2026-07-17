@@ -59,7 +59,7 @@ public sealed class Project3DStateService
                 payload.SavedTwoDWorkspaceState,
                 payload.SavedThreeDWorkspaceState,
                 payload.SavedStepTopology,
-                payload.SavedBatchWorkspaceState,
+                payload.SavedBatchWorkspaceState ?? ConvertLegacyBatchWorkspace(payload.BatchItems),
                 payload.SavedActivityLog ?? ConvertLegacyActivityLog(payload.LogEntries),
                 payload.SavedLearnModeEnabled ?? payload.IsLearnModeEnabled ?? true);
         }
@@ -453,6 +453,44 @@ public sealed class Project3DStateService
         return converted;
     }
 
+    private static EditorBatchWorkspaceState? ConvertLegacyBatchWorkspace(
+        IReadOnlyList<LegacyBatchItemPayload>? entries)
+    {
+        if (entries is null)
+            return null;
+
+        var items = new List<EditorBatchItemState>(entries.Count);
+        foreach (var entry in entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry.OriginalName)
+                || string.IsNullOrWhiteSpace(entry.DxfDataBase64))
+            {
+                continue;
+            }
+
+            string fileName;
+            try
+            {
+                fileName = Path.GetFileName(entry.OriginalName);
+                if (string.IsNullOrWhiteSpace(fileName))
+                    continue;
+                _ = Convert.FromBase64String(entry.DxfDataBase64);
+            }
+            catch (Exception exception) when (exception is ArgumentException or FormatException)
+            {
+                continue;
+            }
+
+            items.Add(new EditorBatchItemState(
+                fileName,
+                SourceDataBase64: entry.DxfDataBase64,
+                IsSelected: entry.IsSelected ?? true,
+                SourceFileExtension: ".dxf"));
+        }
+
+        return new EditorBatchWorkspaceState(items);
+    }
+
     private static bool TryParseLegacyActivityTimestamp(JsonElement value, out DateTimeOffset timestamp)
     {
         timestamp = default;
@@ -551,6 +589,7 @@ public sealed class Project3DStateService
         [property: JsonPropertyName("savedTwoDWorkspaceState")] Editor2DWorkspaceState? SavedTwoDWorkspaceState,
         [property: JsonPropertyName("savedThreeDWorkspaceState")] Editor3DWorkspaceState? SavedThreeDWorkspaceState,
         [property: JsonPropertyName("savedBatchWorkspaceState")] EditorBatchWorkspaceState? SavedBatchWorkspaceState,
+        [property: JsonPropertyName("batchItems")] IReadOnlyList<LegacyBatchItemPayload>? BatchItems,
         [property: JsonPropertyName("savedStepTopology")] StepGeometryDocument? SavedStepTopology,
         [property: JsonPropertyName("savedActivityLog")] IReadOnlyList<EditorActivityEntry>? SavedActivityLog,
         [property: JsonPropertyName("logEntries")] IReadOnlyList<LegacyActivityEntryPayload>? LogEntries,
@@ -564,6 +603,11 @@ public sealed class Project3DStateService
         [property: JsonPropertyName("action")] string? Action,
         [property: JsonPropertyName("details")] string? Details,
         [property: JsonPropertyName("layerAffected")] string? LayerAffected);
+
+    private sealed record LegacyBatchItemPayload(
+        [property: JsonPropertyName("originalName")] string? OriginalName,
+        [property: JsonPropertyName("dxfDataBase64")] string? DxfDataBase64,
+        [property: JsonPropertyName("isSelected")] bool? IsSelected);
 
     private sealed record BodyOffsetPayload(
         [property: JsonPropertyName("bodyIndex")] int BodyIndex,
