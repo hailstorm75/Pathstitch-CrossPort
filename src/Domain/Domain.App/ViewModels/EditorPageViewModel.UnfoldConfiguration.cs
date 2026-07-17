@@ -377,6 +377,7 @@ public sealed partial class EditorPageViewModel
             return;
 
         var openGeometryState = state.NormalizeForOpenGeometryEditor();
+        _threeDWorkspace.SetUnfoldDecorationDimensions(openGeometryState);
         TwoDGlueTabHeightText = openGeometryState.GlueTabHeightText;
         _twoDWorkspace.SewingHoleDiameter = ParseUnfoldDimension(openGeometryState.HoleDiameterText);
         _twoDWorkspace.SewingHolePitch = ParseUnfoldDimension(openGeometryState.HoleSpacingText);

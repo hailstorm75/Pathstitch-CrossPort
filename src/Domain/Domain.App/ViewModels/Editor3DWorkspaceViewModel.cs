@@ -53,6 +53,10 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     private int _globalSeamDecorationIndex;
     private SelectedFace3D? _anchorFace;
     private IReadOnlyList<EditorSeamDecoration3D> _seamDecorations = [];
+    private string _glueTabHeightText = "5";
+    private string _holeDiameterText = "1";
+    private string _holeSpacingText = "4";
+    private string _holeMarginText = "2";
     private EditorSeamEdge3D? _selectedSeamEdge;
     private string _selectedBodyOffsetXText = "0";
     private string _selectedBodyOffsetYText = "0";
@@ -215,6 +219,14 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
     internal bool SetGlobalSeamDecorationIndex(int value) => SetProperty(ref _globalSeamDecorationIndex, Math.Clamp(value, 0, 2), nameof(GlobalSeamDecorationIndex));
     internal bool SetAnchorFace(SelectedFace3D? value) => SetProperty(ref _anchorFace, value, nameof(AnchorFace));
     internal bool SetSeamDecorations(IReadOnlyList<EditorSeamDecoration3D> value) => SetProperty(ref _seamDecorations, value, nameof(SeamDecorations));
+    internal void SetUnfoldDecorationDimensions(EditorUnfoldWorkspaceState state)
+    {
+        var normalized = state.NormalizeForOpenGeometryEditor();
+        _glueTabHeightText = normalized.GlueTabHeightText;
+        _holeDiameterText = normalized.HoleDiameterText;
+        _holeSpacingText = normalized.HoleSpacingText;
+        _holeMarginText = normalized.HoleMarginText;
+    }
     internal bool SetSelectedSeamEdge(EditorSeamEdge3D? value) => SetProperty(ref _selectedSeamEdge, value, nameof(SelectedSeamEdge));
 
     public void SetSeamDecoration(EditorSeamEdge3D edge, string decoration)
@@ -344,7 +356,7 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
             new EditorUnfoldWorkspaceState(
                 _netLayoutIndex, _distortionModeIndex, _unrollModeIndex, _globalSeamDecorationIndex, _seamControlModeIndex,
                 _liveRecomputeEnabled, _wholeBodyRecompute,
-                "5", "1", "4", "2",
+                _glueTabHeightText, _holeDiameterText, _holeSpacingText, _holeMarginText,
                 _forcedSeams.Count == 0 ? null : _forcedSeams,
                 _forbiddenSeams.Count == 0 ? null : _forbiddenSeams,
                 _anchorFace,
@@ -372,17 +384,19 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
         _selectedProjectionFaceIndex = state.Projection.SelectedProjectionFaceIndex;
         _selectedProjectionBodyIndex = state.Projection.SelectedProjectionBodyIndex;
         _planeOffset = state.Projection.PlaneOffset;
-        _distortionModeIndex = state.Unfold.DistortionModeIndex;
-        _netLayoutIndex = Math.Clamp(state.Unfold.NetLayoutIndex, 0, 1);
-        _unrollModeIndex = Math.Clamp(state.Unfold.UnrollModeIndex, 0, 2);
-        _liveRecomputeEnabled = state.Unfold.LiveRecomputeEnabled;
-        _wholeBodyRecompute = state.Unfold.WholeBodyRecompute;
-        _seamControlModeIndex = state.Unfold.SeamControlModeIndex;
-        _forcedSeams = state.Unfold.ForcedSeams ?? [];
-        _forbiddenSeams = state.Unfold.ForbiddenSeams ?? [];
-        _globalSeamDecorationIndex = state.Unfold.GlobalSeamDecorationIndex;
-        _anchorFace = state.Unfold.AnchorFace;
-        _seamDecorations = state.Unfold.SeamDecorations ?? [];
+        var unfold = state.Unfold.NormalizeForOpenGeometryEditor();
+        _distortionModeIndex = unfold.DistortionModeIndex;
+        _netLayoutIndex = unfold.NetLayoutIndex;
+        _unrollModeIndex = unfold.UnrollModeIndex;
+        _liveRecomputeEnabled = unfold.LiveRecomputeEnabled;
+        _wholeBodyRecompute = unfold.WholeBodyRecompute;
+        _seamControlModeIndex = unfold.SeamControlModeIndex;
+        _forcedSeams = unfold.ForcedSeams ?? [];
+        _forbiddenSeams = unfold.ForbiddenSeams ?? [];
+        _globalSeamDecorationIndex = unfold.GlobalSeamDecorationIndex;
+        _anchorFace = unfold.AnchorFace;
+        _seamDecorations = unfold.SeamDecorations ?? [];
+        SetUnfoldDecorationDimensions(unfold);
         RaiseStateProperties();
     }
 
