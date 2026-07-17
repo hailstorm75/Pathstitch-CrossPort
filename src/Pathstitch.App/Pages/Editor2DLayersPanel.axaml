@@ -16,6 +16,10 @@
       <Setter Property="BorderBrush" Value="#EF4444" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
+    <Style Selector="TextBox.reference-position.invalid">
+      <Setter Property="BorderBrush" Value="#EF4444" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
   </UserControl.Styles>
   <Border
     Background="{StaticResource PanelBackgroundBrush}"
@@ -192,15 +196,39 @@
                         Tag="{Binding Id}"
                         Click="OnReferenceDepthFrontClicked" />
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                      <Button Padding="5,2" Content="←" Tag="{Binding Id}" Click="OnReferenceMoveLeftClicked" />
-                      <Button Padding="5,2" Content="→" Tag="{Binding Id}" Click="OnReferenceMoveRightClicked" />
-                      <Button Padding="5,2" Content="↑" Tag="{Binding Id}" Click="OnReferenceMoveUpClicked" />
-                      <Button Padding="5,2" Content="↓" Tag="{Binding Id}" Click="OnReferenceMoveDownClicked" />
+                    <StackPanel IsEnabled="{Binding !IsLocked}" Spacing="4">
+                      <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Position Offset (mm)" />
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock VerticalAlignment="Center" Text="X:" />
+                        <TextBox
+                          Classes="reference-position reference-position-x"
+                          Width="72"
+                          AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.reference.position.x.{0}}"
+                          Text="{Binding ReferenceImage.X, Mode=OneWay, StringFormat='{}{0:0.###}'}"
+                          Tag="{Binding Id}"
+                          KeyDown="OnReferencePositionTextKeyDown"
+                          LostFocus="OnReferencePositionTextLostFocus" />
+                        <TextBlock VerticalAlignment="Center" Text="Y:" />
+                        <TextBox
+                          Classes="reference-position reference-position-y"
+                          Width="72"
+                          AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.reference.position.y.{0}}"
+                          Text="{Binding ReferenceImage.Y, Mode=OneWay, StringFormat='{}{0:0.###}'}"
+                          Tag="{Binding Id}"
+                          KeyDown="OnReferencePositionTextKeyDown"
+                          LostFocus="OnReferencePositionTextLostFocus" />
+                      </StackPanel>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="4" IsEnabled="{Binding !IsLocked}">
+                      <Button Padding="5,2" Content="←" Tag="{Binding Id}" PointerPressed="OnReferenceNudgePointerPressed" Click="OnReferenceMoveLeftClicked" />
+                      <Button Padding="5,2" Content="↑" Tag="{Binding Id}" PointerPressed="OnReferenceNudgePointerPressed" Click="OnReferenceMoveUpClicked" />
+                      <Button Padding="5,2" Content="↓" Tag="{Binding Id}" PointerPressed="OnReferenceNudgePointerPressed" Click="OnReferenceMoveDownClicked" />
+                      <Button Padding="5,2" Content="→" Tag="{Binding Id}" PointerPressed="OnReferenceNudgePointerPressed" Click="OnReferenceMoveRightClicked" />
                       <Button Padding="5,2" Content="−" Tag="{Binding Id}" Click="OnReferenceScaleDownClicked" />
                       <Button Padding="5,2" Content="+" Tag="{Binding Id}" Click="OnReferenceScaleUpClicked" />
                       <Button Padding="5,2" Content="↻" Tag="{Binding Id}" Click="OnReferenceRotateClicked" />
                     </StackPanel>
+                    <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Nudge (Shift=10mm)" />
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" IsEnabled="{Binding !IsLocked}">
                       <TextBlock VerticalAlignment="Center" Text="Opacity" />
                       <Slider

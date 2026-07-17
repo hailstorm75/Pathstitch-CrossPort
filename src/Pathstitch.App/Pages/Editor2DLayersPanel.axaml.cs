@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +19,8 @@ public partial class Editor2DLayersPanel : UserControl
     private CancellationTokenSource? _layerColorCommitCancellation;
     private string? _editingLayerColorId;
     private string? _editingReferenceOpacityLayerId;
+    private Button? _pressedReferenceNudgeButton;
+    private KeyModifiers _pressedReferenceNudgeModifiers;
 
     public Editor2DLayersPanel()
     {
@@ -250,13 +253,123 @@ public partial class Editor2DLayersPanel : UserControl
             && normalized.Skip(1).All(Uri.IsHexDigit);
     }
 
-    private void OnReferenceMoveLeftClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, -5, 0));
+    private void OnReferencePositionTextKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox { Tag: string layerId } textBox)
+            return;
 
-    private void OnReferenceMoveRightClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, 5, 0));
+        if (e.Key == Key.Enter)
+        {
+            CommitReferencePositionText(textBox, layerId);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            RestoreReferencePositionText(textBox, layerId);
+            e.Handled = true;
+        }
+    }
 
-    private void OnReferenceMoveUpClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, 0, 5));
+    private void OnReferencePositionTextLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox { Tag: string layerId } textBox)
+            CommitReferencePositionText(textBox, layerId);
+    }
 
-    private void OnReferenceMoveDownClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, 0, -5));
+    private void CommitReferencePositionText(TextBox textBox, string layerId)
+    {
+        var viewModel = ViewModel;
+        var image = viewModel?.TwoDLayers.FirstOrDefault(layer => layer.Id == layerId)?.ReferenceImage;
+        if (viewModel is null || image is null)
+            return;
+
+        if (!TryParseReferencePosition(textBox.Text, out var value))
+        {
+            SetReferencePositionTextValidity(textBox, false);
+            return;
+        }
+
+        var editsX = textBox.Classes.Contains("reference-position-x");
+        var currentValue = editsX ? image.X : image.Y;
+        if (!value.Equals(currentValue) && viewModel.BeginTwoDReferenceImageTransform(layerId))
+        {
+            viewModel.UpdateTwoDReferenceImageTransform(
+                layerId,
+                editsX ? value : image.X,
+                editsX ? image.Y : value,
+                image.Width,
+                image.Height,
+                image.RotationDegrees);
+            viewModel.CommitTwoDReferenceImageTransform();
+        }
+
+        textBox.Text = value.ToString("0.###", CultureInfo.InvariantCulture);
+        SetReferencePositionTextValidity(textBox, true);
+    }
+
+    private void RestoreReferencePositionText(TextBox textBox, string layerId)
+    {
+        var image = ViewModel?.TwoDLayers.FirstOrDefault(layer => layer.Id == layerId)?.ReferenceImage;
+        if (image is null)
+            return;
+
+        var value = textBox.Classes.Contains("reference-position-x") ? image.X : image.Y;
+        textBox.Text = value.ToString("0.###", CultureInfo.InvariantCulture);
+        SetReferencePositionTextValidity(textBox, true);
+    }
+
+    private static void SetReferencePositionTextValidity(TextBox textBox, bool isValid)
+    {
+        textBox.Classes.Set("invalid", !isValid);
+        ToolTip.SetTip(textBox, isValid ? null : "Enter a finite position in millimeters");
+    }
+
+    internal static bool TryParseReferencePosition(string? value, out double position)
+        => double.TryParse(value?.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out position)
+           && double.IsFinite(position);
+
+    private void OnReferenceNudgePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _pressedReferenceNudgeButton = sender as Button;
+        _pressedReferenceNudgeModifiers = e.KeyModifiers;
+    }
+
+    private double ConsumeReferenceNudgeStep(object? sender)
+    {
+        var modifiers = ReferenceEquals(sender, _pressedReferenceNudgeButton)
+            ? _pressedReferenceNudgeModifiers
+            : KeyModifiers.None;
+        _pressedReferenceNudgeButton = null;
+        _pressedReferenceNudgeModifiers = KeyModifiers.None;
+        return GetReferenceNudgeStep(modifiers);
+    }
+
+    internal static double GetReferenceNudgeStep(KeyModifiers modifiers)
+        => modifiers.HasFlag(KeyModifiers.Shift) ? 10.0 : 1.0;
+
+    private void OnReferenceMoveLeftClicked(object? sender, RoutedEventArgs e)
+    {
+        var step = ConsumeReferenceNudgeStep(sender);
+        WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, -step, 0));
+    }
+
+    private void OnReferenceMoveRightClicked(object? sender, RoutedEventArgs e)
+    {
+        var step = ConsumeReferenceNudgeStep(sender);
+        WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, step, 0));
+    }
+
+    private void OnReferenceMoveUpClicked(object? sender, RoutedEventArgs e)
+    {
+        var step = ConsumeReferenceNudgeStep(sender);
+        WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, 0, step));
+    }
+
+    private void OnReferenceMoveDownClicked(object? sender, RoutedEventArgs e)
+    {
+        var step = ConsumeReferenceNudgeStep(sender);
+        WithLayer(sender, id => ViewModel?.MoveTwoDReferenceImage(id, 0, -step));
+    }
 
     private void OnReferenceScaleDownClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.ScaleTwoDReferenceImage(id, 0.9));
 
