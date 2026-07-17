@@ -150,6 +150,70 @@ public sealed class DxfPreviewCanvasInteractionTests
         });
     }
 
+    [Fact]
+    public async Task VertexDrag_PreviewsLocallyThenCommitsOneWorkspaceEdit()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var workspace = new Domain.App.ViewModels.Editor2DWorkspaceViewModel();
+            var pathId = workspace.CreateLine(new(0, 0), new(10, 0), "line")!;
+            workspace.ClearHistory();
+            var original = workspace.Document;
+            var canvas = Canvas(original);
+            var session = InteractionSession(canvas);
+            session.IsEditingVertex = true;
+            session.EditingVertexPathId = pathId;
+            session.EditingVertexIndex = 1;
+            session.VertexDocumentSnapshot = original;
+            session.VertexPreviewPoint = new Editor2DPoint(10, 0);
+            canvas.VertexEditRequested += request =>
+            {
+                if (workspace.UpdatePathVertex(request.PathId, request.VertexIndex, request.Point))
+                    request.Complete(workspace.Document);
+            };
+
+            InvokeVertexPreview(canvas, Screen(canvas, new(15, 5)));
+            InvokeVertexPreview(canvas, Screen(canvas, new(20, 8)));
+
+            Assert.Same(original, canvas.Document);
+            Assert.Equal(new Editor2DPoint(20, 8), session.VertexPreviewPoint);
+            Assert.False(workspace.CanUndo);
+            Assert.True(InvokeVertexCommit(canvas));
+            Assert.Equal(new Editor2DPoint(20, 8), workspace.Document.Paths.Single().Points[1]);
+            Assert.True(workspace.CanUndo);
+            Assert.True(workspace.Undo());
+            Assert.Equal(original, workspace.Document);
+        });
+    }
+
+    [Fact]
+    public async Task VertexDrag_CancelDropsPreviewWithoutDocumentHistory()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var workspace = new Domain.App.ViewModels.Editor2DWorkspaceViewModel();
+            var pathId = workspace.CreateLine(new(0, 0), new(10, 0), "line")!;
+            workspace.ClearHistory();
+            var original = workspace.Document;
+            var canvas = Canvas(original);
+            var session = InteractionSession(canvas);
+            session.IsEditingVertex = true;
+            session.EditingVertexPathId = pathId;
+            session.EditingVertexIndex = 1;
+            session.VertexDocumentSnapshot = original;
+            session.VertexPreviewPoint = new Editor2DPoint(10, 0);
+
+            InvokeVertexPreview(canvas, Screen(canvas, new(25, 12)));
+            canvas.CancelActiveInteraction();
+
+            Assert.Same(original, canvas.Document);
+            Assert.False(session.IsEditingVertex);
+            Assert.Null(session.VertexDocumentSnapshot);
+            Assert.Null(session.VertexPreviewPoint);
+            Assert.False(workspace.CanUndo);
+        });
+    }
+
     [Theory]
     [InlineData("LINE")]
     [InlineData("CIRCLE")]
@@ -210,6 +274,21 @@ public sealed class DxfPreviewCanvasInteractionTests
         => typeof(DxfPreviewCanvas)
             .GetMethod("HandleSketchCircleClick", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(canvas, [point]);
+
+    private static DxfCanvasInteractionSession InteractionSession(DxfPreviewCanvas canvas)
+        => (DxfCanvasInteractionSession)typeof(DxfPreviewCanvas)
+            .GetField("_interaction", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(canvas)!;
+
+    private static void InvokeVertexPreview(DxfPreviewCanvas canvas, Point point)
+        => typeof(DxfPreviewCanvas)
+            .GetMethod("ApplyVertexEdit", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(canvas, [point]);
+
+    private static bool InvokeVertexCommit(DxfPreviewCanvas canvas)
+        => (bool)typeof(DxfPreviewCanvas)
+            .GetMethod("CommitVertexEdit", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(canvas, null)!;
 
     private static Editor2DPreviewDocument Document(IReadOnlyList<Editor2DPreviewPath> paths)
         => new(

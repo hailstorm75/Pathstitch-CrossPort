@@ -665,6 +665,41 @@ public sealed class EditorShellHeadlessTests
     }
 
     [Fact]
+    public async Task LiveCanvas_VertexCommitRoutesOneWorkspaceEdit()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var pathId = viewModel.CreateTwoDLine(new(0, 0), new(10, 0))!;
+        viewModel.TwoDWorkspace.ClearHistory();
+        var original = viewModel.TwoDDocument!;
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            var interaction = (DxfCanvasInteractionSession)typeof(DxfPreviewCanvas)
+                .GetField("_interaction", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .GetValue(canvas)!;
+            interaction.IsEditingVertex = true;
+            interaction.EditingVertexPathId = pathId;
+            interaction.EditingVertexIndex = 1;
+            interaction.VertexDocumentSnapshot = original;
+            interaction.VertexPreviewPoint = new Editor2DPoint(18, 6);
+
+            var committed = (bool)typeof(DxfPreviewCanvas)
+                .GetMethod("CommitVertexEdit", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .Invoke(canvas, null)!;
+
+            Assert.True(committed);
+            Assert.Equal(new Editor2DPoint(18, 6), viewModel.TwoDDocument!.Paths.Single().Points[1]);
+            Assert.True(viewModel.TwoDWorkspace.CanUndo);
+            Assert.True(viewModel.TwoDWorkspace.Undo());
+            Assert.Equal(original, viewModel.TwoDDocument);
+        });
+    }
+
+    [Fact]
     public async Task LiveShell_ModeChangesSwapRailWorkspaceContextAndInspectorsByAutomationId()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();

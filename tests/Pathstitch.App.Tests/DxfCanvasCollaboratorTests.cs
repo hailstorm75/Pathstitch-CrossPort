@@ -143,6 +143,8 @@ public sealed class DxfCanvasCollaboratorTests
             IsMovingSelection = true,
             PendingLineStart = new Editor2DPoint(1, 1),
             EditingVertexPathId = "path",
+            VertexDocumentSnapshot = Editor2DWorkspaceState.Empty.Document,
+            VertexPreviewPoint = new Editor2DPoint(2, 3),
             EditingPenPathId = "pen-path",
             EditingPenClosed = true,
         };
@@ -158,6 +160,8 @@ public sealed class DxfCanvasCollaboratorTests
         Assert.False(session.IsMovingSelection);
         Assert.Null(session.PendingLineStart);
         Assert.Null(session.EditingVertexPathId);
+        Assert.Null(session.VertexDocumentSnapshot);
+        Assert.Null(session.VertexPreviewPoint);
         Assert.Null(session.EditingPenPathId);
         Assert.False(session.EditingPenClosed);
     }

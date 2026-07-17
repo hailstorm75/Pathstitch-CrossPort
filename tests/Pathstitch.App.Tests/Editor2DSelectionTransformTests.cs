@@ -178,6 +178,66 @@ public sealed class Editor2DSelectionTransformTests
     }
 
     [Fact]
+    public void UpdatePathVertex_CommitsOnceAndPreservesAttachedState()
+    {
+        var line = new Editor2DPreviewPath(
+            "line", "LINE", [new(0, 0), new(10, 0)], false, Start: new(0, 0));
+        var measurement = new Editor2DMeasurement(
+            "line:length", new(0, 0), new(10, 0),
+            IsAutoDimension: true, EntityPathId: line.Id, DimensionType: "length");
+        var corner = new Editor2DCornerParameter(
+            "corner", line.Id, 1, Editor2DCornerKind.Chamfer, 1,
+            [new(0, 0), new(10, 0)]);
+        var workspace = Workspace(
+            [line],
+            SelectedPathIds: [line.Id],
+            Measurements: [measurement],
+            CornerParameters: [corner]);
+        var before = workspace.State;
+
+        Assert.True(workspace.UpdatePathVertex(line.Id, 0, new(3, 4)));
+
+        var updated = Assert.Single(workspace.Document.Paths);
+        AssertPoint(new(3, 4), updated.Points[0]);
+        AssertPoint(new(3, 4), updated.Start!);
+        Assert.Equal([line.Id], workspace.SelectedPathIds);
+        Assert.Equal([line.Id], Assert.Single(workspace.Layers).PathIds);
+        var rebuiltMeasurement = Assert.Single(workspace.Measurements);
+        AssertPoint(new(3, 4), rebuiltMeasurement.Start);
+        AssertPoint(new(10, 0), rebuiltMeasurement.End);
+        Assert.Equal(Math.Sqrt(65), rebuiltMeasurement.Distance, 8);
+        var retainedCorner = Assert.Single(workspace.CornerParameters);
+        Assert.Equal(corner.Id, retainedCorner.Id);
+        Assert.Equal([new Editor2DPoint(3, 4), new Editor2DPoint(10, 0)], retainedCorner.SourcePoints);
+        Assert.True(workspace.CanUndo);
+        Assert.True(workspace.Undo());
+        Assert.Equal(before, workspace.State);
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.Redo());
+        AssertPoint(new(3, 4), Assert.Single(workspace.Document.Paths).Points[0]);
+    }
+
+    [Fact]
+    public void UpdatePathVertex_NoOpAndConstrainedRectangleDoNotCreateHistory()
+    {
+        var line = Line("line", 0, 0, 10, 0);
+        var lineWorkspace = Workspace([line], SelectedPathIds: [line.Id]);
+        Assert.False(lineWorkspace.UpdatePathVertex(line.Id, 0, line.Points[0]));
+        Assert.False(lineWorkspace.CanUndo);
+
+        var rectangle = new Editor2DPreviewPath(
+            "rectangle", "LWPOLYLINE",
+            [new(0, 0), new(10, 0), new(10, 5), new(0, 5)],
+            true,
+            IsAxisAlignedRectangle: true);
+        var workspace = Workspace([rectangle], SelectedPathIds: [rectangle.Id]);
+
+        Assert.False(workspace.UpdatePathVertex(rectangle.Id, 0, new(2, 2)));
+        Assert.Equal(rectangle, Assert.Single(workspace.Document.Paths));
+        Assert.False(workspace.CanUndo);
+    }
+
+    [Fact]
     public void ApplySelectionTransform_CopyClonesRectangleAutoMeasurementsAndRectMetadata()
     {
         var workspace = new Editor2DWorkspaceViewModel();
