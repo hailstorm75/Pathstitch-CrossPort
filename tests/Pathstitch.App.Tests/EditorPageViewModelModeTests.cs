@@ -1302,6 +1302,29 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task TwoDLayerHierarchy_MoveExpandsDestinationAndReordersRows()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var destination = viewModel.TwoDWorkspace.CreateFolder("Destination");
+        var nested = viewModel.TwoDWorkspace.CreateFolder("Nested", destination.Id);
+        var source = viewModel.TwoDWorkspace.CreateFolder("Source");
+
+        viewModel.MoveTwoDFolderToFolder(source.Id, nested.Id);
+
+        Assert.Equal(
+            [destination.Id, nested.Id, source.Id],
+            viewModel.TwoDLayerHierarchyItems.Where(item => item.IsFolder).Select(item => item.Id));
+        Assert.Equal(2, viewModel.TwoDLayerHierarchyItems.Single(item => item.Id == source.Id).Depth);
+
+        viewModel.MoveTwoDFolderToFolder(source.Id, null);
+        viewModel.ReorderTwoDHierarchyItem(source.Id, destination.Id);
+
+        Assert.Equal(destination.Id, viewModel.TwoDFolders.Single(item => item.Id == source.Id).ParentFolderId);
+        Assert.Contains(viewModel.TwoDLayerHierarchyItems, item => item.Id == source.Id && item.Depth == 1);
+    }
+
+    [Fact]
     public async Task FillStrokeActions_ExposeAndApplyExistingWorkspaceOperations()
     {
         var viewModel = CreateViewModel();

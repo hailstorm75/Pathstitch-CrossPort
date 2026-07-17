@@ -958,6 +958,39 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void Folders_MoveReorderAndDragDropAreCycleSafeAndUndoable()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var rootLayer = workspace.CreateLayer("Root");
+        var source = workspace.CreateFolder("Source");
+        var child = workspace.CreateFolder("Child", source.Id);
+        var destination = workspace.CreateFolder("Destination");
+        var sibling = workspace.CreateFolder("Sibling");
+
+        Assert.True(workspace.MoveFolderToFolder(source.Id, destination.Id));
+        Assert.Equal(destination.Id, workspace.Folders.Single(item => item.Id == source.Id).ParentFolderId);
+        Assert.False(workspace.MoveFolderToFolder(destination.Id, child.Id));
+        Assert.Null(workspace.Folders.Single(item => item.Id == destination.Id).ParentFolderId);
+
+        Assert.True(workspace.MoveFolderToFolder(source.Id, null));
+        Assert.True(workspace.MoveFolder(sibling.Id, -1));
+        Assert.Equal([source.Id, sibling.Id, destination.Id], workspace.Folders
+            .Where(item => item.ParentFolderId is null)
+            .Select(item => item.Id));
+        Assert.True(workspace.Undo());
+        Assert.Equal([source.Id, destination.Id, sibling.Id], workspace.Folders
+            .Where(item => item.ParentFolderId is null)
+            .Select(item => item.Id));
+        Assert.True(workspace.Redo());
+
+        Assert.True(workspace.ReorderHierarchyItem(rootLayer.Id, child.Id));
+        Assert.Equal(child.Id, workspace.Layers.Single(item => item.Id == rootLayer.Id).ParentFolderId);
+        Assert.True(workspace.Undo());
+        Assert.Null(workspace.Layers.Single(item => item.Id == rootLayer.Id).ParentFolderId);
+        Assert.False(workspace.ReorderHierarchyItem(source.Id, child.Id));
+    }
+
+    [Fact]
     public void Folders_NormalizeInvalidParentAndCycleToRoot()
     {
         var first = new Editor2DLayerFolder("first", "First", "second");

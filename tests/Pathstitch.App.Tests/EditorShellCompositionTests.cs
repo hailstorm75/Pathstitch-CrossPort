@@ -486,6 +486,14 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("OnToggleFolderExpandedClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("OnRenameFolderClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("OnCreateSubfolderClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("DragDrop.AllowDrop=\"True\"", layers, StringComparison.Ordinal);
+        Assert.Contains("OnHierarchyDragStarted", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("OnHierarchyDrop", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("OnMoveFolderUpClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("OnMoveFolderDownClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("OnMoveFolderToRootClicked", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("OnFolderParentChanged", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("OnMoveLayerToRootClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("OnCreateFolderClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("OnDeleteFolderClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Content=\"Stroke to Fill\"", layers + ReadPage("Editor2DInspector.axaml"), StringComparison.Ordinal);
