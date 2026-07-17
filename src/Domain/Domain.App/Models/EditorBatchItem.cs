@@ -23,7 +23,10 @@ public enum EditorBatchItemStatus
     Failed = 3,
 }
 
-public sealed class EditorBatchItem(string filePath) : ObservableObject
+public sealed class EditorBatchItem(
+    string filePath,
+    string? originalSourcePath = null,
+    string? displayFileName = null) : ObservableObject
 {
     private EditorBatchItemStatus _status;
     private string _message = "Ready";
@@ -33,7 +36,13 @@ public sealed class EditorBatchItem(string filePath) : ObservableObject
 
     public string FilePath { get; } = Path.GetFullPath(filePath);
 
-    public string FileName => Path.GetFileName(FilePath);
+    public string OriginalSourcePath { get; } = string.IsNullOrWhiteSpace(originalSourcePath)
+        ? Path.GetFullPath(filePath)
+        : Path.GetFullPath(originalSourcePath);
+
+    public string FileName { get; } = string.IsNullOrWhiteSpace(displayFileName)
+        ? Path.GetFileName(filePath)
+        : Path.GetFileName(displayFileName);
 
     public EditorBatchItemStatus Status
     {

@@ -55,7 +55,8 @@ public sealed class Project3DStateService
                 payload.SavedEditorWorkspaceState,
                 payload.SavedTwoDWorkspaceState,
                 payload.SavedThreeDWorkspaceState,
-                payload.SavedStepTopology);
+                payload.SavedStepTopology,
+                payload.SavedBatchWorkspaceState);
         }
         catch
         {
@@ -116,6 +117,9 @@ public sealed class Project3DStateService
         payload["savedThreeDWorkspaceState"] = state.ThreeDWorkspaceState is null
             ? null
             : JsonSerializer.SerializeToNode(state.ThreeDWorkspaceState, SerializerOptions);
+        payload["savedBatchWorkspaceState"] = state.BatchWorkspaceState is null
+            ? null
+            : JsonSerializer.SerializeToNode(state.BatchWorkspaceState, SerializerOptions);
         payload["savedStepTopology"] = state.StepTopology is null
             ? null
             : JsonSerializer.SerializeToNode(state.StepTopology, SerializerOptions);
@@ -456,6 +460,7 @@ public sealed class Project3DStateService
         [property: JsonPropertyName("savedEditorWorkspaceState")] EditorWorkspaceState? SavedEditorWorkspaceState,
         [property: JsonPropertyName("savedTwoDWorkspaceState")] Editor2DWorkspaceState? SavedTwoDWorkspaceState,
         [property: JsonPropertyName("savedThreeDWorkspaceState")] Editor3DWorkspaceState? SavedThreeDWorkspaceState,
+        [property: JsonPropertyName("savedBatchWorkspaceState")] EditorBatchWorkspaceState? SavedBatchWorkspaceState,
         [property: JsonPropertyName("savedStepTopology")] StepGeometryDocument? SavedStepTopology,
         string? SourceModelPath = null);
 

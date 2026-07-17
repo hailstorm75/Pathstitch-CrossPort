@@ -7,8 +7,12 @@ public sealed partial class EditorPageViewModel
     private void Request3DStatePersistence(TimeSpan? delay = null)
         => MarkDocumentDirty();
 
-    private Project3DState CaptureProjectState()
-        => new(
+    private async Task<Project3DState> CaptureProjectStateAsync(CancellationToken cancellationToken)
+    {
+        var batchWorkspaceState = await _batchWorkspace
+            .CaptureStateAsync(ProjectSession?.ProjectFilePath, cancellationToken)
+            .ConfigureAwait(true);
+        return new(
             ViewportJson: ViewportJsonContent,
             Bodies: Bodies,
             BodyOffsets: BodyOffsets,
@@ -21,7 +25,9 @@ public sealed partial class EditorPageViewModel
             WorkspaceState: BuildPersistedEditorWorkspaceState(),
             TwoDWorkspaceState: BuildPersistedTwoDWorkspaceState(),
             ThreeDWorkspaceState: _threeDWorkspace.CaptureState(),
-            StepTopology: _stepTopology);
+            StepTopology: _stepTopology,
+            BatchWorkspaceState: batchWorkspaceState);
+    }
 
     private async Task PersistDocumentAsync(Project3DState state, CancellationToken cancellationToken)
     {

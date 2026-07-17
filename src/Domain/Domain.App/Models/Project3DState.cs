@@ -13,7 +13,8 @@ public sealed record Project3DState(
     EditorWorkspaceState? WorkspaceState = null,
     Editor2DWorkspaceState? TwoDWorkspaceState = null,
     Editor3DWorkspaceState? ThreeDWorkspaceState = null,
-    StepGeometryDocument? StepTopology = null)
+    StepGeometryDocument? StepTopology = null,
+    EditorBatchWorkspaceState? BatchWorkspaceState = null)
 {
     public static Project3DState Empty { get; } = new(null, [], [], null, null, null, null, null, null, null, Editor2DWorkspaceState.Empty);
 

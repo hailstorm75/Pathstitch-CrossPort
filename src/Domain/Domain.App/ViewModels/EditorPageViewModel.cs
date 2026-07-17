@@ -52,6 +52,7 @@ public sealed partial class EditorPageViewModel(
         referenceImageTraceService,
         referenceImageBackgroundRemovalService);
     private readonly EditorBatchWorkspaceViewModel _batchWorkspace = new();
+    private bool _isBatchWorkspaceDirtyTrackingSubscribed;
     private ProjectSession? _projectSession;
     private string _projectName = string.Empty;
     private string _projectTitle = "Editor";

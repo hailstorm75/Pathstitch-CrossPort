@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -17,12 +19,24 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     private string _outputDirectory = string.Empty;
     private bool _exportSelectedOnly;
     private EditorBatchExportFormat _selectedExportFormat = EditorBatchExportFormat.Dxf;
+    private EditorBatchAction _selectedAction = EditorBatchAction.ValidateProjects;
+    private bool _suppressStateChanged;
+
+    public event Action? StateChanged;
 
     public ObservableCollection<EditorBatchItem> Items { get; } = [];
 
     public IReadOnlyList<EditorBatchAction> AvailableActions { get; } = Enum.GetValues<EditorBatchAction>();
 
-    public EditorBatchAction SelectedAction { get; set; } = EditorBatchAction.ValidateProjects;
+    public EditorBatchAction SelectedAction
+    {
+        get => _selectedAction;
+        set
+        {
+            if (SetProperty(ref _selectedAction, value))
+                NotifyStateChanged();
+        }
+    }
 
     public string InputPath
     {
@@ -33,13 +47,21 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     public bool ContinueOnError
     {
         get => _continueOnError;
-        set => SetProperty(ref _continueOnError, value);
+        set
+        {
+            if (SetProperty(ref _continueOnError, value))
+                NotifyStateChanged();
+        }
     }
 
     public string OutputDirectory
     {
         get => _outputDirectory;
-        set => SetProperty(ref _outputDirectory, value ?? string.Empty);
+        set
+        {
+            if (SetProperty(ref _outputDirectory, value ?? string.Empty))
+                NotifyStateChanged();
+        }
     }
 
     public bool ExportSelectedOnly
@@ -48,7 +70,10 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         set
         {
             if (SetProperty(ref _exportSelectedOnly, value))
+            {
                 OnPropertyChanged(nameof(CanExport));
+                NotifyStateChanged();
+            }
         }
     }
 
@@ -57,7 +82,11 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     public EditorBatchExportFormat SelectedExportFormat
     {
         get => _selectedExportFormat;
-        set => SetProperty(ref _selectedExportFormat, value);
+        set
+        {
+            if (SetProperty(ref _selectedExportFormat, value))
+                NotifyStateChanged();
+        }
     }
 
     public bool IsRunning
@@ -99,6 +128,134 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         private set => SetProperty(ref _summary, value);
     }
 
+    public async Task<EditorBatchWorkspaceState> CaptureStateAsync(
+        string? activeProjectPath,
+        CancellationToken cancellationToken = default)
+    {
+        var itemSnapshots = Items.Select(item => new
+        {
+            item.FileName,
+            item.FilePath,
+            item.OriginalSourcePath,
+            item.Document,
+            item.IsSelected,
+        }).ToArray();
+        var continueOnError = ContinueOnError;
+        var outputDirectory = OutputDirectory;
+        var exportSelectedOnly = ExportSelectedOnly;
+        var selectedExportFormat = SelectedExportFormat;
+        var selectedAction = SelectedAction;
+        var itemStates = new List<EditorBatchItemState>(itemSnapshots.Length);
+        foreach (var item in itemSnapshots)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string? sourceDataBase64 = null;
+            var isActiveProject = !string.IsNullOrWhiteSpace(activeProjectPath)
+                                  && string.Equals(
+                                      Path.GetFullPath(activeProjectPath),
+                                      item.FilePath,
+                                      StringComparison.OrdinalIgnoreCase);
+            if (File.Exists(item.FilePath))
+            {
+                try
+                {
+                    sourceDataBase64 = Convert.ToBase64String(
+                        await ReadEmbeddableSourceAsync(item.FilePath, isActiveProject, cancellationToken)
+                            .ConfigureAwait(false));
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    sourceDataBase64 = null;
+                }
+            }
+
+            itemStates.Add(new(
+                item.FileName,
+                item.OriginalSourcePath,
+                sourceDataBase64,
+                item.Document,
+                item.IsSelected));
+        }
+
+        return new(
+            itemStates,
+            continueOnError,
+            outputDirectory,
+            exportSelectedOnly,
+            selectedExportFormat,
+            selectedAction);
+    }
+
+    public async Task RestoreStateAsync(
+        EditorBatchWorkspaceState? state,
+        string projectFilePath,
+        CancellationToken cancellationToken = default)
+    {
+        _suppressStateChanged = true;
+        try
+        {
+            ClearItems();
+            ContinueOnError = state?.ContinueOnError ?? true;
+            OutputDirectory = state?.OutputDirectory ?? string.Empty;
+            ExportSelectedOnly = state?.ExportSelectedOnly ?? false;
+            var restoredExportFormat = state?.SelectedExportFormat ?? EditorBatchExportFormat.Dxf;
+            SelectedExportFormat = Enum.IsDefined(restoredExportFormat)
+                ? restoredExportFormat
+                : EditorBatchExportFormat.Dxf;
+            var restoredAction = state?.SelectedAction ?? EditorBatchAction.ValidateProjects;
+            SelectedAction = Enum.IsDefined(restoredAction)
+                ? restoredAction
+                : EditorBatchAction.ValidateProjects;
+
+            var cacheRoot = BuildRecoveryDirectory(projectFilePath);
+            var index = 0;
+            foreach (var itemState in state?.Items ?? [])
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (itemState is null)
+                    continue;
+                var fileName = Path.GetFileName(itemState.FileName);
+                if (string.IsNullOrWhiteSpace(fileName) || !IsAcceptedInput(fileName))
+                    continue;
+
+                byte[]? sourceData = null;
+                if (!string.IsNullOrWhiteSpace(itemState.SourceDataBase64))
+                {
+                    try
+                    {
+                        sourceData = Convert.FromBase64String(itemState.SourceDataBase64);
+                    }
+                    catch (FormatException)
+                    {
+                        sourceData = null;
+                    }
+                }
+
+                if (sourceData is null && itemState.Document is null)
+                    continue;
+
+                Directory.CreateDirectory(cacheRoot);
+                var recoveredPath = Path.Combine(cacheRoot, $"{index++:D4}-{Guid.NewGuid():N}-{fileName}");
+                await File.WriteAllBytesAsync(recoveredPath, sourceData ?? [], cancellationToken).ConfigureAwait(true);
+                var originalSourcePath = TryNormalizeOriginalPath(itemState.OriginalSourcePath) ?? recoveredPath;
+                var item = new EditorBatchItem(recoveredPath, originalSourcePath, fileName)
+                {
+                    IsSelected = itemState.IsSelected,
+                    Document = itemState.Document,
+                };
+                item.PropertyChanged += OnItemPropertyChanged;
+                Items.Add(item);
+            }
+
+            Summary = Items.Count == 0 ? "No files queued." : $"{Items.Count} file(s) restored.";
+            NotifyDerivedStateChanged();
+        }
+        finally
+        {
+            _suppressStateChanged = false;
+        }
+    }
+
     public bool AddFile(string path)
         => AddFiles([path]) == 1;
 
@@ -108,8 +265,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         var accepted = paths
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Select(path => Path.GetFullPath(path.Trim().Trim('"')))
-            .Where(path => Path.GetExtension(path).Equals(".stch", StringComparison.OrdinalIgnoreCase)
-                           || IsSupportedDrawingInput(path))
+            .Where(IsAcceptedInput)
             .Where(existing.Add)
             .ToArray();
         if (accepted.Length == 0)
@@ -122,10 +278,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
             Items.Add(item);
         }
         Summary = $"{Items.Count} file(s) queued.";
-        OnPropertyChanged(nameof(CanRun));
-        OnPropertyChanged(nameof(CanExport));
-        OnPropertyChanged(nameof(CanOperateSelected));
-        OnPropertyChanged(nameof(SelectedItemCount));
+        NotifyDerivedStateChanged();
+        NotifyStateChanged();
         return accepted.Length;
     }
 
@@ -152,10 +306,8 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         item.PropertyChanged -= OnItemPropertyChanged;
         Items.Remove(item);
         Summary = Items.Count == 0 ? "No files queued." : $"{Items.Count} file(s) queued.";
-        OnPropertyChanged(nameof(CanRun));
-        OnPropertyChanged(nameof(CanExport));
-        OnPropertyChanged(nameof(CanOperateSelected));
-        OnPropertyChanged(nameof(SelectedItemCount));
+        NotifyDerivedStateChanged();
+        NotifyStateChanged();
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -448,12 +600,83 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                || extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase);
     }
 
-    private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private static bool IsAcceptedInput(string path)
+        => Path.GetExtension(path).Equals(".stch", StringComparison.OrdinalIgnoreCase)
+           || IsSupportedDrawingInput(path);
+
+    private static async Task<byte[]> ReadEmbeddableSourceAsync(
+        string path,
+        bool extractProjectMetadataOnly,
+        CancellationToken cancellationToken)
     {
-        if (e.PropertyName != nameof(EditorBatchItem.IsSelected))
-            return;
+        if (!extractProjectMetadataOnly)
+            return await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            await using var fileStream = File.OpenRead(path);
+            using var archive = new ZipArchive(fileStream, ZipArchiveMode.Read, leaveOpen: false);
+            var projectEntry = archive.GetEntry("project.json");
+            if (projectEntry is null)
+                return await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+            await using var projectStream = projectEntry.Open();
+            using var memory = new MemoryStream();
+            await projectStream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
+            return memory.ToArray();
+        }
+        catch (InvalidDataException)
+        {
+            return await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static string BuildRecoveryDirectory(string projectFilePath)
+    {
+        var fullPath = Path.GetFullPath(projectFilePath);
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fullPath)))[..12];
+        return Path.Combine(Path.GetTempPath(), "Pathstitch-CrossPort", "RecoveredBatchInputs", hash);
+    }
+
+    private static string? TryNormalizeOriginalPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
+            return null;
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+    }
+
+    private void ClearItems()
+    {
+        foreach (var item in Items)
+            item.PropertyChanged -= OnItemPropertyChanged;
+        Items.Clear();
+    }
+
+    private void NotifyDerivedStateChanged()
+    {
+        OnPropertyChanged(nameof(CanRun));
         OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(CanOperateSelected));
         OnPropertyChanged(nameof(SelectedItemCount));
+    }
+
+    private void NotifyStateChanged()
+    {
+        if (!_suppressStateChanged)
+            StateChanged?.Invoke();
+    }
+
+    private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(EditorBatchItem.IsSelected))
+            NotifyDerivedStateChanged();
+        if (e.PropertyName is nameof(EditorBatchItem.IsSelected) or nameof(EditorBatchItem.Document))
+            NotifyStateChanged();
     }
 }

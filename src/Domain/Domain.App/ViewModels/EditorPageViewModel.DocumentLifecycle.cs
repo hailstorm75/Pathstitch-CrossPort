@@ -81,13 +81,13 @@ public sealed partial class EditorPageViewModel
             return;
         }
 
-        var stateBeingSaved = CaptureProjectState();
         var revisionBeingSaved = _documentRevision;
         IsSaving = true;
         ErrorMessage = null;
         StatusText = "Saving project as";
         try
         {
+            var stateBeingSaved = await CaptureProjectStateAsync(CancellationToken.None).ConfigureAwait(true);
             await _project3DStateService.SaveAsAsync(
                 currentSession.ProjectFilePath,
                 targetPath,
@@ -162,7 +162,6 @@ public sealed partial class EditorPageViewModel
         if (!IsDirty)
             return true;
 
-        var stateBeingSaved = CaptureProjectState();
         var revisionBeingSaved = _documentRevision;
         IsSaving = true;
         ErrorMessage = null;
@@ -170,6 +169,7 @@ public sealed partial class EditorPageViewModel
 
         try
         {
+            var stateBeingSaved = await CaptureProjectStateAsync(cancellationToken).ConfigureAwait(true);
             await PersistDocumentAsync(stateBeingSaved, cancellationToken).ConfigureAwait(true);
             _savedDocumentRevision = revisionBeingSaved;
             RefreshDocumentDirtyState();

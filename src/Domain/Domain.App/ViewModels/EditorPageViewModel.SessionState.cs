@@ -124,6 +124,11 @@ public sealed partial class EditorPageViewModel
         }
 
         ProjectSession = session;
+        if (!_isBatchWorkspaceDirtyTrackingSubscribed)
+        {
+            _batchWorkspace.StateChanged += MarkDocumentDirty;
+            _isBatchWorkspaceDirtyTrackingSubscribed = true;
+        }
         _pendingSourceModelPaths = parameters.TryGetValue(EditorNavigationParameterKeys.PendingSourceModelPaths, out var pendingValue)
             ? pendingValue switch
             {
@@ -205,6 +210,9 @@ public sealed partial class EditorPageViewModel
 
             ApplyPersistedTwoDWorkspaceState(state.TwoDWorkspaceState);
             ApplyPersistedEditorWorkspaceState(state.WorkspaceState);
+            await _batchWorkspace
+                .RestoreStateAsync(state.BatchWorkspaceState, ProjectSession.ProjectFilePath, token)
+                .ConfigureAwait(true);
             if (state.ThreeDWorkspaceState is { } threeDState)
             {
                 _threeDWorkspace.RestoreState(threeDState);
