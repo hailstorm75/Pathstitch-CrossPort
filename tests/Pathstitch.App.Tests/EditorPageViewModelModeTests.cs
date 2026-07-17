@@ -86,14 +86,31 @@ public sealed class EditorPageViewModelModeTests
     public void NetLayout_DefaultsConnectedAndExplicitSeparateSelectionRemainsAvailable()
     {
         var viewModel = CreateViewModelForTests();
+        viewModel.UnrollModeIndex = 2;
+        viewModel.SeamControlModeIndex = 1;
+        viewModel.GlobalSeamDecorationIndex = 2;
+        var changes = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
 
         Assert.Equal(0, viewModel.NetLayoutIndex);
         Assert.Equal("Connected Net", viewModel.NetLayoutLabel);
+        Assert.True(viewModel.IsConnectedNetLayout);
+        Assert.False(viewModel.IsSeparatePiecesLayout);
+        Assert.Equal("Connected Net / Spanning Tree / Conformal", viewModel.UnfoldConfigurationSummary);
 
         viewModel.NetLayoutIndex = 1;
 
         Assert.Equal(1, viewModel.NetLayoutIndex);
         Assert.Equal("Separate Pieces", viewModel.NetLayoutLabel);
+        Assert.False(viewModel.IsConnectedNetLayout);
+        Assert.True(viewModel.IsSeparatePiecesLayout);
+        Assert.Equal("Separate Pieces / Conformal", viewModel.UnfoldConfigurationSummary);
+        Assert.Equal(2, viewModel.UnrollModeIndex);
+        Assert.Equal(1, viewModel.SeamControlModeIndex);
+        Assert.Equal(2, viewModel.GlobalSeamDecorationIndex);
+        Assert.Contains(nameof(viewModel.IsConnectedNetLayout), changes);
+        Assert.Contains(nameof(viewModel.IsSeparatePiecesLayout), changes);
+        Assert.Contains(nameof(viewModel.UnfoldConfigurationSummary), changes);
     }
 
     [Fact]

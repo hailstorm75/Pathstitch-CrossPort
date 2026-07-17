@@ -791,6 +791,11 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Connected Net", unfold, StringComparison.Ordinal);
         Assert.Contains("UnrollModeIndex", unfold, StringComparison.Ordinal);
         Assert.Contains("Spanning Tree", unfold, StringComparison.Ordinal);
+        Assert.True(
+            unfold.Split("IsVisible=\"{Binding IsConnectedNetLayout}\"").Length - 1 >= 4,
+            "Unroll, seam control, and seam decoration controls must be connected-net only.");
+        Assert.Contains("IsVisible=\"{Binding IsSeparatePiecesLayout}\"", unfold, StringComparison.Ordinal);
+        Assert.Contains("NATIVE SEPARATE PIECES", unfold, StringComparison.Ordinal);
     }
 
     [Fact]
