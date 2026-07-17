@@ -1541,8 +1541,11 @@ public sealed class DxfPreviewCanvas : Control
         _lastPointerPosition = point.Position;
         _pointerPressPosition = point.Position;
 
-        if (point.Properties.IsMiddleButtonPressed
-            || (point.Properties.IsLeftButtonPressed && ActiveTool == Editor2DTool.Pan))
+        if (DxfCanvasInteractionController.ShouldBeginPan(
+                ActiveTool,
+                point.Properties.IsMiddleButtonPressed,
+                point.Properties.IsLeftButtonPressed,
+                e.KeyModifiers))
         {
             _contextMenu.Close();
             _interactionController.BeginPan(point.Position);

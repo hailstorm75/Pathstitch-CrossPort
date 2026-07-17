@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Avalonia;
+using Avalonia.Input;
 using Domain.App.Models;
 
 namespace Pathstitch.App.Controls;
@@ -65,6 +66,15 @@ internal static class DxfCanvasSelectionInteraction
 internal sealed class DxfCanvasInteractionController(DxfCanvasInteractionSession session)
 {
     private const double ZoomStep = 1.1;
+
+    public static bool ShouldBeginPan(
+        Editor2DTool tool,
+        bool isMiddleButtonPressed,
+        bool isLeftButtonPressed,
+        KeyModifiers modifiers)
+        => isMiddleButtonPressed
+            || (isLeftButtonPressed
+                && (tool == Editor2DTool.Pan || modifiers.HasFlag(KeyModifiers.Alt)));
 
     public DxfCanvasViewportUpdate ApplyWheel(
         Point screenPoint,
