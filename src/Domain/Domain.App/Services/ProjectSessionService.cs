@@ -261,7 +261,21 @@ public sealed class ProjectSessionService(
         if (string.IsNullOrWhiteSpace(projectPath) || !File.Exists(projectPath))
             return null;
 
-        var metadata = await ReadProjectMetadataAsync(projectPath, cancellationToken).ConfigureAwait(false);
+        ProjectMetadata metadata;
+        try
+        {
+            metadata = await ReadProjectMetadataAsync(projectPath, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is JsonException
+                                   or InvalidDataException
+                                   or IOException
+                                   or UnauthorizedAccessException
+                                   or InvalidOperationException)
+        {
+            throw new InvalidOperationException(
+                $"Could not open '{Path.GetFileName(projectPath)}': the file is not a valid Pathstitch project.",
+                ex);
+        }
         var resolvedTemplate = ResolveTemplate(metadata.TemplateId);
         var resolvedName = string.IsNullOrWhiteSpace(metadata.ProjectName)
             ? Path.GetFileNameWithoutExtension(projectPath)
@@ -323,7 +337,7 @@ public sealed class ProjectSessionService(
                 if (projectEntry is not null)
                 {
                     await using var projectStream = projectEntry.Open();
-                    payload = await JsonNode.ParseAsync(projectStream, cancellationToken: cancellationToken).ConfigureAwait(false) as JsonObject;
+                    payload = await ReadProjectJsonObjectAsync(projectStream, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (InvalidDataException)
@@ -335,12 +349,23 @@ public sealed class ProjectSessionService(
         if (payload is null)
         {
             await using var jsonStream = File.OpenRead(projectPath);
-            payload = await JsonNode.ParseAsync(jsonStream, cancellationToken: cancellationToken).ConfigureAwait(false) as JsonObject;
+            payload = await ReadProjectJsonObjectAsync(jsonStream, cancellationToken).ConfigureAwait(false);
         }
 
         return new ProjectMetadata(
             ProjectName: payload?["projectName"]?.GetValue<string>(),
             TemplateId: payload?["templateId"]?.GetValue<string>());
+    }
+
+    private static async Task<JsonObject> ReadProjectJsonObjectAsync(
+        Stream stream,
+        CancellationToken cancellationToken)
+    {
+        var payload = await JsonNode.ParseAsync(
+            stream,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        return payload as JsonObject
+               ?? throw new JsonException("The Pathstitch project root must be a JSON object.");
     }
 
     private static ProjectTemplateDefinition ResolveTemplate(string? templateId)

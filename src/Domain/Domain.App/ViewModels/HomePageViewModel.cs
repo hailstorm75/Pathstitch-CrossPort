@@ -153,9 +153,19 @@ public sealed partial class HomePageViewModel(
         IsLoading = true;
         try
         {
-            var session = await projectSessionService
-                .OpenTemplateProjectAsync()
-                .ConfigureAwait(true);
+            ProjectSession? session;
+            try
+            {
+                session = await projectSessionService
+                    .OpenTemplateProjectAsync()
+                    .ConfigureAwait(true);
+            }
+            catch (InvalidOperationException ex)
+            {
+                HomeStatusText = ex.Message;
+                RefreshRecentProjects();
+                return;
+            }
 
             if (session is not null)
             {
@@ -186,9 +196,19 @@ public sealed partial class HomePageViewModel(
         IsLoading = true;
         try
         {
-            var session = await projectSessionService
-                .OpenRecentProjectAsync(recentProject.ProjectFilePath)
-                .ConfigureAwait(true);
+            ProjectSession? session;
+            try
+            {
+                session = await projectSessionService
+                    .OpenRecentProjectAsync(recentProject.ProjectFilePath)
+                    .ConfigureAwait(true);
+            }
+            catch (InvalidOperationException ex)
+            {
+                HomeStatusText = ex.Message;
+                RefreshRecentProjects();
+                return;
+            }
 
             RefreshRecentProjects();
 
