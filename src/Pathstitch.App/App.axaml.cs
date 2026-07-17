@@ -41,6 +41,8 @@ public partial class App : Application
             .AddSingleton<IProjectFileDialogService, ProjectFileDialogService>()
             .AddSingleton<IUnsavedChangesPromptService, AvaloniaUnsavedChangesPromptService>()
             .AddSingleton<IEditorImportUnitsPromptService, AvaloniaEditorImportUnitsPromptService>()
+            .AddSingleton<IPsdImportService, PackagedPsdImportService>()
+            .AddSingleton<IPsdImportModePromptService, AvaloniaPsdImportModePromptService>()
             .AddSingleton<IProcessLauncher, SystemProcessLauncher>()
             .AddSingleton<IAppUpdateService, AppUpdateService>()
             .AddSingleton<IFileIntegrationService>(services =>

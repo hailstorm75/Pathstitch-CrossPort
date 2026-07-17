@@ -22,7 +22,9 @@ public sealed partial class EditorPageViewModel(
     IReferenceImageBackgroundRemovalService? referenceImageBackgroundRemovalService = null,
     IUnsavedChangesPromptService? unsavedChangesPromptService = null,
     IEditorImportUnitsPromptService? importUnitsPromptService = null,
-    ProjectSessionService? projectSessionService = null) : BasePageViewModel(logger)
+    ProjectSessionService? projectSessionService = null,
+    IPsdImportService? psdImportService = null,
+    IPsdImportModePromptService? psdImportModePromptService = null) : BasePageViewModel(logger)
 {
     private static readonly HashSet<string> SupportedSourceModelExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -48,6 +50,9 @@ public sealed partial class EditorPageViewModel(
         unsavedChangesPromptService ?? CancelUnsavedChangesPromptService.Instance;
     private readonly IEditorImportUnitsPromptService _importUnitsPromptService =
         importUnitsPromptService ?? CancelEditorImportUnitsPromptService.Instance;
+    private readonly IPsdImportService _psdImportService = psdImportService ?? MissingPsdImportService.Instance;
+    private readonly IPsdImportModePromptService _psdImportModePromptService =
+        psdImportModePromptService ?? CancelPsdImportModePromptService.Instance;
     private readonly Editor2DWorkspaceViewModel _twoDWorkspace = new(
         referenceImageTraceService,
         referenceImageBackgroundRemovalService);
@@ -91,6 +96,22 @@ public sealed partial class EditorPageViewModel(
 
         public Task<double?> PromptAsync(Editor2DImportUnitsInfo info, CancellationToken cancellationToken = default)
             => Task.FromResult<double?>(null);
+    }
+
+    private sealed class MissingPsdImportService : IPsdImportService
+    {
+        public static MissingPsdImportService Instance { get; } = new();
+
+        public Task<PsdImportData> ParseAsync(string sourcePath, CancellationToken cancellationToken = default)
+            => Task.FromException<PsdImportData>(new InvalidOperationException("PSD import runtime is unavailable."));
+    }
+
+    private sealed class CancelPsdImportModePromptService : IPsdImportModePromptService
+    {
+        public static CancelPsdImportModePromptService Instance { get; } = new();
+
+        public Task<PsdImportMode?> PromptAsync(PsdImportData import, CancellationToken cancellationToken = default)
+            => Task.FromResult<PsdImportMode?>(null);
     }
     public event Action<string>? ViewportScriptRequested
     {

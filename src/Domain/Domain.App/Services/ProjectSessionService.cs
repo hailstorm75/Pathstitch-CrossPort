@@ -36,6 +36,7 @@ public sealed class ProjectSessionService(
         ".avif",
         ".heic",
         ".heif",
+        ".psd",
     };
 
     private static readonly ProjectTemplateDefinition[] Templates =

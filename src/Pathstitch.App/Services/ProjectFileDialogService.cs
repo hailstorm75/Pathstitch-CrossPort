@@ -24,12 +24,12 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
 
     private static readonly FilePickerFileType WorkspaceFileType = new("Pathstitch Workspace")
     {
-        Patterns = ["*.stch", "*.dxf", "*.svg", "*.pdf", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp", "*.tif", "*.tiff", "*.avif", "*.heic", "*.heif", "*.step", "*.stp", "*.obj", "*.stl"],
+        Patterns = ["*.stch", "*.dxf", "*.svg", "*.pdf", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp", "*.tif", "*.tiff", "*.avif", "*.heic", "*.heif", "*.psd", "*.step", "*.stp", "*.obj", "*.stl"],
     };
 
     private static readonly FilePickerFileType ReferenceImageFileType = new("Reference Image")
     {
-        Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp", "*.tif", "*.tiff", "*.avif", "*.heic", "*.heif"],
+        Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp", "*.tif", "*.tiff", "*.avif", "*.heic", "*.heif", "*.psd"],
     };
 
     private static readonly FilePickerFileType DxfFileType = new("DXF Drawing")

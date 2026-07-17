@@ -13,7 +13,7 @@ public sealed partial class EditorPageViewModel
     };
     private static readonly HashSet<string> SupportedImportedImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tif", ".tiff", ".avif", ".heic", ".heif",
+        ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tif", ".tiff", ".avif", ".heic", ".heif", ".psd",
     };
     private readonly SemaphoreSlim _importFilesGate = new(1, 1);
 
@@ -285,6 +285,11 @@ public sealed partial class EditorPageViewModel
         var importedCount = 0;
         foreach (var imagePath in imagePaths)
         {
+            if (Path.GetExtension(imagePath).Equals(".psd", StringComparison.OrdinalIgnoreCase))
+            {
+                importedCount += await ImportPsdAsync(imagePath, cancellationToken).ConfigureAwait(true);
+                continue;
+            }
             try
             {
                 var bytes = await File.ReadAllBytesAsync(imagePath, cancellationToken).ConfigureAwait(true);
@@ -308,9 +313,34 @@ public sealed partial class EditorPageViewModel
         if (importedCount > 0)
         {
             RefreshTwoDLayerFacade();
-            StatusText = $"Imported {importedCount} reference image(s)";
+            await SetActiveEditorModeAsync(EditorMode.TwoD, CancellationToken.None).ConfigureAwait(true);
+            StatusText = $"Imported {importedCount} image file(s)";
             MarkDocumentDirty();
         }
         return importedCount;
+    }
+
+    private async Task<int> ImportPsdAsync(string psdPath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var import = await _psdImportService.ParseAsync(psdPath, cancellationToken).ConfigureAwait(true);
+            var mode = await _psdImportModePromptService.PromptAsync(import, cancellationToken).ConfigureAwait(true);
+            if (mode is null)
+                return 0;
+            var result = _twoDWorkspace.ImportPsd(import, mode.Value);
+            if (!CompleteTwoDWorkspaceOperation(result))
+                return 0;
+            return 1;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Could not import {Path.GetFileName(psdPath)}: {ex.Message}";
+            return 0;
+        }
     }
 }
