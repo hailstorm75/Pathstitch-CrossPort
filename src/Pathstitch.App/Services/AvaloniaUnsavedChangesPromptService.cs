@@ -9,7 +9,7 @@ using Pathstitch.App.Dialogs;
 
 namespace Pathstitch.App.Services;
 
-public sealed class AvaloniaUnsavedChangesPromptService : IUnsavedChangesPromptService
+public sealed class AvaloniaUnsavedChangesPromptService(IDocumentWindowContext? windowContext = null) : IUnsavedChangesPromptService
 {
     public async Task<UnsavedChangesPromptResult> PromptToSaveAsync(
         string documentName,
@@ -24,8 +24,9 @@ public sealed class AvaloniaUnsavedChangesPromptService : IUnsavedChangesPromptS
                 () => PromptToSaveAsync(documentName, cancellationToken));
         }
 
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop
-            || desktop.MainWindow is not Window owner)
+        var owner = windowContext?.Owner
+            ?? (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (owner is null)
         {
             return UnsavedChangesPromptResult.Cancel;
         }

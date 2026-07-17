@@ -10,7 +10,7 @@ using Pathstitch.App.Dialogs;
 
 namespace Pathstitch.App.Services;
 
-public sealed class AvaloniaPsdImportModePromptService : IPsdImportModePromptService
+public sealed class AvaloniaPsdImportModePromptService(IDocumentWindowContext? windowContext = null) : IPsdImportModePromptService
 {
     public async Task<PsdImportMode?> PromptAsync(PsdImportData import, CancellationToken cancellationToken = default)
     {
@@ -18,8 +18,9 @@ public sealed class AvaloniaPsdImportModePromptService : IPsdImportModePromptSer
             return null;
         if (!Dispatcher.UIThread.CheckAccess())
             return await Dispatcher.UIThread.InvokeAsync(() => PromptAsync(import, cancellationToken));
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop
-            || desktop.MainWindow is not Window owner)
+        var owner = windowContext?.Owner
+            ?? (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (owner is null)
             return null;
         var dialog = new PsdImportModeDialog();
         dialog.SetImport(import);

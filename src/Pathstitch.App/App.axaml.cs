@@ -23,6 +23,8 @@ namespace Pathstitch.App;
 public partial class App : Application
 {
     private IServiceProvider? _services;
+    private DesktopDocumentWindowManager? _documentWindowManager;
+    private DesktopDocumentWindowCoordinator? _documentWindowCoordinator;
     private DesktopFileOpenRouter? _fileOpenRouter;
     private IActivatableLifetime? _activatableLifetime;
     private string? _fileActivationAcceptanceOutput;
@@ -36,13 +38,19 @@ public partial class App : Application
             .AddPages()
             .AddTelemetry()
             .AddSingleton<RecentProjectsService>()
-            .AddSingleton<ProjectSessionService>()
+            .AddScoped<ProjectSessionService>()
             .AddSingleton<Project3DStateService>()
-            .AddSingleton<IProjectFileDialogService, ProjectFileDialogService>()
-            .AddSingleton<IUnsavedChangesPromptService, AvaloniaUnsavedChangesPromptService>()
-            .AddSingleton<IEditorImportUnitsPromptService, AvaloniaEditorImportUnitsPromptService>()
+            .AddScoped<IDocumentWindowContext, DocumentWindowContext>()
+            .AddScoped<IMessenger>(_ => new StrongReferenceMessenger())
+            .AddSingleton<DesktopDocumentWindowCoordinator>()
+            .AddScoped<DesktopDocumentWindowService>()
+            .AddScoped<IDocumentWindowService>(services =>
+                services.GetRequiredService<DesktopDocumentWindowService>())
+            .AddScoped<IProjectFileDialogService, ProjectFileDialogService>()
+            .AddScoped<IUnsavedChangesPromptService, AvaloniaUnsavedChangesPromptService>()
+            .AddScoped<IEditorImportUnitsPromptService, AvaloniaEditorImportUnitsPromptService>()
             .AddSingleton<IPsdImportService, PackagedPsdImportService>()
-            .AddSingleton<IPsdImportModePromptService, AvaloniaPsdImportModePromptService>()
+            .AddScoped<IPsdImportModePromptService, AvaloniaPsdImportModePromptService>()
             .AddSingleton<IProcessLauncher, SystemProcessLauncher>()
             .AddSingleton<IAppUpdateService, AppUpdateService>()
             .AddSingleton<IFileIntegrationService>(services =>
@@ -60,7 +68,7 @@ public partial class App : Application
             .AddSingleton<IReferenceImageBackgroundRemovalService, AvaloniaReferenceImageBackgroundRemovalService>()
             .AddSingleton<IEditor2DGeometryKernelService, OpenGeometryEditor2DGeometryKernelService>()
             .AddSingleton<IEditor3DOperationService, OpenGeometryEditor3DOperationService>()
-            .AddSingleton<INavigationManager, NavigationManager>();
+            .AddScoped<INavigationManager, NavigationManager>();
 
         _services = serviceCollection.BuildServiceProvider();
         Ioc.Default.ConfigureServices(_services);
@@ -72,7 +80,11 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindowShell(Ioc.Default);
+            _documentWindowCoordinator = _services!.GetRequiredService<DesktopDocumentWindowCoordinator>();
+            _documentWindowManager = new DesktopDocumentWindowManager(_services!, desktop);
+            _documentWindowCoordinator.Attach(_documentWindowManager.OpenDocumentAsync);
+            desktop.MainWindow = _documentWindowManager.CreateWelcomeWindow();
+            var windowServices = _documentWindowManager.WelcomeServices!;
             desktop.Exit += (_, _) => DisposeServices();
 
             var logger = _services?.GetService<ILogger<App>>();
@@ -82,8 +94,6 @@ public partial class App : Application
             _activatableLifetime = TryGetFeature(typeof(IActivatableLifetime)) as IActivatableLifetime;
             if (_activatableLifetime is not null)
                 _activatableLifetime.Activated += OnApplicationActivated;
-
-            WeakReferenceMessenger.Default.Send(new NavigationChangeRequestMessage(NavigationAddressBook.HomePage));
 
             var startupFiles = NormalizeStartupFileArguments(desktop.Args);
             _fileOpenRouter.Enqueue(startupFiles);
@@ -105,7 +115,7 @@ public partial class App : Application
                 desktop.MainWindow.Opened += async (_, _) =>
                 {
                     var exitCode = await MacOSPackagedAcceptance.RunAsync(
-                        _services,
+                        windowServices,
                         desktop.MainWindow,
                         acceptanceOutput).ConfigureAwait(true);
                     desktop.Shutdown(exitCode);
@@ -144,29 +154,10 @@ public partial class App : Application
         if (_services is null)
             return;
 
-        desktop.MainWindow?.Show();
-        desktop.MainWindow?.Activate();
-        var mainWindow = desktop.MainWindow as MainWindowShell;
-        if (mainWindow is
-            {
-                CurrentPageViewModel: Domain.App.ViewModels.EditorPageViewModel editorPageViewModel,
-            })
-        {
-            await editorPageViewModel.OpenActivatedFilesAsync(filePaths).ConfigureAwait(true);
-        }
-        else
-        {
-            var currentHomePage = mainWindow?.CurrentPageViewModel
-                as Domain.App.ViewModels.HomePageViewModel;
-            var homePageViewModel = currentHomePage
-                ?? _services.GetRequiredKeyedService<INavigablePageViewModel>(NavigationAddressBook.HomePage)
-                    as Domain.App.ViewModels.HomePageViewModel;
-            if (homePageViewModel is not null)
-                await homePageViewModel.OpenFilesAsync(filePaths).ConfigureAwait(true);
-        }
-
-        if (mainWindow is not null)
-            await mainWindow.WhenNavigationIdleAsync().ConfigureAwait(true);
+        if (_documentWindowManager is null)
+            return;
+        await _documentWindowManager.OpenFilesAsync(filePaths).ConfigureAwait(true);
+        var mainWindow = _documentWindowManager.ActiveWindow;
 
         if (!string.IsNullOrWhiteSpace(_fileActivationAcceptanceOutput))
         {
@@ -195,6 +186,10 @@ public partial class App : Application
         _fileOpenRouter?.Dispose();
         _fileOpenRouter = null;
         _fileActivationAcceptanceOutput = null;
+        _documentWindowCoordinator?.Detach();
+        _documentWindowCoordinator = null;
+        _documentWindowManager?.Dispose();
+        _documentWindowManager = null;
         (_services as IDisposable)?.Dispose();
         _services = null;
     }

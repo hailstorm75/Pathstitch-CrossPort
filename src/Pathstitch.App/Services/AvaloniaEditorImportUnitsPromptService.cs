@@ -10,7 +10,7 @@ using Pathstitch.App.Dialogs;
 
 namespace Pathstitch.App.Services;
 
-public sealed class AvaloniaEditorImportUnitsPromptService : IEditorImportUnitsPromptService
+public sealed class AvaloniaEditorImportUnitsPromptService(IDocumentWindowContext? windowContext = null) : IEditorImportUnitsPromptService
 {
     public async Task<double?> PromptAsync(Editor2DImportUnitsInfo info, CancellationToken cancellationToken = default)
     {
@@ -20,8 +20,9 @@ public sealed class AvaloniaEditorImportUnitsPromptService : IEditorImportUnitsP
         if (!Dispatcher.UIThread.CheckAccess())
             return await Dispatcher.UIThread.InvokeAsync(() => PromptAsync(info, cancellationToken));
 
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop
-            || desktop.MainWindow is not Window owner)
+        var owner = windowContext?.Owner
+            ?? (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (owner is null)
             return null;
 
         var dialog = new EditorImportUnitsDialog();

@@ -12,7 +12,9 @@ namespace Domain.App.ViewModels;
 public sealed partial class HomePageViewModel(
     ILogger<HomePageViewModel> logger,
     ProjectSessionService projectSessionService,
-    IGeometryKernelDescriptorProvider geometryKernelDescriptorProvider) : BasePageViewModel(logger)
+    IGeometryKernelDescriptorProvider geometryKernelDescriptorProvider,
+    IMessenger? messenger = null,
+    IDocumentWindowService? documentWindowService = null) : BasePageViewModel(logger, messenger)
 {
     private readonly GeometryKernelDescriptor _geometryKernel = geometryKernelDescriptorProvider.Current;
     private ProjectTemplateDefinition _selectedTemplate = new(
@@ -135,7 +137,7 @@ public sealed partial class HomePageViewModel(
             if (session is not null)
             {
                 RefreshRecentProjects();
-                StartEditorSession(new ProjectLaunchRequest(session, []));
+                await StartEditorSessionAsync(new ProjectLaunchRequest(session, [])).ConfigureAwait(true);
             }
         }
         finally
@@ -170,7 +172,7 @@ public sealed partial class HomePageViewModel(
             if (session is not null)
             {
                 RefreshRecentProjects();
-                StartEditorSession(new ProjectLaunchRequest(session, []));
+                await StartEditorSessionAsync(new ProjectLaunchRequest(session, [])).ConfigureAwait(true);
             }
         }
         finally
@@ -213,7 +215,7 @@ public sealed partial class HomePageViewModel(
             RefreshRecentProjects();
 
             if (session is not null)
-                StartEditorSession(new ProjectLaunchRequest(session, []));
+                await StartEditorSessionAsync(new ProjectLaunchRequest(session, [])).ConfigureAwait(true);
         }
         finally
         {
@@ -376,7 +378,7 @@ public sealed partial class HomePageViewModel(
                 _ => $"Opening {launchRequest.Session.ProjectName}.",
             };
 
-            StartEditorSession(launchRequest);
+            await StartEditorSessionAsync(launchRequest).ConfigureAwait(true);
         }
         finally
         {
@@ -384,10 +386,16 @@ public sealed partial class HomePageViewModel(
         }
     }
 
-    private void StartEditorSession(ProjectLaunchRequest launchRequest)
+    private async Task StartEditorSessionAsync(ProjectLaunchRequest launchRequest)
     {
         var session = launchRequest.Session;
         CurrentSession = session;
+
+        if (documentWindowService is not null)
+        {
+            await documentWindowService.OpenDocumentAsync(launchRequest).ConfigureAwait(true);
+            return;
+        }
 
         var parameters = new Dictionary<string, object>
         {
@@ -401,7 +409,7 @@ public sealed partial class HomePageViewModel(
         if (launchRequest.PendingReferenceImagePaths.Count > 0)
             parameters[EditorNavigationParameterKeys.PendingReferenceImagePaths] = launchRequest.PendingReferenceImagePaths;
 
-        WeakReferenceMessenger.Default.Send(new NavigationChangeRequestMessage(
+        Messenger.Send(new NavigationChangeRequestMessage(
             NavigationAddressBook.EditorPage,
             parameters));
     }

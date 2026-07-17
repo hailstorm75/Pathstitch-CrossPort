@@ -65,6 +65,17 @@ public sealed partial class EditorPageViewModel
         {
             StatusText = statusText;
             ProjectSession? session;
+            if (_documentWindowService is not null)
+            {
+                session = await prepareSession(service).ConfigureAwait(true);
+                if (session is null)
+                    return;
+                await _documentWindowService
+                    .OpenDocumentAsync(ProjectLaunchRequest.ForProject(session), cancellationToken)
+                    .ConfigureAwait(true);
+                StatusText = "Opened project in a new window";
+                return;
+            }
             if (prepareBeforeConfirmation)
             {
                 session = await prepareSession(service).ConfigureAwait(true);
@@ -84,7 +95,7 @@ public sealed partial class EditorPageViewModel
             var navigationRequest = CreateEditorNavigationRequest(ProjectLaunchRequest.ForProject(session));
             service.ActivateSession(session);
             _preapprovedNavigationRequest = navigationRequest;
-            WeakReferenceMessenger.Default.Send(navigationRequest);
+            Messenger.Send(navigationRequest);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

@@ -150,7 +150,7 @@ public sealed partial class EditorPageViewModel
                 _ => [],
             }
             : [];
-        WeakReferenceMessenger.Default.Register<PreviewApplicationClosingMessage>(this, OnPreviewApplicationClosing);
+        Messenger.Register<PreviewApplicationClosingMessage>(this, OnPreviewApplicationClosing);
         return ValueTask.FromResult(true);
     }
 

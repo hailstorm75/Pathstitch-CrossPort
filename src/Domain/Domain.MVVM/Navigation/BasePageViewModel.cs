@@ -6,9 +6,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Domain.MVVM.Navigation;
 
-public abstract partial class BasePageViewModel(ILogger<BasePageViewModel> logger) : ObservableValidator, INavigablePageViewModel
+public abstract partial class BasePageViewModel(
+    ILogger<BasePageViewModel> logger,
+    IMessenger? messenger = null) : ObservableValidator, INavigablePageViewModel
 {
     private readonly CancellationTokenSource _pageLeaveCancellationSource = new();
+    protected IMessenger Messenger { get; } = messenger ?? WeakReferenceMessenger.Default;
 
     private bool _isLoaded;
     
@@ -66,8 +69,8 @@ public abstract partial class BasePageViewModel(ILogger<BasePageViewModel> logge
         
         logger.LogInformation("Configuring parameters completed in {Time}ms", Stopwatch.GetElapsedTime(start));
 
-        WeakReferenceMessenger.Default.Register<BeforeNavigationChangeMessage>(this, BeforePageLeave);
-        WeakReferenceMessenger.Default.Register<NavigationChangeRequestMessage>(this, PageLeaving);
+        Messenger.Register<BeforeNavigationChangeMessage>(this, BeforePageLeave);
+        Messenger.Register<NavigationChangeRequestMessage>(this, PageLeaving);
 
         return true;
     }
@@ -82,6 +85,6 @@ public abstract partial class BasePageViewModel(ILogger<BasePageViewModel> logge
 
     public void Dispose()
     {
-        WeakReferenceMessenger.Default.UnregisterAll(this);
+        Messenger.UnregisterAll(this);
     }
 }

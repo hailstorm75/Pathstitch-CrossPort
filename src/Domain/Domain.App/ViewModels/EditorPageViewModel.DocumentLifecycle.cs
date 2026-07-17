@@ -144,14 +144,19 @@ public sealed partial class EditorPageViewModel
         if (!await SaveDocumentCoreAsync(CancellationToken.None).ConfigureAwait(true))
             return;
 
-        NavigateHome();
+        if (_documentWindowService is not null)
+            await _documentWindowService.CloseCurrentDocumentAsync().ConfigureAwait(true);
+        else
+            NavigateHome();
     }
 
     [RelayCommand(CanExecute = nameof(CanCloseDocument))]
-    public Task CloseDocumentAsync()
+    public async Task CloseDocumentAsync()
     {
-        NavigateHome();
-        return Task.CompletedTask;
+        if (_documentWindowService is not null)
+            await _documentWindowService.CloseCurrentDocumentAsync().ConfigureAwait(true);
+        else
+            NavigateHome();
     }
 
     private async Task<bool> SaveDocumentCoreAsync(CancellationToken cancellationToken)
@@ -288,7 +293,7 @@ public sealed partial class EditorPageViewModel
     }
 
     private void NavigateHome()
-        => WeakReferenceMessenger.Default.Send(
+        => Messenger.Send(
             new NavigationChangeRequestMessage(NavigationAddressBook.HomePage));
 
     private void MarkDocumentDirty()

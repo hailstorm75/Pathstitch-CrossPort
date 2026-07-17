@@ -2,6 +2,7 @@ using Domain.App.Models;
 using Domain.App.Navigation;
 using Domain.App.Services;
 using Domain.MVVM.Navigation;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using System.Runtime.CompilerServices;
 
@@ -24,7 +25,9 @@ public sealed partial class EditorPageViewModel(
     IEditorImportUnitsPromptService? importUnitsPromptService = null,
     ProjectSessionService? projectSessionService = null,
     IPsdImportService? psdImportService = null,
-    IPsdImportModePromptService? psdImportModePromptService = null) : BasePageViewModel(logger)
+    IPsdImportModePromptService? psdImportModePromptService = null,
+    IMessenger? messenger = null,
+    IDocumentWindowService? documentWindowService = null) : BasePageViewModel(logger, messenger)
 {
     private static readonly HashSet<string> SupportedSourceModelExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -46,6 +49,7 @@ public sealed partial class EditorPageViewModel(
     private readonly IProjectFileDialogService _projectFileDialogService = projectFileDialogService;
     private readonly Project3DStateService _project3DStateService = project3DStateService;
     private readonly ProjectSessionService? _projectSessionService = projectSessionService;
+    private readonly IDocumentWindowService? _documentWindowService = documentWindowService;
     private readonly IUnsavedChangesPromptService _unsavedChangesPromptService =
         unsavedChangesPromptService ?? CancelUnsavedChangesPromptService.Instance;
     private readonly IEditorImportUnitsPromptService _importUnitsPromptService =

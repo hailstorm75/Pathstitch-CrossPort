@@ -120,7 +120,7 @@ public sealed partial class EditorPageViewModel
         });
         service.ActivateSession(session);
         _preapprovedNavigationRequest = request;
-        WeakReferenceMessenger.Default.Send(request);
+        Messenger.Send(request);
     }
 
     private async Task<int> ImportTwoDDrawingsAsync(

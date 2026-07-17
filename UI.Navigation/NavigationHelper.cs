@@ -12,6 +12,7 @@ public static class NavigationHelper
 		this INavigationManager manager,
 		NavigationChangeRequestMessage request,
 		ContentControl container,
+		IMessenger messenger,
 		ILogger logger,
 		CancellationToken cancellationToken = default)
 	{
@@ -20,7 +21,7 @@ public static class NavigationHelper
 		try
 		{
 			var message = new BeforeNavigationChangeMessage(request);
-			var cancelAwaiter = await WeakReferenceMessenger.Default.Send(message);
+			var cancelAwaiter = await messenger.Send(message);
 
 			cancellationToken.Register(() => cancelAwaiter.TrySetResult(true));
 

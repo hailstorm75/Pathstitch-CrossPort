@@ -10,7 +10,7 @@ using Domain.App.Services;
 
 namespace Pathstitch.App.Services;
 
-public sealed class ProjectFileDialogService : IProjectFileDialogService
+public sealed class ProjectFileDialogService(IDocumentWindowContext? windowContext = null) : IProjectFileDialogService
 {
     private static readonly FilePickerFileType ProjectFileType = new("Pathstitch Project")
     {
@@ -257,6 +257,7 @@ public sealed class ProjectFileDialogService : IProjectFileDialogService
         return result?.TryGetLocalPath();
     }
 
-    private static TopLevel? GetTopLevel()
-        => (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+    private TopLevel? GetTopLevel()
+        => windowContext?.Owner
+           ?? (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
 }
