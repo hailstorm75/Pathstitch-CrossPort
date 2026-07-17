@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,6 +11,8 @@ namespace Domain.App.Services;
 
 public sealed class Project3DStateService
 {
+    private static readonly DateTimeOffset AppleReferenceDate = new(2001, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -57,7 +60,7 @@ public sealed class Project3DStateService
                 payload.SavedThreeDWorkspaceState,
                 payload.SavedStepTopology,
                 payload.SavedBatchWorkspaceState,
-                payload.SavedActivityLog ?? [],
+                payload.SavedActivityLog ?? ConvertLegacyActivityLog(payload.LogEntries),
                 payload.SavedLearnModeEnabled ?? payload.IsLearnModeEnabled ?? true);
         }
         catch
@@ -422,6 +425,60 @@ public sealed class Project3DStateService
         }
     }
 
+    private static IReadOnlyList<EditorActivityEntry> ConvertLegacyActivityLog(
+        IReadOnlyList<LegacyActivityEntryPayload>? entries)
+    {
+        if (entries is null || entries.Count == 0)
+            return [];
+
+        var converted = new List<EditorActivityEntry>(entries.Count);
+        foreach (var entry in entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry.Id)
+                || entry.Action is null
+                || entry.Details is null
+                || !TryParseLegacyActivityTimestamp(entry.Timestamp, out var timestamp))
+            {
+                continue;
+            }
+
+            converted.Add(new EditorActivityEntry(
+                entry.Id,
+                timestamp,
+                entry.Action,
+                entry.Details,
+                entry.LayerAffected));
+        }
+
+        return converted;
+    }
+
+    private static bool TryParseLegacyActivityTimestamp(JsonElement value, out DateTimeOffset timestamp)
+    {
+        timestamp = default;
+        try
+        {
+            if (value.ValueKind == JsonValueKind.Number
+                && value.TryGetDouble(out var seconds)
+                && double.IsFinite(seconds))
+            {
+                timestamp = AppleReferenceDate.AddSeconds(seconds);
+                return true;
+            }
+
+            return value.ValueKind == JsonValueKind.String
+                && DateTimeOffset.TryParse(
+                    value.GetString(),
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                    out timestamp);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return false;
+        }
+    }
+
     private static string BuildEditableGeneratedOutputPath(string projectFilePath)
     {
         var cacheFolderName = GetProjectCacheFolderName(projectFilePath);
@@ -496,9 +553,17 @@ public sealed class Project3DStateService
         [property: JsonPropertyName("savedBatchWorkspaceState")] EditorBatchWorkspaceState? SavedBatchWorkspaceState,
         [property: JsonPropertyName("savedStepTopology")] StepGeometryDocument? SavedStepTopology,
         [property: JsonPropertyName("savedActivityLog")] IReadOnlyList<EditorActivityEntry>? SavedActivityLog,
+        [property: JsonPropertyName("logEntries")] IReadOnlyList<LegacyActivityEntryPayload>? LogEntries,
         [property: JsonPropertyName("savedLearnModeEnabled")] bool? SavedLearnModeEnabled,
         [property: JsonPropertyName("isLearnModeEnabled")] bool? IsLearnModeEnabled,
         string? SourceModelPath = null);
+
+    private sealed record LegacyActivityEntryPayload(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("timestamp")] JsonElement Timestamp,
+        [property: JsonPropertyName("action")] string? Action,
+        [property: JsonPropertyName("details")] string? Details,
+        [property: JsonPropertyName("layerAffected")] string? LayerAffected);
 
     private sealed record BodyOffsetPayload(
         [property: JsonPropertyName("bodyIndex")] int BodyIndex,
