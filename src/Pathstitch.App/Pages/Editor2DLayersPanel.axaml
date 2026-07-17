@@ -310,14 +310,27 @@
             <TextBlock FontSize="11" FontWeight="SemiBold" Text="IMAGE TRACING" />
             <TextBlock FontSize="9" Foreground="{StaticResource SecondaryTextBrush}" Text="Preview contours draw in cyan." />
             <CheckBox Content="Silhouette only" IsChecked="{Binding TwoDReferenceTraceSilhouetteOnly, Mode=TwoWay}" />
-            <TextBlock FontSize="10" Text="Threshold" />
-            <Slider Minimum="0" Maximum="1" TickFrequency="0.05" Value="{Binding TwoDReferenceTraceThreshold, Mode=TwoWay}" />
-            <TextBlock FontSize="10" Text="Tolerance / detail" />
-            <Slider Minimum="1" Maximum="100" TickFrequency="1" Value="{Binding TwoDReferenceTraceTolerance, Mode=TwoWay}" />
-            <TextBlock FontSize="10" Text="Corner smoothness" />
-            <Slider Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding TwoDReferenceTraceCornerSmoothness, Mode=TwoWay}" />
-            <TextBlock FontSize="10" Text="Path optimization" />
-            <Slider Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding TwoDReferenceTracePathOptimization, Mode=TwoWay}" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock FontSize="10" Text="Threshold" />
+              <TextBlock Grid.Column="1" FontFamily="Cascadia Mono,Menlo,Consolas" FontSize="10" Text="{Binding TwoDReferenceTraceThreshold, StringFormat='{}{0:P0}'}" />
+            </Grid>
+            <Slider Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.1" TickFrequency="0.05" Value="{Binding TwoDReferenceTraceThreshold, Mode=TwoWay}" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock FontSize="10" Text="Tolerance / detail" />
+              <TextBlock Grid.Column="1" FontFamily="Cascadia Mono,Menlo,Consolas" FontSize="10" Text="{Binding TwoDReferenceTraceTolerance, StringFormat='{}{0:0}'}" />
+            </Grid>
+            <Slider Minimum="1" Maximum="100" SmallChange="1" LargeChange="10" TickFrequency="1" Value="{Binding TwoDReferenceTraceTolerance, Mode=TwoWay}" />
+            <TextBlock FontSize="8" Foreground="{StaticResource MutedTextBrush}" Text="Use Left/Right arrows to adjust by 1." />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock FontSize="10" Text="Corner smoothness" />
+              <TextBlock Grid.Column="1" FontFamily="Cascadia Mono,Menlo,Consolas" FontSize="10" Text="{Binding TwoDReferenceTraceCornerSmoothness, StringFormat='{}{0:0}'}" />
+            </Grid>
+            <Slider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" TickFrequency="1" Value="{Binding TwoDReferenceTraceCornerSmoothness, Mode=TwoWay}" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock FontSize="10" Text="Path optimization" />
+              <TextBlock Grid.Column="1" FontFamily="Cascadia Mono,Menlo,Consolas" FontSize="10" Text="{Binding TwoDReferenceTracePathOptimization, StringFormat='{}{0:0}'}" />
+            </Grid>
+            <Slider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" TickFrequency="1" Value="{Binding TwoDReferenceTracePathOptimization, Mode=TwoWay}" />
             <TextBlock FontSize="9" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDReferenceTraceSummary}" />
             <ProgressBar
               AutomationProperties.AutomationId="editor.reference.trace.progress"
