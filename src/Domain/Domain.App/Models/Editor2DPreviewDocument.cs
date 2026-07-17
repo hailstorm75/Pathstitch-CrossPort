@@ -58,7 +58,9 @@ public sealed record Editor2DPreviewPath(
     bool IsUnderline = false,
     IReadOnlyList<Editor2DBezierAnchor>? BezierAnchors = null,
     bool IsFilled = false,
-    bool IsConstruction = false);
+    bool IsConstruction = false,
+    string? SourceLayerName = null,
+    string? SourceEntityHandle = null);
 
 public sealed record Editor2DMeasurement(
     string Id,

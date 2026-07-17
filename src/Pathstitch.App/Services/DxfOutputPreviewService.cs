@@ -69,7 +69,9 @@ public sealed class DxfOutputPreviewService(IPdfVectorImportService? pdfVectorIm
                     Radius: path.Radius,
                     StartAngleDegrees: path.StartAngleDegrees,
                     EndAngleDegrees: path.EndAngleDegrees,
-                    IsFilled: path.IsFilled))
+                    IsFilled: path.IsFilled,
+                    SourceLayerName: path.LayerName,
+                    SourceEntityHandle: path.EntityHandle))
                     .ToArray(),
                 hasBounds
                     ? new Editor2DBounds(minX, minY, maxX, maxY)

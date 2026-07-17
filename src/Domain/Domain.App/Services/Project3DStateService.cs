@@ -506,59 +506,115 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
     {
         if (string.IsNullOrWhiteSpace(payload.DxfDataBase64)
             && string.IsNullOrWhiteSpace(payload.RefImageBase64)
+            && payload.SavedLayers is not { Count: > 0 }
+            && payload.Measurements is not { Count: > 0 }
             && payload.CanvasScale == 0.0
             && payload.CanvasOffsetX == 0.0
             && payload.CanvasOffsetY == 0.0)
             return null;
 
+        var workspaceDocument = document ?? Editor2DWorkspaceState.Empty.Document;
         var layers = new List<Editor2DLayer>();
-        if (!string.IsNullOrWhiteSpace(payload.RefImageBase64))
+        foreach (var legacyLayer in payload.SavedLayers ?? [])
         {
-            try
+            if (string.IsNullOrWhiteSpace(legacyLayer.Id))
+                continue;
+
+            Editor2DReferenceImage? referenceImage = null;
+            if (legacyLayer.IsReferenceImageLayer)
+                referenceImage = ConvertLegacyReferenceImage(legacyLayer);
+            if (legacyLayer.IsReferenceImageLayer && referenceImage is null)
+                continue;
+
+            layers.Add(new Editor2DLayer(
+                legacyLayer.Id,
+                string.IsNullOrWhiteSpace(legacyLayer.Name) ? $"Layer {layers.Count + 1}" : legacyLayer.Name,
+                legacyLayer.IsReferenceImageLayer
+                    ? []
+                    : workspaceDocument.Paths
+                        .Where(path => string.Equals(path.SourceLayerName, legacyLayer.Name, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(path.SourceLayerName, legacyLayer.Id, StringComparison.OrdinalIgnoreCase))
+                        .Select(path => path.Id)
+                        .ToArray(),
+                IsVisible: legacyLayer.Visible,
+                IsLocked: legacyLayer.Locked,
+                Order: layers.Count,
+                Kind: legacyLayer.IsReferenceImageLayer ? Editor2DLayerKind.ReferenceImage : Editor2DLayerKind.Geometry,
+                ReferenceImage: referenceImage,
+                ColorHex: legacyLayer.ColorHex ?? "#4D7FFF",
+                ParentFolderId: legacyLayer.ParentFolderId));
+        }
+
+        if (!layers.Any(layer => layer.IsReferenceImage) && !string.IsNullOrWhiteSpace(payload.RefImageBase64))
+        {
+            var topLevelReference = ConvertLegacyReferenceImage(new LegacyLayerPayload(
+                "legacy-reference-image",
+                "Reference image",
+                "#4D7FFF",
+                true,
+                null,
+                true,
+                payload.RefImageBase64,
+                payload.RefImageOffsetX,
+                payload.RefImageOffsetY,
+                payload.RefImageScale,
+                payload.RefImageScale,
+                0.0,
+                0.0,
+                0.0,
+                "back",
+                payload.RefImageOpacity,
+                false));
+            if (topLevelReference is not null)
             {
-                var imageData = Convert.FromBase64String(payload.RefImageBase64);
-                if (Editor2DReferenceImageMetadata.TryReadPixelSize(imageData, out var pixelWidth, out var pixelHeight))
-                {
-                    var scale = double.IsFinite(payload.RefImageScale) && payload.RefImageScale > 0.0
-                        ? payload.RefImageScale
-                        : 1.0;
-                    const string referenceId = "legacy-reference-image";
-                    var image = new Editor2DReferenceImage(
-                        referenceId,
-                        "Reference image",
-                        payload.RefImageBase64,
-                        pixelWidth,
-                        pixelHeight,
-                        X: double.IsFinite(payload.RefImageOffsetX) ? payload.RefImageOffsetX : 0.0,
-                        Y: double.IsFinite(payload.RefImageOffsetY) ? payload.RefImageOffsetY : 0.0,
-                        Width: pixelWidth * scale,
-                        Height: pixelHeight * scale,
-                        Opacity: double.IsFinite(payload.RefImageOpacity)
-                            ? Math.Clamp(payload.RefImageOpacity, 0.0, 1.0)
-                            : 0.5,
-                        CalibrationUnitsPerPixel: scale);
-                    layers.Add(new Editor2DLayer(
-                        referenceId,
-                        image.FileName,
-                        [],
-                        Order: 1,
-                        Kind: Editor2DLayerKind.ReferenceImage,
-                        ReferenceImage: image));
-                }
-            }
-            catch (FormatException)
-            {
-                // Ignore corrupt legacy image data while preserving recoverable drawing state.
+                layers.Add(new Editor2DLayer(
+                    topLevelReference.Id,
+                    topLevelReference.FileName,
+                    [],
+                    Order: layers.Count,
+                    Kind: Editor2DLayerKind.ReferenceImage,
+                    ReferenceImage: topLevelReference));
             }
         }
 
-        var workspaceDocument = document ?? Editor2DWorkspaceState.Empty.Document;
-        var geometryLayer = new Editor2DLayer(
-            "layer-1",
-            "Layer 1",
-            workspaceDocument.Paths.Select(path => path.Id).ToArray(),
-            Order: 0);
-        layers.Insert(0, geometryLayer);
+        if (!layers.Any(layer => layer.Kind == Editor2DLayerKind.Geometry))
+            layers.Insert(0, new Editor2DLayer("layer-1", "Layer 1", [], Order: 0));
+        var assignedPathIds = layers.SelectMany(layer => layer.PathIds).ToHashSet(StringComparer.Ordinal);
+        var unassignedPathIds = workspaceDocument.Paths.Select(path => path.Id).Where(id => !assignedPathIds.Contains(id)).ToArray();
+        if (unassignedPathIds.Length > 0)
+        {
+            var targetIndex = layers.FindIndex(layer => layer.Kind == Editor2DLayerKind.Geometry
+                && string.Equals(layer.Id, payload.SavedActiveLayerId, StringComparison.Ordinal));
+            if (targetIndex < 0)
+                targetIndex = layers.FindIndex(layer => layer.Kind == Editor2DLayerKind.Geometry);
+            layers[targetIndex] = layers[targetIndex] with { PathIds = layers[targetIndex].PathIds.Concat(unassignedPathIds).ToArray() };
+        }
+        layers = layers.Select((layer, order) => layer with { Order = order }).ToList();
+
+        var pathIdsByHandle = workspaceDocument.Paths
+            .Where(path => !string.IsNullOrWhiteSpace(path.SourceEntityHandle))
+            .GroupBy(path => path.SourceEntityHandle!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Id, StringComparer.OrdinalIgnoreCase);
+        var measurements = (payload.Measurements ?? [])
+            .Where(item => item.Start is not null && item.End is not null
+                && item.Start.IsFinite && item.End.IsFinite)
+            .Select(item => new Editor2DMeasurement(
+                string.IsNullOrWhiteSpace(item.Id) ? Guid.NewGuid().ToString("N") : item.Id,
+                new Editor2DPoint(item.Start!.X, item.Start.Y),
+                new Editor2DPoint(item.End!.X, item.End.Y),
+                item.IsAutoDimension,
+                item.EntityHandle is not null && pathIdsByHandle.TryGetValue(item.EntityHandle, out var pathId) ? pathId : null,
+                item.DimensionType,
+                item.RectP1 is { IsFinite: true } rectP1 ? new Editor2DPoint(rectP1.X, rectP1.Y) : null,
+                item.RectP2 is { IsFinite: true } rectP2 ? new Editor2DPoint(rectP2.X, rectP2.Y) : null,
+                item.FilletRadius,
+                item.OffsetDistance,
+                VarName: item.VarName,
+                Expression: item.Expression,
+                Driven: item.Driven,
+                IsParametric: item.IsParametric,
+                EvaluatedValue: double.IsFinite(item.DistanceMm) && item.DistanceMm > 0 ? item.DistanceMm : null))
+            .ToArray();
         var zoom = double.IsFinite(payload.CanvasScale) && payload.CanvasScale > 0.0
             ? payload.CanvasScale
             : 0.0;
@@ -569,7 +625,57 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
             ViewportOffsetY: double.IsFinite(payload.CanvasOffsetY) ? payload.CanvasOffsetY : 0.0,
             IsInitialized: true,
             Layers: layers,
-            ActiveLayerId: layers.Count > 1 ? layers[1].Id : geometryLayer.Id);
+            ActiveLayerId: layers.Any(layer => layer.Id == payload.SavedActiveLayerId)
+                ? payload.SavedActiveLayerId
+                : layers.First(layer => layer.Kind == Editor2DLayerKind.Geometry).Id,
+            Measurements: measurements,
+            Folders: (payload.SavedLayerFolders ?? [])
+                .Where(folder => !string.IsNullOrWhiteSpace(folder.Id))
+                .Select(folder => new Editor2DLayerFolder(folder.Id, folder.Name ?? "Folder", folder.ParentFolderId))
+                .ToArray());
+    }
+
+    private static Editor2DReferenceImage? ConvertLegacyReferenceImage(LegacyLayerPayload layer)
+    {
+        if (string.IsNullOrWhiteSpace(layer.RefImageBase64))
+            return null;
+        try
+        {
+            var imageData = Convert.FromBase64String(layer.RefImageBase64);
+            var hasMetadata = Editor2DReferenceImageMetadata.TryReadPixelSize(imageData, out var metadataWidth, out var metadataHeight);
+            var pixelWidth = layer.RefImagePixelWidth > 0 ? (int)Math.Round(layer.RefImagePixelWidth) : hasMetadata ? metadataWidth : 0;
+            var pixelHeight = layer.RefImagePixelHeight > 0 ? (int)Math.Round(layer.RefImagePixelHeight) : hasMetadata ? metadataHeight : 0;
+            if (pixelWidth <= 0 || pixelHeight <= 0)
+                return null;
+            var baseWidth = layer.RefImageWidth > 0 ? layer.RefImageWidth : pixelWidth;
+            var baseHeight = layer.RefImageHeight > 0 ? layer.RefImageHeight : pixelHeight;
+            var scaleX = double.IsFinite(layer.RefImageScaleX) && layer.RefImageScaleX > 0 ? layer.RefImageScaleX : 1.0;
+            var scaleY = double.IsFinite(layer.RefImageScaleY) && layer.RefImageScaleY > 0 ? layer.RefImageScaleY : 1.0;
+            var width = baseWidth * scaleX;
+            var height = baseHeight * scaleY;
+            return new Editor2DReferenceImage(
+                layer.Id,
+                string.IsNullOrWhiteSpace(layer.Name) ? "Reference image" : layer.Name,
+                layer.RefImageBase64,
+                pixelWidth,
+                pixelHeight,
+                double.IsFinite(layer.RefImageOffsetX) ? layer.RefImageOffsetX : 0.0,
+                double.IsFinite(layer.RefImageOffsetY) ? layer.RefImageOffsetY : 0.0,
+                width,
+                height,
+                double.IsFinite(layer.RefImageRotation) ? layer.RefImageRotation : 0.0,
+                double.IsFinite(layer.RefImageOpacity) ? Math.Clamp(layer.RefImageOpacity, 0.0, 1.0) : 0.5,
+                Math.Abs(width / pixelWidth),
+                OriginalDataBase64: layer.RefImageOriginalBase64,
+                BackgroundRemoved: layer.BackgroundRemoved,
+                Depth: string.Equals(layer.RefImageDepth, "front", StringComparison.OrdinalIgnoreCase)
+                    ? Editor2DReferenceImageDepth.Front
+                    : Editor2DReferenceImageDepth.Back);
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
     }
 
     private static bool TryParseLegacyActivityTimestamp(JsonElement value, out DateTimeOffset timestamp)
@@ -677,6 +783,10 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
         [property: JsonPropertyName("savedLearnModeEnabled")] bool? SavedLearnModeEnabled,
         [property: JsonPropertyName("isLearnModeEnabled")] bool? IsLearnModeEnabled,
         [property: JsonPropertyName("exportMeasurementLines")] bool? ExportMeasurementLines,
+        [property: JsonPropertyName("measurements")] IReadOnlyList<LegacyMeasurementPayload>? Measurements = null,
+        [property: JsonPropertyName("savedLayers")] IReadOnlyList<LegacyLayerPayload>? SavedLayers = null,
+        [property: JsonPropertyName("savedLayerFolders")] IReadOnlyList<LegacyLayerFolderPayload>? SavedLayerFolders = null,
+        [property: JsonPropertyName("savedActiveLayerId")] string? SavedActiveLayerId = null,
         [property: JsonPropertyName("canvasScale")] double CanvasScale = 0.0,
         [property: JsonPropertyName("canvasOffsetX")] double CanvasOffsetX = 0.0,
         [property: JsonPropertyName("canvasOffsetY")] double CanvasOffsetY = 0.0,
@@ -691,6 +801,58 @@ public sealed class Project3DStateService(IEditorOutputPreviewService? outputPre
         [property: JsonPropertyName("refImageCalibrationEndX")] double? RefImageCalibrationEndX = null,
         [property: JsonPropertyName("refImageCalibrationEndY")] double? RefImageCalibrationEndY = null,
         string? SourceModelPath = null);
+
+    private sealed record LegacyLayerPayload(
+        [property: JsonPropertyName("id")] string Id,
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("colorHex")] string? ColorHex,
+        [property: JsonPropertyName("visible")] bool Visible = true,
+        [property: JsonPropertyName("parentFolderId")] string? ParentFolderId = null,
+        [property: JsonPropertyName("isReferenceImageLayer")] bool IsReferenceImageLayer = false,
+        [property: JsonPropertyName("refImageBase64")] string? RefImageBase64 = null,
+        [property: JsonPropertyName("refImageOffsetX")] double RefImageOffsetX = 0.0,
+        [property: JsonPropertyName("refImageOffsetY")] double RefImageOffsetY = 0.0,
+        [property: JsonPropertyName("refImageScaleX")] double RefImageScaleX = 1.0,
+        [property: JsonPropertyName("refImageScaleY")] double RefImageScaleY = 1.0,
+        [property: JsonPropertyName("refImageWidth")] double RefImageWidth = 0.0,
+        [property: JsonPropertyName("refImageHeight")] double RefImageHeight = 0.0,
+        [property: JsonPropertyName("refImageRotation")] double RefImageRotation = 0.0,
+        [property: JsonPropertyName("refImageDepth")] string? RefImageDepth = "back",
+        [property: JsonPropertyName("refImageOpacity")] double RefImageOpacity = 0.5,
+        [property: JsonPropertyName("locked")] bool Locked = false,
+        [property: JsonPropertyName("refImagePixelWidth")] double RefImagePixelWidth = 0.0,
+        [property: JsonPropertyName("refImagePixelHeight")] double RefImagePixelHeight = 0.0,
+        [property: JsonPropertyName("refImageOriginalBase64")] string? RefImageOriginalBase64 = null,
+        [property: JsonPropertyName("backgroundRemoved")] bool BackgroundRemoved = false);
+
+    private sealed record LegacyLayerFolderPayload(
+        [property: JsonPropertyName("id")] string Id,
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("parentFolderId")] string? ParentFolderId = null);
+
+    private sealed record LegacyPointPayload(
+        [property: JsonPropertyName("x")] double X,
+        [property: JsonPropertyName("y")] double Y)
+    {
+        public bool IsFinite => double.IsFinite(X) && double.IsFinite(Y);
+    }
+
+    private sealed record LegacyMeasurementPayload(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("start")] LegacyPointPayload? Start,
+        [property: JsonPropertyName("end")] LegacyPointPayload? End,
+        [property: JsonPropertyName("distanceMm")] double DistanceMm,
+        [property: JsonPropertyName("isAutoDimension")] bool IsAutoDimension,
+        [property: JsonPropertyName("entityHandle")] string? EntityHandle = null,
+        [property: JsonPropertyName("dimensionType")] string? DimensionType = null,
+        [property: JsonPropertyName("rectP1")] LegacyPointPayload? RectP1 = null,
+        [property: JsonPropertyName("rectP2")] LegacyPointPayload? RectP2 = null,
+        [property: JsonPropertyName("filletRadius")] double FilletRadius = 0.0,
+        [property: JsonPropertyName("varName")] string? VarName = null,
+        [property: JsonPropertyName("expression")] string? Expression = null,
+        [property: JsonPropertyName("driven")] bool Driven = false,
+        [property: JsonPropertyName("isParametric")] bool IsParametric = false,
+        [property: JsonPropertyName("offsetDistance")] double OffsetDistance = 0.0);
 
     private sealed record LegacyActivityEntryPayload(
         [property: JsonPropertyName("id")] string? Id,

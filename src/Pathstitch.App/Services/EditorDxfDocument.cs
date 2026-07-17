@@ -29,7 +29,9 @@ internal sealed record DxfPreviewPath(
     double? Radius = null,
     double? StartAngleDegrees = null,
     double? EndAngleDegrees = null,
-    bool IsFilled = false);
+    bool IsFilled = false,
+    string? LayerName = null,
+    string? EntityHandle = null);
 
 internal sealed record DxfPreviewDocument(
     IReadOnlyList<DxfPreviewPath> Paths,
@@ -470,63 +472,70 @@ internal static class EditorDxfDocument
 
             if (string.Equals(value, "LWPOLYLINE", StringComparison.OrdinalIgnoreCase))
             {
+                var entityStart = i;
                 var entity = ParseLwPolyline(lines, ref i, entityIndex);
                 if (entity is not null)
-                    previewPaths.Add(entity);
+                    previewPaths.Add(AttachSourceMetadata(lines, entityStart, entity));
                 entityIndex++;
                 continue;
             }
 
             if (string.Equals(value, "POLYLINE", StringComparison.OrdinalIgnoreCase))
             {
+                var entityStart = i;
                 var entity = ParsePolyline(lines, ref i, entityIndex);
                 if (entity is not null)
-                    previewPaths.Add(entity);
+                    previewPaths.Add(AttachSourceMetadata(lines, entityStart, entity));
                 entityIndex++;
                 continue;
             }
 
             if (string.Equals(value, "LINE", StringComparison.OrdinalIgnoreCase))
             {
+                var entityStart = i;
                 var entity = ParseLine(lines, ref i, entityIndex);
                 if (entity is not null)
-                    previewPaths.Add(entity);
+                    previewPaths.Add(AttachSourceMetadata(lines, entityStart, entity));
                 entityIndex++;
                 continue;
             }
 
             if (string.Equals(value, "ARC", StringComparison.OrdinalIgnoreCase))
             {
+                var entityStart = i;
                 var entity = ParseArc(lines, ref i, entityIndex);
                 if (entity is not null)
-                    previewPaths.Add(entity);
+                    previewPaths.Add(AttachSourceMetadata(lines, entityStart, entity));
                 entityIndex++;
                 continue;
             }
 
             if (string.Equals(value, "CIRCLE", StringComparison.OrdinalIgnoreCase))
             {
+                var entityStart = i;
                 var entity = ParseCircle(lines, ref i, entityIndex);
                 if (entity is not null)
-                    previewPaths.Add(entity);
+                    previewPaths.Add(AttachSourceMetadata(lines, entityStart, entity));
                 entityIndex++;
                 continue;
             }
 
             if (string.Equals(value, "ELLIPSE", StringComparison.OrdinalIgnoreCase))
             {
+                var entityStart = i;
                 var entity = ParseEllipse(lines, ref i, entityIndex);
                 if (entity is not null)
-                    previewPaths.Add(entity);
+                    previewPaths.Add(AttachSourceMetadata(lines, entityStart, entity));
                 entityIndex++;
                 continue;
             }
 
             if (string.Equals(value, "TEXT", StringComparison.OrdinalIgnoreCase))
             {
+                var entityStart = i;
                 var entity = ParseText(lines, ref i, entityIndex);
                 if (entity is not null)
-                    previewPaths.Add(entity);
+                    previewPaths.Add(AttachSourceMetadata(lines, entityStart, entity));
                 entityIndex++;
                 continue;
             }
@@ -540,6 +549,25 @@ internal static class EditorDxfDocument
             entityCounts.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.OrdinalIgnoreCase),
             unsupportedEntityTypes.OrderBy(static type => type, StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
+    private static DxfPreviewPath AttachSourceMetadata(string[] lines, int entityStart, DxfPreviewPath entity)
+    {
+        string? layerName = null;
+        string? entityHandle = null;
+        for (var cursor = entityStart + 2; cursor + 1 < lines.Length; cursor += 2)
+        {
+            var code = lines[cursor].Trim();
+            if (code == "0")
+                break;
+            var value = lines[cursor + 1].Trim();
+            if (code == "8")
+                layerName = value;
+            else if (code == "5")
+                entityHandle = value;
+        }
+
+        return entity with { LayerName = layerName, EntityHandle = entityHandle };
     }
 
     private static DxfUnitMetadata ReadUnitMetadata(string[] lines)
