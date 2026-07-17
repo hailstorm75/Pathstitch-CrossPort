@@ -11,6 +11,57 @@ namespace Pathstitch.App.Tests;
 public sealed class Project3DStateServiceTests
 {
     [Fact]
+    public async Task LoadAsync_MigratesLegacySewingHoleSettingsAndRepairsInvalidValues()
+    {
+        using var workspace = TestWorkspace.Create();
+        const string emptyDxf = "0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n";
+        var dxfDataBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(emptyDxf));
+        var projectPath = workspace.WriteText("legacy-sewing.stch", JsonSerializer.Serialize(new
+        {
+            dxfDataBase64,
+            holeOffsetDistance = 3.25,
+            holeDiameter = 1.75,
+            holeSpacing = 6.5,
+            holeDistribution = "count",
+            holeCount = 18,
+            holePattern = "saddle",
+            holeSide = "right",
+            holeRowSpacing = 4.25,
+        }));
+        var service = new Project3DStateService(new DxfOutputPreviewService());
+
+        var restored = await service.LoadAsync(projectPath);
+
+        var parameters = Assert.IsType<Editor2DSewingHoleParameters>(restored.TwoDWorkspaceState!.SewingHoleParameters);
+        Assert.Equal(3.25, parameters.Margin);
+        Assert.Equal(1.75, parameters.Diameter);
+        Assert.Equal(6.5, parameters.Pitch);
+        Assert.Equal(Editor2DSewingDistributionMode.Count, parameters.DistributionMode);
+        Assert.Equal(18, parameters.Count);
+        Assert.Equal(Editor2DSewingPattern.Saddle, parameters.Pattern);
+        Assert.Equal(Editor2DSewingSide.Right, parameters.Side);
+        Assert.Equal(4.25, parameters.SaddleSpacing);
+
+        await service.SaveAsync(projectPath, restored);
+        Assert.Equal(parameters, (await service.LoadAsync(projectPath)).TwoDWorkspaceState!.SewingHoleParameters);
+
+        var invalidPath = workspace.WriteText("legacy-sewing-invalid.stch", JsonSerializer.Serialize(new
+        {
+            dxfDataBase64,
+            holeOffsetDistance = -2.0,
+            holeDiameter = -1.0,
+            holeSpacing = 0.0,
+            holeDistribution = "unknown",
+            holeCount = 0,
+            holePattern = "unknown",
+            holeSide = "unknown",
+            holeRowSpacing = -3.0,
+        }));
+        var repaired = (await service.LoadAsync(invalidPath)).TwoDWorkspaceState!.SewingHoleParameters;
+        Assert.Equal(Editor2DSewingHoleParameters.Default, repaired);
+    }
+
+    [Fact]
     public async Task LoadAsync_MigratesLegacyEditableCornersAndPenAnchors()
     {
         using var workspace = TestWorkspace.Create();
