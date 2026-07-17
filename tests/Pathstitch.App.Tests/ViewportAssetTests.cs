@@ -85,6 +85,8 @@ public sealed class ViewportAssetTests
         Assert.Contains("THREE.OrbitControls = OrbitControls", html, StringComparison.Ordinal);
         Assert.Contains("THREE.TransformControls = TransformControls", html, StringComparison.Ordinal);
         Assert.Contains("Compute a mesh face normal and origin", html, StringComparison.Ordinal);
+        Assert.Contains("bodyMoveBegin", html, StringComparison.Ordinal);
+        Assert.Contains("bodyMoveEnd", html, StringComparison.Ordinal);
         Assert.EndsWith("/Assets/Web/", baseUri.AbsoluteUri.Replace('\\', '/'), StringComparison.Ordinal);
     }
 

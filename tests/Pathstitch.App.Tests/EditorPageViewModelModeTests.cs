@@ -84,6 +84,51 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public async Task ViewportBodyDrag_IsOneUndoStepAndDoesNotEchoOffsets()
+    {
+        var viewModel = CreateViewModelForTests();
+        await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
+        viewModel.ThreeDWorkspace.ReplaceBodies([new Body3D(0, "body", [])], "{}", "body.obj");
+        viewModel.ActivateMoveTool();
+        viewModel.SelectBodyFromPanel(0);
+        var viewportScripts = new List<string>();
+        viewModel.ThreeDWorkspace.MarkViewportReady();
+        viewModel.ThreeDWorkspace.ViewportScriptRequested += viewportScripts.Add;
+
+        viewModel.OnViewportMessageReceived("""{"op":"bodyMoveBegin"}""");
+        viewModel.OnViewportMessageReceived(
+            """{"op":"bodyMoved","bodyIndex":0,"x":1.0,"y":2.0,"z":3.0}""");
+        viewModel.OnViewportMessageReceived(
+            """{"op":"bodyMoved","bodyIndex":0,"x":4.0,"y":5.0,"z":6.0}""");
+        viewModel.OnViewportMessageReceived("""{"op":"bodyMoveEnd"}""");
+
+        var moved = Assert.Single(viewModel.BodyOffsets);
+        Assert.Equal(4.0, moved.X);
+        Assert.Equal(5.0, moved.Y);
+        Assert.Equal(6.0, moved.Z);
+        Assert.DoesNotContain(
+            viewportScripts,
+            script => script.Contains("setBodyMoveState", StringComparison.Ordinal));
+        Assert.True(viewModel.CanUndoThreeDBodyMove);
+
+        Assert.True(viewModel.UndoThreeDBodyMove());
+
+        Assert.Empty(viewModel.BodyOffsets);
+        Assert.False(viewModel.CanUndoThreeDBodyMove);
+        Assert.True(viewModel.RedoThreeDBodyMove());
+        moved = Assert.Single(viewModel.BodyOffsets);
+        Assert.Equal(4.0, moved.X);
+        Assert.Equal(5.0, moved.Y);
+        Assert.Equal(6.0, moved.Z);
+
+        viewportScripts.Clear();
+        viewModel.NudgeSelectedBody(axis: 0, direction: 1);
+        Assert.Contains(
+            viewportScripts,
+            script => script.Contains("setBodyMoveState", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void NetLayout_DefaultsConnectedAndExplicitSeparateSelectionRemainsAvailable()
     {
         var viewModel = CreateViewModelForTests();
@@ -892,6 +937,9 @@ public sealed class EditorPageViewModelModeTests
     {
         var viewModel = CreateViewModel();
 
+        Assert.Equal("20", viewModel.TwoDPatternSpacingXText);
+        Assert.Equal("20", viewModel.TwoDPatternSpacingYText);
+        Assert.Equal("10", viewModel.TwoDPatternPathSpacingText);
         Assert.Equal(["Spacing", "Extent"], viewModel.TwoDPatternDistanceModeOptionItems);
         Assert.Equal("Spacing", viewModel.TwoDPatternDistanceMode);
         Assert.Equal("40", viewModel.TwoDPatternExtentXText);
