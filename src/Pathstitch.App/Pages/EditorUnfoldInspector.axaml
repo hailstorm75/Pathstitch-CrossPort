@@ -114,9 +114,12 @@
           </StackPanel>
           <StackPanel Grid.Row="3" Grid.Column="1" IsVisible="{Binding HasSelectedSeamEdge}" Spacing="4">
             <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Selected edge decoration" />
-            <ComboBox
-              ItemsSource="{Binding SeamDecorationOptions}"
-              SelectedItem="{Binding SelectedSeamDecoration, Mode=TwoWay}" />
+            <ComboBox SelectedIndex="{Binding SelectedSeamDecorationIndex}">
+              <ComboBoxItem Content="Default (Use Global)" />
+              <ComboBoxItem Content="Plain (Cut)" />
+              <ComboBoxItem Content="Glue Tab" />
+              <ComboBoxItem Content="Sew Holes" />
+            </ComboBox>
           </StackPanel>
         </Grid>
 

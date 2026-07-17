@@ -226,6 +226,9 @@ public sealed class Editor3DWorkspaceViewModel : ObservableObject
             .ToArray());
     }
 
+    public void ClearSeamDecoration(EditorSeamEdge3D edge)
+        => SetSeamDecorations(_seamDecorations.Where(item => item.Edge != edge).ToArray());
+
     public void ToggleSeamEdge(int bodyIndex, int edgeIndex)
     {
         var edge = new EditorSeamEdge3D(bodyIndex, edgeIndex);

@@ -215,7 +215,7 @@ public sealed partial class EditorPageViewModel
 
     public bool HasAnchorFace => AnchorFace is not null;
 
-    public IReadOnlyList<string> SeamDecorationOptions { get; } = ["none", "tabs", "holes"];
+    public IReadOnlyList<string> SeamDecorationOptions { get; } = ["default", "none", "tabs", "holes"];
 
     public bool CanSetSelectedFaceAsAnchor => SelectedFaces.Count == 1;
 
@@ -224,15 +224,37 @@ public sealed partial class EditorPageViewModel
     public string SelectedSeamDecoration
     {
         get => SelectedSeamEdge is { } edge
-            ? _threeDWorkspace.SeamDecorations.FirstOrDefault(item => item.Edge == edge)?.Decoration ?? "none"
-            : "none";
+            ? _threeDWorkspace.SeamDecorations.FirstOrDefault(item => item.Edge == edge)?.Decoration ?? "default"
+            : "default";
         set
         {
             if (SelectedSeamEdge is not { } edge)
                 return;
-            _threeDWorkspace.SetSeamDecoration(edge, value);
+
+            if (string.Equals(value, "default", StringComparison.OrdinalIgnoreCase))
+                _threeDWorkspace.ClearSeamDecoration(edge);
+            else
+                _threeDWorkspace.SetSeamDecoration(edge, value);
             NotifySeamDecorationChanged();
         }
+    }
+
+    public int SelectedSeamDecorationIndex
+    {
+        get => SelectedSeamDecoration switch
+        {
+            "none" => 1,
+            "tabs" => 2,
+            "holes" => 3,
+            _ => 0,
+        };
+        set => SelectedSeamDecoration = value switch
+        {
+            1 => "none",
+            2 => "tabs",
+            3 => "holes",
+            _ => "default",
+        };
     }
 
     public bool HasSelectedSeamEdge => SelectedSeamEdge is not null;
@@ -439,6 +461,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(CanSetSelectedFaceAsAnchor));
         OnPropertyChanged(nameof(SelectedSeamEdge));
         OnPropertyChanged(nameof(SelectedSeamDecoration));
+        OnPropertyChanged(nameof(SelectedSeamDecorationIndex));
         OnPropertyChanged(nameof(HasSelectedSeamEdge));
         RequestSeamControlStateSync();
         Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
