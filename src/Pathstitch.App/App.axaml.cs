@@ -48,6 +48,7 @@ public partial class App : Application
                 services.GetRequiredService<DesktopDocumentWindowService>())
             .AddScoped<IProjectFileDialogService, ProjectFileDialogService>()
             .AddScoped<IUnsavedChangesPromptService, AvaloniaUnsavedChangesPromptService>()
+            .AddScoped<IProjectOpenDispositionPromptService, AvaloniaProjectOpenDispositionPromptService>()
             .AddScoped<IEditorImportUnitsPromptService, AvaloniaEditorImportUnitsPromptService>()
             .AddSingleton<IPsdImportService, PackagedPsdImportService>()
             .AddScoped<IPsdImportModePromptService, AvaloniaPsdImportModePromptService>()

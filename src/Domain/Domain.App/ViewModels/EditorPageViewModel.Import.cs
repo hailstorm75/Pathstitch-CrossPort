@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Domain.App.Models;
+using Domain.App.Services;
 using Domain.MVVM.Navigation;
 
 namespace Domain.App.ViewModels;
@@ -110,7 +111,37 @@ public sealed partial class EditorPageViewModel
         if (service is null)
             return;
         var session = await service.PrepareOpenProjectAsync(projectPath, cancellationToken).ConfigureAwait(true);
-        if (session is null || !await ConfirmCanLeaveDocumentAsync(cancellationToken).ConfigureAwait(true))
+        if (session is null)
+            return;
+
+        if (_documentWindowService is not null)
+        {
+            var disposition = await _projectOpenDispositionPromptService
+                .PromptAsync(Path.GetFileName(projectPath), cancellationToken)
+                .ConfigureAwait(true);
+            if (disposition == ProjectOpenDisposition.Cancel)
+                return;
+            if (disposition == ProjectOpenDisposition.NewWindow)
+            {
+                await _documentWindowService.OpenDocumentAsync(new ProjectLaunchRequest(session, sourcePaths)
+                {
+                    PendingTwoDFilePaths = drawingPaths,
+                    PendingReferenceImagePaths = imagePaths,
+                }, cancellationToken).ConfigureAwait(true);
+                return;
+            }
+
+            await CombineProjectAsync(projectPath, cancellationToken).ConfigureAwait(true);
+            if (sourcePaths.Count > 0)
+                await OpenSourceModelsAsync(sourcePaths, cancellationToken).ConfigureAwait(true);
+            if (drawingPaths.Count > 0)
+                await RouteImportedTwoDDrawingsAsync(drawingPaths, cancellationToken).ConfigureAwait(true);
+            if (imagePaths.Count > 0)
+                await ImportReferenceImagesAsync(imagePaths, cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        if (!await ConfirmCanLeaveDocumentAsync(cancellationToken).ConfigureAwait(true))
             return;
 
         var request = CreateEditorNavigationRequest(new ProjectLaunchRequest(session, sourcePaths)

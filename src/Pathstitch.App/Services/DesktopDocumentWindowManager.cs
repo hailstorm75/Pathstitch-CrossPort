@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using Domain.App.Models;
 using Domain.App.Navigation;
 using Domain.App.Services;
+using Domain.App.ViewModels;
 using Domain.MVVM.Navigation;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -88,6 +89,25 @@ internal sealed class DesktopDocumentWindowManager : IDisposable
         IReadOnlyList<string> filePaths,
         CancellationToken cancellationToken)
     {
+        if (filePaths.Count == 1
+            && Path.GetExtension(filePaths[0]).Equals(".stch", StringComparison.OrdinalIgnoreCase)
+            && _activeDocument is not null)
+        {
+            var prompt = _activeDocument.Scope.ServiceProvider
+                .GetService<IProjectOpenDispositionPromptService>();
+            var disposition = prompt is null
+                ? ProjectOpenDisposition.NewWindow
+                : await prompt.PromptAsync(Path.GetFileName(filePaths[0]), cancellationToken).ConfigureAwait(true);
+            if (disposition == ProjectOpenDisposition.Cancel)
+                return;
+            if (disposition == ProjectOpenDisposition.Combine)
+            {
+                if (_activeDocument.Window.CurrentPageViewModel is EditorPageViewModel editor)
+                    await editor.CombineProjectAsync(filePaths[0], cancellationToken).ConfigureAwait(true);
+                return;
+            }
+        }
+
         var scope = _rootServices.CreateScope();
         var transferred = false;
         try

@@ -43,11 +43,84 @@ public sealed partial class EditorPageViewModel
 
     [RelayCommand(CanExecute = nameof(CanReplaceProject))]
     public Task OpenProjectAsync(CancellationToken cancellationToken)
-        => ReplaceProjectAsync(
-            service => service.PrepareOpenTemplateProjectAsync(cancellationToken),
-            "Opening project",
-            prepareBeforeConfirmation: true,
-            cancellationToken);
+        => OpenProjectWithDispositionAsync(cancellationToken);
+
+    private async Task OpenProjectWithDispositionAsync(CancellationToken cancellationToken)
+    {
+        var service = _projectSessionService;
+        if (service is null || !await _projectReplacementGate.WaitAsync(0, cancellationToken).ConfigureAwait(true))
+            return;
+
+        IsReplacingProject = true;
+        ErrorMessage = null;
+        try
+        {
+            StatusText = "Opening project";
+            var session = await service.PrepareOpenTemplateProjectAsync(cancellationToken).ConfigureAwait(true);
+            if (session is null)
+                return;
+
+            if (_documentWindowService is not null)
+            {
+                var disposition = await _projectOpenDispositionPromptService
+                    .PromptAsync(Path.GetFileName(session.ProjectFilePath), cancellationToken)
+                    .ConfigureAwait(true);
+                if (disposition == ProjectOpenDisposition.Cancel)
+                {
+                    StatusText = "Open project cancelled";
+                    return;
+                }
+                if (disposition == ProjectOpenDisposition.NewWindow)
+                {
+                    await _documentWindowService
+                        .OpenDocumentAsync(ProjectLaunchRequest.ForProject(session), cancellationToken)
+                        .ConfigureAwait(true);
+                    StatusText = "Opened project in a new window";
+                    return;
+                }
+
+                await CombineProjectAsync(session.ProjectFilePath, cancellationToken).ConfigureAwait(true);
+                return;
+            }
+
+            if (!await ConfirmCanLeaveDocumentAsync(cancellationToken).ConfigureAwait(true))
+                return;
+            var navigationRequest = CreateEditorNavigationRequest(ProjectLaunchRequest.ForProject(session));
+            service.ActivateSession(session);
+            _preapprovedNavigationRequest = navigationRequest;
+            Messenger.Send(navigationRequest);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            StatusText = "Open project cancelled";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open editor project");
+            StatusText = "Project replacement failed";
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsReplacingProject = false;
+            _projectReplacementGate.Release();
+        }
+    }
+
+    public async Task CombineProjectAsync(string projectPath, CancellationToken cancellationToken = default)
+    {
+        var incoming = await _project3DStateService.LoadAsync(projectPath, cancellationToken).ConfigureAwait(true);
+        var incomingTwoD = incoming.TwoDWorkspaceState;
+        if (incomingTwoD is null)
+            throw new InvalidOperationException("The selected project has no 2D drawing to combine.");
+
+        var merged = Editor2DProjectCombiner.Combine(_twoDWorkspace.State, incomingTwoD);
+        _twoDWorkspace.Apply(merged, recordHistory: true);
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        MarkDocumentDirty();
+        ActiveEditorMode = EditorMode.TwoD;
+        StatusText = $"Combined {Path.GetFileName(projectPath)}";
+    }
 
     private async Task ReplaceProjectAsync(
         Func<ProjectSessionService, Task<ProjectSession?>> prepareSession,

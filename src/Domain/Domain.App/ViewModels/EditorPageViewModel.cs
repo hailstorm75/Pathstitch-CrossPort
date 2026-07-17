@@ -27,7 +27,8 @@ public sealed partial class EditorPageViewModel(
     IPsdImportService? psdImportService = null,
     IPsdImportModePromptService? psdImportModePromptService = null,
     IMessenger? messenger = null,
-    IDocumentWindowService? documentWindowService = null) : BasePageViewModel(logger, messenger)
+    IDocumentWindowService? documentWindowService = null,
+    IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null) : BasePageViewModel(logger, messenger)
 {
     private static readonly HashSet<string> SupportedSourceModelExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -50,6 +51,8 @@ public sealed partial class EditorPageViewModel(
     private readonly Project3DStateService _project3DStateService = project3DStateService;
     private readonly ProjectSessionService? _projectSessionService = projectSessionService;
     private readonly IDocumentWindowService? _documentWindowService = documentWindowService;
+    private readonly IProjectOpenDispositionPromptService _projectOpenDispositionPromptService =
+        projectOpenDispositionPromptService ?? CancelProjectOpenDispositionPromptService.Instance;
     private readonly IUnsavedChangesPromptService _unsavedChangesPromptService =
         unsavedChangesPromptService ?? CancelUnsavedChangesPromptService.Instance;
     private readonly IEditorImportUnitsPromptService _importUnitsPromptService =
@@ -92,6 +95,16 @@ public sealed partial class EditorPageViewModel(
             string documentName,
             CancellationToken cancellationToken = default)
             => Task.FromResult(UnsavedChangesPromptResult.Cancel);
+    }
+
+    private sealed class CancelProjectOpenDispositionPromptService : IProjectOpenDispositionPromptService
+    {
+        public static CancelProjectOpenDispositionPromptService Instance { get; } = new();
+
+        public Task<ProjectOpenDisposition> PromptAsync(
+            string incomingProjectName,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(ProjectOpenDisposition.Cancel);
     }
 
     private sealed class CancelEditorImportUnitsPromptService : IEditorImportUnitsPromptService
