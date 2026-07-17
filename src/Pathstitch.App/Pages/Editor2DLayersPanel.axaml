@@ -201,6 +201,28 @@
                       <Button Padding="5,2" Content="+" Tag="{Binding Id}" Click="OnReferenceScaleUpClicked" />
                       <Button Padding="5,2" Content="↻" Tag="{Binding Id}" Click="OnReferenceRotateClicked" />
                     </StackPanel>
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" IsEnabled="{Binding !IsLocked}">
+                      <TextBlock VerticalAlignment="Center" Text="Opacity" />
+                      <Slider
+                        x:Name="ReferenceOpacitySlider"
+                        Grid.Column="1"
+                        AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.reference.opacity.{0}}"
+                        Minimum="0"
+                        Maximum="1"
+                        SmallChange="0.01"
+                        LargeChange="0.1"
+                        Value="{Binding ReferenceImage.Opacity, Mode=OneWay}"
+                        Tag="{Binding Id}"
+                        LostFocus="OnReferenceOpacitySliderLostFocus"
+                        PointerReleased="OnReferenceOpacitySliderPointerReleased"
+                        ValueChanged="OnReferenceOpacitySliderValueChanged" />
+                      <TextBlock
+                        Grid.Column="2"
+                        MinWidth="36"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Text="{Binding #ReferenceOpacitySlider.Value, StringFormat='{}{0:P0}'}" />
+                    </Grid>
                     <StackPanel Orientation="Horizontal" Spacing="4">
                       <Button Padding="5,2" Content="Fade" Tag="{Binding Id}" Click="OnReferenceFadeClicked" />
                       <Button Padding="5,2" Content="Brighten" Tag="{Binding Id}" Click="OnReferenceBrightenClicked" />

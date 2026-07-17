@@ -270,7 +270,12 @@ public sealed partial class EditorPageViewModel
         double rotationDegrees)
     {
         if (_twoDWorkspace.UpdateReferenceImageTransform(layerId, x, y, width, height, rotationDegrees))
-            RefreshTwoDLayerFacade(requestPersistence: !_twoDWorkspace.IsReferenceImageTransformEditActive);
+        {
+            if (_twoDWorkspace.IsReferenceImageTransformEditActive)
+                RefreshTwoDReferenceImagePreviewFacade();
+            else
+                RefreshTwoDLayerFacade();
+        }
     }
 
     public bool BeginTwoDReferenceImageTransform(string layerId)
@@ -278,8 +283,14 @@ public sealed partial class EditorPageViewModel
 
     public void CommitTwoDReferenceImageTransform()
     {
-        _twoDWorkspace.CommitReferenceImageTransformEdit();
-        RefreshTwoDLayerFacade();
+        var committed = _twoDWorkspace.CommitReferenceImageTransformEdit();
+        OnPropertyChanged(nameof(TwoDReferenceImageTransformEditActive));
+        if (!committed)
+            return;
+
+        RefreshTwoDReferenceImagePreviewFacade();
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+        NotifyTwoDHistoryCommands();
     }
 
     public void CancelTwoDReferenceImageTransform()
@@ -332,7 +343,12 @@ public sealed partial class EditorPageViewModel
     public void SetTwoDReferenceImageOpacity(string layerId, double opacity)
     {
         if (_twoDWorkspace.SetReferenceImageOpacity(layerId, opacity))
-            RefreshTwoDLayerFacade();
+        {
+            if (_twoDWorkspace.IsReferenceImageTransformEditActive)
+                RefreshTwoDReferenceImagePreviewFacade();
+            else
+                RefreshTwoDLayerFacade();
+        }
     }
 
     public void SetTwoDReferenceImageDepth(string layerId, Editor2DReferenceImageDepth depth)
@@ -589,6 +605,13 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDReferenceTraceSilhouetteOnly));
         if (requestPersistence)
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
+    }
+
+    private void RefreshTwoDReferenceImagePreviewFacade()
+    {
+        OnPropertyChanged(nameof(TwoDReferenceImages));
+        OnPropertyChanged(nameof(TwoDActiveReferenceImage));
+        OnPropertyChanged(nameof(TwoDReferenceImageTransformEditActive));
     }
 
     private void OnReferenceImageTraceChanged()

@@ -1993,7 +1993,16 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     }
 
     public bool SetReferenceImageOpacity(string layerId, double opacity)
-        => UpdateReferenceImage(layerId, image => image with { Opacity = Math.Clamp(opacity, 0.0, 1.0) });
+    {
+        if (!double.IsFinite(opacity))
+            return false;
+
+        var clamped = Math.Clamp(opacity, 0.0, 1.0);
+        var layer = Layers.FirstOrDefault(candidate => candidate.Id == layerId && candidate.IsReferenceImage);
+        if (layer?.ReferenceImage is null || layer.IsLocked || layer.ReferenceImage.Opacity == clamped)
+            return false;
+        return UpdateReferenceImage(layerId, image => image with { Opacity = clamped });
+    }
 
     public bool SetReferenceImageDepth(string layerId, Editor2DReferenceImageDepth depth)
     {

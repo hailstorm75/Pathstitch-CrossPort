@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
@@ -16,11 +17,16 @@ public partial class Editor2DLayersPanel : UserControl
 {
     private CancellationTokenSource? _layerColorCommitCancellation;
     private string? _editingLayerColorId;
+    private string? _editingReferenceOpacityLayerId;
 
     public Editor2DLayersPanel()
     {
         InitializeComponent();
-        Unloaded += (_, _) => CommitPendingLayerColorEdit();
+        Unloaded += (_, _) =>
+        {
+            CommitPendingLayerColorEdit();
+            CommitPendingReferenceOpacityEdit();
+        };
     }
 
     private void OnCreateLayerClicked(object? sender, RoutedEventArgs e) => ViewModel?.CreateTwoDLayer();
@@ -149,7 +155,9 @@ public partial class Editor2DLayersPanel : UserControl
 
     private async void OnLayerColorChanged(object? sender, ColorChangedEventArgs e)
     {
-        if (ViewModel is not { } viewModel || sender is not ColorPicker { Tag: string layerId })
+        if (ViewModel is not { } viewModel
+            || sender is not ColorPicker { Tag: string layerId } colorPicker
+            || (!colorPicker.IsKeyboardFocusWithin && !colorPicker.IsPointerOver))
             return;
         var colorHex = LayerColorHexToColorConverter.ToHex(e.NewColor);
         if (string.Equals(
@@ -265,6 +273,42 @@ public partial class Editor2DLayersPanel : UserControl
     private void OnReferenceFadeClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.AdjustTwoDReferenceImageOpacity(id, -0.1));
 
     private void OnReferenceBrightenClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.AdjustTwoDReferenceImageOpacity(id, 0.1));
+
+    private void OnReferenceOpacitySliderLostFocus(object? sender, RoutedEventArgs e)
+        => CommitPendingReferenceOpacityEdit();
+
+    private void OnReferenceOpacitySliderPointerReleased(object? sender, PointerReleasedEventArgs e)
+        => CommitPendingReferenceOpacityEdit();
+
+    private void OnReferenceOpacitySliderValueChanged(object? sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (sender is not Slider { Tag: string layerId } slider)
+            return;
+        if (_editingReferenceOpacityLayerId != layerId
+            && (slider.IsKeyboardFocusWithin || slider.IsPointerOver))
+            BeginReferenceOpacityEdit(slider);
+        if (_editingReferenceOpacityLayerId == layerId)
+            ViewModel?.SetTwoDReferenceImageOpacity(layerId, e.NewValue);
+    }
+
+    private void BeginReferenceOpacityEdit(object? sender)
+    {
+        if (sender is not Slider { Tag: string layerId }
+            || _editingReferenceOpacityLayerId == layerId)
+            return;
+
+        CommitPendingReferenceOpacityEdit();
+        if (ViewModel?.BeginTwoDReferenceImageTransform(layerId) == true)
+            _editingReferenceOpacityLayerId = layerId;
+    }
+
+    private void CommitPendingReferenceOpacityEdit()
+    {
+        if (_editingReferenceOpacityLayerId is null)
+            return;
+        _editingReferenceOpacityLayerId = null;
+        ViewModel?.CommitTwoDReferenceImageTransform();
+    }
 
     private void OnReferenceOpacity10Clicked(object? sender, RoutedEventArgs e) => SetReferenceOpacity(sender, 0.1);
     private void OnReferenceOpacity25Clicked(object? sender, RoutedEventArgs e) => SetReferenceOpacity(sender, 0.25);
