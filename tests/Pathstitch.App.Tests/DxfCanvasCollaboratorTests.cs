@@ -1,5 +1,6 @@
 using System.Reflection;
 using Avalonia;
+using Avalonia.Input;
 using Domain.App.Models;
 using Pathstitch.App.Controls;
 using Pathstitch.App.Tests.Fixtures;
@@ -188,6 +189,22 @@ public sealed class DxfCanvasCollaboratorTests
         Assert.Equal(new Vector(5, -3), controller.ContinuePan(new Point(15, 17)));
         controller.EndPan();
         Assert.False(session.IsPanning);
+    }
+
+    [Fact]
+    public void InteractionController_AltLeftPressTemporarilyPansForAnyTool()
+    {
+        Assert.True(DxfCanvasInteractionController.ShouldBeginPan(
+            Editor2DTool.Select, false, true, KeyModifiers.Alt));
+        Assert.True(DxfCanvasInteractionController.ShouldBeginPan(
+            Editor2DTool.Pan, false, true, KeyModifiers.None));
+        Assert.True(DxfCanvasInteractionController.ShouldBeginPan(
+            Editor2DTool.Select, true, false, KeyModifiers.None));
+
+        Assert.False(DxfCanvasInteractionController.ShouldBeginPan(
+            Editor2DTool.Select, false, true, KeyModifiers.None));
+        Assert.False(DxfCanvasInteractionController.ShouldBeginPan(
+            Editor2DTool.Select, false, false, KeyModifiers.Alt));
     }
 
     [Fact]
