@@ -10,7 +10,8 @@
   "shapely": "2.1.2",
   "pdfplumber": "0.11.10",
   "pypdfium2": "5.12.0",
+  "psdTools": "1.17.4",
   "runtimeIdentifiers": ["win-x64", "osx-arm64"],
   "entryPoint": "pathstitch_core.geometry_worker",
-  "requiredCapabilities": ["brep-topology", "analytic-surfaces", "exact-curves", "pcurves", "projection", "unfold", "distortion", "pdf-vector-import"]
+  "requiredCapabilities": ["brep-topology", "analytic-surfaces", "exact-curves", "pcurves", "projection", "unfold", "distortion", "pdf-vector-import", "psd-layer-import"]
 }

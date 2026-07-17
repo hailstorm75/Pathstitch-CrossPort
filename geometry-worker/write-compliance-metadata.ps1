@@ -19,6 +19,10 @@ $lockedUrls = @(Get-Content -LiteralPath $lock | Where-Object {
 $metadata = @(Get-ChildItem (Join-Path $root 'conda-meta') -Filter '*.json' -File |
     ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json } |
     Sort-Object name, version, build)
+$wheelLockPath = Join-Path $root 'python-wheel-lock.json'
+$wheelMetadata = if (Test-Path -LiteralPath $wheelLockPath) {
+    @((Get-Content -LiteralPath $wheelLockPath -Raw | ConvertFrom-Json).packages.$RuntimeIdentifier)
+} else { @() }
 
 if ($metadata.Count -ne $lockedUrls.Count) {
     throw "Conda metadata count $($metadata.Count) does not match explicit lock count $($lockedUrls.Count)."
@@ -34,7 +38,7 @@ foreach ($component in $metadata) {
     }
 }
 
-$packages = for ($index = 0; $index -lt $metadata.Count; $index++) {
+$condaPackages = for ($index = 0; $index -lt $metadata.Count; $index++) {
     $component = $metadata[$index]
     $safeName = $component.name -replace '[^A-Za-z0-9.-]', '-'
     [ordered]@{
@@ -50,6 +54,23 @@ $packages = for ($index = 0; $index -lt $metadata.Count; $index++) {
         comment = "Conda build $($component.build); declared license: $($component.license); family: $($component.license_family)"
     }
 }
+$wheelPackages = for ($index = 0; $index -lt $wheelMetadata.Count; $index++) {
+    $component = $wheelMetadata[$index]
+    $safeName = $component.name -replace '[^A-Za-z0-9.-]', '-'
+    [ordered]@{
+        SPDXID = "SPDXRef-Package-Wheel-$('{0:D4}' -f ($index + 1))-$safeName"
+        name = $component.name
+        versionInfo = $component.version
+        downloadLocation = $component.url
+        filesAnalyzed = $false
+        checksums = @([ordered]@{ algorithm = 'SHA256'; checksumValue = $component.sha256 })
+        licenseConcluded = $component.license
+        licenseDeclared = $component.license
+        copyrightText = 'NOASSERTION'
+        comment = 'Locked Python wheel'
+    }
+}
+$packages = @($condaPackages) + @($wheelPackages)
 $sbom = [ordered]@{
     spdxVersion = 'SPDX-2.3'
     dataLicense = 'CC0-1.0'
@@ -79,7 +100,7 @@ $notices = [ordered]@{
     schemaVersion = 1
     runtimeIdentifier = $RuntimeIdentifier
     lockSha256 = $lockHash
-    componentCount = $metadata.Count
+    componentCount = $packages.Count
     components = @($metadata | ForEach-Object {
         [ordered]@{
             name = $_.name
@@ -90,6 +111,16 @@ $notices = [ordered]@{
             sourceUrl = $_.url
             sha256 = $_.sha256
         }
+    }) + @($wheelMetadata | ForEach-Object {
+        [ordered]@{
+            name = $_.name
+            version = $_.version
+            build = 'wheel'
+            declaredLicense = $_.license
+            licenseFamily = $_.license
+            sourceUrl = $_.url
+            sha256 = $_.sha256
+        }
     })
     licenseFiles = $licenseFiles
 }
@@ -97,7 +128,7 @@ $notices | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $root '
 
 [pscustomobject]@{
     RuntimeIdentifier = $RuntimeIdentifier
-    Components = $metadata.Count
+    Components = $packages.Count
     LicenseFiles = $licenseFiles.Count
     LockSha256 = $lockHash
 }

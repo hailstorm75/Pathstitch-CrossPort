@@ -14,6 +14,7 @@ $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $lock = (Resolve-Path (Join-Path $PSScriptRoot "locks\$RuntimeIdentifier.lock")).Path
 $spec = (Resolve-Path (Join-Path $PSScriptRoot 'runtime-spec.json')).Path
+$wheelLock = (Resolve-Path (Join-Path $PSScriptRoot 'python-wheel-lock.json')).Path
 $destination = [System.IO.Path]::GetFullPath((Join-Path $OutputRoot $RuntimeIdentifier))
 $staging = "$destination.staging"
 $isNativeRuntime = ($RuntimeIdentifier -eq 'win-x64' -and $IsWindows) -or
@@ -51,6 +52,27 @@ Copy-Item -LiteralPath (Join-Path $repo 'pathstitch_core') -Destination (Join-Pa
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'sitecustomize.py') -Destination (Join-Path $staging 'sitecustomize.py')
 Copy-Item -LiteralPath $lock -Destination (Join-Path $staging 'environment.lock')
 Copy-Item -LiteralPath $spec -Destination (Join-Path $staging 'runtime-spec.json')
+Copy-Item -LiteralPath $wheelLock -Destination (Join-Path $staging 'python-wheel-lock.json')
+
+$wheelPackages = @((Get-Content -LiteralPath $wheelLock -Raw | ConvertFrom-Json).packages.$RuntimeIdentifier)
+$sitePackages = if ($RuntimeIdentifier -eq 'win-x64') {
+    Join-Path $staging 'Lib/site-packages'
+} else {
+    Join-Path $staging 'lib/python3.11/site-packages'
+}
+foreach ($package in $wheelPackages) {
+    $wheelPath = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetFileName($package.url))
+    try {
+        Invoke-WebRequest -Uri $package.url -OutFile $wheelPath
+        $actualHash = (Get-FileHash -LiteralPath $wheelPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualHash -ne $package.sha256) {
+            throw "Wheel checksum mismatch for $($package.name) $($package.version)."
+        }
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($wheelPath, $sitePackages, $true)
+    } finally {
+        if (Test-Path -LiteralPath $wheelPath) { Remove-Item -LiteralPath $wheelPath -Force }
+    }
+}
 
 if (-not $KeepDevelopmentFiles) {
     $developmentDirectories = @(
@@ -96,7 +118,7 @@ function Invoke-NativeRuntimeSmoke([string]$RuntimeRoot) {
     $env:PYTHONPATH = $RuntimeRoot
     $env:PATH = if ($IsWindows) { Join-Path $env:SystemRoot 'System32' } else { '/usr/bin:/bin' }
     try {
-        & $runtimePython -B -c "import OCC, OCC.Core.STEPControl, ezdxf, shapely, numpy, scipy, pdfplumber; import pathstitch_core.geometry_worker, pathstitch_core.worker; print('packaged Pathstitch workers import ok')"
+        & $runtimePython -B -c "import OCC, OCC.Core.STEPControl, ezdxf, shapely, numpy, scipy, pdfplumber, psd_tools; import pathstitch_core.geometry_worker, pathstitch_core.worker; print('packaged Pathstitch workers import ok')"
         if ($LASTEXITCODE -ne 0) { throw 'Packaged worker import smoke test failed.' }
     } finally {
         $env:PYTHONPATH = $previousPythonPath

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "packages": {
+    "win-x64": [
+      {
+        "name": "psd-tools",
+        "version": "1.17.4",
+        "url": "https://files.pythonhosted.org/packages/4e/dd/68c2a5dd82a0defd5ffc37a2e0137b7aa888d70d5e5789dc28a7770a1a72/psd_tools-1.17.4-cp311-cp311-win_amd64.whl",
+        "sha256": "773b825489a519905ce6654ac37d57244294dd1289daf4227158734ce9afe81e",
+        "license": "MIT"
+      }
+    ],
+    "osx-arm64": [
+      {
+        "name": "psd-tools",
+        "version": "1.17.4",
+        "url": "https://files.pythonhosted.org/packages/60/5b/f7cbef7d04cb873b41146186f243c41e401c5c039bb7be4d70d3575189f1/psd_tools-1.17.4-cp311-cp311-macosx_11_0_arm64.whl",
+        "sha256": "c7553e7d2a4902426a70ae79f167317311f41ea714346ee7db567ac80598da02",
+        "license": "MIT"
+      }
+    ]
+  }
+}
