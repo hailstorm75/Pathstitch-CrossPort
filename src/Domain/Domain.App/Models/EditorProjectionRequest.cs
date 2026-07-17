@@ -9,4 +9,5 @@ public sealed record EditorProjectionRequest(
     IReadOnlyList<int> VisibleBodyIndices,
     IReadOnlyList<BodyOffset3D> BodyOffsets,
     string? FaceId = null,
-    IReadOnlyList<string>? VisibleBodyIds = null);
+    IReadOnlyList<string>? VisibleBodyIds = null,
+    string? ExistingDxfPath = null);

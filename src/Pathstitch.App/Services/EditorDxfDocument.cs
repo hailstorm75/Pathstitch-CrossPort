@@ -219,14 +219,22 @@ internal static class EditorDxfDocument
         AppendPair(builder, 0, "SECTION");
         AppendPair(builder, 2, "TABLES");
         if (hasConstruction)
-            AppendDashedLineTypeTable(builder);
+            AppendDashedLineTypeTable(builder, "10", "11");
 
         AppendPair(builder, 0, "TABLE");
         AppendPair(builder, 2, "LAYER");
+        AppendPair(builder, 5, "20");
+        AppendPair(builder, 330, "0");
+        AppendPair(builder, 100, "AcDbSymbolTable");
         AppendPair(builder, 70, layers.Count.ToString(CultureInfo.InvariantCulture));
-        foreach (var layer in layers)
+        for (var index = 0; index < layers.Count; index++)
         {
+            var layer = layers[index];
             AppendPair(builder, 0, "LAYER");
+            AppendPair(builder, 5, (0x21 + index).ToString("X", CultureInfo.InvariantCulture));
+            AppendPair(builder, 330, "20");
+            AppendPair(builder, 100, "AcDbSymbolTableRecord");
+            AppendPair(builder, 100, "AcDbLayerTableRecord");
             AppendPair(builder, 2, layer.Name);
             AppendPair(builder, 70, "0");
             AppendPair(builder, 62, layer.IsConstruction ? "8" : "7");
@@ -238,12 +246,19 @@ internal static class EditorDxfDocument
         AppendPair(builder, 0, "ENDSEC");
     }
 
-    private static void AppendDashedLineTypeTable(StringBuilder builder)
+    private static void AppendDashedLineTypeTable(StringBuilder builder, string tableHandle, string recordHandle)
     {
         AppendPair(builder, 0, "TABLE");
         AppendPair(builder, 2, "LTYPE");
+        AppendPair(builder, 5, tableHandle);
+        AppendPair(builder, 330, "0");
+        AppendPair(builder, 100, "AcDbSymbolTable");
         AppendPair(builder, 70, "1");
         AppendPair(builder, 0, "LTYPE");
+        AppendPair(builder, 5, recordHandle);
+        AppendPair(builder, 330, tableHandle);
+        AppendPair(builder, 100, "AcDbSymbolTableRecord");
+        AppendPair(builder, 100, "AcDbLinetypeTableRecord");
         AppendPair(builder, 2, "DASHED");
         AppendPair(builder, 70, "0");
         AppendPair(builder, 3, "Dashed __ __ __");
@@ -310,6 +325,86 @@ internal static class EditorDxfDocument
         AppendPair(builder, 0, "ENDSEC");
         AppendPair(builder, 0, "EOF");
         File.WriteAllText(outputPath, builder.ToString(), Encoding.ASCII);
+    }
+
+    public static void SaveOrAppendLwPolylines(
+        string outputPath,
+        string layerName,
+        IReadOnlyList<DxfPolyline> polylines,
+        string? existingDxfPath,
+        double gap = 10.0)
+    {
+        if (string.IsNullOrWhiteSpace(existingDxfPath)
+            || !File.Exists(existingDxfPath)
+            || Path.GetExtension(existingDxfPath).Equals(".svg", StringComparison.OrdinalIgnoreCase))
+        {
+            SaveLwPolylines(outputPath, layerName, polylines);
+            return;
+        }
+
+        var lines = File.ReadAllLines(existingDxfPath);
+        var entitiesEndIndex = FindEntitiesEndIndex(lines);
+        if (entitiesEndIndex < 0)
+        {
+            SaveLwPolylines(outputPath, layerName, polylines);
+            return;
+        }
+
+        var existingPoints = LoadPreviewDocument(existingDxfPath).Paths
+            .SelectMany(static path => path.Points)
+            .ToArray();
+        var generatedPoints = polylines.SelectMany(static polyline => polyline.Points).ToArray();
+        var translated = polylines;
+        if (existingPoints.Length > 0 && generatedPoints.Length > 0)
+        {
+            var deltaX = existingPoints.Max(static point => point.X)
+                         + Math.Max(0.0, gap)
+                         - generatedPoints.Min(static point => point.X);
+            translated = polylines
+                .Select(polyline => new DxfPolyline(
+                    polyline.Points.Select(point => new DxfPoint(point.X + deltaX, point.Y)).ToArray(),
+                    polyline.IsClosed))
+                .ToArray();
+        }
+
+        var builder = new StringBuilder();
+        for (var index = 0; index < entitiesEndIndex; index++)
+            builder.AppendLine(lines[index]);
+        foreach (var polyline in translated)
+            AppendLwPolyline(builder, layerName, polyline);
+        for (var index = entitiesEndIndex; index < lines.Length; index++)
+            builder.AppendLine(lines[index]);
+
+        var outputDirectory = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrWhiteSpace(outputDirectory))
+            Directory.CreateDirectory(outputDirectory);
+        File.WriteAllText(outputPath, builder.ToString(), Encoding.ASCII);
+    }
+
+    private static int FindEntitiesEndIndex(IReadOnlyList<string> lines)
+    {
+        var inEntities = false;
+        for (var index = 0; index + 1 < lines.Count; index += 2)
+        {
+            var code = lines[index].Trim();
+            var value = lines[index + 1].Trim();
+            if (!inEntities
+                && code == "0"
+                && value.Equals("SECTION", StringComparison.OrdinalIgnoreCase)
+                && index + 3 < lines.Count
+                && lines[index + 2].Trim() == "2"
+                && lines[index + 3].Trim().Equals("ENTITIES", StringComparison.OrdinalIgnoreCase))
+            {
+                inEntities = true;
+                index += 2;
+                continue;
+            }
+
+            if (inEntities && code == "0" && value.Equals("ENDSEC", StringComparison.OrdinalIgnoreCase))
+                return index;
+        }
+
+        return -1;
     }
 
     public static IReadOnlyList<DxfPolyline> LoadPolylines(string dxfPath)
@@ -928,38 +1023,7 @@ internal static class EditorDxfDocument
     }
 
     private static void AppendConstructionTables(StringBuilder builder)
-    {
-        AppendPair(builder, 0, "SECTION");
-        AppendPair(builder, 2, "TABLES");
-
-        AppendPair(builder, 0, "TABLE");
-        AppendPair(builder, 2, "LTYPE");
-        AppendPair(builder, 70, "1");
-        AppendPair(builder, 0, "LTYPE");
-        AppendPair(builder, 2, "DASHED");
-        AppendPair(builder, 70, "0");
-        AppendPair(builder, 3, "Dashed __ __ __");
-        AppendPair(builder, 72, "65");
-        AppendPair(builder, 73, "2");
-        AppendPair(builder, 40, "0.75");
-        AppendPair(builder, 49, "0.5");
-        AppendPair(builder, 74, "0");
-        AppendPair(builder, 49, "-0.25");
-        AppendPair(builder, 74, "0");
-        AppendPair(builder, 0, "ENDTAB");
-
-        AppendPair(builder, 0, "TABLE");
-        AppendPair(builder, 2, "LAYER");
-        AppendPair(builder, 70, "1");
-        AppendPair(builder, 0, "LAYER");
-        AppendPair(builder, 2, "CONSTRUCTION");
-        AppendPair(builder, 70, "0");
-        AppendPair(builder, 62, "8");
-        AppendPair(builder, 6, "DASHED");
-        AppendPair(builder, 0, "ENDTAB");
-
-        AppendPair(builder, 0, "ENDSEC");
-    }
+        => AppendLayerTables(builder, [new ExportLayer("CONSTRUCTION", "#808080", 0, 0, true)]);
 
     private static void AppendLwPolyline(
         StringBuilder builder,
@@ -971,8 +1035,10 @@ internal static class EditorDxfDocument
             return;
 
         AppendPair(builder, 0, "LWPOLYLINE");
+        AppendPair(builder, 100, "AcDbEntity");
         AppendPair(builder, 8, layerName);
         AppendConstructionEntityStyle(builder, isConstruction);
+        AppendPair(builder, 100, "AcDbPolyline");
         AppendPair(builder, 90, polyline.Points.Count.ToString(CultureInfo.InvariantCulture));
         AppendPair(builder, 70, (polyline.IsClosed ? 1 : 0).ToString(CultureInfo.InvariantCulture));
 
@@ -991,8 +1057,10 @@ internal static class EditorDxfDocument
         bool isConstruction = false)
     {
         AppendPair(builder, 0, "CIRCLE");
+        AppendPair(builder, 100, "AcDbEntity");
         AppendPair(builder, 8, layerName);
         AppendConstructionEntityStyle(builder, isConstruction);
+        AppendPair(builder, 100, "AcDbCircle");
         AppendPair(builder, 10, Format(center.X));
         AppendPair(builder, 20, Format(center.Y));
         AppendPair(builder, 40, Format(radius));
@@ -1008,11 +1076,14 @@ internal static class EditorDxfDocument
         bool isConstruction = false)
     {
         AppendPair(builder, 0, "ARC");
+        AppendPair(builder, 100, "AcDbEntity");
         AppendPair(builder, 8, layerName);
         AppendConstructionEntityStyle(builder, isConstruction);
+        AppendPair(builder, 100, "AcDbCircle");
         AppendPair(builder, 10, Format(center.X));
         AppendPair(builder, 20, Format(center.Y));
         AppendPair(builder, 40, Format(radius));
+        AppendPair(builder, 100, "AcDbArc");
         AppendPair(builder, 50, Format(startAngleDegrees));
         AppendPair(builder, 51, Format(endAngleDegrees));
     }
@@ -1028,8 +1099,10 @@ internal static class EditorDxfDocument
         bool isConstruction = false)
     {
         AppendPair(builder, 0, "TEXT");
+        AppendPair(builder, 100, "AcDbEntity");
         AppendPair(builder, 8, layerName);
         AppendConstructionEntityStyle(builder, isConstruction);
+        AppendPair(builder, 100, "AcDbText");
         AppendPair(builder, 10, Format(start.X));
         AppendPair(builder, 20, Format(start.Y));
         AppendPair(builder, 40, Format(Math.Max(height, 0.1)));

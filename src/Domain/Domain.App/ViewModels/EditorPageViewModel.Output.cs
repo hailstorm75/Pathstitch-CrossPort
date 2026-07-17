@@ -2996,6 +2996,43 @@ public sealed partial class EditorPageViewModel
         return Convert.ToBase64String(dxfBytes);
     }
 
+    private async Task<string?> StageExistingTwoDDocumentAsync(CancellationToken cancellationToken)
+    {
+        if (TwoDDocument is not { Paths.Count: > 0 } document)
+            return null;
+
+        var stagingDirectory = Path.Combine(Path.GetTempPath(), "Pathstitch-CrossPort", "GeneratedInput");
+        Directory.CreateDirectory(stagingDirectory);
+        var stagingPath = Path.Combine(stagingDirectory, $"existing-{Guid.NewGuid():N}.dxf");
+        try
+        {
+            await _editorOutputPreviewService
+                .SavePreviewDocumentAsync(document, stagingPath, cancellationToken)
+                .ConfigureAwait(true);
+            return stagingPath;
+        }
+        catch
+        {
+            DeleteStagedTwoDDocument(stagingPath);
+            throw;
+        }
+    }
+
+    private static void DeleteStagedTwoDDocument(string? stagingPath)
+    {
+        if (string.IsNullOrWhiteSpace(stagingPath))
+            return;
+
+        try
+        {
+            File.Delete(stagingPath);
+        }
+        catch
+        {
+            // Staging cleanup is best effort and must not mask the geometry result.
+        }
+    }
+
     private static string FormatDimension(double value)
         => value.ToString("0.###", CultureInfo.InvariantCulture);
 

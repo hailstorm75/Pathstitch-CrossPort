@@ -364,9 +364,18 @@ public sealed partial class EditorPageViewModel
 
         try
         {
-            var result = await _threeDWorkspace.ProjectAsync(
-                BuildProjectionRequest(),
-                cancellationToken).ConfigureAwait(true);
+            var existingDxfPath = await StageExistingTwoDDocumentAsync(cancellationToken).ConfigureAwait(true);
+            EditorOperationResult result;
+            try
+            {
+                result = await _threeDWorkspace.ProjectAsync(
+                    BuildProjectionRequest(existingDxfPath),
+                    cancellationToken).ConfigureAwait(true);
+            }
+            finally
+            {
+                DeleteStagedTwoDDocument(existingDxfPath);
+            }
 
             StatusText = result.IsSuccess ? "Projection completed" : "Projection failed";
             ViewportStateText = result.Message;
@@ -393,7 +402,7 @@ public sealed partial class EditorPageViewModel
         ? "face"
         : SelectedProjectionPlane ?? "XY";
 
-    private EditorProjectionRequest BuildProjectionRequest()
+    private EditorProjectionRequest BuildProjectionRequest(string? existingDxfPath)
         => new(
             SourceModelPath: _sourceModelPath,
             PlaneType: GetProjectionPlaneTypeValue(),
@@ -411,7 +420,8 @@ public sealed partial class EditorPageViewModel
                     : null)
                 .Where(id => id is not null)
                 .Cast<string>()
-                .ToArray());
+                .ToArray(),
+            ExistingDxfPath: existingDxfPath);
 
     private string BuildSetPlaneSelectionStateScript()
     {

@@ -411,7 +411,7 @@ public sealed partial class EditorPageViewModel
         _ => "conformal",
     };
 
-    private EditorUnfoldRequest BuildUnfoldRequest(bool wholeBody)
+    private EditorUnfoldRequest BuildUnfoldRequest(bool wholeBody, string? existingDxfPath)
         => new(
             SourceModelPath: _sourceModelPath,
             SelectedFaces: SelectedFaces,
@@ -438,7 +438,8 @@ public sealed partial class EditorPageViewModel
                 1 => "strip",
                 2 => "spanning",
                 _ => "radial",
-            });
+            },
+            ExistingDxfPath: existingDxfPath);
 
     private string GetSeamControlModeValue() => SeamControlModeIndex switch
     {

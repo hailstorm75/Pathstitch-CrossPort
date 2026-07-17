@@ -152,9 +152,18 @@ public sealed partial class EditorPageViewModel
         StatusText = $"{actionLabel} running";
         ErrorMessage = null;
 
-        var result = await _threeDWorkspace.UnfoldAsync(
-            BuildUnfoldRequest(wholeBody),
-            cancellationToken).ConfigureAwait(true);
+        var existingDxfPath = await StageExistingTwoDDocumentAsync(cancellationToken).ConfigureAwait(true);
+        EditorOperationResult result;
+        try
+        {
+            result = await _threeDWorkspace.UnfoldAsync(
+                BuildUnfoldRequest(wholeBody, existingDxfPath),
+                cancellationToken).ConfigureAwait(true);
+        }
+        finally
+        {
+            DeleteStagedTwoDDocument(existingDxfPath);
+        }
 
         StatusText = result.IsSuccess ? $"{actionLabel} completed" : $"{actionLabel} failed";
         ViewportStateText = result.Message;

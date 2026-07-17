@@ -354,7 +354,11 @@ public sealed class OpenGeometryEditor3DOperationService(
             }
 
             var outputPath = CreateGeneratedOutputPath("unfold");
-            EditorDxfDocument.SaveLwPolylines(outputPath, "UNFOLDED_3D", outputPolylines);
+            EditorDxfDocument.SaveOrAppendLwPolylines(
+                outputPath,
+                "UNFOLDED_3D",
+                outputPolylines,
+                request.ExistingDxfPath);
 
             return Task.FromResult(new EditorOperationResult(
                 true,
@@ -462,10 +466,11 @@ public sealed class OpenGeometryEditor3DOperationService(
             }
 
             var outputPath = CreateGeneratedOutputPath("projected");
-            EditorDxfDocument.SaveLwPolylines(
+            EditorDxfDocument.SaveOrAppendLwPolylines(
                 outputPath,
                 "OPEN_GEOMETRY_OFFSET",
-                ArrangePolylinesForOutput(kernelPolylines));
+                ArrangePolylinesForOutput(kernelPolylines),
+                request.ExistingDxfPath);
 
             return new EditorOperationResult(
                 true,

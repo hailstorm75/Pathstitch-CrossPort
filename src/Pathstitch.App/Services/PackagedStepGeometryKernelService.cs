@@ -202,6 +202,7 @@ public sealed class PackagedStepGeometryKernelService(
                 visible_bodies = request.VisibleBodyIndices,
                 body_offsets = bodyOffsets,
                 offset = request.Offset,
+                existing_dxf = request.ExistingDxfPath,
             }, cancellationToken).ConfigureAwait(false);
             var geometry = response.GetProperty("data").GetProperty("typedGeometry")
                 .Deserialize<StepOperationGeometry>(JsonOptions);
@@ -260,6 +261,7 @@ public sealed class PackagedStepGeometryKernelService(
                     edge_index = item.Edge.EdgeIndex,
                     decoration = item.Decoration,
                 }).ToArray(),
+                existing_dxf = request.ExistingDxfPath,
             }, cancellationToken).ConfigureAwait(false);
             var geometry = response.GetProperty("data").GetProperty("typedGeometry")
                 .Deserialize<StepOperationGeometry>(JsonOptions);

@@ -15,4 +15,5 @@ public sealed record EditorUnfoldRequest(
     string SeamDecoration = "none",
     IReadOnlyList<EditorSeamDecoration3D>? SeamDecorations = null,
     string NetLayout = "connected",
-    string UnrollMode = "radial");
+    string UnrollMode = "radial",
+    string? ExistingDxfPath = null);
