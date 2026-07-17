@@ -54,7 +54,7 @@ public partial class EditorShellView : EditorInteractionControlBase
     {
         if (action == EditorCommandPaletteHostAction.StartScreen)
         {
-            Ioc.Default.GetRequiredService<DesktopDocumentWindowCoordinator>().ShowStartScreen();
+            ShowStartScreen();
             return;
         }
         if (TopLevel.GetTopLevel(this) is not Window owner)
@@ -239,6 +239,12 @@ public partial class EditorShellView : EditorInteractionControlBase
     private void OnCheckForUpdatesClicked(object? sender, RoutedEventArgs e)
         => Ioc.Default.GetRequiredService<IAppUpdateService>().CheckForUpdates();
 
+    private static void ShowStartScreen()
+        => Ioc.Default.GetRequiredService<DesktopDocumentWindowCoordinator>().ShowStartScreen();
+
+    private void OnShowStartScreenClicked(object? sender, RoutedEventArgs e)
+        => ShowStartScreen();
+
     private async void OnPreferencesClicked(object? sender, RoutedEventArgs e)
     {
         if (TopLevel.GetTopLevel(this) is not Window owner
@@ -326,6 +332,7 @@ public partial class EditorShellView : EditorInteractionControlBase
         SetHotKey(ZoomToFitMenuItem, EditorCommandPaletteCatalog.ZoomToFitIdentifier);
         SetHotKey(ActivityLogMenuItem, EditorCommandPaletteCatalog.ToggleActivityLogIdentifier);
         SetHotKey(LearnModeMenuItem, EditorCommandPaletteCatalog.ToggleLearnModeIdentifier);
+        SetHotKey(StartScreenMenuItem, EditorCommandPaletteCatalog.StartScreenIdentifier);
         SetHotKey(DocumentationMenuItem, EditorCommandPaletteCatalog.DocumentationIdentifier);
         SetHotKey(PreferencesMenuItem, EditorCommandPaletteCatalog.PreferencesIdentifier);
     }

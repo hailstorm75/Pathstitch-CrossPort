@@ -29,6 +29,7 @@ public static class EditorAppShortcutCatalog
         Command(EditorCommandPaletteCatalog.UndoIdentifier, "Undo", "Edit", "Primary+Z"),
         Command(EditorCommandPaletteCatalog.RedoIdentifier, "Redo", "Edit", "Primary+Shift+Z"),
         Command(EditorCommandPaletteCatalog.DeleteIdentifier, "Delete Selection", "Edit", "Delete"),
+        Command(EditorCommandPaletteCatalog.ConvertLinesToDashedIdentifier, "Convert Lines to Dashed", "Edit", "Primary+Shift+X"),
         Command(EditorCommandPaletteCatalog.ToggleGridIdentifier, "Toggle Grid", "View", "Shift+G"),
         Command(EditorCommandPaletteCatalog.ToggleSnappingIdentifier, "Toggle Snapping", "View", "N"),
         Command(EditorCommandPaletteCatalog.ToggleChainSelectionIdentifier, "Toggle Chain Selection", "View", "A"),

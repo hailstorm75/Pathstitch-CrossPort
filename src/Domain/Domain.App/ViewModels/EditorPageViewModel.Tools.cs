@@ -590,6 +590,12 @@ public sealed partial class EditorPageViewModel
             case EditorCommandPaletteCatalog.DeleteIdentifier:
                 DeleteCommand.Execute(null);
                 return true;
+            case EditorCommandPaletteCatalog.ConvertLinesToDashedIdentifier:
+                if (!IsShowingTwoDWorkspace || !CanApplyTwoDConvertLines)
+                    return true;
+                TwoDConvertLineStyle = "dashed";
+                ApplyTwoDConvertLines();
+                return true;
             case EditorCommandPaletteCatalog.SwitchToTwoDIdentifier:
                 await SetActiveEditorModeAsync(EditorMode.TwoD).ConfigureAwait(true);
                 return true;
@@ -664,6 +670,8 @@ public sealed partial class EditorPageViewModel
                 EditorCommandPaletteCatalog.UndoIdentifier => UndoCommand.CanExecute(null),
                 EditorCommandPaletteCatalog.RedoIdentifier => RedoCommand.CanExecute(null),
                 EditorCommandPaletteCatalog.DeleteIdentifier => DeleteCommand.CanExecute(null),
+                EditorCommandPaletteCatalog.ConvertLinesToDashedIdentifier
+                    => IsShowingTwoDWorkspace && CanApplyTwoDConvertLines,
                 EditorCommandPaletteCatalog.SwitchToTwoDIdentifier => ActiveEditorMode != EditorMode.TwoD,
                 EditorCommandPaletteCatalog.SwitchToThreeDIdentifier => ActiveEditorMode != EditorMode.ThreeD,
                 EditorCommandPaletteCatalog.SwitchToBatchIdentifier => ActiveEditorMode != EditorMode.Batch,

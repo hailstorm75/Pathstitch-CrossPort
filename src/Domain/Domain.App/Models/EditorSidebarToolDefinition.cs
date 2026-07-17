@@ -356,6 +356,7 @@ public static class EditorCommandPaletteCatalog
     public const string UndoIdentifier = "edit.undo";
     public const string RedoIdentifier = "edit.redo";
     public const string DeleteIdentifier = "edit.delete";
+    public const string ConvertLinesToDashedIdentifier = "edit.dashLines";
     public const string SwitchToTwoDIdentifier = "view.mode2D";
     public const string SwitchToThreeDIdentifier = "view.mode3D";
     public const string SwitchToBatchIdentifier = "view.modeBatch";
@@ -395,6 +396,7 @@ public static class EditorCommandPaletteCatalog
                 Command(mode, UndoIdentifier, "Undo", "Edit · Undo the last workspace change.", "Ctrl+Z", "edit"),
                 Command(mode, RedoIdentifier, "Redo", "Edit · Redo the last workspace change.", "Ctrl+Shift+Z", "edit"),
                 Command(mode, DeleteIdentifier, "Delete Selection", "Edit · Delete selected geometry or measurement.", "Delete", "edit"),
+                Command(mode, ConvertLinesToDashedIdentifier, "Convert Lines to Dashed", "Edit · Convert selected linework to editable dashed geometry.", "Ctrl+Shift+X", "edit"),
                 Command(mode, SwitchToTwoDIdentifier, "Switch to 2D Mode", "View · Show the 2D workspace.", null, "view"),
                 Command(mode, SwitchToThreeDIdentifier, "Switch to 3D Mode", "View · Show the 3D workspace.", null, "view"),
                 Command(mode, SwitchToBatchIdentifier, "Switch to Batch Mode", "View · Show the batch workspace.", null, "view"),

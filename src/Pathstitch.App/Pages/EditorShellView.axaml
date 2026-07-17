@@ -273,6 +273,11 @@
           Header="Check for _Updates…"
           Click="OnCheckForUpdatesClicked" />
         <MenuItem
+          x:Name="StartScreenMenuItem"
+          AutomationProperties.AutomationId="editor.menu.help.start-screen"
+          Header="_Start Screen"
+          Click="OnShowStartScreenClicked" />
+        <MenuItem
           x:Name="PreferencesMenuItem"
           AutomationProperties.AutomationId="editor.menu.help.preferences"
           Header="_Preferences"
