@@ -121,6 +121,82 @@ public sealed class Project3DStateServiceTests
     }
 
     [Fact]
+    public async Task LoadAsync_RestoresPlainJsonStchState()
+    {
+        using var workspace = TestWorkspace.Create();
+        var body = new Body3D(7, "Shell", [new Face3D(3, "Planar", 42.5) { BodyIndex = 7 }]);
+        var activity = new EditorActivityEntry(
+            "entry-plain-json",
+            new DateTimeOffset(2026, 7, 17, 10, 30, 0, TimeSpan.Zero),
+            "Unfold",
+            "1 body",
+            "layer-7");
+        var twoDWorkspace = Editor2DWorkspaceState.Empty with
+        {
+            ActiveTool = Editor2DTool.SketchLine,
+            IsInitialized = true,
+            ViewportZoom = 2.5,
+        };
+        var projectPath = workspace.WriteText(
+            "plain-json.stch",
+            JsonSerializer.Serialize(new
+            {
+                savedViewportJson = "{\"bodies\":[{\"body_index\":7}],\"bbox\":{}}",
+                savedBodies3D = new[] { body },
+                savedBodyOffsets = new[] { new { bodyIndex = 7, x = 1.5, y = -2.0, z = 3.25 } },
+                savedActivityLog = new[] { activity },
+                savedLearnModeEnabled = false,
+                savedTwoDWorkspaceState = twoDWorkspace,
+            }));
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        Assert.Equal("{\"bodies\":[{\"body_index\":7}],\"bbox\":{}}", state.ViewportJson);
+        var restoredBody = Assert.Single(state.Bodies);
+        Assert.Equal(body.BodyIndex, restoredBody.BodyIndex);
+        Assert.Equal(body.Name, restoredBody.Name);
+        Assert.Equal(Assert.Single(body.Faces), Assert.Single(restoredBody.Faces));
+        Assert.Equal(new BodyOffset3D(7, 1.5, -2.0, 3.25), Assert.Single(state.BodyOffsets));
+        Assert.Equal(activity, Assert.Single(state.ActivityLog!));
+        Assert.False(state.LearnModeEnabled);
+        Assert.NotNull(state.TwoDWorkspaceState);
+        Assert.Equal(Editor2DTool.SketchLine, state.TwoDWorkspaceState.ActiveTool);
+        Assert.True(state.TwoDWorkspaceState.IsInitialized);
+        Assert.Equal(2.5, state.TwoDWorkspaceState.ViewportZoom);
+    }
+
+    [Fact]
+    public async Task LoadAsync_RestoresGeneratedOutputFromPlainJsonStch()
+    {
+        using var workspace = TestWorkspace.Create();
+        byte[] expected = [0, 1, 2, 3, 10, 13, 255];
+        var projectPath = workspace.WriteText(
+            "plain-json-output.stch",
+            JsonSerializer.Serialize(new { dxfDataBase64 = Convert.ToBase64String(expected) }));
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        Assert.NotNull(state.GeneratedOutputPath);
+        Assert.True(File.Exists(state.GeneratedOutputPath));
+        Assert.Equal(expected, await File.ReadAllBytesAsync(state.GeneratedOutputPath));
+        File.Delete(state.GeneratedOutputPath);
+    }
+
+    [Fact]
+    public async Task LoadAsync_ReturnsEmptyForMalformedPlainJsonStch()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.WriteText("malformed.stch", "{ not valid json");
+        var service = new Project3DStateService();
+
+        var state = await service.LoadAsync(projectPath);
+
+        Assert.Same(Project3DState.Empty, state);
+    }
+
+    [Fact]
     public async Task SaveAsync_WritesViewportJsonAndLegacyCompatibilityAlias()
     {
         using var workspace = TestWorkspace.Create();
