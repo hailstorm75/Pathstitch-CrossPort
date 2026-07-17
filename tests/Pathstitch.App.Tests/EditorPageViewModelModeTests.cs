@@ -1856,8 +1856,11 @@ public sealed class EditorPageViewModelModeTests
         IUnsavedChangesPromptService? unsavedChangesPromptService = null,
         IEditorImportUnitsPromptService? importUnitsPromptService = null,
         IEditor2DGeometryKernelService? geometryKernelService = null,
-        ProjectSessionService? projectSessionService = null)
-        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService);
+        ProjectSessionService? projectSessionService = null,
+        IReferenceImageTraceService? referenceImageTraceService = null,
+        IPsdImportService? psdImportService = null,
+        IPsdImportModePromptService? psdImportModePromptService = null)
+        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, psdImportService, psdImportModePromptService);
 
     private static EditorPageViewModel CreateViewModel(
         IProjectFileDialogService? projectFileDialogService = null,
@@ -1865,7 +1868,10 @@ public sealed class EditorPageViewModelModeTests
         IUnsavedChangesPromptService? unsavedChangesPromptService = null,
         IEditorImportUnitsPromptService? importUnitsPromptService = null,
         IEditor2DGeometryKernelService? geometryKernelService = null,
-        ProjectSessionService? projectSessionService = null)
+        ProjectSessionService? projectSessionService = null,
+        IReferenceImageTraceService? referenceImageTraceService = null,
+        IPsdImportService? psdImportService = null,
+        IPsdImportModePromptService? psdImportModePromptService = null)
         => new(
             NullLogger<EditorPageViewModel>.Instance,
             new StubViewportAssetLocator(),
@@ -1876,9 +1882,12 @@ public sealed class EditorPageViewModelModeTests
             geometryKernelService ?? new Stub2DGeometryKernelService(),
             new Stub3DOperationService(),
             new StubGeometryKernelDescriptorProvider(),
+            referenceImageTraceService: referenceImageTraceService,
             unsavedChangesPromptService: unsavedChangesPromptService,
             importUnitsPromptService: importUnitsPromptService,
-            projectSessionService: projectSessionService);
+            projectSessionService: projectSessionService,
+            psdImportService: psdImportService,
+            psdImportModePromptService: psdImportModePromptService);
 
     private sealed class StubViewportAssetLocator : IEditorViewportAssetLocator
     {
