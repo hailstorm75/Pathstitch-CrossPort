@@ -4,6 +4,7 @@ using System.Reflection;
 using Avalonia;
 using Avalonia.Input;
 using Domain.App.Models;
+using Domain.App.Services;
 using Pathstitch.App.Controls;
 using Pathstitch.App.Tests.Fixtures;
 
@@ -59,6 +60,85 @@ public sealed class DxfPreviewCanvasInteractionTests
             Assert.True(args.Handled);
             Assert.Equal(expectedCommits, commits);
             Assert.Equal(expectedCancels, cancels);
+        });
+    }
+    [Theory]
+    [InlineData(Editor2DTool.AddThickness)]
+    [InlineData(Editor2DTool.Cleanup)]
+    [InlineData(Editor2DTool.Patterning)]
+    [InlineData(Editor2DTool.AddSewingHoles)]
+    public async Task ApplyStyleTool_EnterCommitsAndReturnsToSelect(Editor2DTool tool)
+    {
+        await _ui.RunAsync(() =>
+        {
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+                geometryKernelService: new ThicknessGeometryKernelService());
+            try
+            {
+                viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document;
+                var sourceId = viewModel.CreateTwoDLine(new(0, 0), new(12, 0))!;
+                if (tool == Editor2DTool.Cleanup)
+                    viewModel.CreateTwoDLine(new(12, 0), new(24, 0));
+                viewModel.TwoDSelectedPathIds = [sourceId];
+                viewModel.TwoDPatternCopiesXText = "2";
+                viewModel.TwoDPatternCopiesYText = "1";
+                viewModel.TwoDPatternSpacingXText = "20";
+                viewModel.TwoDPatternSpacingYText = "0";
+                viewModel.TwoDAddThicknessWidthText = "2";
+                viewModel.TwoDActiveTool = tool;
+                viewModel.TwoDWorkspace.ClearHistory();
+                var before = viewModel.TwoDDocument!.Paths.ToArray();
+                var canvas = Canvas(viewModel.TwoDDocument);
+                canvas.DataContext = viewModel;
+                canvas.ActiveTool = tool;
+                var args = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter };
+
+                canvas.RaiseEvent(args);
+
+                Assert.True(args.Handled);
+                Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+                Assert.False(before.SequenceEqual(viewModel.TwoDDocument!.Paths));
+                Assert.True(viewModel.TwoDWorkspace.CanUndo);
+            }
+            finally
+            {
+                viewModel.Dispose();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(Editor2DTool.AddThickness)]
+    [InlineData(Editor2DTool.Cleanup)]
+    [InlineData(Editor2DTool.Patterning)]
+    [InlineData(Editor2DTool.AddSewingHoles)]
+    public async Task ApplyStyleTool_EnterWithoutEligibleGeometryStaysActive(Editor2DTool tool)
+    {
+        await _ui.RunAsync(() =>
+        {
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+                geometryKernelService: new ThicknessGeometryKernelService());
+            try
+            {
+                viewModel.TwoDDocument = Editor2DWorkspaceState.Empty.Document;
+                viewModel.TwoDActiveTool = tool;
+                viewModel.TwoDWorkspace.ClearHistory();
+                var canvas = Canvas(viewModel.TwoDDocument);
+                canvas.DataContext = viewModel;
+                canvas.ActiveTool = tool;
+                var args = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter };
+
+                canvas.RaiseEvent(args);
+
+                Assert.True(args.Handled);
+                Assert.Equal(tool, viewModel.TwoDActiveTool);
+                Assert.Empty(viewModel.TwoDDocument!.Paths);
+                Assert.False(viewModel.TwoDWorkspace.CanUndo);
+            }
+            finally
+            {
+                viewModel.Dispose();
+            }
         });
     }
 
@@ -600,5 +680,39 @@ public sealed class DxfPreviewCanvasInteractionTests
         Assert.True(request.Committed);
         Assert.Same(document, request.Document);
         Assert.Equal(["shape-1"], request.SelectedPathIds);
+    }
+
+    private sealed class ThicknessGeometryKernelService : IEditor2DGeometryKernelService
+    {
+        public Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(
+            IReadOnlyList<Editor2DPreviewPath> sourcePaths,
+            double offsetDistance,
+            bool offsetOutward,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(Editor2DGeometryKernelResult.Success([]));
+
+        public Task<Editor2DGeometryKernelResult> BuildThicknessOutlinesAsync(
+            IReadOnlyList<Editor2DPreviewPath> sourcePaths,
+            double thickness,
+            CancellationToken cancellationToken = default)
+        {
+            var outlines = sourcePaths.Select(path =>
+            {
+                var start = path.Points[0];
+                var end = path.Points[^1];
+                var half = thickness / 2.0;
+                return new Editor2DPreviewPath(
+                    $"{path.Id}:thickness",
+                    "LWPOLYLINE",
+                    [
+                        new(start.X, start.Y - half),
+                        new(end.X, end.Y - half),
+                        new(end.X, end.Y + half),
+                        new(start.X, start.Y + half),
+                    ],
+                    true);
+            }).ToArray();
+            return Task.FromResult(Editor2DGeometryKernelResult.Success(outlines));
+        }
     }
 }
