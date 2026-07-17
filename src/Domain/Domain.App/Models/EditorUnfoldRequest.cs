@@ -16,4 +16,8 @@ public sealed record EditorUnfoldRequest(
     IReadOnlyList<EditorSeamDecoration3D>? SeamDecorations = null,
     string NetLayout = "connected",
     string UnrollMode = "radial",
-    string? ExistingDxfPath = null);
+    string? ExistingDxfPath = null,
+    double TabHeight = 5.0,
+    double HoleDiameter = 1.0,
+    double HoleSpacing = 4.0,
+    double HoleMargin = 2.0);

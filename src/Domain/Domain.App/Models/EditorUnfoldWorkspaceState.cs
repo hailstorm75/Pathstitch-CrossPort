@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Globalization;
 
 namespace Domain.App.Models;
 
@@ -24,12 +25,22 @@ public sealed record EditorUnfoldWorkspaceState(
         {
             NetLayoutIndex = Math.Clamp(NetLayoutIndex, 0, 1),
             UnrollModeIndex = Math.Clamp(UnrollModeIndex, 0, 2),
-            GlueTabHeightText = "5",
-            HoleDiameterText = "1",
-            HoleSpacingText = "4",
-            HoleMarginText = "2",
+            GlueTabHeightText = NormalizeDimension(GlueTabHeightText, "5", allowZero: false),
+            HoleDiameterText = NormalizeDimension(HoleDiameterText, "1", allowZero: false),
+            HoleSpacingText = NormalizeDimension(HoleSpacingText, "4", allowZero: false),
+            HoleMarginText = NormalizeDimension(HoleMarginText, "2", allowZero: true),
             ForcedSeams = ForcedSeams ?? [],
             ForbiddenSeams = ForbiddenSeams ?? [],
             SeamDecorations = SeamDecorations ?? [],
         };
+
+    private static string NormalizeDimension(string? text, string fallback, bool allowZero)
+    {
+        var trimmed = text?.Trim();
+        return double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+               && double.IsFinite(value)
+               && (allowZero ? value >= 0 : value > 0)
+            ? trimmed!
+            : fallback;
+    }
 }

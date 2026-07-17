@@ -261,6 +261,10 @@ public sealed class PackagedStepGeometryKernelService(
                     edge_index = item.Edge.EdgeIndex,
                     decoration = item.Decoration,
                 }).ToArray(),
+                tab_height = request.TabHeight,
+                hole_diameter = request.HoleDiameter,
+                hole_spacing = request.HoleSpacing,
+                hole_margin = request.HoleMargin,
                 existing_dxf = request.ExistingDxfPath,
             }, cancellationToken).ConfigureAwait(false);
             var geometry = response.GetProperty("data").GetProperty("typedGeometry")

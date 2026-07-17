@@ -1,4 +1,5 @@
 using Domain.App.Models;
+using System.Globalization;
 
 namespace Domain.App.ViewModels;
 
@@ -361,10 +362,10 @@ public sealed partial class EditorPageViewModel
             SeamControlModeIndex,
             LiveRecomputeEnabled,
             WholeBodyRecompute: _wholeBodyRecompute,
-            GlueTabHeightText: "5",
-            HoleDiameterText: "1",
-            HoleSpacingText: "4",
-            HoleMarginText: "2",
+            GlueTabHeightText: TwoDGlueTabHeightText,
+            HoleDiameterText: _twoDWorkspace.SewingHoleDiameter.ToString("G17", CultureInfo.InvariantCulture),
+            HoleSpacingText: _twoDWorkspace.SewingHolePitch.ToString("G17", CultureInfo.InvariantCulture),
+            HoleMarginText: _twoDWorkspace.SewingHoleMargin.ToString("G17", CultureInfo.InvariantCulture),
             ForcedSeams.Count == 0 ? null : ForcedSeams,
             ForbiddenSeams.Count == 0 ? null : ForbiddenSeams,
             AnchorFace,
@@ -376,6 +377,10 @@ public sealed partial class EditorPageViewModel
             return;
 
         var openGeometryState = state.NormalizeForOpenGeometryEditor();
+        TwoDGlueTabHeightText = openGeometryState.GlueTabHeightText;
+        _twoDWorkspace.SewingHoleDiameter = ParseUnfoldDimension(openGeometryState.HoleDiameterText);
+        _twoDWorkspace.SewingHolePitch = ParseUnfoldDimension(openGeometryState.HoleSpacingText);
+        _twoDWorkspace.SewingHoleMargin = ParseUnfoldDimension(openGeometryState.HoleMarginText);
         DistortionModeIndex = openGeometryState.DistortionModeIndex;
         NetLayoutIndex = openGeometryState.NetLayoutIndex;
         UnrollModeIndex = openGeometryState.UnrollModeIndex;
@@ -412,7 +417,9 @@ public sealed partial class EditorPageViewModel
     };
 
     private EditorUnfoldRequest BuildUnfoldRequest(bool wholeBody, string? existingDxfPath)
-        => new(
+    {
+        var dimensions = BuildPersistedUnfoldWorkspaceState().NormalizeForOpenGeometryEditor();
+        return new(
             SourceModelPath: _sourceModelPath,
             SelectedFaces: SelectedFaces,
             WholeBody: wholeBody,
@@ -439,7 +446,15 @@ public sealed partial class EditorPageViewModel
                 2 => "spanning",
                 _ => "radial",
             },
-            ExistingDxfPath: existingDxfPath);
+            ExistingDxfPath: existingDxfPath,
+            TabHeight: ParseUnfoldDimension(dimensions.GlueTabHeightText),
+            HoleDiameter: ParseUnfoldDimension(dimensions.HoleDiameterText),
+            HoleSpacing: ParseUnfoldDimension(dimensions.HoleSpacingText),
+            HoleMargin: ParseUnfoldDimension(dimensions.HoleMarginText));
+    }
+
+    private static double ParseUnfoldDimension(string text)
+        => double.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture);
 
     private string GetSeamControlModeValue() => SeamControlModeIndex switch
     {
