@@ -121,7 +121,7 @@ public sealed class EditorBatchWorkspaceViewModelTests
 
             Assert.Equal([Path.GetFullPath(input)], preview.LoadedPaths);
             Assert.Single(preview.SavedPaths);
-            Assert.EndsWith("drawing-batch.dxf", preview.SavedPaths[0], StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("BatchExport", "drawing.dxf"), preview.SavedPaths[0], StringComparison.OrdinalIgnoreCase);
             Assert.Equal(EditorBatchItemStatus.Succeeded, workspace.Items[0].Status);
         }
         finally
@@ -281,7 +281,7 @@ public sealed class EditorBatchWorkspaceViewModelTests
             };
             Assert.True(workspace.AddFile(input));
             await workspace.ExportDxfAsync(new DxfOutputPreviewService());
-            Assert.EndsWith("-batch.pdf", workspace.Items[0].OutputPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("BatchExport", "drawing.pdf"), workspace.Items[0].OutputPath, StringComparison.OrdinalIgnoreCase);
             Assert.StartsWith("%PDF", await File.ReadAllTextAsync(workspace.Items[0].OutputPath!));
         }
         finally
@@ -312,7 +312,7 @@ public sealed class EditorBatchWorkspaceViewModelTests
             Assert.True(workspace.AddFile(input));
             await workspace.ExportDxfAsync(new DxfOutputPreviewService());
 
-            Assert.EndsWith($"-batch{extension}", workspace.Items[0].OutputPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("BatchExport", $"drawing{extension}"), workspace.Items[0].OutputPath, StringComparison.OrdinalIgnoreCase);
             Assert.True(File.Exists(workspace.Items[0].OutputPath));
             if (expectedText is not null)
                 Assert.Contains(expectedText, await File.ReadAllTextAsync(workspace.Items[0].OutputPath!));
@@ -342,6 +342,8 @@ public sealed class EditorBatchWorkspaceViewModelTests
                 ContinueOnError = false,
                 ExportSelectedOnly = true,
                 SelectedExportFormat = EditorBatchExportFormat.Svg,
+                SelectedNamingOption = EditorBatchNamingOption.CustomIndex,
+                CustomExportName = "Pattern Set",
             };
             Assert.True(workspace.AddFile(input));
             await workspace.ApplyOffsetAsync(preview, new StubOffsetGeometryKernel(), 2.0);
@@ -361,18 +363,57 @@ public sealed class EditorBatchWorkspaceViewModelTests
             Assert.False(restored.ContinueOnError);
             Assert.True(restored.ExportSelectedOnly);
             Assert.Equal(EditorBatchExportFormat.Svg, restored.SelectedExportFormat);
+            Assert.Equal(EditorBatchNamingOption.CustomIndex, restored.SelectedNamingOption);
+            Assert.Equal("Pattern Set", restored.CustomExportName);
 
             var export = new RecordingPreviewService();
             await restored.ExportDxfAsync(export);
 
             Assert.Empty(export.LoadedPaths);
             Assert.Single(export.SavedPaths);
+            Assert.EndsWith(Path.Combine("Pattern Set", "Pattern Set_1.svg"), export.SavedPaths[0], StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
             Directory.Delete(directory, recursive: true);
             if (recoveryDirectory is not null && Directory.Exists(recoveryDirectory))
                 Directory.Delete(recoveryDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ExportBatch_CustomNamingIndexesOnlyExportedSelection()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchNaming", Guid.NewGuid().ToString("N"));
+        var preview = new RecordingPreviewService();
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel
+            {
+                OutputDirectory = Path.Combine(directory, "out"),
+                ExportSelectedOnly = true,
+                SelectedExportFormat = EditorBatchExportFormat.Svg,
+                SelectedNamingOption = EditorBatchNamingOption.CustomIndex,
+                CustomExportName = "Job",
+            };
+            Assert.Equal(3, workspace.AddFiles([
+                Path.Combine(directory, "one.dxf"),
+                Path.Combine(directory, "two.dxf"),
+                Path.Combine(directory, "three.dxf"),
+            ]));
+            workspace.Items[0].IsSelected = false;
+
+            await workspace.ExportDxfAsync(preview);
+
+            Assert.Equal(2, preview.SavedPaths.Count);
+            Assert.EndsWith(Path.Combine("Job", "Job_1.svg"), preview.SavedPaths[0], StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("Job", "Job_2.svg"), preview.SavedPaths[1], StringComparison.OrdinalIgnoreCase);
+            Assert.Null(workspace.Items[0].OutputPath);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
         }
     }
 

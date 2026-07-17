@@ -58,6 +58,8 @@ public sealed class EditorDocumentLifecycleTests
         fixture.ViewModel.BatchWorkspace.OutputDirectory = outputDirectory;
         fixture.ViewModel.BatchWorkspace.ExportSelectedOnly = true;
         fixture.ViewModel.BatchWorkspace.SelectedExportFormat = EditorBatchExportFormat.Dxf;
+        fixture.ViewModel.BatchWorkspace.SelectedNamingOption = EditorBatchNamingOption.CustomIndex;
+        fixture.ViewModel.BatchWorkspace.CustomExportName = "Saved Batch";
         await fixture.ViewModel.SetActiveEditorModeAsync(EditorMode.Batch);
         Assert.True(fixture.ViewModel.IsDirty);
 
@@ -92,11 +94,14 @@ public sealed class EditorDocumentLifecycleTests
             Assert.False(reopened.BatchWorkspace.ContinueOnError);
             Assert.True(reopened.BatchWorkspace.ExportSelectedOnly);
             Assert.Equal(outputDirectory, reopened.BatchWorkspace.OutputDirectory);
+            Assert.Equal(EditorBatchNamingOption.CustomIndex, reopened.BatchWorkspace.SelectedNamingOption);
+            Assert.Equal("Saved Batch", reopened.BatchWorkspace.CustomExportName);
 
             await reopened.BatchWorkspace.ExportDxfAsync(new DxfOutputPreviewService());
 
             Assert.True(File.Exists(reopened.BatchWorkspace.Items[0].OutputPath));
-            Assert.Equal("first-batch.dxf", Path.GetFileName(reopened.BatchWorkspace.Items[0].OutputPath));
+            Assert.Equal("Saved Batch_1.dxf", Path.GetFileName(reopened.BatchWorkspace.Items[0].OutputPath));
+            Assert.Equal("Saved Batch", Path.GetFileName(Path.GetDirectoryName(reopened.BatchWorkspace.Items[0].OutputPath)));
             Assert.Null(reopened.BatchWorkspace.Items[1].OutputPath);
         }
         finally
