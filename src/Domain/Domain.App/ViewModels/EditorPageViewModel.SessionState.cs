@@ -42,6 +42,7 @@ public sealed partial class EditorPageViewModel
             ClearTwoDState();
             RestoreActivityLog([]);
             IsActivityLogExpanded = false;
+            LearnModeEnabled = true;
             ActiveEditorMode = EditorMode.ThreeD;
             ActiveTool = Editor3DTool.Select;
             ThreeDOrthographic = false;
@@ -175,6 +176,7 @@ public sealed partial class EditorPageViewModel
         {
             state = await _project3DStateService.LoadAsync(ProjectSession.ProjectFilePath, token).ConfigureAwait(true);
             RestoreActivityLog(state.ActivityLog);
+            LearnModeEnabled = state.LearnModeEnabled;
             ViewportJsonContent = state.ViewportJson;
             SetSourceModelPath(state.SourceModelPath);
             _stepTopology = state.StepTopology;

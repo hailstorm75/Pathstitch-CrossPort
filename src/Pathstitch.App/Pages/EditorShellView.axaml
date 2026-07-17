@@ -251,6 +251,14 @@
           AutomationProperties.AutomationId="editor.menu.view.log-tray"
           Header="{Binding ActivityLogToggleLabel}"
           Click="OnToggleActivityLogClicked" />
+        <MenuItem
+          x:Name="LearnModeMenuItem"
+          AutomationProperties.AutomationId="editor.menu.view.learn-mode"
+          AutomationProperties.HelpText="{Binding LearnModeToggleHelpText}"
+          Header="_Learn Mode"
+          ToggleType="CheckBox"
+          IsChecked="{Binding LearnModeEnabled, Mode=OneWay}"
+          Click="OnToggleLearnModeClicked" />
       </MenuItem>
       <MenuItem
         AutomationProperties.AutomationId="editor.menu.help"

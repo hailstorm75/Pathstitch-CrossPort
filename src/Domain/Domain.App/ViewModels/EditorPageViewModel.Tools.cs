@@ -578,6 +578,9 @@ public sealed partial class EditorPageViewModel
             case EditorCommandPaletteCatalog.ToggleActivityLogIdentifier:
                 ToggleActivityLog();
                 return true;
+            case EditorCommandPaletteCatalog.ToggleLearnModeIdentifier:
+                ToggleLearnMode();
+                return true;
             case EditorCommandPaletteCatalog.UndoIdentifier:
                 UndoCommand.Execute(null);
                 return true;
@@ -657,6 +660,7 @@ public sealed partial class EditorPageViewModel
                     or EditorCommandPaletteCatalog.ZoomOutIdentifier
                     or EditorCommandPaletteCatalog.ZoomToFitIdentifier => IsShowingTwoDWorkspace,
                 EditorCommandPaletteCatalog.ToggleActivityLogIdentifier => true,
+                EditorCommandPaletteCatalog.ToggleLearnModeIdentifier => true,
                 EditorCommandPaletteCatalog.UndoIdentifier => UndoCommand.CanExecute(null),
                 EditorCommandPaletteCatalog.RedoIdentifier => RedoCommand.CanExecute(null),
                 EditorCommandPaletteCatalog.DeleteIdentifier => DeleteCommand.CanExecute(null),

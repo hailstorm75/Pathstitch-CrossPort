@@ -36,6 +36,7 @@ public static class EditorAppShortcutCatalog
         Command(EditorCommandPaletteCatalog.ZoomOutIdentifier, "Zoom Out", "View", "Primary+OemMinus"),
         Command(EditorCommandPaletteCatalog.ZoomToFitIdentifier, "Zoom to Fit", "View", "Primary+D0"),
         Command(EditorCommandPaletteCatalog.ToggleActivityLogIdentifier, "Toggle Log Tray", "View", null),
+        Command(EditorCommandPaletteCatalog.ToggleLearnModeIdentifier, "Toggle Learn Mode", "View", null),
         Command(EditorCommandPaletteCatalog.SwitchToTwoDIdentifier, "Switch to 2D Mode", "View", null),
         Command(EditorCommandPaletteCatalog.SwitchToThreeDIdentifier, "Switch to 3D Mode", "View", null),
         Command(EditorCommandPaletteCatalog.SwitchToBatchIdentifier, "Switch to Batch Mode", "View", null),

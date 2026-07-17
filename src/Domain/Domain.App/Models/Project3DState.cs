@@ -15,7 +15,8 @@ public sealed record Project3DState(
     Editor3DWorkspaceState? ThreeDWorkspaceState = null,
     StepGeometryDocument? StepTopology = null,
     EditorBatchWorkspaceState? BatchWorkspaceState = null,
-    IReadOnlyList<EditorActivityEntry>? ActivityLog = null)
+    IReadOnlyList<EditorActivityEntry>? ActivityLog = null,
+    bool LearnModeEnabled = true)
 {
     public static Project3DState Empty { get; } = new(null, [], [], null, null, null, null, null, null, null, Editor2DWorkspaceState.Empty);
 
