@@ -25,6 +25,11 @@ public sealed class ReferenceImageWorkflowTests
             2,
             10,
             5,
+            TraceThreshold: 0.7,
+            TraceTolerance: 20,
+            TraceCornerSmoothness: 30,
+            TracePathOptimization: 40,
+            TraceSilhouetteOnly: true,
             Depth: Editor2DReferenceImageDepth.Front);
 
         var json = JsonSerializer.Serialize(image);
@@ -33,9 +38,18 @@ public sealed class ReferenceImageWorkflowTests
 
         var legacy = JsonNode.Parse(json)!.AsObject();
         Assert.True(legacy.Remove("depth"));
+        Assert.True(legacy.Remove("traceTolerance"));
+        Assert.True(legacy.Remove("traceCornerSmoothness"));
+        Assert.True(legacy.Remove("tracePathOptimization"));
+        Assert.True(legacy.Remove("traceSilhouetteOnly"));
+        var legacyImage = JsonSerializer.Deserialize<Editor2DReferenceImage>(legacy.ToJsonString())!;
         Assert.Equal(
             Editor2DReferenceImageDepth.Back,
-            JsonSerializer.Deserialize<Editor2DReferenceImage>(legacy.ToJsonString())!.Depth);
+            legacyImage.Depth);
+        Assert.Equal(50, legacyImage.TraceTolerance);
+        Assert.Equal(50, legacyImage.TraceCornerSmoothness);
+        Assert.Equal(50, legacyImage.TracePathOptimization);
+        Assert.False(legacyImage.TraceSilhouetteOnly);
     }
 
     [Fact]
@@ -111,7 +125,7 @@ public sealed class ReferenceImageWorkflowTests
     }
 
     [Fact]
-    public void ImportReferenceImage_RemainsNonGeometryUntilExplicitTrace()
+    public void ReferenceImageTrace_PreviewsCancelsThenCommitsAtomically()
     {
         var tracer = new RecordingReferenceImageTraceService(
             [[new(40, 20), new(360, 30), new(200, 180)]]);
@@ -135,6 +149,13 @@ public sealed class ReferenceImageWorkflowTests
         Assert.True(workspace.CalibrateReferenceImage(layer.Id, 300));
         Assert.True(workspace.SetReferenceImageOpacity(layer.Id, 0.2));
         Assert.True(workspace.SetReferenceImageTraceThreshold(layer.Id, 0.8));
+        Assert.True(workspace.SetReferenceImageTraceOptions(layer.Id, image => image with
+        {
+            TraceTolerance = 25,
+            TraceCornerSmoothness = 35,
+            TracePathOptimization = 45,
+            TraceSilhouetteOnly = true,
+        }));
         var transformed = workspace.Layers.Single(candidate => candidate.Id == layer.Id).ReferenceImage!;
         Assert.Equal(10, transformed.X);
         Assert.Equal(20, transformed.Y);
@@ -143,28 +164,60 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Equal(45, transformed.RotationDegrees);
         Assert.Equal(0.2, transformed.Opacity, 6);
         Assert.Equal(0.8, transformed.TraceThreshold, 6);
+        Assert.Equal(25, transformed.TraceTolerance);
+        Assert.Equal(35, transformed.TraceCornerSmoothness);
+        Assert.Equal(45, transformed.TracePathOptimization);
+        Assert.True(transformed.TraceSilhouetteOnly);
 
         Assert.True(workspace.ToggleLayerLock(layer.Id));
         Assert.False(workspace.UpdateReferenceImageTransform(layer.Id, 0, 0, 1, 1, 0));
-        Assert.Null(workspace.TraceReferenceImageBounds(layer.Id));
+        Assert.False(workspace.BeginReferenceImageTrace(layer.Id));
         Assert.True(workspace.ToggleLayerLock(layer.Id));
 
-        var trace = workspace.TraceReferenceImageBounds(layer.Id);
+        workspace.ClearHistory();
+        Assert.True(workspace.BeginReferenceImageTrace(layer.Id));
+
+        Assert.Equal(0.8, tracer.LastOptions!.Threshold, 6);
+        Assert.Equal(25, tracer.LastOptions.Tolerance);
+        Assert.Equal(35, tracer.LastOptions.CornerSmoothness);
+        Assert.Equal(45, tracer.LastOptions.PathOptimization);
+        Assert.True(tracer.LastOptions.SilhouetteOnly);
+        Assert.Empty(workspace.Document.Paths);
+        var preview = Assert.Single(workspace.ReferenceImageTracePreviewPaths);
+        Assert.Equal("REFERENCE_TRACE", preview.EntityType);
+        workspace.CancelReferenceImageTrace();
+        Assert.Empty(workspace.ReferenceImageTracePreviewPaths);
+        Assert.Empty(workspace.Document.Paths);
+        Assert.True(workspace.Layers.Single(candidate => candidate.Id == layer.Id).IsVisible);
+        Assert.False(workspace.CanUndo);
+
+        Assert.True(workspace.BeginReferenceImageTrace(layer.Id));
+        var trace = workspace.CommitReferenceImageTrace();
 
         Assert.NotNull(trace);
-        Assert.Equal(0.8, tracer.LastThreshold, 6);
         Assert.Equal("REFERENCE_TRACE", trace.EntityType);
         Assert.Equal(trace, Assert.Single(workspace.Document.Paths));
         Assert.Equal([trace.Id], workspace.SelectedPathIds);
         var restoredReferenceLayer = workspace.Layers.Single(candidate => candidate.Id == layer.Id);
+        Assert.False(restoredReferenceLayer.IsVisible);
         Assert.Empty(restoredReferenceLayer.PathIds);
         Assert.NotNull(restoredReferenceLayer.ReferenceImage);
         var geometryLayer = Assert.Single(
-            workspace.Layers,
-            candidate => candidate.Kind == Editor2DLayerKind.Geometry && candidate.PathIds.Contains(trace.Id));
+            workspace.Layers, candidate => candidate.Name == "pattern_traced");
         Assert.False(workspace.AssignPathsToLayer(restoredReferenceLayer.Id, [trace.Id]));
         Assert.Contains(trace.Id, geometryLayer.PathIds);
         Assert.Equal(3, trace.Points.Count);
+        Assert.True(workspace.Undo());
+        Assert.Empty(workspace.Document.Paths);
+        Assert.True(workspace.Layers.Single(candidate => candidate.Id == layer.Id).IsVisible);
+        Assert.True(workspace.Redo());
+        Assert.False(workspace.Layers.Single(candidate => candidate.Id == layer.Id).IsVisible);
+
+        Assert.True(workspace.ToggleLayerVisibility(layer.Id));
+        Assert.True(workspace.BeginReferenceImageTrace(layer.Id));
+        Assert.NotNull(workspace.CommitReferenceImageTrace());
+        var reusedTarget = Assert.Single(workspace.Layers, candidate => candidate.Name == "pattern_traced");
+        Assert.Equal(2, reusedTarget.PathIds.Count);
     }
 
     [Fact]
@@ -308,7 +361,7 @@ public sealed class ReferenceImageWorkflowTests
         var tracer = new AvaloniaReferenceImageTraceService();
         var contours = tracer.TraceContours(
             Convert.ToBase64String(File.ReadAllBytes(fixture)),
-            threshold: 0.45);
+            new Editor2DReferenceImageTraceOptions(Threshold: 0.45));
 
         Assert.NotEmpty(contours);
         Assert.Contains(contours, contour => contour.Count > 4);
@@ -317,6 +370,33 @@ public sealed class ReferenceImageWorkflowTests
             Assert.InRange(point.X, 0, 512);
             Assert.InRange(point.Y, 0, 512);
         });
+    }
+
+    [Fact]
+    public void AvaloniaTracer_SilhouetteUsesAlphaAndReturnsLargestContour()
+    {
+        using var bitmap = new SKBitmap(new SKImageInfo(8, 5, SKColorType.Rgba8888, SKAlphaType.Premul));
+        bitmap.Erase(SKColors.Transparent);
+        using var canvas = new SKCanvas(bitmap);
+        using var paint = new SKPaint { Color = SKColors.White };
+        canvas.DrawRect(new SKRect(0, 0, 4, 4), paint);
+        canvas.DrawRect(new SKRect(6, 0, 8, 2), paint);
+        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        var tracer = new AvaloniaReferenceImageTraceService();
+
+        var thresholded = tracer.TraceContours(
+            Convert.ToBase64String(data.ToArray()),
+            new Editor2DReferenceImageTraceOptions(Threshold: 0.1, CornerSmoothness: 0));
+        var silhouette = tracer.TraceContours(
+            Convert.ToBase64String(data.ToArray()),
+            new Editor2DReferenceImageTraceOptions(
+                Threshold: 0.1,
+                CornerSmoothness: 0,
+                SilhouetteOnly: true));
+
+        Assert.Empty(thresholded);
+        Assert.Single(silhouette);
+        Assert.True(silhouette[0].Max(point => point.X) <= 4);
     }
 
     [Fact]
@@ -405,6 +485,11 @@ public sealed class ReferenceImageWorkflowTests
         Assert.Contains("OnCalibrateReferenceImageClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnReferenceThresholdUpClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnTraceReferenceImageClicked", panel, StringComparison.Ordinal);
+        Assert.Contains("OnCommitReferenceTraceClicked", panel, StringComparison.Ordinal);
+        Assert.Contains("OnCancelReferenceTraceClicked", panel, StringComparison.Ordinal);
+        Assert.Contains("TwoDReferenceTraceCornerSmoothness", panel, StringComparison.Ordinal);
+        Assert.Contains("TwoDReferenceTracePathOptimization", panel, StringComparison.Ordinal);
+        Assert.Contains("TracePreviewPaths=\"{Binding TwoDWorkspace.ReferenceImageTracePreviewPaths}\"", ReadPage("Editor2DView.axaml"), StringComparison.Ordinal);
         Assert.Contains("OnRemoveReferenceBackgroundClicked", panel, StringComparison.Ordinal);
         Assert.Contains("OnRestoreReferenceBackgroundClicked", panel, StringComparison.Ordinal);
     }
@@ -429,14 +514,14 @@ public sealed class ReferenceImageWorkflowTests
     private sealed class RecordingReferenceImageTraceService(
         IReadOnlyList<IReadOnlyList<Editor2DPoint>> contours) : IReferenceImageTraceService
     {
-        public double LastThreshold { get; private set; }
+        public Editor2DReferenceImageTraceOptions? LastOptions { get; private set; }
 
         public IReadOnlyList<IReadOnlyList<Editor2DPoint>> TraceContours(
             string imageDataBase64,
-            double threshold)
+            Editor2DReferenceImageTraceOptions options)
         {
             Assert.False(string.IsNullOrWhiteSpace(imageDataBase64));
-            LastThreshold = threshold;
+            LastOptions = options;
             return contours;
         }
     }
