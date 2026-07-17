@@ -83,6 +83,20 @@ public sealed class EditorPageViewModelModeTests
     }
 
     [Fact]
+    public void NetLayout_DefaultsConnectedAndExplicitSeparateSelectionRemainsAvailable()
+    {
+        var viewModel = CreateViewModelForTests();
+
+        Assert.Equal(0, viewModel.NetLayoutIndex);
+        Assert.Equal("Connected Net", viewModel.NetLayoutLabel);
+
+        viewModel.NetLayoutIndex = 1;
+
+        Assert.Equal(1, viewModel.NetLayoutIndex);
+        Assert.Equal("Separate Pieces", viewModel.NetLayoutLabel);
+    }
+
+    [Fact]
     public void SelectedSeamDecoration_DefaultClearsOverrideAndUsesGlobalDecoration()
     {
         var viewModel = CreateViewModelForTests();

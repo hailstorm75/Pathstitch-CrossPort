@@ -70,6 +70,24 @@ public sealed class Editor3DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void FreshWorkspace_UsesMacConnectedNetDefaultWithoutMigratingSavedSeparateLayout()
+    {
+        var workspace = CreateWorkspace();
+
+        Assert.Equal(0, workspace.NetLayoutIndex);
+        Assert.Equal(0, workspace.CaptureState().Unfold.NetLayoutIndex);
+        Assert.Equal(0, Editor3DWorkspaceState.Empty.Unfold.NetLayoutIndex);
+
+        workspace.RestoreState(workspace.CaptureState() with
+        {
+            Unfold = workspace.CaptureState().Unfold with { NetLayoutIndex = 1 },
+        });
+
+        Assert.Equal(1, workspace.NetLayoutIndex);
+        Assert.Equal(1, workspace.CaptureState().Unfold.NetLayoutIndex);
+    }
+
+    [Fact]
     public void WorkspaceStateJsonRoundTripRestoresSemanticThreeDState()
     {
         var original = CreateWorkspace();
