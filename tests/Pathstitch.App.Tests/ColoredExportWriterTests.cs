@@ -28,8 +28,8 @@ public sealed class ColoredExportWriterTests
                 new Editor2DExportOptions(SvgStrokeWidth: 0.1, PngLongestEdge: 256, PngTransparent: true));
 
             using var bitmap = SKBitmap.Decode(outputPath);
-            AssertColor(bitmap.GetPixel(128, 51), 255, 0, 0);
-            AssertColor(bitmap.GetPixel(128, 205), 0, 0, 255);
+            AssertColor(bitmap.GetPixel(128, 205), 255, 0, 0);
+            AssertColor(bitmap.GetPixel(128, 51), 0, 0, 255);
             AssertColor(bitmap.GetPixel(128, 128), 128, 128, 128);
         }
         finally

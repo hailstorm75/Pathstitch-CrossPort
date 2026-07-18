@@ -1,5 +1,7 @@
 using Domain.App.Models;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace Domain.App.ViewModels;
 
@@ -122,11 +124,36 @@ public sealed partial class EditorPageViewModel
             if (string.IsNullOrWhiteSpace(outputPath))
                 return;
 
-            await _editorOutputPreviewService
-                .SaveExportDocumentAsync(BuildExportDocument(document), outputPath, ParseDxfOptions(), cancellationToken)
-                .ConfigureAwait(true);
+            var dxfOptions = ParseDxfOptions();
+            if (CanPreserveGeneratedDxfSource(document, dxfOptions.NormalizedDxfVersion))
+            {
+                await _editorOutputPreviewService
+                    .CopyDxfPreservingStructureAsync(_preservableGeneratedDxfSourceBytes!, outputPath, cancellationToken)
+                    .ConfigureAwait(true);
+            }
+            else
+            {
+                var exportDocument = BuildExportDocument(document);
+                var mergeResult = EditorDxfMergeResult.NotSupported;
+                if (CanAttemptGeneratedDxfMerge(document, dxfOptions.NormalizedDxfVersion))
+                {
+                    mergeResult = await _editorOutputPreviewService
+                        .TrySaveMergedDxfDocumentAsync(
+                            _preservableGeneratedDxfSourceBytes!,
+                            exportDocument,
+                            outputPath,
+                            dxfOptions,
+                            cancellationToken)
+                        .ConfigureAwait(true);
+                }                if (!mergeResult.Succeeded)
+                {
+                    await _editorOutputPreviewService
+                        .SaveExportDocumentAsync(exportDocument, outputPath, dxfOptions, cancellationToken)
+                        .ConfigureAwait(true);
+                }
+            }
             StatusText = $"Exported DXF to {Path.GetFileName(outputPath)}";
-            RecordActivity("Export DXF", Path.GetFileName(outputPath), markDocumentDirty: true);
+            RecordActivity("Export DXF", Path.GetFileName(outputPath), markDocumentDirty: false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -165,7 +192,7 @@ public sealed partial class EditorPageViewModel
                     cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported SVG to {Path.GetFileName(outputPath)}";
-            RecordActivity("Export SVG", Path.GetFileName(outputPath), markDocumentDirty: true);
+            RecordActivity("Export SVG", Path.GetFileName(outputPath), markDocumentDirty: false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -200,7 +227,7 @@ public sealed partial class EditorPageViewModel
                 .SaveExportDocumentAsync(BuildExportDocument(document), outputPath, ParsePngOptions(), cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported PNG to {Path.GetFileName(outputPath)}";
-            RecordActivity("Export PNG", Path.GetFileName(outputPath), markDocumentDirty: true);
+            RecordActivity("Export PNG", Path.GetFileName(outputPath), markDocumentDirty: false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -235,7 +262,7 @@ public sealed partial class EditorPageViewModel
                 .SaveExportDocumentAsync(BuildExportDocument(document), outputPath, ParseSvgOptions(), cancellationToken)
                 .ConfigureAwait(true);
             StatusText = $"Exported PDF to {Path.GetFileName(outputPath)}";
-            RecordActivity("Export PDF", Path.GetFileName(outputPath), markDocumentDirty: true);
+            RecordActivity("Export PDF", Path.GetFileName(outputPath), markDocumentDirty: false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -249,11 +276,20 @@ public sealed partial class EditorPageViewModel
     }
 
     private Editor2DExportDocument BuildExportDocument(Editor2DPreviewDocument document)
+        => BuildExportDocument(document, TwoDExportSelectedOnly, TwoDExportMeasurementLines);
+
+    private Editor2DExportDocument BuildFullExportDocument(Editor2DPreviewDocument document)
+        => BuildExportDocument(document, selectedOnly: false, includeMeasurementLines: false);
+
+    private Editor2DExportDocument BuildExportDocument(
+        Editor2DPreviewDocument document,
+        bool selectedOnly,
+        bool includeMeasurementLines)
     {
-        var exportDocument = TwoDExportSelectedOnly
+        var exportDocument = selectedOnly
             ? CreateUpdatedTwoDDocument(document, GetSelectedTwoDPaths())
             : document;
-        if (TwoDExportMeasurementLines && TwoDMeasurements.Count > 0)
+        if (includeMeasurementLines && TwoDMeasurements.Count > 0)
         {
             var measurementPaths = TwoDMeasurements
                 .Select(measurement => new Editor2DPreviewPath(
@@ -291,6 +327,217 @@ public sealed partial class EditorPageViewModel
         return new Editor2DExportDocument(exportDocument, metadata);
     }
 
+    private void CaptureGeneratedDxfPreservationBaseline(
+        Editor2DPreviewDocument? document,
+        string? sourcePath,
+        string? sourceDataBase64)
+    {
+        ClearGeneratedDxfPreservationBaseline();
+        if (document is null
+            || string.IsNullOrWhiteSpace(sourcePath)
+            || !Path.GetExtension(sourcePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(sourceDataBase64))
+        {
+            return;
+        }
+
+        try
+        {
+            var sourceBytes = Convert.FromBase64String(sourceDataBase64);
+            var sourceVersion = ReadDxfVersion(sourceBytes);
+            if (sourceVersion is null)
+                return;
+
+            _preservableGeneratedDxfFingerprint = ComputeExportFingerprint(BuildFullExportDocument(document));
+            _preservableGeneratedDxfSourceBytes = sourceBytes;
+            _preservableGeneratedDxfVersion = sourceVersion;
+        }
+        catch (FormatException)
+        {
+            ClearGeneratedDxfPreservationBaseline();
+        }
+    }
+
+    private void ClearGeneratedDxfPreservationBaseline()
+    {
+        _preservableGeneratedDxfFingerprint = null;
+        _preservableGeneratedDxfSourceBytes = null;
+        _preservableGeneratedDxfVersion = null;
+    }
+
+    private bool CanAttemptGeneratedDxfMerge(
+        Editor2DPreviewDocument document,
+        string? requiredDxfVersion,
+        bool requireFullExportOptions = true)
+    {
+        if (requireFullExportOptions
+            && (TwoDExportSelectedOnly || TwoDExportMeasurementLines && TwoDMeasurements.Count > 0))
+        {
+            return false;
+        }
+        return document.Paths.Count > 0
+               && _preservableGeneratedDxfSourceBytes is { Length: > 0 }
+               && !string.IsNullOrWhiteSpace(_preservableGeneratedDxfVersion)
+               && (requiredDxfVersion is null
+                   || string.Equals(requiredDxfVersion, _preservableGeneratedDxfVersion, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool CanPreserveGeneratedDxfSource(
+        Editor2DPreviewDocument document,
+        string? requiredDxfVersion,
+        bool requireFullExportOptions = true)
+    {
+        if (requireFullExportOptions
+            && (TwoDExportSelectedOnly || TwoDExportMeasurementLines && TwoDMeasurements.Count > 0))
+        {
+            return false;
+        }
+
+        return _preservableGeneratedDxfSourceBytes is { Length: > 0 }
+               && !string.IsNullOrWhiteSpace(_preservableGeneratedDxfFingerprint)
+               && !string.IsNullOrWhiteSpace(_preservableGeneratedDxfVersion)
+               && (requiredDxfVersion is null
+                   || string.Equals(requiredDxfVersion, _preservableGeneratedDxfVersion, StringComparison.OrdinalIgnoreCase))
+               && string.Equals(
+                   ComputeExportFingerprint(BuildFullExportDocument(document)),
+                   _preservableGeneratedDxfFingerprint,
+                   StringComparison.Ordinal);
+    }
+
+    private static string ComputeExportFingerprint(Editor2DExportDocument document)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("schema", 1);
+            writer.WriteStartArray("paths");
+            foreach (var path in document.Geometry.Paths)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("entityType", path.EntityType.ToUpperInvariant());
+                writer.WriteBoolean("closed", path.IsClosed);
+                writer.WriteBoolean("construction", path.IsConstruction);
+                writer.WriteBoolean("filled", path.IsFilled);
+                WritePoints(writer, "points", path.Points);
+                WritePoint(writer, "start", path.Start);
+                WritePoint(writer, "center", path.Center);
+                WriteNullableDouble(writer, "radius", path.Radius);
+                WriteNullableDouble(writer, "startAngle", path.StartAngleDegrees);
+                WriteNullableDouble(writer, "endAngle", path.EndAngleDegrees);
+                if (path.FillLoops is { } fillLoops)
+                {
+                    writer.WriteStartArray("fillLoops");
+                    foreach (var loop in fillLoops)
+                        WritePoints(writer, null, loop);
+                    writer.WriteEndArray();
+                }
+                else
+                {
+                    writer.WriteNull("fillLoops");
+                }
+
+                if (path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase))
+                {
+                    writer.WriteString("text", path.Text);
+                    writer.WriteNumber("textHeight", path.TextHeight ?? 5.0);
+                    writer.WriteNumber("rotation", path.RotationDegrees ?? 0.0);
+                    writer.WriteNumber("widthFactor", path.WidthFactor ?? 1.0);
+                    writer.WriteString("fontFamily", path.FontFamily);
+                    writer.WriteNumber("characterSpacing", path.CharacterSpacing);
+                    writer.WriteBoolean("bold", path.IsBold);
+                    writer.WriteBoolean("italic", path.IsItalic);
+                    writer.WriteBoolean("underline", path.IsUnderline);
+                }
+
+                var metadata = document.PathMetadata.TryGetValue(path.Id, out var value)
+                    ? value
+                    : new Editor2DExportPathMetadata("EDITED_OUTPUT", "#000000", int.MaxValue);
+                writer.WriteStartObject("metadata");
+                writer.WriteString("layer", path.IsConstruction ? "CONSTRUCTION" : metadata.LayerName.Trim());
+                writer.WriteString("color", path.IsConstruction ? "#808080" : metadata.ColorHex.ToUpperInvariant());
+                writer.WriteNumber("order", path.IsConstruction ? 0 : metadata.Order);
+                writer.WriteEndObject();
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        return Convert.ToHexString(SHA256.HashData(stream.ToArray()));
+    }
+
+    private static void WritePoints(
+        Utf8JsonWriter writer,
+        string? propertyName,
+        IReadOnlyList<Editor2DPoint> points)
+    {
+        if (propertyName is null)
+            writer.WriteStartArray();
+        else
+            writer.WriteStartArray(propertyName);
+        foreach (var point in points)
+        {
+            writer.WriteStartArray();
+            writer.WriteNumberValue(point.X);
+            writer.WriteNumberValue(point.Y);
+            writer.WriteEndArray();
+        }
+        writer.WriteEndArray();
+    }
+
+    private static void WritePoint(Utf8JsonWriter writer, string propertyName, Editor2DPoint? point)
+    {
+        if (point is not { } value)
+        {
+            writer.WriteNull(propertyName);
+            return;
+        }
+
+        writer.WriteStartArray(propertyName);
+        writer.WriteNumberValue(value.X);
+        writer.WriteNumberValue(value.Y);
+        writer.WriteEndArray();
+    }
+
+    private static void WriteNullableDouble(Utf8JsonWriter writer, string propertyName, double? value)
+    {
+        if (value is { } number)
+            writer.WriteNumber(propertyName, number);
+        else
+            writer.WriteNull(propertyName);
+    }
+
+    private static string? ReadDxfVersion(byte[] sourceBytes)
+    {
+        if (sourceBytes.AsSpan().StartsWith(System.Text.Encoding.ASCII.GetBytes("AutoCAD Binary DXF")))
+            return null;
+
+        var lines = System.Text.Encoding.Latin1.GetString(sourceBytes)
+            .Replace("\r", string.Empty, StringComparison.Ordinal)
+            .Split('\n');
+        for (var index = 0; index + 3 < lines.Length; index += 2)
+        {
+            if (lines[index].Trim() != "9"
+                || !lines[index + 1].Trim().Equals("$ACADVER", StringComparison.OrdinalIgnoreCase)
+                || lines[index + 2].Trim() != "1")
+            {
+                continue;
+            }
+
+            return lines[index + 3].Trim().ToUpperInvariant() switch
+            {
+                "AC1032" => "R2018",
+                "AC1027" => "R2013",
+                "AC1024" => "R2010",
+                "AC1021" => "R2007",
+                "AC1015" => "R2000",
+                _ => null,
+            };
+        }
+
+        return null;
+    }
     private Editor2DExportOptions ParseSvgOptions()
     {
         var precision = int.TryParse(TwoDSvgPrecisionText, out var parsedPrecision) ? parsedPrecision : 3;

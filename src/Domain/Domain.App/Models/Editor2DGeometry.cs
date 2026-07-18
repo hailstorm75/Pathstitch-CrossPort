@@ -6,6 +6,53 @@ public static class Editor2DGeometry
     private const double MeasurementTolerance = 1e-6;
     private const double PolylineTolerance = 1e-6;
 
+    public static IReadOnlyList<Editor2DPreviewPath> ConvertFillToStrokePaths(Editor2DPreviewPath path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (!path.IsFilled)
+            return [];
+
+        var loops = (path.FillLoops ?? [])
+            .Where(static loop => loop.Count >= 3)
+            .Select(static loop =>
+            {
+                var points = loop.ToArray();
+                if (points.Length > 3
+                    && Math.Abs(points[0].X - points[^1].X) <= PolylineTolerance
+                    && Math.Abs(points[0].Y - points[^1].Y) <= PolylineTolerance)
+                {
+                    points = points[..^1];
+                }
+                return points;
+            })
+            .Where(static loop => loop.Length >= 3)
+            .ToArray();
+        if (loops.Length == 0)
+            return [path with { IsFilled = false, FillLoops = null }];
+
+        return loops.Select((loop, loopIndex) => path with
+            {
+                Id = loopIndex == 0 ? path.Id : $"{path.Id}:fill-loop:{loopIndex}",
+                EntityType = "LWPOLYLINE",
+                Points = loop,
+                IsClosed = true,
+                IsAxisAlignedRectangle = IsAxisAlignedRectangle(loop, isClosed: true),
+                Start = null,
+                Text = null,
+                TextHeight = null,
+                RotationDegrees = null,
+                WidthFactor = null,
+                Center = null,
+                Radius = null,
+                StartAngleDegrees = null,
+                EndAngleDegrees = null,
+                BezierAnchors = null,
+                IsFilled = false,
+                FillLoops = null,
+                SourceEntityHandle = loopIndex == 0 ? path.SourceEntityHandle : null,
+            })
+            .ToArray();
+    }
     public static IReadOnlyList<Editor2DPreviewPath> ExplodeCompoundPath(Editor2DPreviewPath path)
     {
         if (!path.IsClosed
@@ -168,6 +215,7 @@ public static class Editor2DGeometry
             (longestLineLength * normalizedHeight * 0.6 * normalizedWidthFactor) + spacingWidth,
             normalizedHeight * 0.6 * normalizedWidthFactor);
         var totalHeight = Math.Max(lines.Length, 1) * normalizedHeight * 1.2;
+        var signedWidth = widthFactor < 0.0 ? -width : width;
         var angleRadians = rotationDegrees * Math.PI / 180.0;
         var cosAngle = Math.Cos(angleRadians);
         var sinAngle = Math.Sin(angleRadians);
@@ -175,8 +223,8 @@ public static class Editor2DGeometry
         return
         [
             RotateTextPoint(start, 0.0, 0.0, cosAngle, sinAngle),
-            RotateTextPoint(start, width, 0.0, cosAngle, sinAngle),
-            RotateTextPoint(start, width, totalHeight, cosAngle, sinAngle),
+            RotateTextPoint(start, signedWidth, 0.0, cosAngle, sinAngle),
+            RotateTextPoint(start, signedWidth, totalHeight, cosAngle, sinAngle),
             RotateTextPoint(start, 0.0, totalHeight, cosAngle, sinAngle),
         ];
     }
@@ -554,6 +602,7 @@ public static class Editor2DGeometry
                     Id = $"{sourcePath.Id}:offset:{Guid.NewGuid():N}",
                     Radius = nextRadius,
                     Points = BuildCirclePoints(center, nextRadius),
+                    SourceEntityHandle = null,
                 };
                 return true;
             }
@@ -570,6 +619,7 @@ public static class Editor2DGeometry
                 Id = $"{sourcePath.Id}:offset:{Guid.NewGuid():N}",
                 Radius = nextRadius,
                 Points = BuildArcPoints(center, nextRadius, startAngleDegrees, endAngleDegrees),
+                SourceEntityHandle = null,
             };
             return true;
         }
@@ -596,6 +646,7 @@ public static class Editor2DGeometry
             Id = $"{sourcePath.Id}:offset:{Guid.NewGuid():N}",
             EntityType = entityType,
             Points = nextPoints,
+            SourceEntityHandle = null,
             IsAxisAlignedRectangle = Editor2DGeometry.IsAxisAlignedRectangle(nextPoints, isClosed),
         };
         return true;
@@ -855,18 +906,59 @@ public static class Editor2DGeometry
         }
 
         var isUniformScale = transform.TryGetUniformScale(out var uniformScale);
+        var transformedTextHeight = isUniformScale && path.TextHeight is double textHeight
+            ? textHeight * uniformScale
+            : path.TextHeight;
+        var transformedWidthFactor = transform.Determinant < 0 && path.WidthFactor is double widthFactor
+            ? -widthFactor
+            : path.WidthFactor;
+        if (!preservesDirection
+            && path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase))
+        {
+            var sourceRotation = path.RotationDegrees ?? 0.0;
+            var sourceWidthFactor = path.WidthFactor ?? 1.0;
+            var radians = sourceRotation * Math.PI / 180.0;
+            var cos = Math.Cos(radians);
+            var sin = Math.Sin(radians);
+            var transformedTextX = transform.TransformVector(new Editor2DPoint(
+                sourceWidthFactor * cos,
+                sourceWidthFactor * sin));
+            var transformedTextY = transform.TransformVector(new Editor2DPoint(-sin, cos));
+            if (TryDecomposeTextAxes(
+                    transformedTextX,
+                    transformedTextY,
+                    out var decomposedRotation,
+                    out var decomposedWidthFactor,
+                    out var textHeightScale))
+            {
+                transformedRotation = path.RotationDegrees is null && Math.Abs(decomposedRotation) <= PolylineTolerance
+                    ? null
+                    : decomposedRotation;
+                transformedWidthFactor = path.WidthFactor is null
+                                         && Math.Abs(decomposedWidthFactor - 1.0) <= PolylineTolerance
+                    ? null
+                    : decomposedWidthFactor;
+                transformedTextHeight = path.TextHeight is double sourceTextHeight
+                    ? sourceTextHeight * textHeightScale
+                    : null;
+            }
+        }
+
         return path with
         {
             Id = id ?? path.Id,
+            SourceEntityHandle = PreservedSourceHandle(path, id),
             Start = path.Start is { } start ? transform.TransformPoint(start) : null,
             Center = transformedCenter,
             RotationDegrees = transformedRotation,
             StartAngleDegrees = transformedStartAngle,
             EndAngleDegrees = transformedEndAngle,
             Radius = isUniformScale && path.Radius is double radius ? radius * uniformScale : path.Radius,
-            TextHeight = isUniformScale && path.TextHeight is double textHeight ? textHeight * uniformScale : path.TextHeight,
-            WidthFactor = transform.Determinant < 0 && path.WidthFactor is double widthFactor ? -widthFactor : path.WidthFactor,
+            TextHeight = transformedTextHeight,
+            WidthFactor = transformedWidthFactor,
             Points = transformedPoints,
+            FillLoops = path.FillLoops?.Select(loop => (IReadOnlyList<Editor2DPoint>)loop
+                .Select(transform.TransformPoint).ToArray()).ToArray(),
             BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(
                 anchor, transform.TransformPoint)).ToArray(),
             IsAxisAlignedRectangle = IsAxisAlignedRectangle(transformedPoints, path.IsClosed),
@@ -886,19 +978,46 @@ public static class Editor2DGeometry
         var reflectedCenter = path.Center is Editor2DPoint center ? Transform(center) : null;
         var reflectedRotation = path.RotationDegrees;
         var reflectedWidthFactor = path.WidthFactor;
+        var reflectedTextHeight = path.TextHeight;
         if (path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase)
-            && path.Start is Editor2DPoint textStart
-            && path.RotationDegrees is double rotationDegrees)
+            && path.Start is Editor2DPoint textStart)
         {
-            var directionPoint = new Editor2DPoint(
-                textStart.X + Math.Cos(rotationDegrees * Math.PI / 180.0),
-                textStart.Y + Math.Sin(rotationDegrees * Math.PI / 180.0));
-            var reflectedDirectionPoint = Transform(directionPoint);
+            var sourceRotation = path.RotationDegrees ?? 0.0;
+            var sourceWidthFactor = path.WidthFactor ?? 1.0;
+            var radians = sourceRotation * Math.PI / 180.0;
+            var cos = Math.Cos(radians);
+            var sin = Math.Sin(radians);
             var resolvedStart = reflectedStart ?? Transform(textStart);
-            reflectedRotation = Math.Atan2(
-                reflectedDirectionPoint.Y - resolvedStart.Y,
-                reflectedDirectionPoint.X - resolvedStart.X) * 180.0 / Math.PI;
-            reflectedWidthFactor = -(path.WidthFactor ?? 1.0);
+            var reflectedTextXEnd = Transform(new Editor2DPoint(
+                textStart.X + (sourceWidthFactor * cos),
+                textStart.Y + (sourceWidthFactor * sin)));
+            var reflectedTextYEnd = Transform(new Editor2DPoint(
+                textStart.X - sin,
+                textStart.Y + cos));
+            var reflectedTextX = new Editor2DPoint(
+                reflectedTextXEnd.X - resolvedStart.X,
+                reflectedTextXEnd.Y - resolvedStart.Y);
+            var reflectedTextY = new Editor2DPoint(
+                reflectedTextYEnd.X - resolvedStart.X,
+                reflectedTextYEnd.Y - resolvedStart.Y);
+            if (TryDecomposeTextAxes(
+                    reflectedTextX,
+                    reflectedTextY,
+                    out var decomposedRotation,
+                    out var decomposedWidthFactor,
+                    out var textHeightScale))
+            {
+                reflectedRotation = path.RotationDegrees is null && Math.Abs(decomposedRotation) <= PolylineTolerance
+                    ? null
+                    : decomposedRotation;
+                reflectedWidthFactor = path.WidthFactor is null
+                                       && Math.Abs(decomposedWidthFactor - 1.0) <= PolylineTolerance
+                    ? null
+                    : decomposedWidthFactor;
+                reflectedTextHeight = path.TextHeight is double sourceTextHeight
+                    ? sourceTextHeight * textHeightScale
+                    : null;
+            }
         }
 
         var reflectedPoints = path.Points.Select(Transform).ToArray();
@@ -930,13 +1049,16 @@ public static class Editor2DGeometry
         return path with
         {
             Id = id ?? path.Id,
+            SourceEntityHandle = PreservedSourceHandle(path, id),
             Start = reflectedStart,
             Center = reflectedCenter,
             RotationDegrees = reflectedRotation,
             WidthFactor = reflectedWidthFactor,
+            TextHeight = reflectedTextHeight,
             StartAngleDegrees = reflectedStartAngle,
             EndAngleDegrees = reflectedEndAngle,
             Points = reflectedPoints,
+            FillLoops = path.FillLoops?.Select(loop => (IReadOnlyList<Editor2DPoint>)loop.Select(Transform).ToArray()).ToArray(),
             BezierAnchors = path.BezierAnchors?.Select(anchor => Editor2DBezierGeometry.Transform(anchor, Transform)).ToArray(),
             IsAxisAlignedRectangle = IsAxisAlignedRectangle(reflectedPoints, path.IsClosed),
         };
@@ -960,7 +1082,7 @@ public static class Editor2DGeometry
                     ? [center]
                     : [];
         if (boundsPoints.Count == 0)
-            return path with { Id = id ?? path.Id };
+            return path with { Id = id ?? path.Id, SourceEntityHandle = PreservedSourceHandle(path, id) };
 
         var centroid = new Editor2DPoint(
             (boundsPoints.Min(static point => point.X) + boundsPoints.Max(static point => point.X)) / 2.0,
@@ -972,6 +1094,11 @@ public static class Editor2DGeometry
             reflectedCentroid.Y - centroid.Y,
             id);
     }
+
+    private static string? PreservedSourceHandle(Editor2DPreviewPath path, string? requestedId)
+        => requestedId is null || requestedId.Equals(path.Id, StringComparison.Ordinal)
+            ? path.SourceEntityHandle
+            : null;
 
     public static Editor2DPoint ReflectPoint(Editor2DPoint point, Editor2DPoint axisStart, Editor2DPoint axisEnd)
     {
@@ -1583,6 +1710,40 @@ public static class Editor2DGeometry
         return true;
     }
 
+    private static bool TryDecomposeTextAxes(
+        Editor2DPoint transformedTextX,
+        Editor2DPoint transformedTextY,
+        out double rotationDegrees,
+        out double widthFactor,
+        out double heightScale)
+    {
+        var widthScale = Math.Sqrt(
+            (transformedTextX.X * transformedTextX.X)
+            + (transformedTextX.Y * transformedTextX.Y));
+        heightScale = Math.Sqrt(
+            (transformedTextY.X * transformedTextY.X)
+            + (transformedTextY.Y * transformedTextY.Y));
+        if (!double.IsFinite(widthScale)
+            || !double.IsFinite(heightScale)
+            || widthScale <= PolylineTolerance
+            || heightScale <= PolylineTolerance)
+        {
+            rotationDegrees = 0.0;
+            widthFactor = 1.0;
+            return false;
+        }
+
+        var determinant = (transformedTextX.X * transformedTextY.Y)
+                          - (transformedTextX.Y * transformedTextY.X);
+        var orientation = determinant < 0.0 ? -1.0 : 1.0;
+        var rotationX = orientation * transformedTextX.X;
+        var rotationY = orientation * transformedTextX.Y;
+        rotationDegrees = NormalizeAngleDegrees(Math.Atan2(rotationY, rotationX) * 180.0 / Math.PI);
+        if (Math.Abs(rotationDegrees - 360.0) <= PolylineTolerance)
+            rotationDegrees = 0.0;
+        widthFactor = orientation * widthScale / heightScale;
+        return double.IsFinite(widthFactor);
+    }
     private static double NormalizeAngleDegrees(double angleDegrees)
     {
         var normalized = angleDegrees % 360.0;

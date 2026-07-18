@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -36,7 +36,9 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**"
-                      Exclude="Assets\OpenGeometry\node_modules\**;Assets\OpenGeometry\package*.json;Assets\OpenGeometry\opengeometry-worker.mjs;Assets\OpenGeometry\runtime-manifest.json" />
+                      Exclude="Assets\OpenGeometry\node_modules\**;Assets\OpenGeometry\package*.json;Assets\OpenGeometry\opengeometry-worker.mjs;Assets\OpenGeometry\runtime-manifest.json;Assets\Fonts\*.ttf;Assets\Fonts\*.otf" />
+    <EmbeddedResource Include="Assets\Fonts\NotoSansCJKsc-Regular-Canonical.otf" LogicalName="Pathstitch.Fonts.NotoSansCJKsc-Regular-Canonical.otf" />
+    <EmbeddedResource Include="Assets\Fonts\NotoEmoji-Variable.ttf" LogicalName="Pathstitch.Fonts.NotoEmoji-Variable.ttf" />
   </ItemGroup>
 
   <ItemGroup Condition="Exists('$(GeometryWorkerRoot)')">

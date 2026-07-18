@@ -22,21 +22,13 @@ internal static class SvgOutputDocumentWriter
         var builder = new StringBuilder();
         builder.Append("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
         builder.Append("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"");
-        builder.Append(Number(bounds.MinX, precision)).Append(' ').Append(Number(bounds.MinY, precision)).Append(' ')
+        builder.Append(Number(bounds.MinX, precision)).Append(' ').Append(Number(SvgCoordinateSystem.WorldBoundsToSvgMinY(bounds), precision)).Append(' ')
             .Append(Number(width, precision)).Append(' ').Append(Number(height, precision)).Append("\">");
 
         foreach (var path in document.Paths)
         {
-            if (string.Equals(path.EntityType, "TEXT", StringComparison.OrdinalIgnoreCase)
-                && path.Start is Editor2DPoint textStart
-                && !string.IsNullOrWhiteSpace(path.Text))
-            {
-                builder.Append("<text x=\"").Append(Number(textStart.X, precision)).Append("\" y=\"")
-                    .Append(Number(textStart.Y, precision)).Append("\" font-size=\"")
-                    .Append(Number(path.TextHeight ?? 5.0, precision)).Append("\">")
-                    .Append(XmlEncode(path.Text!)).Append("</text>");
+            if (AppendText(builder, path, precision))
                 continue;
-            }
 
             if (string.Equals(path.EntityType, "CIRCLE", StringComparison.OrdinalIgnoreCase)
                 && path.Center is Editor2DPoint center
@@ -44,15 +36,23 @@ internal static class SvgOutputDocumentWriter
                 && radius > 0)
             {
                 builder.Append("<circle cx=\"").Append(Number(center.X, precision)).Append("\" cy=\"")
-                    .Append(Number(center.Y, precision)).Append("\" r=\"").Append(Number(radius, precision))
-                    .Append("\" fill=\"none\" stroke-width=\"").Append(strokeWidth).Append("\" />");
+                    .Append(Number(SvgCoordinateSystem.WorldToSvgY(center.Y), precision)).Append("\" r=\"").Append(Number(radius, precision))
+                    .Append("\" fill=\"").Append(path.IsFilled ? "black" : "none")
+                    .Append("\" stroke=\"black\" stroke-width=\"").Append(strokeWidth).Append("\" />");
                 continue;
             }
 
-            var points = string.Join(" ", path.Points.Select(point => $"{Number(point.X, precision)},{Number(point.Y, precision)}"));
+            if (path.IsFilled && path.FillLoops is { Count: > 0 })
+            {
+                AppendCompoundPath(builder, path.FillLoops, precision, "black", strokeWidth);
+                continue;
+            }
+
+            var points = string.Join(" ", path.Points.Select(point => $"{Number(point.X, precision)},{Number(SvgCoordinateSystem.WorldToSvgY(point.Y), precision)}"));
             var element = path.IsClosed ? "polygon" : "polyline";
             builder.Append('<').Append(element).Append(" points=\"").Append(points)
-                .Append("\" fill=\"none\" stroke-width=\"").Append(strokeWidth).Append("\" />");
+                .Append("\" fill=\"").Append(path.IsFilled ? "black" : "none")
+                .Append("\" stroke=\"black\" stroke-width=\"").Append(strokeWidth).Append("\" />");
         }
 
         builder.Append("</svg>");
@@ -74,7 +74,7 @@ internal static class SvgOutputDocumentWriter
         var builder = new StringBuilder();
         builder.Append("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
         builder.Append("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"");
-        builder.Append(Number(bounds.MinX, precision)).Append(' ').Append(Number(bounds.MinY, precision)).Append(' ')
+        builder.Append(Number(bounds.MinX, precision)).Append(' ').Append(Number(SvgCoordinateSystem.WorldBoundsToSvgMinY(bounds), precision)).Append(' ')
             .Append(Number(width, precision)).Append(' ').Append(Number(height, precision)).Append("\">");
 
         var usedIds = new HashSet<string>(StringComparer.Ordinal);
@@ -87,6 +87,7 @@ internal static class SvgOutputDocumentWriter
 
             builder.Append("<g id=\"").Append(XmlEncode(safeId)).Append("\" data-layer-name=\"")
                 .Append(XmlEncode(group.LayerName)).Append("\" stroke=\"").Append(group.ColorHex)
+                .Append("\" color=\"").Append(group.ColorHex)
                 .Append("\" fill=\"none\" stroke-width=\"").Append(strokeWidth).Append('"');
             if (group.IsConstruction)
                 builder.Append(" stroke-dasharray=\"6 4\"");
@@ -143,16 +144,8 @@ internal static class SvgOutputDocumentWriter
 
     private static void AppendPath(StringBuilder builder, Editor2DPreviewPath path, int precision)
     {
-        if (string.Equals(path.EntityType, "TEXT", StringComparison.OrdinalIgnoreCase)
-            && path.Start is Editor2DPoint textStart
-            && !string.IsNullOrWhiteSpace(path.Text))
-        {
-            builder.Append("<text x=\"").Append(Number(textStart.X, precision)).Append("\" y=\"")
-                .Append(Number(textStart.Y, precision)).Append("\" font-size=\"")
-                .Append(Number(path.TextHeight ?? 5.0, precision)).Append("\">")
-                .Append(XmlEncode(path.Text!)).Append("</text>");
+        if (AppendText(builder, path, precision))
             return;
-        }
 
         if (string.Equals(path.EntityType, "CIRCLE", StringComparison.OrdinalIgnoreCase)
             && path.Center is Editor2DPoint center
@@ -160,13 +153,91 @@ internal static class SvgOutputDocumentWriter
             && radius > 0)
         {
             builder.Append("<circle cx=\"").Append(Number(center.X, precision)).Append("\" cy=\"")
-                .Append(Number(center.Y, precision)).Append("\" r=\"").Append(Number(radius, precision)).Append("\" />");
+                .Append(Number(SvgCoordinateSystem.WorldToSvgY(center.Y), precision)).Append("\" r=\"").Append(Number(radius, precision))
+                .Append("\" fill=\"").Append(path.IsFilled ? "currentColor" : "none").Append("\" />");
             return;
         }
 
-        var points = string.Join(" ", path.Points.Select(point => $"{Number(point.X, precision)},{Number(point.Y, precision)}"));
+        if (path.IsFilled && path.FillLoops is { Count: > 0 })
+        {
+            AppendCompoundPath(builder, path.FillLoops, precision, "currentColor", strokeWidth: null);
+            return;
+        }
+
+        var points = string.Join(" ", path.Points.Select(point => $"{Number(point.X, precision)},{Number(SvgCoordinateSystem.WorldToSvgY(point.Y), precision)}"));
         var element = path.IsClosed ? "polygon" : "polyline";
-        builder.Append('<').Append(element).Append(" points=\"").Append(points).Append("\" />");
+        builder.Append('<').Append(element).Append(" points=\"").Append(points)
+            .Append("\" fill=\"").Append(path.IsFilled ? "currentColor" : "none").Append("\" />");
+    }
+
+    private static bool AppendText(StringBuilder builder, Editor2DPreviewPath path, int precision)
+    {
+        if (!string.Equals(path.EntityType, "TEXT", StringComparison.OrdinalIgnoreCase)
+            || path.Start is not Editor2DPoint textStart
+            || string.IsNullOrWhiteSpace(path.Text))
+        {
+            return false;
+        }
+
+        var height = Math.Max(path.TextHeight ?? 5.0, 0.1);
+        var sourceWidthFactor = path.WidthFactor ?? 1.0;
+        var widthMagnitude = Math.Max(Math.Abs(sourceWidthFactor), 0.1);
+        var widthFactor = sourceWidthFactor < 0.0 ? -widthMagnitude : widthMagnitude;
+        var rotation = path.RotationDegrees ?? 0.0;
+        var svgStartY = SvgCoordinateSystem.WorldToSvgY(textStart.Y);
+        var normalizedText = path.Text.Replace("\r", string.Empty, StringComparison.Ordinal);
+        var lines = normalizedText.Split('\n');
+        builder.Append("<text font-size=\"").Append(Number(height, precision)).Append('"')
+            .Append(" fill=\"currentColor\" stroke=\"none\"");
+        if (!string.IsNullOrWhiteSpace(path.FontFamily))
+            builder.Append(" font-family=\"").Append(XmlEncode(path.FontFamily.Trim())).Append('"');
+        if (path.IsBold)
+            builder.Append(" font-weight=\"bold\"");
+        if (path.IsItalic)
+            builder.Append(" font-style=\"italic\"");
+        if (path.IsUnderline)
+            builder.Append(" text-decoration=\"underline\"");
+        if (Math.Abs(path.CharacterSpacing) > 1e-12)
+            builder.Append(" letter-spacing=\"").Append(Number(path.CharacterSpacing / widthMagnitude, precision)).Append('"');
+        if (Math.Abs(rotation) > 1e-12 || Math.Abs(widthFactor - 1.0) > 1e-12)
+        {
+            builder.Append(" transform=\"translate(").Append(Number(textStart.X, precision)).Append(' ')
+                .Append(Number(svgStartY, precision)).Append(") rotate(").Append(Number(-rotation, precision))
+                .Append(") scale(").Append(Number(widthFactor, precision)).Append(" 1) translate(")
+                .Append(Number(-textStart.X, precision)).Append(' ').Append(Number(-svgStartY, precision)).Append(")\"");
+        }
+        builder.Append('>');
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var worldY = textStart.Y + ((lines.Length - 1 - index) * height * 1.2);
+            builder.Append("<tspan x=\"").Append(Number(textStart.X, precision)).Append("\" y=\"")
+                .Append(Number(SvgCoordinateSystem.WorldToSvgY(worldY), precision)).Append("\">")
+                .Append(XmlEncode(lines[index])).Append("</tspan>");
+        }
+        builder.Append("</text>");
+        return true;
+    }
+    private static void AppendCompoundPath(
+        StringBuilder builder,
+        IReadOnlyList<IReadOnlyList<Editor2DPoint>> loops,
+        int precision,
+        string fill,
+        string? strokeWidth)
+    {
+        builder.Append("<path d=\"");
+        foreach (var loop in loops.Where(static loop => loop.Count >= 3))
+        {
+            builder.Append('M').Append(Number(loop[0].X, precision)).Append(' ')
+                .Append(Number(SvgCoordinateSystem.WorldToSvgY(loop[0].Y), precision));
+            foreach (var point in loop.Skip(1))
+                builder.Append('L').Append(Number(point.X, precision)).Append(' ')
+                    .Append(Number(SvgCoordinateSystem.WorldToSvgY(point.Y), precision));
+            builder.Append('Z');
+        }
+        builder.Append("\" fill=\"").Append(fill).Append("\" fill-rule=\"evenodd\"");
+        if (strokeWidth is not null)
+            builder.Append(" stroke=\"black\" stroke-width=\"").Append(strokeWidth).Append('"');
+        builder.Append(" />");
     }
 
     private static string NormalizeLayerName(string? value)

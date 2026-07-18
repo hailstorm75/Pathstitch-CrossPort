@@ -5,6 +5,7 @@ using SkiaSharp;
 
 namespace Pathstitch.App.Tests;
 
+[Collection("SvgPreviewParserSettings")]
 public sealed class EditorQuickDxfExportTests
 {
     [Fact]
@@ -46,6 +47,7 @@ public sealed class EditorQuickDxfExportTests
             new RecordingFileDialogService(outputPath),
             output);
         viewModel.TwoDDocument = document;
+        var dirtyBeforeExport = viewModel.IsDirty;
 
         await viewModel.ExportTwoDDxfAsync();
 
@@ -54,6 +56,47 @@ public sealed class EditorQuickDxfExportTests
         var activity = Assert.Single(viewModel.ActivityLog);
         Assert.Equal("Export DXF", activity.Action);
         Assert.Equal(outputPath, activity.Details);
+        Assert.Equal(dirtyBeforeExport, viewModel.IsDirty);
+    }
+
+    [Fact]
+    public async Task AllExportFormats_LogActivityWithoutChangingDirtyState()
+    {
+        var exports = new (string Action, Func<Domain.App.ViewModels.EditorPageViewModel, Task> Run)[]
+        {
+            ("Export DXF", viewModel => viewModel.ExportTwoDDxfAsync()),
+            ("Export SVG", viewModel => viewModel.ExportTwoDSvgAsync()),
+            ("Export PNG", viewModel => viewModel.ExportTwoDPngAsync()),
+            ("Export PDF", viewModel => viewModel.ExportTwoDPdfAsync()),
+        };
+
+        foreach (var export in exports)
+        {
+            var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+                new RecordingFileDialogService("export.out"),
+                new RecordingOutputPreviewService());
+            viewModel.TwoDDocument = CreateDocument();
+            var dirtyBeforeExport = viewModel.IsDirty;
+
+            await export.Run(viewModel);
+
+            Assert.Equal(dirtyBeforeExport, viewModel.IsDirty);
+            Assert.Equal(export.Action, Assert.Single(viewModel.ActivityLog).Action);
+        }
+    }
+
+    [Fact]
+    public async Task Export_DoesNotClearExistingDirtyState()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+            new RecordingFileDialogService("export.dxf"),
+            new RecordingOutputPreviewService());
+        viewModel.TwoDDocument = CreateDocument();
+        viewModel.CreateTwoDLayer();
+        Assert.True(viewModel.IsDirty);
+
+        await viewModel.ExportTwoDDxfAsync();
+
         Assert.True(viewModel.IsDirty);
     }
 
@@ -166,8 +209,13 @@ public sealed class EditorQuickDxfExportTests
 
             await service.SavePreviewDocumentAsync(document, outputPath);
             var loaded = await service.LoadPreviewDocumentAsync(outputPath);
+            var units = await service.InspectImportUnitsAsync(outputPath);
 
             Assert.NotNull(loaded);
+            Assert.NotNull(units);
+            Assert.Equal(4, units.InsUnitsCode);
+            Assert.Equal(1.0, units.MillimetersPerDrawingUnit);
+            Assert.False(units.RequiresPrompt);
             Assert.Single(loaded.Paths);
             Assert.Equal("LWPOLYLINE", loaded.Paths[0].EntityType);
             Assert.Equal(document.Paths[0].Points, loaded.Paths[0].Points);
@@ -182,6 +230,8 @@ public sealed class EditorQuickDxfExportTests
     public async Task SvgWriter_RoundTripsGeometryThroughExistingPreviewPipeline()
     {
         var outputPath = Path.Combine(Path.GetTempPath(), $"pathstitch-export-{Guid.NewGuid():N}.svg");
+        var originalImportThickness = SvgPreviewDocumentParser.ImportThickness;
+        SvgPreviewDocumentParser.ImportThickness = 0;
         try
         {
             var document = CreateDocument();
@@ -193,10 +243,13 @@ public sealed class EditorQuickDxfExportTests
             Assert.NotNull(loaded);
             Assert.Single(loaded.Paths);
             Assert.True(loaded.Paths[0].EntityType is "POLYLINE" or "LWPOLYLINE");
-            Assert.Equal(document.Paths[0].Points, loaded.Paths[0].Points);
+            Assert.Equal(
+                [new Editor2DPoint(10, 10), new Editor2DPoint(12, 12)],
+                loaded.Paths[0].Points);
         }
         finally
         {
+            SvgPreviewDocumentParser.ImportThickness = originalImportThickness;
             File.Delete(outputPath);
         }
     }
@@ -218,7 +271,7 @@ public sealed class EditorQuickDxfExportTests
                 new Editor2DExportOptions(2, 1.25));
 
             var svg = await File.ReadAllTextAsync(outputPath);
-            Assert.Contains("1.23,2.35", svg, StringComparison.Ordinal);
+            Assert.Contains("1.23,-2.35", svg, StringComparison.Ordinal);
             Assert.Contains("stroke-width=\"1.25\"", svg, StringComparison.Ordinal);
         }
         finally
@@ -480,8 +533,9 @@ public sealed class EditorQuickDxfExportTests
             Assert.Contains("id=\"layer_CONSTRUCTION\" data-layer-name=\"CONSTRUCTION\" stroke=\"#808080\"", svg, StringComparison.Ordinal);
             Assert.Contains("stroke-width=\"1.25\"", svg, StringComparison.Ordinal);
             Assert.Contains("stroke-dasharray=\"6 4\"", svg, StringComparison.Ordinal);
+            Assert.Contains("viewBox=\"0 -2 1 2\"", svg, StringComparison.Ordinal);
             Assert.True(svg.IndexOf("points=\"0,0 1,0\"", StringComparison.Ordinal)
-                < svg.IndexOf("points=\"0,1 1,1\"", StringComparison.Ordinal));
+                < svg.IndexOf("points=\"0,-1 1,-1\"", StringComparison.Ordinal));
         }
         finally
         {
@@ -509,7 +563,7 @@ public sealed class EditorQuickDxfExportTests
             {
                 Assert.Equal(256, bitmap.Width);
                 Assert.Equal(128, bitmap.Height);
-                Assert.Equal(0, bitmap.GetPixel(0, 127).Alpha);
+                Assert.Equal(0, bitmap.GetPixel(128, 10).Alpha);
             }
         }
         finally
@@ -571,6 +625,15 @@ public sealed class EditorQuickDxfExportTests
             ExportPickerCallCount++;
             return Task.FromResult(exportPath);
         }
+
+        public Task<string?> PickSvgExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+            => Task.FromResult(exportPath);
+
+        public Task<string?> PickPngExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+            => Task.FromResult(exportPath);
+
+        public Task<string?> PickPdfExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+            => Task.FromResult(exportPath);
 
         public Task<string?> PickExistingProjectFileAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
         public Task<string?> PickNewProjectFileAsync(string suggestedFileName, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);

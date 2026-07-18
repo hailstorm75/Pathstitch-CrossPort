@@ -9,28 +9,52 @@ using Domain.App.Services;
 
 namespace Pathstitch.App.Services;
 
-public sealed class DxfOutputPreviewService(IPdfVectorImportService? pdfVectorImportService = null) : IEditorOutputPreviewService
+public sealed class DxfOutputPreviewService(
+    IPdfVectorImportService? pdfVectorImportService = null,
+    IDxfTransportConversionService? dxfTransportConversionService = null) : IEditorOutputPreviewService
 {
-    public Task<Editor2DImportUnitsInfo?> InspectImportUnitsAsync(string outputPath, CancellationToken cancellationToken = default)
+    public async Task<Editor2DImportUnitsInfo?> InspectImportUnitsAsync(
+        string outputPath,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!Path.GetExtension(outputPath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)
             || !File.Exists(outputPath))
-            return Task.FromResult<Editor2DImportUnitsInfo?>(null);
+            return null;
 
-        var preview = EditorDxfDocument.LoadPreviewDocument(outputPath);
-        if (!TryMeasureBounds(preview.Paths, out var minX, out var minY, out var maxX, out var maxY))
-            return Task.FromResult<Editor2DImportUnitsInfo?>(null);
+        var sourcePath = Path.GetFullPath(outputPath);
+        string? convertedPath = null;
+        try
+        {
+            if (HasBinaryDxfSignature(outputPath))
+            {
+                if (dxfTransportConversionService is null)
+                    throw MissingBinaryConversionRuntime();
+                convertedPath = await dxfTransportConversionService
+                    .ConvertBinaryToAsciiAsync(outputPath, cancellationToken)
+                    .ConfigureAwait(false);
+                outputPath = convertedPath;
+            }
 
-        var metadata = EditorDxfDocument.ReadUnitMetadata(outputPath);
-        return Task.FromResult<Editor2DImportUnitsInfo?>(new(
-            Path.GetFullPath(outputPath),
-            metadata.InsUnitsCode,
-            metadata.MillimetersPerDrawingUnit,
-            Math.Max(maxX - minX, 0.0),
-            Math.Max(maxY - minY, 0.0)));
+            var preview = EditorDxfDocument.LoadPreviewDocument(outputPath);
+            if (!TryMeasureBounds(preview.Paths, out var minX, out var minY, out var maxX, out var maxY))
+                return null;
+
+            var metadata = EditorDxfDocument.ReadUnitMetadata(outputPath);
+            return new Editor2DImportUnitsInfo(
+                sourcePath,
+                metadata.InsUnitsCode,
+                metadata.MillimetersPerDrawingUnit,
+                Math.Max(maxX - minX, 0.0),
+                Math.Max(maxY - minY, 0.0),
+                metadata.HasMalformedDeclaration);
+        }
+        finally
+        {
+            if (convertedPath is not null)
+                TryDelete(convertedPath);
+        }
     }
-
     public async Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(string outputPath, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -46,7 +70,16 @@ public sealed class DxfOutputPreviewService(IPdfVectorImportService? pdfVectorIm
             convertedPath = await pdfVectorImportService.ConvertToDxfAsync(outputPath, cancellationToken).ConfigureAwait(false);
             outputPath = convertedPath;
         }
-
+        else if (Path.GetExtension(outputPath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)
+                 && HasBinaryDxfSignature(outputPath))
+        {
+            if (dxfTransportConversionService is null)
+                throw MissingBinaryConversionRuntime();
+            convertedPath = await dxfTransportConversionService
+                .ConvertBinaryToAsciiAsync(outputPath, cancellationToken)
+                .ConfigureAwait(false);
+            outputPath = convertedPath;
+        }
         try
         {
             var previewDocument = EditorDxfDocument.LoadPreviewDocument(outputPath);
@@ -65,13 +98,20 @@ public sealed class DxfOutputPreviewService(IPdfVectorImportService? pdfVectorIm
                     TextHeight: path.TextHeight,
                     RotationDegrees: path.RotationDegrees,
                     WidthFactor: path.WidthFactor,
+                    FontFamily: path.FontFamily,
+                    CharacterSpacing: path.CharacterSpacing,
+                    IsBold: path.IsBold,
+                    IsItalic: path.IsItalic,
+                    IsUnderline: path.IsUnderline,
                     Center: path.Center is DxfPoint center ? new Editor2DPoint(center.X, center.Y) : null,
                     Radius: path.Radius,
                     StartAngleDegrees: path.StartAngleDegrees,
                     EndAngleDegrees: path.EndAngleDegrees,
                     IsFilled: path.IsFilled,
                     SourceLayerName: path.LayerName,
-                    SourceEntityHandle: path.EntityHandle))
+                    SourceEntityHandle: path.EntityHandle,
+                    FillLoops: path.FillLoops?.Select(loop => (IReadOnlyList<Editor2DPoint>)loop
+                        .Select(static point => new Editor2DPoint(point.X, point.Y)).ToArray()).ToArray()))
                     .ToArray(),
                 hasBounds
                     ? new Editor2DBounds(minX, minY, maxX, maxY)
@@ -82,11 +122,7 @@ public sealed class DxfOutputPreviewService(IPdfVectorImportService? pdfVectorIm
         finally
         {
             if (convertedPath is not null)
-            {
-                try { File.Delete(convertedPath); }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
-            }
+                TryDelete(convertedPath);
         }
     }
 
@@ -146,6 +182,36 @@ public sealed class DxfOutputPreviewService(IPdfVectorImportService? pdfVectorIm
         return Task.CompletedTask;
     }
 
+    public Task<EditorDxfMergeResult> TrySaveMergedDxfDocumentAsync(
+        ReadOnlyMemory<byte> sourceData,
+        Editor2DExportDocument document,
+        string outputPath,
+        Editor2DExportOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(EditorDxfDocument.TryMergePreservingStructure(
+            sourceData, document, outputPath, options));
+    }
+
+    public Task CopyDxfPreservingStructureAsync(
+        string sourcePath,
+        string outputPath,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        EditorDxfDocument.CopyPreservingStructureWithCanonicalHeader(sourcePath, outputPath);
+        return Task.CompletedTask;
+    }
+    public Task CopyDxfPreservingStructureAsync(
+        ReadOnlyMemory<byte> sourceData,
+        string outputPath,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        EditorDxfDocument.CopyPreservingStructureWithCanonicalHeader(sourceData, outputPath);
+        return Task.CompletedTask;
+    }
     public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(string outputPath, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -215,6 +281,25 @@ public sealed class DxfOutputPreviewService(IPdfVectorImportService? pdfVectorIm
                 Height: height));
     }
 
+    private static bool HasBinaryDxfSignature(string path)
+    {
+        var signature = "AutoCAD Binary DXF"u8;
+        using var stream = File.OpenRead(path);
+        Span<byte> prefix = stackalloc byte[signature.Length];
+        return stream.Read(prefix) == prefix.Length && prefix.SequenceEqual(signature);
+    }
+
+    private static InvalidDataException MissingBinaryConversionRuntime()
+        => new(
+            "Binary DXF import needs the packaged drawing conversion runtime. "
+            + "Reinstall Pathstitch with the GeometryWorker payload or convert the drawing to ASCII DXF.");
+
+    private static void TryDelete(string path)
+    {
+        try { File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
     private static bool TryMeasureBounds(
         IReadOnlyList<DxfPreviewPath> paths,
         out double minX,

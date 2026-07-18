@@ -17,6 +17,12 @@ import ezdxf
 import ezdxf.colors
 from ezdxf.math import Matrix44
 from ezdxf.path import make_path, Path
+from .dxf_units import (
+    INSUNITS_NAME,
+    INSUNITS_TO_MM,
+    declare_millimeter_units,
+    new_millimeter_dxf,
+)
 from shapely.geometry import LineString, LinearRing, MultiLineString, Polygon, MultiPolygon, Point as ShapelyPoint
 from shapely.ops import linemerge, unary_union, polygonize
 from shapely.prepared import prep
@@ -822,7 +828,7 @@ def op_add_entity(args: Dict[str, Any]) -> Dict[str, Any]:
 
     # If input file doesn't exist, create a blank new DXF
     if not os.path.exists(input_path):
-        doc = ezdxf.new(dxfversion="R2010")
+        doc = new_millimeter_dxf(dxfversion="R2010")
     else:
         doc = ezdxf.readfile(input_path)
         
@@ -1471,31 +1477,6 @@ def translate_doc(doc, dx: float, dy: float):
             ent.dxf.insert = (ent.dxf.insert.x + dx, ent.dxf.insert.y + dy)
 
 
-# DXF $INSUNITS code -> millimetres-per-unit. Covers the units a real CAD/laser
-# file is likely to carry; anything not listed (or 0 = unitless) is left as-is so
-# we never silently corrupt a file with no declared units (MAS-148).
-INSUNITS_TO_MM = {
-    1: 25.4,        # inches
-    2: 304.8,       # feet
-    4: 1.0,         # millimetres
-    5: 10.0,        # centimetres
-    6: 1000.0,      # metres
-    8: 25.4e-6,     # microinches
-    9: 0.0254,      # mils
-    10: 914.4,      # yards
-    14: 100.0,      # decimetres
-    15: 10000.0,    # dekametres
-    16: 100000.0,   # hectometres
-    17: 1.0e9,      # gigametres? (rare) -- keep mapping coherent
-    21: 0.0254,     # US survey mil approximation
-}
-
-INSUNITS_NAME = {
-    0: "unitless", 1: "inches", 2: "feet", 4: "mm", 5: "cm", 6: "m",
-    8: "microinches", 9: "mils", 10: "yards", 14: "dm",
-}
-
-
 def scale_doc(doc, factor: float):
     """Uniformly scales every modelspace entity about the origin by `factor`.
     Mirrors `translate_doc`'s explicit per-type handling so it stays correct for
@@ -1996,6 +1977,41 @@ def op_scale_all(args: Dict[str, Any]) -> Dict[str, Any]:
         return {"status": "error", "message": f"Failed to scale: {str(e)}"}
 
 
+def op_convert_binary_dxf(args: Dict[str, Any]) -> Dict[str, Any]:
+    input_path = args.get("input")
+    output_path = args.get("output")
+    if not input_path or not os.path.exists(input_path):
+        return {"status": "error", "message": f"Binary DXF input file not found: {input_path}"}
+    if not output_path:
+        return {"status": "error", "message": "ASCII DXF output path must be specified."}
+    if os.path.abspath(input_path) == os.path.abspath(output_path):
+        return {"status": "error", "message": "Binary DXF conversion cannot overwrite its source file."}
+
+    signature = b"AutoCAD Binary DXF"
+    try:
+        with open(input_path, "rb") as source:
+            if source.read(len(signature)) != signature:
+                return {"status": "error", "message": "Input is not an AutoCAD Binary DXF drawing."}
+        document = ezdxf.readfile(input_path, errors="strict")
+        document.saveas(output_path, fmt="asc")
+        with open(output_path, "rb") as converted:
+            if converted.read(len(signature)) == signature:
+                raise ValueError("ezdxf produced binary output instead of ASCII DXF")
+        return {
+            "status": "ok",
+            "data": {
+                "version": document.dxfversion,
+                "entity_count": len(document.entitydb),
+            },
+        }
+    except Exception as exc:
+        try:
+            if os.path.exists(output_path):
+                os.remove(output_path)
+        except OSError:
+            pass
+        return {"status": "error", "message": f"Binary DXF conversion failed: {str(exc)}"}
+
 def op_normalize_dxf(args: Dict[str, Any]) -> Dict[str, Any]:
     input_path = args.get("input")
     output_path = args.get("output")
@@ -2034,6 +2050,15 @@ def op_append_dxf(args: Dict[str, Any]) -> Dict[str, Any]:
     try:
         primary_doc = ezdxf.readfile(primary_path)
         secondary_doc = ezdxf.readfile(secondary_path)
+        primary_code, _, primary_factor = dxf_units_info(primary_doc)
+        secondary_code, _, secondary_factor = dxf_units_info(secondary_doc)
+        if primary_code not in INSUNITS_TO_MM or secondary_code not in INSUNITS_TO_MM:
+            return {
+                "status": "error",
+                "message": "Cannot append DXFs with missing, unitless, or unsupported $INSUNITS metadata.",
+            }
+        if not math.isclose(primary_factor, secondary_factor, rel_tol=1e-12, abs_tol=1e-12):
+            scale_doc(secondary_doc, secondary_factor / primary_factor)
         
         # Translate secondary document to positive quadrant first (starting at 10,10)
         translate_to_positive_quadrant(secondary_doc)
@@ -2083,6 +2108,8 @@ def op_export_dxf(args: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         doc = ezdxf.readfile(input_path)
+        # Working-canvas coordinates are canonical millimetres after import correction.
+        declare_millimeter_units(doc)
         if handles is not None:
             msp = doc.modelspace()
             for ent in list(msp):
@@ -2102,6 +2129,7 @@ def op_export_dxf(args: Dict[str, Any]) -> Dict[str, Any]:
             # Retry at the document's original version if the requested one
             # couldn't be written.
             doc2 = ezdxf.readfile(input_path)
+            declare_millimeter_units(doc2)
             if handles is not None:
                 m2 = doc2.modelspace()
                 for ent in list(m2):
@@ -2129,7 +2157,7 @@ def op_import_svg(args: Dict[str, Any]) -> Dict[str, Any]:
     try:
         tree = ET.parse(input_path)
         root = tree.getroot()
-        doc = ezdxf.new(dxfversion="R2010")
+        doc = new_millimeter_dxf(dxfversion="R2010")
         msp = doc.modelspace()
 
         def element_is_filled(attrib) -> bool:
@@ -3096,7 +3124,7 @@ def op_import_pdf(args: Dict[str, Any]) -> Dict[str, Any]:
         
     try:
         import pdfplumber
-        doc = ezdxf.new(dxfversion="R2010")
+        doc = new_millimeter_dxf(dxfversion="R2010")
         msp = doc.modelspace()
         
         if "ORIGINAL" not in doc.layers:
@@ -3210,7 +3238,7 @@ def op_trace_raster(args: Dict[str, Any]) -> Dict[str, Any]:
         bmp_obj = potrace.Bitmap(bmp)
         path = bmp_obj.trace(turdsize=turdsize, alphamax=alphamax, opttolerance=opttolerance)
         
-        doc = ezdxf.new(dxfversion="R2010")
+        doc = new_millimeter_dxf(dxfversion="R2010")
         msp = doc.modelspace()
         if "ORIGINAL" not in doc.layers:
             doc.layers.new("ORIGINAL")
@@ -4098,7 +4126,7 @@ def op_new_dxf(args: Dict[str, Any]) -> Dict[str, Any]:
     if not output_path:
         return {"status": "error", "message": "Output path must be specified."}
     try:
-        doc = ezdxf.new(dxfversion="R2010")
+        doc = new_millimeter_dxf(dxfversion="R2010")
         # Pre-create the default working layer so the very first sketch lands
         # somewhere predictable even before any edit op runs.
         if "ORIGINAL" not in doc.layers:
@@ -5409,14 +5437,15 @@ def op_parse_psd(args: Dict[str, Any]) -> Dict[str, Any]:
 
         # Flatten the group hierarchy into leaf layers, preserving the visual
         # top-to-bottom stacking order that psd-tools yields.
-        leaves: List[Any] = []
+        leaves: List[Tuple[Any, bool]] = []
 
-        def collect(group) -> None:
+        def collect(group, parent_visible: bool = True) -> None:
             for layer in group:
+                effective_visible = parent_visible and bool(layer.visible)
                 if layer.is_group():
-                    collect(layer)
+                    collect(layer, effective_visible)
                 else:
-                    leaves.append(layer)
+                    leaves.append((layer, effective_visible))
 
         collect(psd)
 
@@ -5434,7 +5463,7 @@ def op_parse_psd(args: Dict[str, Any]) -> Dict[str, Any]:
 
         layers_out: List[Dict[str, Any]] = []
         idx = 0
-        for layer in leaves:
+        for layer, effective_visible in leaves:
             idx += 1
             bbox = layer.bbox  # (left, top, right, bottom)
             left, top, right, bottom = (float(bbox[0]), float(bbox[1]),
@@ -5462,7 +5491,7 @@ def op_parse_psd(args: Dict[str, Any]) -> Dict[str, Any]:
                         "name": name,
                         "kind": "vector",
                         "entities": ents,
-                        "visible": bool(layer.visible),
+                        "visible": effective_visible,
                     })
                     continue
                 # Embedded SVG yielded no geometry — fall back to raster render.
@@ -5490,7 +5519,7 @@ def op_parse_psd(args: Dict[str, Any]) -> Dict[str, Any]:
                 "center_y": ch / 2.0 - (top + bottom) / 2.0,
                 "width_px": float(pil.width),
                 "height_px": float(pil.height),
-                "visible": bool(layer.visible),
+                "visible": effective_visible,
             })
 
         # Full flattened composite for the "load as one image" / merge options.
@@ -5931,6 +5960,7 @@ OPERATIONS = {
     "append_dxf": op_append_dxf,
     "import_distribute": op_import_distribute,
     "normalize_dxf": op_normalize_dxf,
+    "convert_binary_dxf": op_convert_binary_dxf,
     "scale_all": op_scale_all,
     "export_dxf": op_export_dxf,
     "add_dashed_creases": op_add_dashed_creases,

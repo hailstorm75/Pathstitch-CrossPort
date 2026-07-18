@@ -37,7 +37,11 @@ public partial class App : Application
         serviceCollection
             .AddPages()
             .AddTelemetry()
-            .AddSingleton<RecentProjectsService>()
+            .AddSingleton<IProjectDiscoveryProvider>(_ => OperatingSystem.IsMacOS()
+                ? new MacOSSpotlightProjectDiscoveryProvider()
+                : new EmptyProjectDiscoveryProvider())
+            .AddSingleton(services => new RecentProjectsService(
+                services.GetRequiredService<IProjectDiscoveryProvider>()))
             .AddScoped<ProjectSessionService>()
             .AddSingleton<Project3DStateService>()
             .AddScoped<IDocumentWindowContext, DocumentWindowContext>()
@@ -58,7 +62,9 @@ public partial class App : Application
                 DesktopFileIntegrationServiceFactory.CreateForCurrentPlatform(
                     services.GetRequiredService<IProcessLauncher>()))
             .AddSingleton<IEditorOutputLauncherService, EditorOutputLauncherService>()
+            .AddSingleton<PathstitchDxfWorkerClient>()
             .AddSingleton<IPdfVectorImportService, PackagedPdfVectorImportService>()
+            .AddSingleton<IDxfTransportConversionService, PackagedDxfTransportConversionService>()
             .AddSingleton<IEditorOutputPreviewService, DxfOutputPreviewService>()
             .AddSingleton<IProjectPreviewRenderer, ProjectPreviewRenderer>()
             .AddSingleton<IGeometryKernelDescriptorProvider, OpenGeometryKernelDescriptorProvider>()
@@ -206,6 +212,7 @@ public partial class App : Application
         SvgPreviewDocumentParser.ConsolidateStrokes = preferences.ConsolidateSvgStrokes;
         SvgPreviewDocumentParser.FillMode = preferences.SvgFillMode;
         SvgPreviewDocumentParser.ImportThickness = preferences.SvgImportThickness;
+        MacOSIntegrationService.TryApply(preferences);
         if (Current is not null)
         {
             Current.RequestedThemeVariant = preferences.Appearance.ToLowerInvariant() switch

@@ -2150,7 +2150,7 @@ public sealed partial class EditorPageViewModel
                 return;
 
             SyncSidebarToolStates();
-            OnPropertyChanged(nameof(SidebarTools));
+            NotifyToolbarCollectionsChanged();
             OnPropertyChanged(nameof(CommandSearchResults));
             OnPropertyChanged(nameof(IsCommandSearchEmpty));
             OnPropertyChanged(nameof(ActiveToolLabel));
@@ -2412,6 +2412,9 @@ public sealed partial class EditorPageViewModel
             throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown editor mode.");
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (IsBatchItemEditActive && mode != EditorMode.TwoD)
+            CancelBatchItemEditAndReturn();
 
         if (mode == EditorMode.TwoD && TwoDDocument is null)
             await EnsureTwoDWorkspaceDocumentAsync(cancellationToken).ConfigureAwait(true);
@@ -2866,7 +2869,10 @@ public sealed partial class EditorPageViewModel
     private void ApplyGeneratedOutput(string? outputPath)
     {
         if (string.IsNullOrWhiteSpace(outputPath))
+        {
             _generatedOutputDataBase64 = null;
+            ClearGeneratedDxfPreservationBaseline();
+        }
 
         LastGeneratedOutputPath = string.IsNullOrWhiteSpace(outputPath)
             ? null
@@ -2978,6 +2984,14 @@ public sealed partial class EditorPageViewModel
                 generatedLayerName,
                 activatePreviewWorkspace,
                 replaceGeneratedPreviewLayer);
+        }
+
+        if (!isTransientUnfoldPreview)
+        {
+            if (appendContext is null)
+                CaptureGeneratedDxfPreservationBaseline(previewDocument, outputPath, generatedOutputDataBase64);
+            else
+                ClearGeneratedDxfPreservationBaseline();
         }
 
         if (persistState && !isTransientUnfoldPreview)

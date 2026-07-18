@@ -15,6 +15,7 @@ public sealed class Editor2DSelectionTransformTests
             false,
             Start: new(1, 0),
             RotationDegrees: 0,
+            SourceEntityHandle: "A1",
             BezierAnchors: [new(new(1, 0), new(0, 0), new(2, 0))]);
         var transform = Editor2DAffineTransform.CreateRotation(new(0, 0), 90)
             .Then(Editor2DAffineTransform.CreateTranslation(5, 3));
@@ -24,11 +25,72 @@ public sealed class Editor2DSelectionTransformTests
         AssertPoint(new(5, 4), transformed.Points[0]);
         AssertPoint(new(5, 5), transformed.Points[1]);
         AssertPoint(new(5, 4), transformed.Start!);
+        Assert.Equal("A1", transformed.SourceEntityHandle);
         Assert.Equal(90, transformed.RotationDegrees!.Value, 8);
         var anchor = Assert.Single(transformed.BezierAnchors!);
         AssertPoint(new(5, 4), anchor.Point);
         AssertPoint(new(5, 3), anchor.HandleIn!);
         AssertPoint(new(5, 5), anchor.HandleOut!);
+    }
+
+    [Fact]
+    public void TransformPath_ReflectionPreservesTextGlyphBasisHandedness()
+    {
+        var path = new Editor2DPreviewPath(
+            "text", "TEXT", [], false,
+            Start: new(2, 1), Text: "Mirror", TextHeight: 2,
+            RotationDegrees: 30, WidthFactor: 0.8);
+
+        var transformed = Editor2DGeometry.TransformPath(
+            path,
+            Editor2DAffineTransform.CreateReflectionAcrossVerticalAxis(0));
+
+        AssertPoint(new(-2, 1), transformed.Start!);
+        Assert.Equal(330, transformed.RotationDegrees!.Value, 8);
+        Assert.Equal(-0.8, transformed.WidthFactor!.Value, 8);
+        Assert.Equal(2, transformed.TextHeight!.Value, 8);
+    }
+
+    [Fact]
+    public void TransformPath_NonUniformTextScaleDecomposesHeightAndWidthFactor()
+    {
+        var path = new Editor2DPreviewPath(
+            "text", "TEXT", [], false,
+            Start: new(1, 2), Text: "Scale", TextHeight: 2,
+            RotationDegrees: 0, WidthFactor: 1.25);
+        var transform = new Editor2DAffineTransform(2, 0, 0, 3, 0, 0);
+
+        var transformed = Editor2DGeometry.TransformPath(path, transform);
+
+        AssertPoint(new(2, 6), transformed.Start!);
+        Assert.Equal(0, transformed.RotationDegrees!.Value, 8);
+        Assert.Equal(5.0 / 6.0, transformed.WidthFactor!.Value, 8);
+        Assert.Equal(6, transformed.TextHeight!.Value, 8);
+    }
+    [Fact]
+    public void TransformPath_NewIdentityClearsSourceEntityHandle()
+    {
+        var path = new Editor2DPreviewPath(
+            "source", "LINE", [new(0, 0), new(10, 0)], false,
+            SourceLayerName: "CUT", SourceEntityHandle: "BEEF");
+
+        var transformed = Editor2DGeometry.TranslatePath(path, 5, 0, "copy");
+
+        Assert.Null(transformed.SourceEntityHandle);
+        Assert.Equal("CUT", transformed.SourceLayerName);
+    }
+
+    [Fact]
+    public void CurveOffset_NewIdentityClearsSourceEntityHandle()
+    {
+        var path = new Editor2DPreviewPath(
+            "source", "CIRCLE", Editor2DGeometry.BuildCirclePoints(new(0, 0), 10), true,
+            Center: new(0, 0), Radius: 10, SourceLayerName: "CUT", SourceEntityHandle: "CAFE");
+
+        Assert.True(Editor2DGeometry.TryBuildCurveOffsetPath(path, 2, true, out var offset));
+
+        Assert.Null(offset.SourceEntityHandle);
+        Assert.Equal("CUT", offset.SourceLayerName);
     }
 
     [Fact]

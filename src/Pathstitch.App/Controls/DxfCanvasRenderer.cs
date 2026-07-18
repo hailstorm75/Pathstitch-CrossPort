@@ -41,11 +41,20 @@ internal sealed class DxfCanvasRenderer
             var geometry = new StreamGeometry();
             using (var geometryContext = geometry.Open())
             {
-                geometryContext.BeginFigure(worldToScreen(path.Points[0]), false);
-                for (var pointIndex = 1; pointIndex < path.Points.Count; pointIndex++)
-                    geometryContext.LineTo(worldToScreen(path.Points[pointIndex]));
-                if (path.IsClosed)
-                    geometryContext.EndFigure(true);
+                geometryContext.SetFillRule(FillRule.EvenOdd);
+                var figures = path.IsFilled && path.FillLoops is { Count: > 0 }
+                    ? path.FillLoops
+                    : [path.Points];
+                foreach (var figure in figures)
+                {
+                    if (figure.Count < 2)
+                        continue;
+                    geometryContext.BeginFigure(worldToScreen(figure[0]), path.IsFilled);
+                    for (var pointIndex = 1; pointIndex < figure.Count; pointIndex++)
+                        geometryContext.LineTo(worldToScreen(figure[pointIndex]));
+                    if (path.IsClosed)
+                        geometryContext.EndFigure(true);
+                }
             }
             context.DrawGeometry(resolveFill(path), pen, geometry);
         }

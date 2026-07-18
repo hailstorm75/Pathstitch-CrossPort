@@ -42,6 +42,39 @@ public sealed class EditorDocumentLifecycleTests
     }
 
     [Fact]
+    public async Task Exports_LogActivityWithoutChangingCleanOrDirtyRevision()
+    {
+        var dialogs = new LifecycleExportDialogService();
+        var output = new LifecycleExportOutputService();
+        await using var fixture = await LifecycleFixture.CreateAsync(
+            fileDialogService: dialogs,
+            outputPreviewService: output);
+        fixture.ViewModel.TwoDDocument = new Editor2DPreviewDocument(
+            [new Editor2DPreviewPath("line", "LINE", [new(0, 0), new(10, 0)], false)],
+            new Editor2DBounds(0, 0, 10, 0),
+            new Dictionary<string, int> { ["LINE"] = 1 },
+            []);
+        await fixture.ViewModel.SaveDocumentAsync();
+        Assert.False(fixture.ViewModel.IsDirty);
+
+        await fixture.ViewModel.ExportTwoDDxfAsync();
+        await fixture.ViewModel.ExportTwoDSvgAsync();
+        await fixture.ViewModel.ExportTwoDPngAsync();
+        await fixture.ViewModel.ExportTwoDPdfAsync();
+
+        Assert.False(fixture.ViewModel.IsDirty);
+        Assert.Equal(4, output.SavedFormats.Count);
+        Assert.Contains(fixture.ViewModel.ActivityLog, item => item.Action == "Export DXF");
+        Assert.Contains(fixture.ViewModel.ActivityLog, item => item.Action == "Export SVG");
+        Assert.Contains(fixture.ViewModel.ActivityLog, item => item.Action == "Export PNG");
+        Assert.Contains(fixture.ViewModel.ActivityLog, item => item.Action == "Export PDF");
+
+        await fixture.ViewModel.SetActiveEditorModeAsync(EditorMode.Batch);
+        Assert.True(fixture.ViewModel.IsDirty);
+        await fixture.ViewModel.ExportTwoDDxfAsync();
+        Assert.True(fixture.ViewModel.IsDirty);
+    }
+    [Fact]
     public async Task SaveDocument_WritesPreviewConsumedByRecentProjects()
     {
         await using var fixture = await LifecycleFixture.CreateAsync(
@@ -331,6 +364,66 @@ public sealed class EditorDocumentLifecycleTests
         public Task<string?> PickSourceModelFileAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
     }
 
+    private sealed class LifecycleExportDialogService : IProjectFileDialogService
+    {
+        public Task<string?> PickDxfExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>("export.dxf");
+
+        public Task<string?> PickSvgExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>("export.svg");
+
+        public Task<string?> PickPngExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>("export.png");
+
+        public Task<string?> PickPdfExportFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>("export.pdf");
+
+        public Task<string?> PickExistingProjectFileAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>(null);
+
+        public Task<string?> PickNewProjectFileAsync(string suggestedFileName, CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>(null);
+
+        public Task<IReadOnlyList<string>> PickWorkspaceFilesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<string>>([]);
+
+        public Task<IReadOnlyList<string>> PickSourceModelFilesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<string>>([]);
+
+        public Task<string?> PickSourceModelFileAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>(null);
+    }
+
+    private sealed class LifecycleExportOutputService : IEditorOutputPreviewService
+    {
+        public List<string> SavedFormats { get; } = [];
+
+        public Task SaveExportDocumentAsync(
+            Editor2DExportDocument document,
+            string outputPath,
+            Editor2DExportOptions options,
+            CancellationToken cancellationToken = default)
+        {
+            SavedFormats.Add(Path.GetExtension(outputPath));
+            return Task.CompletedTask;
+        }
+
+        public Task SavePreviewDocumentAsync(
+            Editor2DPreviewDocument document,
+            string outputPath,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<Editor2DPreviewDocument?> LoadPreviewDocumentAsync(
+            string outputPath,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<Editor2DPreviewDocument?>(null);
+
+        public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(
+            string outputPath,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<EditorGeneratedOutputSummary?>(null);
+    }
     private sealed class LifecycleFixture : IAsyncDisposable
     {
         private readonly string _directory;
@@ -348,7 +441,9 @@ public sealed class EditorDocumentLifecycleTests
 
         public static async Task<LifecycleFixture> CreateAsync(
             IUnsavedChangesPromptService? prompt = null,
-            IProjectPreviewRenderer? projectPreviewRenderer = null)
+            IProjectPreviewRenderer? projectPreviewRenderer = null,
+            IProjectFileDialogService? fileDialogService = null,
+            IEditorOutputPreviewService? outputPreviewService = null)
         {
             var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-lifecycle-{Guid.NewGuid():N}");
             Directory.CreateDirectory(directory);
@@ -356,6 +451,8 @@ public sealed class EditorDocumentLifecycleTests
             await new Project3DStateService().SaveAsync(projectPath, Project3DState.Empty);
 
             var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests(
+                fileDialogService,
+                outputPreviewService,
                 unsavedChangesPromptService: prompt,
                 projectPreviewRenderer: projectPreviewRenderer);
             var session = new ProjectSession(

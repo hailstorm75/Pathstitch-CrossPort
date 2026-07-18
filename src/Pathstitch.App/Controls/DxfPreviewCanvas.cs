@@ -739,6 +739,16 @@ public sealed class DxfPreviewCanvas : Control
 
     private void ExecuteFillConversion(bool toFill)
     {
+        if (DataContext is EditorPageViewModel viewModel)
+        {
+            if (toFill)
+                viewModel.ApplyTwoDStrokeToFill();
+            else
+                viewModel.ApplyTwoDFillToStroke();
+            _contextMenu.Close();
+            return;
+        }
+
         if (Document is null || SelectedPathIds.Count == 0)
         {
             _contextMenu.Close();
@@ -754,9 +764,30 @@ public sealed class DxfPreviewCanvas : Control
         if (eligible.Length > 0)
         {
             var eligibleIds = eligible.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
-            SetCurrentValue(DocumentProperty, CreateUpdatedDocument(Document, Document.Paths
-                .Select(path => eligibleIds.Contains(path.Id) ? path with { IsFilled = toFill } : path)
-                .ToArray()));
+            if (toFill)
+            {
+                SetCurrentValue(DocumentProperty, CreateUpdatedDocument(Document, Document.Paths
+                    .Select(path => eligibleIds.Contains(path.Id) ? path with { IsFilled = true } : path)
+                    .ToArray()));
+            }
+            else
+            {
+                var replacements = eligible.ToDictionary(
+                    static path => path.Id,
+                    Editor2DGeometry.ConvertFillToStrokePaths,
+                    StringComparer.Ordinal);
+                var paths = Document.Paths.SelectMany(path => replacements.TryGetValue(path.Id, out var strokes)
+                        ? strokes
+                        : [path])
+                    .ToArray();
+                var selection = SelectedPathIds.SelectMany(id => replacements.TryGetValue(id, out var strokes)
+                        ? strokes.Select(static stroke => stroke.Id)
+                        : [id])
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+                SetCurrentValue(DocumentProperty, CreateUpdatedDocument(Document, paths));
+                SetCurrentValue(SelectedPathIdsProperty, selection);
+            }
             InvalidateVisual();
         }
 

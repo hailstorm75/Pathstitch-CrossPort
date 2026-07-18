@@ -76,9 +76,10 @@ public sealed class PdfVectorImportTests
 
         try
         {
-            using var converter = new PackagedPdfVectorImportService(
-                NullLogger<PackagedPdfVectorImportService>.Instance,
+            using var workerClient = new PathstitchDxfWorkerClient(
+                NullLogger<PathstitchDxfWorkerClient>.Instance,
                 resolver);
+            var converter = new PackagedPdfVectorImportService(workerClient);
             var imported = await new DxfOutputPreviewService(converter).LoadPreviewDocumentAsync(pdfPath);
 
             Assert.NotNull(imported);
