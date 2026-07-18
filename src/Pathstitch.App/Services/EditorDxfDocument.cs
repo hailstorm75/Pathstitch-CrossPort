@@ -39,7 +39,8 @@ internal sealed record DxfPreviewPath(
     double CharacterSpacing = 0.0,
     bool IsBold = false,
     bool IsItalic = false,
-    bool IsUnderline = false);
+    bool IsUnderline = false,
+    Editor2DTextBasis? TextBasis = null);
 
 internal sealed record DxfPreviewDocument(
     IReadOnlyList<DxfPreviewPath> Paths,
@@ -135,6 +136,7 @@ internal static class EditorDxfDocument
                     path.TextHeight ?? 5.0,
                     path.RotationDegrees ?? 0.0,
                     path.WidthFactor ?? 1.0,
+                    path.TextBasis,
                     path.IsConstruction,
                     path.FontFamily,
                     path.CharacterSpacing,
@@ -2935,6 +2937,7 @@ internal static class EditorDxfDocument
                    && ValuesMatch(source.TextHeight, current.TextHeight)
                    && ValuesMatch(source.RotationDegrees, current.RotationDegrees)
                    && ValuesMatch(source.WidthFactor, current.WidthFactor)
+                   && TextBasesMatch(source, current)
                    && string.Equals(source.FontFamily, current.FontFamily, StringComparison.Ordinal)
                    && ValuesMatch(source.CharacterSpacing, current.CharacterSpacing)
                    && source.IsBold == current.IsBold
@@ -2944,7 +2947,8 @@ internal static class EditorDxfDocument
         if (source.IsFilled != current.IsFilled)
             return false;
         if (source.IsFilled && !LoopsMatch(source.FillLoops, current.FillLoops))
-            return false;        if (source.EntityType.Equals("CIRCLE", StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (source.EntityType.Equals("CIRCLE", StringComparison.OrdinalIgnoreCase))
             return PointsMatch(source.Center, current.Center)
                    && ValuesMatch(source.Radius, current.Radius);
         if (source.EntityType.Equals("ARC", StringComparison.OrdinalIgnoreCase))
@@ -3015,6 +3019,7 @@ internal static class EditorDxfDocument
             TextHeight = candidate.TextHeight,
             RotationDegrees = candidate.RotationDegrees,
             WidthFactor = candidate.WidthFactor,
+            TextBasis = candidate.TextBasis,
             Center = candidate.Center is { } center ? new Editor2DPoint(center.X, center.Y) : null,
             Radius = candidate.Radius,
             StartAngleDegrees = candidate.StartAngleDegrees,
@@ -3249,6 +3254,19 @@ internal static class EditorDxfDocument
            && ValuesMatch(a.X, b.X)
            && ValuesMatch(a.Y, b.Y);
 
+    private static bool TextBasesMatch(DxfPreviewPath source, Editor2DPreviewPath current)
+    {
+        var sourceBasis = source.TextBasis
+            ?? Editor2DGeometry.CreateLegacyTextBasis(
+                source.TextHeight ?? 5.0,
+                source.RotationDegrees ?? 0.0,
+                source.WidthFactor ?? 1.0);
+        var currentBasis = Editor2DGeometry.ResolveTextBasis(current);
+        return ValuesMatch(sourceBasis.Ux, currentBasis.Ux)
+               && ValuesMatch(sourceBasis.Uy, currentBasis.Uy)
+               && ValuesMatch(sourceBasis.Vx, currentBasis.Vx)
+               && ValuesMatch(sourceBasis.Vy, currentBasis.Vy);
+    }
     private static bool ValuesMatch(double? left, double? right)
         => left is { } a && right is { } b && ValuesMatch(a, b);
 
@@ -3730,6 +3748,8 @@ internal static class EditorDxfDocument
                 var entity = ParseText(lines, ref i, entityIndex);
                 if (entity is not null)
                     previewPaths.Add(AttachSourceMetadata(lines, entityStart, entity));
+                else
+                    unsupportedEntityTypes.Add("TEXT");
                 entityIndex++;
                 continue;
             }
@@ -4955,6 +4975,7 @@ internal static class EditorDxfDocument
         var extrusionZ = 1.0;
         double? height = null;
         double? rotation = null;
+        double? obliqueAngle = null;
         double? widthFactor = null;
         var textGenerationFlags = 0;
         string? text = null;
@@ -4995,6 +5016,8 @@ internal static class EditorDxfDocument
                 text = DecodeDxfUnicodeEscapes(value);
             else if (code == "50" && TryParseDouble(value.Trim(), out var resolvedRotation))
                 rotation = resolvedRotation;
+            else if (code == "51" && TryParseDouble(value.Trim(), out var resolvedObliqueAngle))
+                obliqueAngle = resolvedObliqueAngle;
             else if (code == "1001")
                 inPathstitchXData = value.Trim().Equals("PATHSTITCH", StringComparison.OrdinalIgnoreCase);
             else if (inPathstitchXData && code == "1000")
@@ -5032,35 +5055,44 @@ internal static class EditorDxfDocument
         var extrusion = new DxfVector3(extrusionX, extrusionY, extrusionZ);
         var start = TransformOcsPoints([new DxfPoint(resolvedX, resolvedY)], startZ, extrusion)[0];
         var rotationRadians = DegreesToRadians(resolvedRotationValue);
+        var obliqueRadians = DegreesToRadians(obliqueAngle ?? 0.0);
+        var cosine = Math.Cos(rotationRadians);
+        var sine = Math.Sin(rotationRadians);
+        var tangent = Math.Tan(obliqueRadians);
         var projectedAxes = TransformOcsPoints(
             [
                 new DxfPoint(
-                    sourceXSign * Math.Cos(rotationRadians),
-                    sourceXSign * Math.Sin(rotationRadians)),
+                    sourceXSign * resolvedHeightValue * resolvedWidthMagnitude * cosine,
+                    sourceXSign * resolvedHeightValue * resolvedWidthMagnitude * sine),
                 new DxfPoint(
-                    sourceYSign * -Math.Sin(rotationRadians),
-                    sourceYSign * Math.Cos(rotationRadians)),
+                    sourceYSign * resolvedHeightValue * ((tangent * cosine) - sine),
+                    sourceYSign * resolvedHeightValue * ((tangent * sine) + cosine)),
             ],
             0.0,
             extrusion);
-        var projectedXLength = Math.Sqrt(
-            (projectedAxes[0].X * projectedAxes[0].X) + (projectedAxes[0].Y * projectedAxes[0].Y));
-        var projectedYLength = Math.Sqrt(
-            (projectedAxes[1].X * projectedAxes[1].X) + (projectedAxes[1].Y * projectedAxes[1].Y));
-        if (projectedXLength > 1e-12 && projectedYLength > 1e-12)
-        {
-            var determinant = (projectedAxes[0].X * projectedAxes[1].Y)
-                              - (projectedAxes[0].Y * projectedAxes[1].X);
-            var rotationAxisX = determinant < 0.0 ? -projectedAxes[0].X : projectedAxes[0].X;
-            var rotationAxisY = determinant < 0.0 ? -projectedAxes[0].Y : projectedAxes[0].Y;
-            resolvedRotationValue = Math.Atan2(rotationAxisY, rotationAxisX) * 180.0 / Math.PI;
-            resolvedHeightValue = Math.Max(resolvedHeightValue * projectedYLength, 0.1);
-            resolvedWidthFactor = NormalizeWidthFactor(
-                resolvedWidthMagnitude * projectedXLength / projectedYLength);
-            if (determinant < 0.0)
-                resolvedWidthFactor = -resolvedWidthFactor;
-        }
-        var points = BuildTextBoundsPoints(start, text, resolvedHeightValue, resolvedRotationValue, resolvedWidthFactor);
+        var textBasis = new Editor2DTextBasis(
+            projectedAxes[0].X,
+            projectedAxes[0].Y,
+            projectedAxes[1].X,
+            projectedAxes[1].Y);
+        if (!textBasis.IsFinite || Math.Abs(textBasis.Determinant) <= 1e-9)
+            return null;
+
+        Editor2DGeometry.ProjectTextBasis(
+            textBasis,
+            out var projectedHeight,
+            out var projectedRotation,
+            out var projectedWidthFactor);
+        resolvedHeightValue = projectedHeight ?? resolvedHeightValue;
+        resolvedRotationValue = projectedRotation ?? resolvedRotationValue;
+        resolvedWidthFactor = projectedWidthFactor ?? resolvedWidthFactor;
+        var points = BuildTextBoundsPoints(
+            start,
+            text,
+            resolvedHeightValue,
+            resolvedRotationValue,
+            resolvedWidthFactor,
+            textBasis);
         return new DxfPreviewPath(
             Id: $"text-{entityIndex}",
             EntityType: "TEXT",
@@ -5076,7 +5108,8 @@ internal static class EditorDxfDocument
             CharacterSpacing: characterSpacing,
             IsBold: isBold,
             IsItalic: isItalic,
-            IsUnderline: isUnderline);
+            IsUnderline: isUnderline,
+            TextBasis: textBasis);
     }
     private static DxfPreviewPath? CreatePreviewPath(
         string id,
@@ -5249,6 +5282,45 @@ internal static class EditorDxfDocument
         AppendPair(builder, 76, "1");
         AppendPair(builder, 98, "0");
     }
+    private static void DecomposeTextBasisForDxf(
+        Editor2DTextBasis basis,
+        out double height,
+        out double rotationDegrees,
+        out double widthFactor,
+        out double obliqueAngleDegrees,
+        out int generationFlags)
+    {
+        if (!basis.IsFinite || Math.Abs(basis.Determinant) <= 1e-9)
+            throw new InvalidDataException("DXF TEXT basis must be finite and non-singular.");
+
+        var uLength = Math.Sqrt((basis.Ux * basis.Ux) + (basis.Uy * basis.Uy));
+        if (!double.IsFinite(uLength) || uLength <= 1e-9)
+            throw new InvalidDataException("DXF TEXT baseline must have a positive finite length.");
+
+        var sourceXSign = basis.Determinant < 0.0 ? -1.0 : 1.0;
+        var rotationAxisX = sourceXSign * basis.Ux / uLength;
+        var rotationAxisY = sourceXSign * basis.Uy / uLength;
+        var perpendicularX = -rotationAxisY;
+        var perpendicularY = rotationAxisX;
+        var shearProjection = (basis.Vx * rotationAxisX) + (basis.Vy * rotationAxisY);
+        var heightProjection = (basis.Vx * perpendicularX) + (basis.Vy * perpendicularY);
+        if (!double.IsFinite(heightProjection) || Math.Abs(heightProjection) <= 1e-9)
+            throw new InvalidDataException("DXF TEXT height projection is singular.");
+
+        var sourceYSign = heightProjection < 0.0 ? -1.0 : 1.0;
+        height = Math.Abs(heightProjection);
+        widthFactor = uLength / height;
+        rotationDegrees = Math.Atan2(rotationAxisY, rotationAxisX) * 180.0 / Math.PI;
+        obliqueAngleDegrees = Math.Atan(shearProjection / heightProjection) * 180.0 / Math.PI;
+        if (!double.IsFinite(widthFactor)
+            || !double.IsFinite(obliqueAngleDegrees)
+            || Math.Abs(obliqueAngleDegrees) > 85.0 + 1e-9)
+        {
+            throw new InvalidDataException("DXF TEXT oblique angle exceeds the supported +/-85 degree range.");
+        }
+
+        generationFlags = (sourceXSign < 0.0 ? 2 : 0) | (sourceYSign < 0.0 ? 4 : 0);
+    }
     private static void AppendText(
         StringBuilder builder,
         string layerName,
@@ -5257,6 +5329,7 @@ internal static class EditorDxfDocument
         double height,
         double rotationDegrees,
         double widthFactor,
+        Editor2DTextBasis? textBasis,
         bool isConstruction = false,
         string? fontFamily = null,
         double characterSpacing = 0.0,
@@ -5275,17 +5348,34 @@ internal static class EditorDxfDocument
         AppendPair(builder, 7, "STANDARD");
         AppendPair(builder, 10, Format(start.X));
         AppendPair(builder, 20, Format(start.Y));
-        AppendPair(builder, 40, Format(Math.Max(height, 0.1)));
+        var outputHeight = Math.Max(height, 0.1);
+        var outputRotation = rotationDegrees;
         var normalizedWidthFactor = NormalizeWidthFactor(widthFactor);
         var widthMagnitude = Math.Abs(normalizedWidthFactor);
+        var obliqueAngle = 0.0;
+        var generationFlags = normalizedWidthFactor < 0.0 ? 2 : 0;
+        if (textBasis is not null)
+        {
+            DecomposeTextBasisForDxf(
+                textBasis,
+                out outputHeight,
+                out outputRotation,
+                out widthMagnitude,
+                out obliqueAngle,
+                out generationFlags);
+        }
+
+        AppendPair(builder, 40, Format(outputHeight));
         if (Math.Abs(widthMagnitude - 1.0) > 1e-9)
             AppendPair(builder, 41, Format(widthMagnitude));
-        if (normalizedWidthFactor < 0.0)
-            AppendPair(builder, 71, "2");
+        if (generationFlags != 0)
+            AppendPair(builder, 71, generationFlags.ToString(CultureInfo.InvariantCulture));
         var normalizedText = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
         AppendPair(builder, 1, normalizedText.Replace('\n', ' '));
-        if (Math.Abs(rotationDegrees) > 1e-9)
-            AppendPair(builder, 50, Format(rotationDegrees));
+        if (Math.Abs(outputRotation) > 1e-9)
+            AppendPair(builder, 50, Format(outputRotation));
+        if (Math.Abs(obliqueAngle) > 1e-9)
+            AppendPair(builder, 51, Format(obliqueAngle));
         if (NeedsPathstitchTextXData(
                 normalizedText,
                 fontFamily,
@@ -5368,13 +5458,20 @@ internal static class EditorDxfDocument
         AppendPair(builder, 62, "8");
     }
 
-    private static DxfPoint[] BuildTextBoundsPoints(DxfPoint start, string text, double height, double rotationDegrees, double widthFactor)
+    private static DxfPoint[] BuildTextBoundsPoints(
+        DxfPoint start,
+        string text,
+        double height,
+        double rotationDegrees,
+        double widthFactor,
+        Editor2DTextBasis? textBasis = null)
         => Editor2DGeometry.BuildTextBoundsPoints(
                 new Editor2DPoint(start.X, start.Y),
                 text,
                 height,
                 rotationDegrees,
-                widthFactor)
+                widthFactor,
+                textBasis: textBasis)
             .Select(static point => new DxfPoint(point.X, point.Y))
             .ToArray();
 
@@ -5705,5 +5802,5 @@ internal static class EditorDxfDocument
     }
 
     private static string Format(double value)
-        => value.ToString("0.###", CultureInfo.InvariantCulture);
+        => value.ToString("0.###############", CultureInfo.InvariantCulture);
 }

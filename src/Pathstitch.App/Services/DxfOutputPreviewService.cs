@@ -98,6 +98,7 @@ public sealed class DxfOutputPreviewService(
                     TextHeight: path.TextHeight,
                     RotationDegrees: path.RotationDegrees,
                     WidthFactor: path.WidthFactor,
+                    TextBasis: path.TextBasis,
                     FontFamily: path.FontFamily,
                     CharacterSpacing: path.CharacterSpacing,
                     IsBold: path.IsBold,

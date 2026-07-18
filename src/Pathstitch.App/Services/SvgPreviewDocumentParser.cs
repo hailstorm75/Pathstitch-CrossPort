@@ -675,6 +675,13 @@ internal static class SvgPreviewDocumentParser
             Center = path.Center is { } center ? Transform(center) : null,
             Radius = path.Radius is { } radius ? radius * (transform.ScaleX + transform.ScaleY) / 2.0 : null,
             TextHeight = path.TextHeight is { } textHeight ? textHeight * transform.ScaleY : null,
+            TextBasis = path.TextBasis is { } basis
+                ? new Editor2DTextBasis(
+                    basis.Ux * transform.ScaleX,
+                    basis.Uy * transform.ScaleY,
+                    basis.Vx * transform.ScaleX,
+                    basis.Vy * transform.ScaleY)
+                : null,
         };
     }
 

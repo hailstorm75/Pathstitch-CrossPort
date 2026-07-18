@@ -32,6 +32,9 @@ internal static class SvgCoordinateSystem
             Start = path.Start is { } start ? Transform(start) : null,
             Center = path.Center is { } center ? Transform(center) : null,
             RotationDegrees = path.RotationDegrees is { } rotation ? -rotation : null,
+            TextBasis = path.TextBasis is { } basis
+                ? new Editor2DTextBasis(basis.Ux, -basis.Uy, basis.Vx, -basis.Vy)
+                : null,
         }).ToArray();
     }
 }
