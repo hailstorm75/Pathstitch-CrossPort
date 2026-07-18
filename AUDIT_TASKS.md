@@ -207,7 +207,8 @@ Status values: `Todo`, `In progress`, `Blocked`, `Done`.
 ### AUD-021 — Add macOS publish, packaging, and CI
 
 - **Priority:** P0
-- **Status:** Todo
+- **Status:** In progress
+- **Evidence:** Publish profile, repeatable bundle script, all-Mach-O inside-out signing, pinned STCH decoder, registered ICNS, native launch/WebView/storage/project/STEP acceptance, and self-validating artifact upload are implemented. Exact-commit green macOS evidence plus preview-extension and provisioned app-group observation are still required in docs/architecture/PAR-007-macos-native-evidence.md.
 - **Depends on:** AUD-016, AUD-018, AUD-020
 - Add an `osx-arm64` publish profile and repeatable application-bundle packaging.
 - Add signing/notarization configuration or clearly documented unsigned-development behavior.
@@ -217,7 +218,8 @@ Status values: `Todo`, `In progress`, `Blocked`, `Done`.
 ### AUD-022 — Add macOS document integration and previews
 
 - **Priority:** P2
-- **Status:** Todo
+- **Status:** In progress
+- **Evidence:** STCH/DXF/STEP document registration, Quick Look/thumbnail extensions, app-group preferences, and native three-format smoke gates are implemented. Exact-commit Finder screenshots/artifacts remain pending.
 - **Depends on:** AUD-021
 - Define `.stch` document association and Finder integration.
 - Restore or port Quick Look/thumbnail support for DXF and STEP where applicable.
@@ -307,7 +309,8 @@ Status values: `Todo`, `In progress`, `Blocked`, `Done`.
 ### AUD-032 — Add release-readiness checks
 
 - **Priority:** P1
-- **Status:** Todo
+- **Status:** In progress
+- **Evidence:** Unified native-host readiness script and Windows verification exist; macOS workflow now emits a pass/fail manifest with exact run identity and SHA-256 inventory for acceptance, nested signing, entitlements, provider logs/mapping, and Quick Look PNGs. Cross-platform sign-off remains pending a green exact-commit macOS run and the explicitly listed provisioned/native observations.
 - **Depends on:** AUD-017, AUD-021, AUD-030, AUD-031
 - Verify zero-warning builds, unit tests, UI coordination tests, package contents, clean-machine launch, and representative document workflows.
 - Keep README platform and kernel claims synchronized with verified capabilities.
