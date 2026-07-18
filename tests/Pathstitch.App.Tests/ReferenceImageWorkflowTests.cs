@@ -766,6 +766,88 @@ public sealed class ReferenceImageWorkflowTests
     }
 
     [Fact]
+    public void AvaloniaBackgroundRemoval_ClearsBilinearGradientWithoutRemovingSubject()
+    {
+        using var bitmap = new SKBitmap(new SKImageInfo(9, 7, SKColorType.Rgba8888, SKAlphaType.Premul));
+        for (var y = 0; y < bitmap.Height; y++)
+        {
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                var value = (byte)(245 - (x * 5) - (y * 2));
+                bitmap.SetPixel(x, y, new SKColor(value, value, value));
+            }
+        }
+        for (var y = 2; y <= 4; y++)
+        {
+            for (var x = 3; x <= 5; x++)
+                bitmap.SetPixel(x, y, SKColors.Black);
+        }
+        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+
+        var output = new AvaloniaReferenceImageBackgroundRemovalService()
+            .RemoveBackground(Convert.ToBase64String(data.ToArray()));
+
+        using var decoded = SKBitmap.Decode(Convert.FromBase64String(Assert.IsType<string>(output)));
+        Assert.All(Enumerable.Range(0, bitmap.Width), x => Assert.Equal(0, decoded.GetPixel(x, 0).Alpha));
+        Assert.Equal(0, decoded.GetPixel(0, bitmap.Height / 2).Alpha);
+        Assert.Equal(0, decoded.GetPixel(bitmap.Width - 1, bitmap.Height / 2).Alpha);
+        Assert.Equal(255, decoded.GetPixel(4, 3).Alpha);
+    }
+
+    [Fact]
+    public void AvaloniaTracer_ToleranceFiltersSpecksLikePotraceTurdsize()
+    {
+        using var bitmap = new SKBitmap(16, 16);
+        bitmap.Erase(SKColors.White);
+        for (var y = 4; y < 12; y++)
+        {
+            for (var x = 4; x < 12; x++)
+                bitmap.SetPixel(x, y, SKColors.Black);
+        }
+        bitmap.SetPixel(1, 1, SKColors.Black);
+        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+
+        var contours = new AvaloniaReferenceImageTraceService().TraceContours(
+            Convert.ToBase64String(data.ToArray()),
+            new Editor2DReferenceImageTraceOptions(
+                Threshold: 0.5,
+                Tolerance: 50,
+                CornerSmoothness: 0,
+                PathOptimization: 0));
+
+        var contour = Assert.Single(contours);
+        Assert.Equal(4, contour.Min(point => point.X));
+        Assert.Equal(12, contour.Max(point => point.X));
+        Assert.Equal(4, contour.Min(point => point.Y));
+        Assert.Equal(12, contour.Max(point => point.Y));
+    }
+
+    [Fact]
+    public void AvaloniaTracer_SilhouetteIgnoresNearTransparentPixels()
+    {
+        using var bitmap = new SKBitmap(new SKImageInfo(8, 8, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+        bitmap.Erase(SKColors.Transparent);
+        bitmap.SetPixel(1, 1, new SKColor(0, 0, 0, 8));
+        for (var y = 3; y < 7; y++)
+        {
+            for (var x = 3; x < 7; x++)
+                bitmap.SetPixel(x, y, SKColors.Black);
+        }
+        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+
+        var contours = new AvaloniaReferenceImageTraceService().TraceContours(
+            Convert.ToBase64String(data.ToArray()),
+            new Editor2DReferenceImageTraceOptions(
+                Tolerance: 100,
+                CornerSmoothness: 0,
+                PathOptimization: 0,
+                SilhouetteOnly: true));
+
+        var contour = Assert.Single(contours);
+        Assert.True(contour.Min(point => point.X) >= 3);
+        Assert.True(contour.Min(point => point.Y) >= 3);
+    }
+    [Fact]
     public void CanvasReferenceImageRenderContract_UsesTransformSizeAndDedicatedBinding()
     {
         var image = new Editor2DReferenceImage(

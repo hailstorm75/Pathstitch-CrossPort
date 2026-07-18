@@ -26,6 +26,14 @@ public sealed record PsdVectorLayer(
     IReadOnlyList<PsdVectorEntity> Entities,
     bool IsVisible = true);
 
+public sealed record Editor2DViewportPlacement(
+    double PixelWidth,
+    double PixelHeight,
+    double Zoom,
+    double OffsetX,
+    double OffsetY);
+
+
 public sealed record PsdImportData(
     string SourcePath,
     int CanvasWidth,

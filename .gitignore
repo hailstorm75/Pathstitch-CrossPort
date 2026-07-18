@@ -106,6 +106,7 @@ Issues.md
 unfold.md
 *.ai
 *.psd
+!tests/Pathstitch.App.Tests/Fixtures/psd/*.psd
 
 # ===================== Editor Port Exceptions =====================
 !src/Domain/Domain.App/

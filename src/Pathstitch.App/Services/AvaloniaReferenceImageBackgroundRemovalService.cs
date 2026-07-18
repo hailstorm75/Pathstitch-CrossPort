@@ -34,7 +34,13 @@ public sealed class AvaloniaReferenceImageBackgroundRemovalService : IReferenceI
         var pixels = bitmap.Pixels;
         var transparent = new bool[pixels.Length];
         var queue = new Queue<int>();
-        var background = pixels[0];
+        var corners = new[]
+        {
+            pixels[0],
+            pixels[bitmap.Width - 1],
+            pixels[(bitmap.Height - 1) * bitmap.Width],
+            pixels[^1],
+        };
         EnqueueIfBackground(0);
         EnqueueIfBackground(bitmap.Width - 1);
         EnqueueIfBackground((bitmap.Height - 1) * bitmap.Width);
@@ -65,11 +71,39 @@ public sealed class AvaloniaReferenceImageBackgroundRemovalService : IReferenceI
 
         void EnqueueIfBackground(int index)
         {
-            if (index < 0 || index >= pixels.Length || transparent[index] || !Similar(pixels[index], background))
+            if (index < 0 || index >= pixels.Length || transparent[index])
+                return;
+            var x = index % bitmap.Width;
+            var y = index / bitmap.Width;
+            var background = InterpolateBackground(corners, x, y, bitmap.Width, bitmap.Height);
+            if (!Similar(pixels[index], background))
                 return;
             transparent[index] = true;
             queue.Enqueue(index);
         }
+    }
+
+    private static SKColor InterpolateBackground(
+        IReadOnlyList<SKColor> corners,
+        int x,
+        int y,
+        int width,
+        int height)
+    {
+        var tx = width <= 1 ? 0.0 : x / (double)(width - 1);
+        var ty = height <= 1 ? 0.0 : y / (double)(height - 1);
+        byte Blend(Func<SKColor, byte> component)
+        {
+            var top = component(corners[0]) + ((component(corners[1]) - component(corners[0])) * tx);
+            var bottom = component(corners[2]) + ((component(corners[3]) - component(corners[2])) * tx);
+            return (byte)Math.Clamp(Math.Round(top + ((bottom - top) * ty)), byte.MinValue, byte.MaxValue);
+        }
+
+        return new SKColor(
+            Blend(static color => color.Red),
+            Blend(static color => color.Green),
+            Blend(static color => color.Blue),
+            Blend(static color => color.Alpha));
     }
 
     private static bool Similar(SKColor left, SKColor right)

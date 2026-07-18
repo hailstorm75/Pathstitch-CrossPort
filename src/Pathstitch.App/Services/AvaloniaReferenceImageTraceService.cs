@@ -43,12 +43,14 @@ public sealed class AvaloniaReferenceImageTraceService : IReferenceImageTraceSer
             {
                 var pixel = pixels[(y * bitmap.Width) + x];
                 var luminance = (0.2126 * pixel.Red) + (0.7152 * pixel.Green) + (0.0722 * pixel.Blue);
-                foreground[(y * bitmap.Width) + x] = pixel.Alpha > 0
+                foreground[(y * bitmap.Width) + x] = pixel.Alpha > 10
                     && (options.SilhouetteOnly || luminance <= cutoff);
             }
         }
 
+        var turdSize = Math.Max(0.0, (100.0 - Math.Clamp(options.Tolerance, 1.0, 100.0)) * 0.25);
         var contours = TracePixelBoundaries(foreground, bitmap.Width, bitmap.Height)
+            .Where(contour => AbsoluteArea(contour) > turdSize)
             .Select(contour => RefineContour(contour, options))
             .Where(contour => contour.Count >= 3)
             .OrderByDescending(AbsoluteArea)
@@ -156,9 +158,8 @@ public sealed class AvaloniaReferenceImageTraceService : IReferenceImageTraceSer
         IReadOnlyList<Editor2DPoint> contour,
         Editor2DReferenceImageTraceOptions options)
     {
-        var tolerance = Math.Clamp(options.Tolerance, 1.0, 100.0);
         var optimization = Math.Clamp(options.PathOptimization, 0.0, 100.0);
-        var epsilon = 0.05 + (tolerance / 100.0 * 1.45) + (optimization / 100.0 * 1.5);
+        var epsilon = 0.05 + (optimization / 100.0 * 2.95);
         var simplified = SimplifyClosedContour(contour, epsilon);
         if (simplified.Count < 3)
             simplified = contour.ToArray();

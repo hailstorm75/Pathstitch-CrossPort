@@ -8,7 +8,8 @@ public sealed partial class Editor2DWorkspaceViewModel
     public Editor2DWorkspaceOperationResult ImportPsd(
         PsdImportData import,
         PsdImportMode mode,
-        Editor2DPoint? insertionPoint = null)
+        Editor2DPoint? insertionPoint = null,
+        Editor2DViewportPlacement? viewport = null)
     {
         if (import.CanvasWidth <= 0 || import.CanvasHeight <= 0 || import.TotalLayerCount == 0)
             return Editor2DWorkspaceOperationResult.Failure("The Photoshop file contains no importable layers");
@@ -16,10 +17,29 @@ public sealed partial class Editor2DWorkspaceViewModel
         if (vectorize && _referenceImageTraceService is null)
             return Editor2DWorkspaceOperationResult.Failure("Raster vectorization is unavailable");
 
-        var fit = Math.Min(1.0, 240.0 / Math.Max(import.CanvasWidth, import.CanvasHeight));
+        var hasViewport = viewport is { } currentViewport
+            && double.IsFinite(currentViewport.PixelWidth)
+            && double.IsFinite(currentViewport.PixelHeight)
+            && double.IsFinite(currentViewport.Zoom)
+            && double.IsFinite(currentViewport.OffsetX)
+            && double.IsFinite(currentViewport.OffsetY)
+            && currentViewport.PixelWidth > 0.0
+            && currentViewport.PixelHeight > 0.0
+            && currentViewport.Zoom > 0.001;
+        var fit = hasViewport
+            ? Math.Max(
+                0.0001,
+                Math.Min(
+                    ((viewport!.PixelWidth / viewport.Zoom) * 0.8) / import.CanvasWidth,
+                    ((viewport.PixelHeight / viewport.Zoom) * 0.8) / import.CanvasHeight))
+            : Math.Min(1.0, 240.0 / Math.Max(import.CanvasWidth, import.CanvasHeight));
+        var placement = insertionPoint ?? (hasViewport
+            ? new Editor2DPoint(-viewport!.OffsetX / viewport.Zoom, viewport.OffsetY / viewport.Zoom)
+            : new Editor2DPoint(0.0, 0.0));
         var layers = Layers.OrderBy(layer => layer.Order).ToList();
         var additions = new List<Editor2DPreviewPath>();
         var selectedIds = new List<string>();
+        var traceLayerIds = new List<string>();
         var sourceName = Path.GetFileNameWithoutExtension(import.SourcePath);
         var baseName = $"PSD_{(string.IsNullOrWhiteSpace(sourceName) ? "Import" : sourceName)}";
 
@@ -31,8 +51,8 @@ public sealed partial class Editor2DWorkspaceViewModel
                     $"psd-vector-{Guid.NewGuid():N}",
                     "LWPOLYLINE",
                     entity.Points.Select(point => new Editor2DPoint(
-                        (point.X * fit) + (insertionPoint?.X ?? 0.0),
-                        (point.Y * fit) + (insertionPoint?.Y ?? 0.0))).ToArray(),
+                        (point.X * fit) + placement.X,
+                        (point.Y * fit) + placement.Y)).ToArray(),
                     entity.IsClosed))
                 .ToArray();
             if (paths.Length == 0)
@@ -55,7 +75,7 @@ public sealed partial class Editor2DWorkspaceViewModel
             double centerX,
             double centerY,
             bool isVisible,
-            bool trace)
+            bool queueForTrace)
         {
             if (string.IsNullOrWhiteSpace(dataBase64) || pixelWidth <= 0 || pixelHeight <= 0)
                 return;
@@ -67,11 +87,11 @@ public sealed partial class Editor2DWorkspaceViewModel
                 dataBase64,
                 pixelWidth,
                 pixelHeight,
-                (centerX * fit) + (insertionPoint?.X ?? 0.0),
-                (centerY * fit) + (insertionPoint?.Y ?? 0.0),
+                (centerX * fit) + placement.X,
+                (centerY * fit) + placement.Y,
                 pixelWidth * fit,
                 pixelHeight * fit,
-                Opacity: 0.5,
+                Opacity: 1.0,
                 CalibrationUnitsPerPixel: fit);
             layers.Add(new Editor2DLayer(
                 id,
@@ -81,33 +101,8 @@ public sealed partial class Editor2DWorkspaceViewModel
                 Order: layers.Count,
                 Kind: Editor2DLayerKind.ReferenceImage,
                 ReferenceImage: image));
-            if (!trace)
-                return;
-
-            var contours = _referenceImageTraceService!.TraceContours(
-                dataBase64,
-                new Editor2DReferenceImageTraceOptions(0.5, 50.0, 50.0, 50.0, false));
-            var traces = contours
-                .Where(contour => contour.Count >= 3)
-                .Select(contour => new Editor2DPreviewPath(
-                    $"psd-trace-{Guid.NewGuid():N}",
-                    "REFERENCE_TRACE",
-                    contour.Select(point => new Editor2DPoint(
-                        image.X + (((point.X / pixelWidth) - 0.5) * image.Width),
-                        image.Y + (((point.Y / pixelHeight) - 0.5) * image.Height))).ToArray(),
-                    IsClosed: true))
-                .ToArray();
-            if (traces.Length == 0)
-                return;
-            additions.AddRange(traces);
-            selectedIds.AddRange(traces.Select(path => path.Id));
-            layers.Add(new Editor2DLayer(
-                Guid.NewGuid().ToString("N"),
-                $"{name}_traced",
-                traces.Select(path => path.Id).ToArray(),
-                IsVisible: isVisible,
-                Order: layers.Count,
-                ColorHex: "#22C55E"));
+            if (queueForTrace)
+                traceLayerIds.Add(id);
         }
 
         switch (mode)
@@ -121,7 +116,7 @@ public sealed partial class Editor2DWorkspaceViewModel
                     0,
                     0,
                     true,
-                    trace: false);
+                    queueForTrace: false);
                 break;
             case PsdImportMode.MergeAndVectorize:
                 AddRasterLayer(
@@ -132,7 +127,7 @@ public sealed partial class Editor2DWorkspaceViewModel
                     0,
                     0,
                     true,
-                    trace: true);
+                    queueForTrace: true);
                 break;
             default:
                 foreach (var vector in import.VectorLayers)
@@ -147,7 +142,7 @@ public sealed partial class Editor2DWorkspaceViewModel
                         raster.CenterX,
                         raster.CenterY,
                         raster.IsVisible,
-                        trace: mode == PsdImportMode.AutoVectorize);
+                        queueForTrace: mode == PsdImportMode.AutoVectorize);
                 }
                 break;
         }
@@ -161,15 +156,26 @@ public sealed partial class Editor2DWorkspaceViewModel
             Document = RebuildDocument(Document, Document.Paths.Concat(additions).ToArray()),
             IsInitialized = true,
             Layers = layers,
-            ActiveLayerId = layers[^1].Id,
+            ActiveLayerId = traceLayerIds.FirstOrDefault() ?? layers[^1].Id,
             SelectedPathIds = selectedIds,
             SelectedMeasurementId = null,
         });
-        var activeLayer = layers[^1];
-        if (activeLayer.IsReferenceImage && activeLayer.IsVisible && !activeLayer.IsLocked)
-            BeginReferenceImageTransformEdit(activeLayer.Id);
-        return Editor2DWorkspaceOperationResult.Success(
-            $"Imported {addedLayerCount} layer{(addedLayerCount == 1 ? string.Empty : "s")} from {Path.GetFileName(import.SourcePath)}");
+
+        if (traceLayerIds.Count > 0)
+        {
+            BeginReferenceImageTraceBatch(traceLayerIds);
+        }
+        else
+        {
+            var activeLayer = layers[^1];
+            if (activeLayer.IsReferenceImage && activeLayer.IsVisible && !activeLayer.IsLocked)
+                BeginReferenceImageTransformEdit(activeLayer.Id);
+        }
+
+        var message = $"Imported {addedLayerCount} layer{(addedLayerCount == 1 ? string.Empty : "s")} from {Path.GetFileName(import.SourcePath)}";
+        if (traceLayerIds.Count > 0)
+            message += $"; {traceLayerIds.Count} raster layer{(traceLayerIds.Count == 1 ? string.Empty : "s")} ready to vectorize";
+        return Editor2DWorkspaceOperationResult.Success(message);
     }
 
     private static string NormalizePsdLayerName(string? value)
