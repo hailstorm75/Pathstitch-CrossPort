@@ -267,12 +267,14 @@ jobs:
             -QuickLookDirectory "artifacts/macos/quicklook-previews" `
             -PackageZip "artifacts/macos/Pathstitch-osx-arm64.zip" `
             -ExpectedActivationFixture (Resolve-Path "scripts/macos/quicklook/Fixtures/preview-smoke.dxf").Path
-      - uses: actions/upload-artifact@v4
+      - name: Upload native macOS evidence
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Pathstitch-native-evidence-osx-arm64
           path: artifacts/macos/native-evidence
           if-no-files-found: error
+          retention-days: 90
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -122,6 +122,21 @@ public sealed class MacOSDeliveryAcceptanceTests
         Assert.Contains("exactly one HEADER", validator, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void NativeEvidenceReview_IsIndependentIdentityBoundAndNonMutating()
+    {
+        var reviewer = File.ReadAllText(Find("scripts", "verify-native-macos-evidence.ps1"));
+        var workflow = File.ReadAllText(Find(".github", "workflows", "macos-release.yml"));
+
+        Assert.Contains("ExpectedCommit", reviewer, StringComparison.Ordinal);
+        Assert.Contains("ExpectedWorkflowRunId", reviewer, StringComparison.Ordinal);
+        Assert.Contains("Producer inventory SHA-256 differs", reviewer, StringComparison.Ordinal);
+        Assert.Contains("ReceiptPath must be outside EvidenceRoot", reviewer, StringComparison.Ordinal);
+        Assert.Contains("collect-native-macos-evidence.ps1", reviewer, StringComparison.Ordinal);
+        Assert.Contains("Pathstitch-Native-Evidence-Review-", reviewer, StringComparison.Ordinal);
+        Assert.Contains("retention-days: 90", workflow, StringComparison.Ordinal);
+    }
+
     private static string Find(params string[] parts)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

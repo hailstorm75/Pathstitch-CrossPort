@@ -27,6 +27,48 @@ public sealed class NativeMacOSEvidenceValidatorTests
         Assert.Equal(1, manifest.RootElement.GetProperty("embeddedProjectDxfEvidence").GetProperty("measurementCode").GetInt32());
     }
 
+    [Fact]
+    public async Task IndependentReview_ValidBundle_BindsExpectedRunAndLeavesProducerManifestUntouched()
+    {
+        const string commit = "0123456789abcdef0123456789abcdef01234567";
+        using var fixture = NativeEvidenceFixture.Create();
+        var collected = await fixture.RunValidatorAsync(commit, "8675309", "2");
+        Assert.Equal(0, collected.ExitCode);
+        var producerManifestBefore = await File.ReadAllBytesAsync(fixture.ManifestPath);
+
+        var reviewed = await fixture.RunReviewerAsync(commit, "8675309", "2");
+
+        Assert.Equal(0, reviewed.ExitCode);
+        Assert.Equal(producerManifestBefore, await File.ReadAllBytesAsync(fixture.ManifestPath));
+        using var receipt = JsonDocument.Parse(await File.ReadAllTextAsync(fixture.ReviewReceiptPath));
+        Assert.Equal("passed", receipt.RootElement.GetProperty("status").GetString());
+        Assert.Equal(commit, receipt.RootElement.GetProperty("expectedCommit").GetString());
+        Assert.Equal("8675309", receipt.RootElement.GetProperty("expectedWorkflowRunId").GetString());
+        Assert.Equal(0, receipt.RootElement.GetProperty("revalidation").GetProperty("collectorExitCode").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("fedcba9876543210fedcba9876543210fedcba98", false)]
+    [InlineData("0123456789abcdef0123456789abcdef01234567", true)]
+    public async Task IndependentReview_WrongIdentityOrTamperedEvidence_CannotPass(
+        string reviewedCommit,
+        bool tamperEvidence)
+    {
+        const string producerCommit = "0123456789abcdef0123456789abcdef01234567";
+        using var fixture = NativeEvidenceFixture.Create();
+        var collected = await fixture.RunValidatorAsync(producerCommit, "8675309", "2");
+        Assert.Equal(0, collected.ExitCode);
+        if (tamperEvidence)
+            fixture.TamperCollectedEvidence("packaged-projection.dxf");
+
+        var reviewed = await fixture.RunReviewerAsync(reviewedCommit, "8675309", "2");
+
+        Assert.NotEqual(0, reviewed.ExitCode);
+        using var receipt = JsonDocument.Parse(await File.ReadAllTextAsync(fixture.ReviewReceiptPath));
+        Assert.Equal("failed", receipt.RootElement.GetProperty("status").GetString());
+        Assert.NotEmpty(receipt.RootElement.GetProperty("validationErrors").EnumerateArray());
+    }
+
     [Theory]
     [InlineData("tiny_png")]
     [InlineData("mutated_png")]
@@ -252,6 +294,7 @@ public sealed class NativeMacOSEvidenceValidatorTests
         private string QuickLookDirectory { get; }
         private string PackageZip { get; }
         public string ManifestPath => Path.Combine(EvidenceRoot, "native-evidence-manifest.json");
+        public string ReviewReceiptPath => Path.Combine(_root, "native-evidence-review.json");
 
         public static NativeEvidenceFixture Create()
         {
@@ -400,7 +443,10 @@ public sealed class NativeMacOSEvidenceValidatorTests
             return false;
         }
 
-        public async Task<ProcessResult> RunValidatorAsync()
+        public async Task<ProcessResult> RunValidatorAsync(
+            string? commit = null,
+            string? workflowRunId = null,
+            string? workflowRunAttempt = null)
         {
             var start = new ProcessStartInfo("pwsh")
             {
@@ -410,6 +456,12 @@ public sealed class NativeMacOSEvidenceValidatorTests
                 RedirectStandardError = true,
                 CreateNoWindow = true,
             };
+            if (commit is not null)
+                start.Environment["GITHUB_SHA"] = commit;
+            if (workflowRunId is not null)
+                start.Environment["GITHUB_RUN_ID"] = workflowRunId;
+            if (workflowRunAttempt is not null)
+                start.Environment["GITHUB_RUN_ATTEMPT"] = workflowRunAttempt;
             foreach (var argument in new[]
             {
                 "-NoLogo",
@@ -431,6 +483,42 @@ public sealed class NativeMacOSEvidenceValidatorTests
             await process.WaitForExitAsync();
             return new ProcessResult(process.ExitCode, await stdout, await stderr);
         }
+
+        public async Task<ProcessResult> RunReviewerAsync(
+            string expectedCommit,
+            string expectedWorkflowRunId,
+            string expectedWorkflowRunAttempt)
+        {
+            var start = new ProcessStartInfo("pwsh")
+            {
+                WorkingDirectory = FindRepositoryDirectory(),
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            foreach (var argument in new[]
+            {
+                "-NoLogo",
+                "-NoProfile",
+                "-File",
+                FindRepositoryFile("scripts", "verify-native-macos-evidence.ps1"),
+                "-EvidenceRoot", EvidenceRoot,
+                "-ExpectedCommit", expectedCommit,
+                "-ExpectedWorkflowRunId", expectedWorkflowRunId,
+                "-ExpectedWorkflowRunAttempt", expectedWorkflowRunAttempt,
+                "-ReceiptPath", ReviewReceiptPath,
+            }) start.ArgumentList.Add(argument);
+
+            using var process = Process.Start(start)!;
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            return new ProcessResult(process.ExitCode, await stdout, await stderr);
+        }
+
+        public void TamperCollectedEvidence(string name)
+            => File.AppendAllText(Path.Combine(EvidenceRoot, name), "tampered");
 
         private Dictionary<string, object?> WriteProjectArchiveArtifact(string name, byte[] generatedDxf)
         {
