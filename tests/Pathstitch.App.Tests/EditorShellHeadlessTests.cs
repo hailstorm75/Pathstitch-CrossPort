@@ -106,9 +106,15 @@ public sealed class EditorShellHeadlessTests
             input.Text = "1 inch";
             input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
         });
-        await _ui.RunAsync(() => { });
-        await _ui.RunAsync(() => { });
-        await _ui.RunAsync(() => { });
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var selectionReady = await _ui.RunAsync(() =>
+                _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input") is { Text: { } text } input
+                && input.SelectionStart == 0
+                && input.SelectionEnd == text.Length);
+            if (selectionReady)
+                break;
+        }
 
         await _ui.RunAsync(() =>
         {
@@ -797,7 +803,14 @@ public sealed class EditorShellHeadlessTests
         await _ui.RunAsync(() =>
         {
             Assert.Equal(Editor2DTool.SketchCircle, viewModel.TwoDActiveTool);
-            Assert.Contains("active", _ui.FindByAutomationId<Button>(shell, "2d.circle").Classes);
+            var launcher = _ui.FindByAutomationId<Button>(shell, "editor.tool-rail.shapes");
+            var flyout = Assert.IsType<Flyout>(launcher.Flyout);
+            flyout.ShowAt(launcher);
+            session.Window.UpdateLayout();
+            var content = Assert.IsAssignableFrom<Control>(flyout.Content);
+            var circle = _ui.FindByAutomationId<Button>(content, "2d.circle");
+            Assert.Contains("active", circle.Classes);
+            flyout.Hide();
         });
 
         await SetModeAndLayoutAsync(session, viewModel, EditorMode.ThreeD);
@@ -958,7 +971,8 @@ public sealed class EditorShellHeadlessTests
         {
             var rail = _ui.FindByAutomationId<EditorToolRail>(shell, "editor.tool-rail");
             var scroller = Assert.Single(rail.GetLogicalDescendants().OfType<ScrollViewer>());
-            var expected = EditorToolCatalog.ForMode(EditorMode.TwoD);
+            var expected = EditorToolCatalog.ForMode(EditorMode.TwoD)
+                .Where(descriptor => descriptor.Container == EditorToolbarContainer.Main);
 
             Assert.All(expected, descriptor =>
             {
@@ -966,6 +980,12 @@ public sealed class EditorShellHeadlessTests
                 Assert.True(button.Bounds.Width > 0);
                 Assert.True(button.Bounds.Height > 0);
             });
+            foreach (var launcherId in new[] { "editor.tool-rail.shapes", "editor.tool-rail.more" })
+            {
+                var launcher = _ui.FindByAutomationId<Button>(shell, launcherId);
+                Assert.True(launcher.Bounds.Width > 0);
+                Assert.True(launcher.Bounds.Height > 0);
+            }
             Assert.Equal(ScrollBarVisibility.Disabled, scroller.HorizontalScrollBarVisibility);
             Assert.Equal(ScrollBarVisibility.Auto, scroller.VerticalScrollBarVisibility);
             Assert.True(scroller.Extent.Width <= scroller.Viewport.Width + 0.5,
@@ -1012,6 +1032,29 @@ public sealed class EditorShellHeadlessTests
         Assert.Equal(originalFirst, viewModel.SidebarTools[0].Identifier);
     }
 
+    [Fact]
+    public async Task LiveToolRail_ShapesFlyoutActivatesItsTool()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell, width: 800, height: 600);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            var launcher = _ui.FindByAutomationId<Button>(shell, "editor.tool-rail.shapes");
+            var flyout = Assert.IsType<Flyout>(launcher.Flyout);
+            flyout.ShowAt(launcher);
+            session.Window.UpdateLayout();
+            var content = Assert.IsAssignableFrom<Control>(flyout.Content);
+            var line = _ui.FindByAutomationId<Button>(content, "2d.line");
+            line.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            flyout.Hide();
+        });
+
+        Assert.Equal(Editor2DTool.SketchLine, viewModel.TwoDActiveTool);
+    }
+
     private async Task SetModeAndLayoutAsync(
         HeadlessViewSession<EditorShellView> session,
         Domain.App.ViewModels.EditorPageViewModel viewModel,
@@ -1029,7 +1072,12 @@ public sealed class EditorShellHeadlessTests
 
     private void AssertCatalogButtons(Control root, EditorMode mode)
     {
-        var expected = EditorToolCatalog.ForMode(mode).Select(item => item.Identifier).Order().ToArray();
+        var descriptors = EditorToolCatalog.ForMode(mode);
+        var expected = descriptors
+            .Where(item => mode != EditorMode.TwoD || item.Container == EditorToolbarContainer.Main)
+            .Select(item => item.Identifier)
+            .Order()
+            .ToArray();
         var actual = root.GetLogicalDescendants()
             .OfType<Button>()
             .Select(AutomationProperties.GetAutomationId)
@@ -1037,6 +1085,11 @@ public sealed class EditorShellHeadlessTests
             .Order()
             .ToArray();
         Assert.Equal(expected, actual);
+        if (mode == EditorMode.TwoD)
+        {
+            _ui.FindByAutomationId<Button>(root, "editor.tool-rail.shapes");
+            _ui.FindByAutomationId<Button>(root, "editor.tool-rail.more");
+        }
     }
 
     private void AssertAutomationIdsExist(Control root, params string[] automationIds)

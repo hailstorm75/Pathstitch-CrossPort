@@ -156,6 +156,74 @@ public sealed class EditorDirectToolTests
         Assert.Contains("Identifier, StringFormat={}{0}.move-up", rail, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ToolRail_MovesToolsAcrossContainersAndRejectsInvalidShapesPlacement()
+    {
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests();
+        await editor.SetActiveEditorModeAsync(EditorMode.TwoD);
+
+        Assert.Contains(editor.MainToolbarTools, tool => tool.Identifier == "2d.select");
+        Assert.Contains(editor.ShapeToolbarTools, tool => tool.Identifier == "2d.line");
+        Assert.Contains(editor.MoreToolbarTools, tool => tool.Identifier == "2d.mirror");
+
+        Assert.True(editor.MoveToolToContainer("2d.line", EditorToolbarContainer.Main));
+        Assert.Equal("2d.line", editor.MainToolbarTools[^1].Identifier);
+        Assert.DoesNotContain(editor.ShapeToolbarTools, tool => tool.Identifier == "2d.line");
+        Assert.True(editor.MoveToolBefore("2d.line", "2d.move"));
+        Assert.Equal(
+        [
+            "2d.select", "2d.line", "2d.move",
+        ],
+            editor.MainToolbarTools.Take(3).Select(tool => tool.Identifier));
+
+        Assert.False(editor.MoveToolToContainer("2d.select", EditorToolbarContainer.Shapes));
+        Assert.Contains(editor.MainToolbarTools, tool => tool.Identifier == "2d.select");
+        Assert.True(editor.MoveToolToContainer("2d.line", EditorToolbarContainer.Shapes));
+        Assert.Equal("2d.line", editor.ShapeToolbarTools[^1].Identifier);
+
+        editor.ActivateTwoDSelectTool();
+        Assert.True(editor.TryActivateEditorShortcut("L"));
+        Assert.Equal(Editor2DTool.SketchLine, editor.TwoDActiveTool);
+        editor.CommandSearchQuery = "line";
+        Assert.Contains(editor.CommandSearchResults, item => item.Identifier == "2d.line");
+    }
+
+    [Fact]
+    public async Task ToolRail_ResetRestoresDefaultContainersAndAllModeResetRestoresOrders()
+    {
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests();
+        await editor.SetActiveEditorModeAsync(EditorMode.TwoD);
+        Assert.True(editor.MoveToolToContainer("2d.line", EditorToolbarContainer.Main));
+        Assert.True(editor.MoveToolToContainer("2d.mirror", EditorToolbarContainer.Main));
+
+        editor.ResetToolbarCustomizationForActiveMode();
+
+        Assert.Contains(editor.ShapeToolbarTools, tool => tool.Identifier == "2d.line");
+        Assert.Contains(editor.MoreToolbarTools, tool => tool.Identifier == "2d.mirror");
+        editor.CustomizeTool("3d.move", 99, "Z");
+        editor.ResetToolbarCustomizationForAllModes();
+        Assert.Equal(
+            EditorToolCatalog.Find(EditorMode.ThreeD, "move")!.Order,
+            editor.ToolCustomizations.Single(item => item.Identifier == "3d.move").Order);
+        Assert.Equal("2", editor.ToolCustomizations.Single(item => item.Identifier == "3d.move").ShortcutText);
+    }
+
+    [Fact]
+    public void ToolRail_XamlExposesFlyoutsContextMovesAndDragDropTargets()
+    {
+        var rail = ReadPage("EditorToolRail.axaml");
+        var code = ReadPage("EditorToolRail.axaml.cs");
+
+        Assert.Contains("editor.tool-rail.main", rail, StringComparison.Ordinal);
+        Assert.Contains("editor.tool-rail.shapes", rail, StringComparison.Ordinal);
+        Assert.Contains("editor.tool-rail.more", rail, StringComparison.Ordinal);
+        Assert.Contains("Move to Shapes", rail, StringComparison.Ordinal);
+        Assert.Contains("OnToolbarItemPointerPressed", rail, StringComparison.Ordinal);
+        Assert.Contains("DragDrop.Drop=\"OnToolbarContainerDrop\"", rail, StringComparison.Ordinal);
+        Assert.Contains("MoveToolBefore", code, StringComparison.Ordinal);
+        Assert.Contains("MoveToolToContainer", code, StringComparison.Ordinal);
+    }
+
     private static string ReadPage(string fileName)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

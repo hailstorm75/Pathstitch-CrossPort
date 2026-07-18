@@ -325,6 +325,7 @@ public sealed class EditorShellCompositionTests
         var panel = ReadPage("EditorBatchContextPanel.axaml");
         var view = ReadPage("EditorBatchView.axaml");
         var codeBehind = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorBatchContextPanel.axaml.cs");
+        var shell = ReadPage("EditorShellView.axaml");
 
         Assert.Contains(".dxf", panel, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Content=\"Add file\"", panel, StringComparison.Ordinal);
@@ -346,6 +347,11 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("editor.batch.drop-target", view, StringComparison.Ordinal);
         Assert.Contains("DragDrop.AllowDrop=\"True\"", view, StringComparison.Ordinal);
         Assert.Contains("OnRemoveBatchItemClicked", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorBatchView.axaml.cs"), StringComparison.Ordinal);
+        Assert.Contains("editor.batch.thumbnail.{0}", view, StringComparison.Ordinal);
+        Assert.Contains("editor.batch.edit.{0}", view, StringComparison.Ordinal);
+        Assert.Contains("DxfPreviewCanvas", view, StringComparison.Ordinal);
+        Assert.Contains("editor.batch.save-return", shell, StringComparison.Ordinal);
+        Assert.Contains("editor.batch.cancel-return", shell, StringComparison.Ordinal);
         var picker = ReadRepositoryFile("src", "Pathstitch.App", "Services", "ProjectFileDialogService.cs");
         Assert.Contains("BatchInputFileType", picker, StringComparison.Ordinal);
         Assert.Contains("OpenFolderPickerAsync", picker, StringComparison.Ordinal);
@@ -460,7 +466,9 @@ public sealed class EditorShellCompositionTests
         var inspector = ReadPage("Editor2DInspector.axaml");
         var host = ReadPage("EditorInspectorHost.axaml");
 
-        Assert.Contains("ItemsSource=\"{Binding SidebarTools}\"", toolbar, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding MainToolbarTools}\"", toolbar, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding ShapeToolbarTools}\"", toolbar, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding MoreToolbarTools}\"", toolbar, StringComparison.Ordinal);
         Assert.Contains("IsShowingBatchWorkspace", toolbar, StringComparison.Ordinal);
         Assert.Contains("2D Selection", inspector, StringComparison.Ordinal);
         Assert.Contains("<pages:Editor2DInspector", host, StringComparison.Ordinal);
@@ -471,7 +479,9 @@ public sealed class EditorShellCompositionTests
     {
         var rail = ReadPage("EditorToolRail.axaml");
 
-        Assert.Contains("ItemsSource=\"{Binding SidebarTools}\"", rail, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding MainToolbarTools}\"", rail, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding ShapeToolbarTools}\"", rail, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding MoreToolbarTools}\"", rail, StringComparison.Ordinal);
         Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", rail, StringComparison.Ordinal);
         Assert.Contains("HorizontalScrollBarVisibility=\"Disabled\"", rail, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(rail, "Click=\"OnSidebarToolClicked\""));
@@ -485,17 +495,21 @@ public sealed class EditorShellCompositionTests
     [InlineData(EditorMode.ThreeD)]
     public void CatalogGroups_DriveOrderedRailSectionBoundaries(EditorMode mode)
     {
-        var descriptors = EditorToolCatalog.ForMode(mode).OrderBy(item => item.Order).ToArray();
+        var containers = EditorToolCatalog.ForMode(mode).GroupBy(item => item.Container).ToArray();
 
-        Assert.NotEmpty(descriptors);
-        Assert.False(descriptors[0].StartsSection);
-        for (var index = 1; index < descriptors.Length; index++)
+        Assert.NotEmpty(containers);
+        foreach (var container in containers)
         {
-            var groupChanged = !string.Equals(
-                descriptors[index - 1].GroupKey,
-                descriptors[index].GroupKey,
-                StringComparison.Ordinal);
-            Assert.Equal(groupChanged, descriptors[index].StartsSection);
+            var descriptors = container.OrderBy(item => item.Order).ToArray();
+            Assert.False(descriptors[0].StartsSection);
+            for (var index = 1; index < descriptors.Length; index++)
+            {
+                var groupChanged = !string.Equals(
+                    descriptors[index - 1].GroupKey,
+                    descriptors[index].GroupKey,
+                    StringComparison.Ordinal);
+                Assert.Equal(groupChanged, descriptors[index].StartsSection);
+            }
         }
     }
 

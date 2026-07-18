@@ -283,6 +283,18 @@ public partial class EditorShellView : EditorInteractionControlBase
             await viewModel.SetActiveEditorModeAsync(EditorMode.Batch);
     }
 
+
+    private void OnSaveBatchItemEditClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.SaveBatchItemEditAndReturn();
+    }
+
+    private void OnCancelBatchItemEditClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is EditorPageViewModel viewModel)
+            viewModel.CancelBatchItemEditAndReturn();
+    }
     private async void OnEditorKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not EditorPageViewModel viewModel

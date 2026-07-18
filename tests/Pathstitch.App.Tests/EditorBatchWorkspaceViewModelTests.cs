@@ -157,7 +157,7 @@ public sealed class EditorBatchWorkspaceViewModelTests
         var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchExport", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var input = Path.Combine(directory, "drawing.dxf");
-        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1024\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
         try
         {
             var workspace = new EditorBatchWorkspaceViewModel { OutputDirectory = Path.Combine(directory, "out") };
@@ -197,7 +197,7 @@ public sealed class EditorBatchWorkspaceViewModelTests
         var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchOffset", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var input = Path.Combine(directory, "drawing.dxf");
-        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1024\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
         try
         {
             var workspace = new EditorBatchWorkspaceViewModel();
@@ -241,6 +241,40 @@ public sealed class EditorBatchWorkspaceViewModelTests
     }
 
     [Fact]
+    public async Task ApplySewingHolesAsync_UsesAdvancedProximitySettings()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchAdvancedSewing", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var input = Path.Combine(directory, "drawing.dxf");
+        await File.WriteAllTextAsync(input, "0\nEOF\n");
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel();
+            Assert.True(workspace.AddFile(input));
+            var line = new Editor2DPreviewPath(
+                "line", "LINE", [new(0, 0), new(20, 0)], false);
+            workspace.Items[0].Document = new Editor2DPreviewDocument(
+                [line], new(0, 0, 20, 0), new Dictionary<string, int>(), []);
+
+            await workspace.ApplySewingHolesAsync(
+                new DxfOutputPreviewService(),
+                new Editor2DSewingHoleParameters(
+                    Pitch: 1,
+                    Margin: 2,
+                    CornerMode: Editor2DSewingCornerMode.Continuous,
+                    ProximityFilterEnabled: true,
+                    LineProximityFilterEnabled: false,
+                    ProximityFilterDistance: 3));
+
+            Assert.Equal(7, workspace.Items[0].Document!.Paths.Count(path => path.EntityType == "CIRCLE"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task SelectedOnlyOperations_LeaveUnselectedDxfUntouched()
     {
         var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchSelection", Guid.NewGuid().ToString("N"));
@@ -272,7 +306,7 @@ public sealed class EditorBatchWorkspaceViewModelTests
         var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchPdf", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var input = Path.Combine(directory, "drawing.dxf");
-        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1024\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
         try
         {
             var workspace = new EditorBatchWorkspaceViewModel
@@ -302,7 +336,7 @@ public sealed class EditorBatchWorkspaceViewModelTests
         var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchFormats", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var input = Path.Combine(directory, "drawing.dxf");
-        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1024\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
         try
         {
             var workspace = new EditorBatchWorkspaceViewModel
@@ -359,6 +393,7 @@ public sealed class EditorBatchWorkspaceViewModelTests
             Assert.Equal("drawing.dxf", item.FileName);
             Assert.True(File.Exists(item.FilePath));
             Assert.NotNull(item.Document);
+            Assert.True(item.IsDocumentModified);
             Assert.Equal(EditorBatchItemStatus.Pending, item.Status);
             Assert.Equal("Ready", item.Message);
             Assert.False(restored.ContinueOnError);
@@ -542,7 +577,7 @@ public sealed class EditorBatchWorkspaceViewModelTests
         var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchReveal", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var input = Path.Combine(directory, "drawing.dxf");
-        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
+        await File.WriteAllTextAsync(input, "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1024\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n");
         var launcher = new RecordingOutputLauncher();
         var editor = EditorPageViewModelModeTests.CreateViewModelForTests(outputLauncherService: launcher);
         try
@@ -563,6 +598,161 @@ public sealed class EditorBatchWorkspaceViewModelTests
         }
     }
 
+    [Fact]
+    public async Task StableItemId_RoundTripsAndLazyDocumentLoadsOnce()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchIdentity", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var input = Path.Combine(directory, "item.dxf");
+        var project = Path.Combine(directory, "project.stch");
+        await File.WriteAllTextAsync(input, "0\nEOF\n");
+        string? recoveryDirectory = null;
+        try
+        {
+            var workspace = new EditorBatchWorkspaceViewModel();
+            Assert.True(workspace.AddFile(input));
+            var id = Assert.Single(workspace.Items).Id;
+            var preview = new RecordingPreviewService();
+
+            Assert.NotNull(await workspace.EnsureDocumentAsync(id, preview));
+            Assert.NotNull(await workspace.EnsureDocumentAsync(id, preview));
+            Assert.Single(preview.LoadedPaths);
+            Assert.False(Assert.Single(workspace.Items).IsDocumentModified);
+
+            var state = await workspace.CaptureStateAsync(project);
+            Assert.False(Assert.Single(state.Items!).IsDocumentModified);
+            Assert.Equal(id, Assert.Single(state.Items!).Id);
+            var restored = new EditorBatchWorkspaceViewModel();
+            await restored.RestoreStateAsync(state, project);
+            var restoredItem = Assert.Single(restored.Items);
+            recoveryDirectory = Path.GetDirectoryName(restoredItem.FilePath);
+            Assert.Equal(id, restoredItem.Id);
+            Assert.False(restoredItem.IsDocumentModified);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+            if (recoveryDirectory is not null && Directory.Exists(recoveryDirectory))
+                Directory.Delete(recoveryDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task BatchItemEdit_SaveUpdatesOnlyStableTargetAndRestoresTwoDHistory()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchEdit", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var first = Path.Combine(directory, "first.dxf");
+        var second = Path.Combine(directory, "second.dxf");
+        await File.WriteAllTextAsync(first, "0\nEOF\n");
+        await File.WriteAllTextAsync(second, "0\nEOF\n");
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests(
+            outputPreviewService: new RecordingPreviewService());
+        try
+        {
+            editor.TwoDDocument = new Editor2DPreviewDocument(
+                [],
+                new Editor2DBounds(0, 0, 0, 0),
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+                []);
+            editor.TwoDWorkspace.ClearHistory();
+            Assert.NotNull(editor.CreateTwoDLine(new(0, 0), new(4, 0)));
+            var normalDocument = editor.TwoDDocument;
+            Assert.True(editor.CanUndoTwoDWorkspace);
+            Assert.Equal(2, editor.BatchWorkspace.AddFiles([first, second]));
+            var firstItem = editor.BatchWorkspace.Items[0];
+            var secondItem = editor.BatchWorkspace.Items[1];
+
+            Assert.True(await editor.BeginBatchItemEditAsync(firstItem.Id));
+            Assert.True(editor.IsBatchItemEditActive);
+            Assert.Equal(EditorMode.TwoD, editor.ActiveEditorMode);
+            Assert.True(editor.UpdateTwoDPathVertex("line", 1, new(25, 0)));
+            Assert.True(editor.SaveBatchItemEditAndReturn());
+
+            Assert.False(editor.IsBatchItemEditActive);
+            Assert.Equal(EditorMode.Batch, editor.ActiveEditorMode);
+            Assert.Equal(25, firstItem.Document!.Paths[0].Points[1].X);
+            Assert.True(firstItem.IsDocumentModified);
+            Assert.Null(secondItem.Document);
+            Assert.Equal(normalDocument, editor.TwoDDocument);
+            Assert.True(editor.CanUndoTwoDWorkspace);
+            Assert.True(editor.UndoTwoDWorkspace());
+            Assert.Empty(editor.TwoDDocument!.Paths);
+        }
+        finally
+        {
+            editor.Dispose();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task BatchItemEdit_RemovedTargetCannotOverwriteNextItem()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchEditRemoved", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var first = Path.Combine(directory, "first.dxf");
+        var second = Path.Combine(directory, "second.dxf");
+        await File.WriteAllTextAsync(first, "0\nEOF\n");
+        await File.WriteAllTextAsync(second, "0\nEOF\n");
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests(
+            outputPreviewService: new RecordingPreviewService());
+        try
+        {
+            Assert.Equal(2, editor.BatchWorkspace.AddFiles([first, second]));
+            var firstItem = editor.BatchWorkspace.Items[0];
+            var secondItem = editor.BatchWorkspace.Items[1];
+
+            Assert.True(await editor.BeginBatchItemEditAsync(firstItem.Id));
+            editor.BatchWorkspace.RemoveProject(firstItem.FilePath);
+            Assert.False(editor.SaveBatchItemEditAndReturn());
+
+            Assert.Same(secondItem, Assert.Single(editor.BatchWorkspace.Items));
+            Assert.Null(secondItem.Document);
+            Assert.Equal(EditorMode.Batch, editor.ActiveEditorMode);
+        }
+        finally
+        {
+            editor.Dispose();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+    [Fact]
+    public async Task BatchItemEdit_CancelPreservesItemAndRestoresNormalWorkspace()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-BatchEditCancel", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var input = Path.Combine(directory, "item.dxf");
+        await File.WriteAllTextAsync(input, "0\nEOF\n");
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests(
+            outputPreviewService: new RecordingPreviewService());
+        try
+        {
+            editor.TwoDDocument = new Editor2DPreviewDocument(
+                [new Editor2DPreviewPath("normal", "LINE", [new(0, 0), new(3, 0)], false)],
+                new Editor2DBounds(0, 0, 3, 0),
+                new Dictionary<string, int> { ["LINE"] = 1 },
+                []);
+            var normalDocument = editor.TwoDDocument;
+            Assert.True(editor.BatchWorkspace.AddFile(input));
+            var item = Assert.Single(editor.BatchWorkspace.Items);
+
+            Assert.True(await editor.BeginBatchItemEditAsync(item.Id));
+            var originalItemDocument = item.Document;
+            Assert.True(editor.UpdateTwoDPathVertex("line", 1, new(99, 0)));
+            Assert.True(editor.CancelBatchItemEditAndReturn());
+
+            Assert.Equal(originalItemDocument, item.Document);
+            Assert.Equal(normalDocument, editor.TwoDDocument);
+            Assert.Equal(EditorMode.Batch, editor.ActiveEditorMode);
+            Assert.False(editor.IsBatchItemEditActive);
+        }
+        finally
+        {
+            editor.Dispose();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
     private sealed class StubOffsetGeometryKernel : IEditor2DGeometryKernelService
     {
         public Task<Editor2DGeometryKernelResult> BuildCurveOffsetPathsAsync(
@@ -647,6 +837,14 @@ public sealed class EditorBatchWorkspaceViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task CopyDxfPreservingStructureAsync(
+            string sourcePath,
+            string outputPath,
+            CancellationToken cancellationToken = default)
+        {
+            SavedPaths.Add(outputPath);
+            return Task.CompletedTask;
+        }
         public Task<EditorGeneratedOutputSummary?> InspectOutputAsync(
             string outputPath,
             CancellationToken cancellationToken = default)

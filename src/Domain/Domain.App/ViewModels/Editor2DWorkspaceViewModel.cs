@@ -5,6 +5,11 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 
 namespace Domain.App.ViewModels;
+internal sealed record Editor2DWorkspaceSessionSnapshot(
+    Editor2DWorkspaceState State,
+    IReadOnlyList<Editor2DWorkspaceState> Undo,
+    IReadOnlyList<Editor2DWorkspaceState> Redo);
+
 
 /// <summary>
 /// Owns the editable 2D document and its interaction state independently from
@@ -83,6 +88,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     private string _glueTabEndOffsetText = "0";
     private IReadOnlyList<Editor2DPreviewPath> _sewingHolePreviewPaths = [];
     private IReadOnlyList<Editor2DPreviewPath> _referenceImageTracePreviewPaths = [];
+    private IReadOnlyList<string> _referenceImageTraceBatchLayerIds = [];
     private string? _referenceImageTraceLayerId;
     private CancellationTokenSource? _referenceImageTraceCancellation;
     private Task<bool> _referenceImageTraceTask = Task.FromResult(false);
@@ -372,6 +378,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public IReadOnlyList<Editor2DPreviewPath> ReferenceImageTracePreviewPaths => _referenceImageTracePreviewPaths;
     public string? ReferenceImageTraceLayerId => _referenceImageTraceLayerId;
     public bool HasReferenceImageTraceSession => _referenceImageTraceLayerId is not null;
+    public bool IsReferenceImageTraceBatch => _referenceImageTraceBatchLayerIds.Count > 0;
+    public int ReferenceImageTraceBatchCount => _referenceImageTraceBatchLayerIds.Count;
     public bool IsReferenceImageTracePreviewPending => _isReferenceImageTracePreviewPending;
     public Editor2DReferenceImage? ReferenceImageTraceSource
         => Layers.FirstOrDefault(layer => layer.Id == _referenceImageTraceLayerId)?.ReferenceImage;
@@ -428,6 +436,12 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool SewingVariableSpacingEnabled { get => SewingHoleParameters.VariableSpacingEnabled; set => UpdateSewingParameters(p => p with { VariableSpacingEnabled = value }); }
     public double SewingVariableSpacingMin { get => SewingHoleParameters.VariableSpacingMin; set => UpdateSewingParameters(p => p with { VariableSpacingMin = Math.Max(0.1, value) }); }
     public double SewingVariableSpacingMax { get => SewingHoleParameters.VariableSpacingMax; set => UpdateSewingParameters(p => p with { VariableSpacingMax = Math.Max(0.1, value) }); }
+    public bool SewingOffsetCornerFillet { get => SewingHoleParameters.OffsetCornerFillet; set => UpdateSewingParameters(p => p with { OffsetCornerFillet = value }); }
+    public bool SewingProximityFilterEnabled { get => SewingHoleParameters.ProximityFilterEnabled; set => UpdateSewingParameters(p => p with { ProximityFilterEnabled = value }); }
+    public bool SewingCornerInterpolationEnabled { get => SewingHoleParameters.CornerInterpolationEnabled; set => UpdateSewingParameters(p => p with { CornerInterpolationEnabled = value }); }
+    public bool SewingLineProximityFilterEnabled { get => SewingHoleParameters.LineProximityFilterEnabled; set => UpdateSewingParameters(p => p with { LineProximityFilterEnabled = value }); }
+    public double SewingLineProximityThreshold { get => SewingHoleParameters.LineProximityThreshold; set => UpdateSewingParameters(p => p with { LineProximityThreshold = Math.Max(0, value) }); }
+    public double SewingProximityFilterDistance { get => SewingHoleParameters.ProximityFilterDistance; set => UpdateSewingParameters(p => p with { ProximityFilterDistance = Math.Max(0, value) }); }
     public int SewingAvoidPathCount => (SewingHoleParameters.AvoidPathIds ?? []).Count;
     public Editor2DSewingHoleOperation? SelectedSewingHoleOperation
     {
@@ -473,7 +487,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         var traceSessionInvalid = _referenceImageTraceLayerId is not null
             && !Layers.Any(layer => layer.Id == _referenceImageTraceLayerId
                 && layer.IsReferenceImage
-                && layer.IsVisible
+                && (layer.IsVisible || _referenceImageTraceBatchLayerIds.Contains(layer.Id, StringComparer.Ordinal))
                 && !layer.IsLocked);
         var transformSessionInvalid = _referenceImageTransformOrigin is not null
             && !Layers.Any(layer => layer.Id == _referenceImageTransformLayerId
@@ -2084,11 +2098,32 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         if (Equals(layer.ReferenceImage, updatedImage))
             return false;
 
+        var sharedLayerIds = IsReferenceImageTraceBatch
+            ? _referenceImageTraceBatchLayerIds
+            : [layerId];
         Apply(_state with
         {
-            Layers = Layers.Select(candidate => candidate.Id == layerId
-                ? candidate with { ReferenceImage = updatedImage, PathIds = [] }
-                : candidate).ToArray(),
+            Layers = Layers.Select(candidate =>
+            {
+                if (!sharedLayerIds.Contains(candidate.Id, StringComparer.Ordinal)
+                    || candidate.ReferenceImage is not { } current)
+                {
+                    return candidate;
+                }
+
+                return candidate with
+                {
+                    ReferenceImage = current with
+                    {
+                        TraceThreshold = updatedImage.TraceThreshold,
+                        TraceTolerance = updatedImage.TraceTolerance,
+                        TraceCornerSmoothness = updatedImage.TraceCornerSmoothness,
+                        TracePathOptimization = updatedImage.TracePathOptimization,
+                        TraceSilhouetteOnly = updatedImage.TraceSilhouetteOnly,
+                    },
+                    PathIds = [],
+                };
+            }).ToArray(),
         }, recordHistory: false);
         if (_referenceImageTraceLayerId == layerId)
             RefreshReferenceImageTracePreview();
@@ -2100,12 +2135,36 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         var sourceLayer = Layers.FirstOrDefault(layer => layer.Id == layerId && layer.IsReferenceImage);
         if (sourceLayer?.ReferenceImage is null
             || sourceLayer.IsLocked
-            || !sourceLayer.IsVisible
+            || (!sourceLayer.IsVisible
+                && !_referenceImageTraceBatchLayerIds.Contains(sourceLayer.Id, StringComparer.Ordinal))
             || _referenceImageTraceService is null)
             return false;
 
         CommitReferenceImageTransformEdit();
+        _referenceImageTraceBatchLayerIds = [];
         _referenceImageTraceLayerId = layerId;
+        RefreshReferenceImageTracePreview();
+        return true;
+    }
+
+    public bool BeginReferenceImageTraceBatch(IReadOnlyList<string> layerIds)
+    {
+        ArgumentNullException.ThrowIfNull(layerIds);
+        if (_referenceImageTraceService is null)
+            return false;
+
+        var validIds = layerIds
+            .Distinct(StringComparer.Ordinal)
+            .Where(id => Layers.Any(layer => layer.Id == id
+                && layer.IsReferenceImage
+                && !layer.IsLocked))
+            .ToArray();
+        if (validIds.Length == 0)
+            return false;
+
+        CommitReferenceImageTransformEdit();
+        _referenceImageTraceBatchLayerIds = validIds;
+        _referenceImageTraceLayerId = validIds[0];
         RefreshReferenceImageTracePreview();
         return true;
     }
@@ -2117,7 +2176,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         if (sourceLayer is null
             || image is null
             || sourceLayer.IsLocked
-            || !sourceLayer.IsVisible
+            || (!sourceLayer.IsVisible
+                && !_referenceImageTraceBatchLayerIds.Contains(sourceLayer.Id, StringComparer.Ordinal))
             || _referenceImageTraceService is null)
         {
             CancelReferenceImageTrace();
@@ -2157,29 +2217,62 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         long generation,
         CancellationTokenSource cancellation)
     {
-        IReadOnlyList<IReadOnlyList<Editor2DPoint>> contours;
+        var traceSources = new List<(Editor2DLayer Layer, Editor2DReferenceImage Image)>();
+        var sourceIds = IsReferenceImageTraceBatch
+            ? _referenceImageTraceBatchLayerIds
+            : [sourceLayer.Id];
+        foreach (var sourceId in sourceIds)
+        {
+            var layer = Layers.FirstOrDefault(candidate => candidate.Id == sourceId && candidate.IsReferenceImage);
+            if (layer?.ReferenceImage is { } sourceImage && !layer.IsLocked)
+                traceSources.Add((layer, sourceImage));
+        }
+        if (traceSources.Count == 0)
+            traceSources.Add((sourceLayer, image));
+
+        IReadOnlyList<(
+            Editor2DLayer Layer,
+            Editor2DReferenceImage Image,
+            IReadOnlyList<IReadOnlyList<Editor2DPoint>> Contours)> tracedSources;
         try
         {
-            contours = await Task.Run(
-                () => _referenceImageTraceService!.TraceContours(image.DataBase64, options),
-                cancellation.Token);
+            tracedSources = await Task.Run(() =>
+            {
+                var traced = new List<(
+                    Editor2DLayer Layer,
+                    Editor2DReferenceImage Image,
+                    IReadOnlyList<IReadOnlyList<Editor2DPoint>> Contours)>();
+                foreach (var item in traceSources)
+                {
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    IReadOnlyList<IReadOnlyList<Editor2DPoint>> contours;
+                    try
+                    {
+                        contours = _referenceImageTraceService!.TraceContours(
+                            item.Image.DataBase64,
+                            options);
+                    }
+                    catch
+                    {
+                        contours = [];
+                    }
+                    traced.Add((item.Layer, item.Image, contours));
+                }
+                return traced;
+            }, cancellation.Token);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
             return false;
-        }
-        catch
-        {
-            contours = [];
         }
 
         if (cancellation.IsCancellationRequested
             || generation != _referenceImageTraceGeneration
             || _referenceImageTraceLayerId != sourceLayer.Id)
             return false;
-        if (!Equals(
-                Layers.FirstOrDefault(layer => layer.Id == sourceLayer.Id)?.ReferenceImage,
-                image))
+        if (tracedSources.Any(item => !Equals(
+                Layers.FirstOrDefault(layer => layer.Id == item.Layer.Id)?.ReferenceImage,
+                item.Image)))
         {
             _isReferenceImageTracePreviewPending = false;
             if (ReferenceEquals(_referenceImageTraceCancellation, cancellation))
@@ -2191,6 +2284,29 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             return false;
         }
 
+        _referenceImageTracePreviewPaths = tracedSources
+            .SelectMany(item => CreateReferenceImageTracePaths(
+                item.Layer,
+                item.Image,
+                item.Contours,
+                "trace-preview"))
+            .ToArray();
+        _isReferenceImageTracePreviewPending = false;
+        if (ReferenceEquals(_referenceImageTraceCancellation, cancellation))
+        {
+            _referenceImageTraceCancellation = null;
+            cancellation.Dispose();
+        }
+        RaiseReferenceImageTraceChanged();
+        return _referenceImageTracePreviewPaths.Count > 0;
+    }
+
+    private static IReadOnlyList<Editor2DPreviewPath> CreateReferenceImageTracePaths(
+        Editor2DLayer sourceLayer,
+        Editor2DReferenceImage image,
+        IReadOnlyList<IReadOnlyList<Editor2DPoint>> contours,
+        string idPrefix)
+    {
         var radians = image.RotationDegrees * Math.PI / 180.0;
         var cosine = Math.Cos(radians);
         var sine = Math.Sin(radians);
@@ -2203,26 +2319,21 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                 image.Y + (localX * sine) + (localY * cosine));
         }
 
-        _referenceImageTracePreviewPaths = contours
+        return contours
             .Where(contour => contour.Count >= 3)
             .Select((contour, index) => new Editor2DPreviewPath(
-                $"trace-preview-{sourceLayer.Id}-{index}",
+                $"{idPrefix}-{sourceLayer.Id}-{index}",
                 "REFERENCE_TRACE",
                 contour.Select(Transform).ToArray(),
                 IsClosed: true))
             .ToArray();
-        _isReferenceImageTracePreviewPending = false;
-        if (ReferenceEquals(_referenceImageTraceCancellation, cancellation))
-        {
-            _referenceImageTraceCancellation = null;
-            cancellation.Dispose();
-        }
-        RaiseReferenceImageTraceChanged();
-        return _referenceImageTracePreviewPaths.Count > 0;
     }
 
     public Editor2DPreviewPath? CommitReferenceImageTrace()
     {
+        if (IsReferenceImageTraceBatch)
+            return CommitReferenceImageTraceBatch();
+
         var sourceLayer = Layers.FirstOrDefault(layer => layer.Id == _referenceImageTraceLayerId && layer.IsReferenceImage);
         if (_isReferenceImageTracePreviewPending
             || sourceLayer?.ReferenceImage is null
@@ -2273,6 +2384,88 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         return first;
     }
 
+    private Editor2DPreviewPath? CommitReferenceImageTraceBatch()
+    {
+        if (_isReferenceImageTracePreviewPending
+            || _referenceImageTracePreviewPaths.Count == 0)
+        {
+            return null;
+        }
+
+        var batchIds = _referenceImageTraceBatchLayerIds.ToArray();
+        var batchIdSet = batchIds.ToHashSet(StringComparer.Ordinal);
+        var sourceLayers = batchIds
+            .Select(id => Layers.FirstOrDefault(layer => layer.Id == id && layer.IsReferenceImage))
+            .Where(layer => layer?.ReferenceImage is not null)
+            .Cast<Editor2DLayer>()
+            .ToArray();
+        if (sourceLayers.Length == 0)
+            return null;
+
+        var additions = new List<Editor2DPreviewPath>();
+        var selectedIds = new List<string>();
+        var layers = Layers.OrderBy(layer => layer.Order).ToList();
+        string? activeTargetLayerId = null;
+
+        foreach (var sourceLayer in sourceLayers)
+        {
+            var previewIdPrefix = $"trace-preview-{sourceLayer.Id}-";
+            var previewPaths = _referenceImageTracePreviewPaths
+                .Where(path => path.Id.StartsWith(previewIdPrefix, StringComparison.Ordinal))
+                .ToArray();
+            var traces = previewPaths.Select(path => path with
+            {
+                Id = $"trace-{Guid.NewGuid():N}",
+            }).ToArray();
+            if (traces.Length == 0)
+                continue;
+
+            additions.AddRange(traces);
+            selectedIds.AddRange(traces.Select(trace => trace.Id));
+            var targetNameBase = Path.GetFileNameWithoutExtension(sourceLayer.Name);
+            var targetName = $"{(string.IsNullOrWhiteSpace(targetNameBase) ? "Reference" : targetNameBase)}_traced";
+            var targetIndex = layers.FindIndex(layer => layer.Kind == Editor2DLayerKind.Geometry
+                && !layer.IsLocked
+                && layer.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase));
+            if (targetIndex < 0)
+            {
+                layers.Add(new Editor2DLayer(
+                    Guid.NewGuid().ToString("N"),
+                    targetName,
+                    traces.Select(trace => trace.Id).ToArray(),
+                    Order: layers.Count,
+                    ColorHex: "#22C55E"));
+                targetIndex = layers.Count - 1;
+            }
+            else
+            {
+                layers[targetIndex] = layers[targetIndex] with
+                {
+                    PathIds = layers[targetIndex].PathIds.Concat(traces.Select(trace => trace.Id)).ToArray(),
+                    IsVisible = true,
+                };
+            }
+            activeTargetLayerId = layers[targetIndex].Id;
+        }
+
+        if (additions.Count == 0 || activeTargetLayerId is null)
+            return null;
+
+        layers = layers.Select(layer => batchIdSet.Contains(layer.Id)
+            ? layer with { IsVisible = false }
+            : layer).ToList();
+        Apply(_state with
+        {
+            Document = RebuildDocument(_state.Document, _state.Document.Paths.Concat(additions).ToArray()),
+            Layers = layers,
+            ActiveLayerId = activeTargetLayerId,
+            SelectedPathIds = selectedIds,
+        });
+        var first = additions[0];
+        CancelReferenceImageTrace();
+        return first;
+    }
+
     public void CancelReferenceImageTrace()
     {
         if (_referenceImageTraceLayerId is null
@@ -2284,6 +2477,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         _referenceImageTraceCancellation?.Dispose();
         _referenceImageTraceCancellation = null;
         _referenceImageTraceLayerId = null;
+        _referenceImageTraceBatchLayerIds = [];
         _referenceImageTracePreviewPaths = [];
         _isReferenceImageTracePreviewPending = false;
         RaiseReferenceImageTraceChanged();
@@ -2294,6 +2488,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(ReferenceImageTracePreviewPaths));
         OnPropertyChanged(nameof(ReferenceImageTraceLayerId));
         OnPropertyChanged(nameof(HasReferenceImageTraceSession));
+        OnPropertyChanged(nameof(IsReferenceImageTraceBatch));
+        OnPropertyChanged(nameof(ReferenceImageTraceBatchCount));
         OnPropertyChanged(nameof(ReferenceImageTraceSource));
         OnPropertyChanged(nameof(IsReferenceImageTracePreviewPending));
         ReferenceImageTraceChanged?.Invoke();
@@ -2766,6 +2962,24 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanRedo));
     }
 
+    internal Editor2DWorkspaceSessionSnapshot CaptureSessionSnapshot()
+        => new(_state, _undo.ToArray(), _redo.ToArray());
+
+    internal void RestoreSessionSnapshot(Editor2DWorkspaceSessionSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ClearHistory();
+        Apply(snapshot.State, recordHistory: false);
+
+        foreach (var state in snapshot.Undo.Reverse())
+            _undo.Push(state);
+        foreach (var state in snapshot.Redo.Reverse())
+            _redo.Push(state);
+
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+    }
+
     private static Editor2DWorkspaceState Normalize(
         Editor2DWorkspaceState state,
         bool rebuildMeasurementCaches = true)
@@ -2884,9 +3098,20 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             if (generatedIds.Length == 0)
                 continue;
 
-            var owningLayer = layers.FirstOrDefault(layer =>
-                layer.Kind == Editor2DLayerKind.Geometry
-                && generatedIds.Any(id => layer.PathIds.Contains(id, StringComparer.Ordinal)));
+            var generatedIdSet = generatedIds.ToHashSet(StringComparer.Ordinal);
+            var layersContainingGeneratedPaths = layers.Where(layer =>
+                    layer.Kind == Editor2DLayerKind.Geometry
+                    && layer.PathIds.Any(generatedIdSet.Contains))
+                .ToArray();
+            var generatedLayerIds = (group.GeneratedLayerIds ?? [])
+                .Where(id => layersContainingGeneratedPaths.Any(layer => layer.Id == id))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (generatedLayerIds.Length == 0)
+                generatedLayerIds = [layersContainingGeneratedPaths[0].Id];
+            var owningLayer = generatedLayerIds
+                .Select(id => layersContainingGeneratedPaths.FirstOrDefault(layer => layer.Id == id))
+                .FirstOrDefault(layer => layer is not null);
             if (owningLayer is null)
                 continue;
 
@@ -2911,6 +3136,7 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
                 OwningLayerId = owningLayer.Id,
                 OwningLayerPathIndex = owningLayerPathIndex,
                 DocumentPathIndex = documentPathIndex,
+                GeneratedLayerIds = generatedLayerIds,
                 UnsupportedEntityTypes = (group.UnsupportedEntityTypes ?? [])
                     .Where(type => !string.IsNullOrWhiteSpace(type))
                     .Select(type => type.Trim())
@@ -3244,6 +3470,8 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
             Count = Math.Max(1, value.Count),
             VariableSpacingMin = Math.Max(0.1, Math.Min(value.VariableSpacingMin, value.VariableSpacingMax)),
             VariableSpacingMax = Math.Max(0.1, Math.Max(value.VariableSpacingMin, value.VariableSpacingMax)),
+            LineProximityThreshold = Math.Max(0, value.LineProximityThreshold),
+            ProximityFilterDistance = Math.Max(0, value.ProximityFilterDistance),
         };
     }
 
@@ -3268,6 +3496,12 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(SewingVariableSpacingEnabled));
         OnPropertyChanged(nameof(SewingVariableSpacingMin));
         OnPropertyChanged(nameof(SewingVariableSpacingMax));
+        OnPropertyChanged(nameof(SewingOffsetCornerFillet));
+        OnPropertyChanged(nameof(SewingProximityFilterEnabled));
+        OnPropertyChanged(nameof(SewingCornerInterpolationEnabled));
+        OnPropertyChanged(nameof(SewingLineProximityFilterEnabled));
+        OnPropertyChanged(nameof(SewingLineProximityThreshold));
+        OnPropertyChanged(nameof(SewingProximityFilterDistance));
         OnPropertyChanged(nameof(SewingAvoidPathCount));
     }
 

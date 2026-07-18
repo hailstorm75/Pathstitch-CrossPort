@@ -282,7 +282,8 @@
                       <Button
                         IsVisible="{Binding !ReferenceImage.BackgroundRemoved}"
                         Padding="5,2"
-                        Content="Remove Background"
+                        Content="Remove Flat Background"
+                        ToolTip.Tip="Deterministic flat or smooth-gradient cleanup; not AI subject cutout."
                         Tag="{Binding Id}"
                         Click="OnRemoveReferenceBackgroundClicked" />
                       <Button
@@ -317,8 +318,8 @@
           BorderThickness="1"
           CornerRadius="6">
           <StackPanel Spacing="5">
-            <TextBlock FontSize="11" FontWeight="SemiBold" Text="IMAGE TRACING" />
-            <TextBlock FontSize="9" Foreground="{StaticResource SecondaryTextBrush}" Text="Preview contours draw in cyan." />
+            <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding TwoDReferenceTraceTitle}" />
+            <TextBlock FontSize="9" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDReferenceTraceHelpText}" TextWrapping="Wrap" />
             <CheckBox Content="Silhouette only" IsChecked="{Binding TwoDReferenceTraceSilhouetteOnly, Mode=TwoWay}" />
             <Grid ColumnDefinitions="*,Auto">
               <TextBlock FontSize="10" Text="Threshold" />
@@ -350,7 +351,7 @@
               <Button Content="Cancel" Click="OnCancelReferenceTraceClicked" />
               <Button
                 AutomationProperties.AutomationId="editor.reference.trace.commit"
-                Content="Generate Vectors"
+                Content="{Binding TwoDReferenceTraceCommitLabel}"
                 IsEnabled="{Binding CanCommitTwoDReferenceTrace}"
                 Click="OnCommitReferenceTraceClicked" />
             </StackPanel>

@@ -92,7 +92,7 @@ public sealed class Editor2DWorkspaceViewModelTests
                 CornerMode: Editor2DSewingCornerMode.Continuous),
             "variable-test");
 
-        Assert.Equal(12, preview.Count);
+        Assert.Equal(10, preview.Count);
     }
 
     [Fact]
@@ -252,6 +252,57 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void FillToStroke_ExpandsCompoundHoleLoopsAndPreservesOwningLayer()
+    {
+        var outer = new Editor2DPoint[] { new(0, 0), new(20, 0), new(20, 20), new(0, 20) };
+        var hole = new Editor2DPoint[] { new(6, 6), new(14, 6), new(14, 14), new(6, 14) };
+        var fill = new Editor2DPreviewPath(
+            "hatch", "HATCH", outer, true, IsFilled: true,
+            SourceLayerName: "Imported fills", SourceEntityHandle: "BEEF",
+            FillLoops: [outer, hole]);
+        var sourceLayer = new Editor2DLayer("layer-source", "Imported fills", [fill.Id], Order: 0);
+        var otherLayer = new Editor2DLayer("layer-active", "Active", [], Order: 1);
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.Apply(Editor2DWorkspaceState.Empty with
+        {
+            IsInitialized = true,
+            Document = new Editor2DPreviewDocument(
+                [fill], new Editor2DBounds(0, 0, 20, 20),
+                new Dictionary<string, int> { ["HATCH"] = 1 }, []),
+            Layers = [sourceLayer, otherLayer],
+            ActiveLayerId = otherLayer.Id,
+        }, recordHistory: false);
+        workspace.ClearHistory();
+        workspace.SetSelection([fill.Id]);
+
+        var result = workspace.ApplyFillToStroke();
+
+        Assert.True(result.IsSuccess, result.Message);
+        Assert.Equal(2, workspace.Document.Paths.Count);
+        Assert.All(workspace.Document.Paths, path =>
+        {
+            Assert.Equal("LWPOLYLINE", path.EntityType);
+            Assert.True(path.IsClosed);
+            Assert.False(path.IsFilled);
+            Assert.Null(path.FillLoops);
+        });
+        Assert.Equal(["hatch", "hatch:fill-loop:1"], workspace.SelectedPathIds);
+        Assert.Equal(
+            workspace.SelectedPathIds,
+            workspace.Layers.Single(layer => layer.Id == sourceLayer.Id).PathIds);
+        Assert.Empty(workspace.Layers.Single(layer => layer.Id == otherLayer.Id).PathIds);
+        Assert.Equal("BEEF", workspace.Document.Paths[0].SourceEntityHandle);
+        Assert.Null(workspace.Document.Paths[1].SourceEntityHandle);
+
+        Assert.True(workspace.Undo());
+        var restored = Assert.Single(workspace.Document.Paths);
+        Assert.True(restored.IsFilled);
+        Assert.Equal(2, restored.FillLoops!.Count);
+        Assert.Equal([fill.Id], workspace.Layers.Single(layer => layer.Id == sourceLayer.Id).PathIds);
+        Assert.True(workspace.Redo());
+        Assert.Equal(2, workspace.Document.Paths.Count);
+    }
+    [Fact]
     public void SelectedTextFitMode_UsesExistingTextBoxForWidthWarp()
     {
         var text = new Editor2DPreviewPath(
@@ -352,7 +403,9 @@ public sealed class Editor2DWorkspaceViewModelTests
     public void CircularPattern_UsesExplicitPivotWhenProvided()
     {
         var workspace = new Editor2DWorkspaceViewModel();
-        var source = new Editor2DPreviewPath("source", "LINE", [new(10, 0), new(11, 0)], false);
+        var source = new Editor2DPreviewPath(
+            "source", "LINE", [new(10, 0), new(11, 0)], false,
+            SourceLayerName: "CUT", SourceEntityHandle: "ABCD");
         workspace.SetDocument(Editor2DWorkspaceState.Empty.Document with { Paths = [source] });
         workspace.SetSelection([source.Id]);
 
@@ -362,6 +415,8 @@ public sealed class Editor2DWorkspaceViewModelTests
         var copy = Assert.Single(workspace.Document.Paths, path => path.Id.StartsWith("source:pattern:circular:", StringComparison.Ordinal));
         Assert.Equal(0, copy.Points[0].X, 6);
         Assert.Equal(10, copy.Points[0].Y, 6);
+        Assert.Null(copy.SourceEntityHandle);
+        Assert.Equal("ABCD", workspace.Document.Paths.Single(path => path.Id == source.Id).SourceEntityHandle);
     }
 
     [Fact]
@@ -469,7 +524,7 @@ public sealed class Editor2DWorkspaceViewModelTests
 
         var mirroredText = workspace.Document.Paths.Single(path => path.Id.StartsWith("text:mirror:", StringComparison.Ordinal));
         Assert.Equal(new Editor2DPoint(-2, 0), mirroredText.Start);
-        Assert.Equal(180, mirroredText.RotationDegrees!.Value, 6);
+        Assert.Equal(0, mirroredText.RotationDegrees!.Value, 6);
         Assert.Equal(-1, mirroredText.WidthFactor);
 
         Assert.True(workspace.Undo());

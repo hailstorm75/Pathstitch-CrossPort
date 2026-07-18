@@ -26,15 +26,21 @@ public enum EditorBatchItemStatus
 public sealed class EditorBatchItem(
     string filePath,
     string? originalSourcePath = null,
-    string? displayFileName = null) : ObservableObject
+    string? displayFileName = null,
+    string? id = null) : ObservableObject
 {
     private EditorBatchItemStatus _status;
     private string _message = "Ready";
     private string? _outputPath;
     private Editor2DPreviewDocument? _document;
     private bool _isSelected = true;
+    private bool _isDocumentModified;
 
     public string FilePath { get; } = Path.GetFullPath(filePath);
+
+    public string Id { get; } = string.IsNullOrWhiteSpace(id)
+        ? Guid.NewGuid().ToString("N")
+        : id.Trim();
 
     public string OriginalSourcePath { get; } = string.IsNullOrWhiteSpace(originalSourcePath)
         ? Path.GetFullPath(filePath)
@@ -72,5 +78,11 @@ public sealed class EditorBatchItem(
     {
         get => _document;
         internal set => SetProperty(ref _document, value);
+    }
+
+    public bool IsDocumentModified
+    {
+        get => _isDocumentModified;
+        internal set => SetProperty(ref _isDocumentModified, value);
     }
 }

@@ -52,7 +52,16 @@ public sealed class ProjectSessionService(
 
     public ProjectTemplateDefinition DefaultTemplate => Templates[0];
 
-    public IReadOnlyList<RecentProjectSummary> RecentProjects => recentProjectsService.GetRecentProjects();
+    public IReadOnlyList<RecentProjectSummary> RecentProjects
+        => recentProjectsService.GetRecentProjectsIncludingDiscovery();
+
+    public Task<IReadOnlyList<RecentProjectSummary>> DiscoverRecentProjectsAsync(
+        CancellationToken cancellationToken = default)
+        => recentProjectsService.GetRecentProjectsWithDiscoveryAsync(cancellationToken);
+
+    public IAsyncEnumerable<IReadOnlyList<RecentProjectSummary>> WatchRecentProjectsAsync(
+        CancellationToken cancellationToken = default)
+        => recentProjectsService.WatchRecentProjectsAsync(cancellationToken);
 
     public ProjectSession? CurrentSession
     {

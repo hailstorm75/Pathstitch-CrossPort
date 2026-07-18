@@ -17,7 +17,10 @@ public sealed record EditorToolDescriptor(
     EditorSidebarAction? Action = null,
     bool StartsSection = false,
     bool IsEnabled = true,
-    bool IsSelected = false)
+    bool IsSelected = false,
+    EditorToolbarContainer Container = EditorToolbarContainer.Main,
+    EditorToolbarContainer DefaultContainer = EditorToolbarContainer.Main,
+    bool CanPlaceInShapes = false)
 {
     public bool IsTool => ThreeDTool is not null || TwoDTool is not null;
 
@@ -65,25 +68,17 @@ public static class EditorToolCatalog
         if (customizations is null)
             return All;
 
-        var customizationList = customizations.ToArray();
-        var duplicateIdentifier = customizationList
-            .GroupBy(customization => customization.Identifier, StringComparer.Ordinal)
-            .FirstOrDefault(group => group.Skip(1).Any());
-        if (duplicateIdentifier is not null)
-        {
-            throw new InvalidOperationException(
-                $"Tool customization '{duplicateIdentifier.Key}' is defined more than once.");
-        }
-
-        var customizationByIdentifier = customizationList
+        var customizationByIdentifier = customizations
             .Where(customization => !string.IsNullOrWhiteSpace(customization.Identifier))
-            .ToDictionary(customization => customization.Identifier, StringComparer.Ordinal);
+            .GroupBy(customization => customization.Identifier, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         var customized = All
             .Select(descriptor => customizationByIdentifier.TryGetValue(descriptor.Identifier, out var customization)
                 ? descriptor with
                 {
                     Order = customization.Order,
                     ShortcutText = NormalizeOptionalShortcut(customization.ShortcutText),
+                    Container = ResolveContainer(descriptor, customization.Container),
                 }
                 : descriptor)
             .ToArray();
@@ -91,22 +86,38 @@ public static class EditorToolCatalog
         ValidateShortcutUniqueness(customized);
         return customized
             .GroupBy(descriptor => descriptor.Mode)
-            .SelectMany(modeGroup =>
-            {
-                var ordered = modeGroup
-                    .OrderBy(descriptor => descriptor.Order)
-                    .ThenBy(descriptor => descriptor.Identifier, StringComparer.Ordinal)
-                    .ToArray();
-                return ordered.Select((descriptor, index) => descriptor with
+            .SelectMany(modeGroup => modeGroup
+                .GroupBy(descriptor => descriptor.Container)
+                .OrderBy(containerGroup => containerGroup.Key)
+                .SelectMany(containerGroup =>
                 {
-                    StartsSection = index > 0
-                        && !string.Equals(
-                            ordered[index - 1].GroupKey,
-                            descriptor.GroupKey,
-                            StringComparison.Ordinal),
-                });
-            })
+                    var ordered = containerGroup
+                        .OrderBy(descriptor => descriptor.Order)
+                        .ThenBy(descriptor => descriptor.Identifier, StringComparer.Ordinal)
+                        .ToArray();
+                    return ordered.Select((descriptor, index) => descriptor with
+                    {
+                        Order = index,
+                        StartsSection = index > 0
+                            && !string.Equals(
+                                ordered[index - 1].GroupKey,
+                                descriptor.GroupKey,
+                                StringComparison.Ordinal),
+                    });
+                }))
             .ToArray();
+    }
+
+    private static EditorToolbarContainer ResolveContainer(
+        EditorToolDescriptor descriptor,
+        EditorToolbarContainer? requested)
+    {
+        var container = descriptor.Mode == EditorMode.TwoD
+            ? requested ?? EditorToolbarContainer.Main
+            : EditorToolbarContainer.Main;
+        return container != EditorToolbarContainer.Shapes || descriptor.CanPlaceInShapes
+            ? container
+            : descriptor.DefaultContainer;
     }
 
     public static void ValidateShortcutUniqueness(IEnumerable<EditorToolDescriptor> descriptors)
@@ -133,7 +144,27 @@ public static class EditorToolCatalog
             .Concat(CreateTwoDDescriptors())
             .ToArray();
         ValidateShortcutUniqueness(descriptors);
-        return descriptors;
+        return descriptors
+            .GroupBy(descriptor => descriptor.Mode)
+            .SelectMany(modeGroup => modeGroup
+                .GroupBy(descriptor => descriptor.Container)
+                .OrderBy(containerGroup => containerGroup.Key)
+                .SelectMany(containerGroup =>
+                {
+                    var ordered = containerGroup
+                        .OrderBy(descriptor => descriptor.Order)
+                        .ThenBy(descriptor => descriptor.Identifier, StringComparer.Ordinal)
+                        .ToArray();
+                    return ordered.Select((descriptor, index) => descriptor with
+                    {
+                        StartsSection = index > 0
+                            && !string.Equals(
+                                ordered[index - 1].GroupKey,
+                                descriptor.GroupKey,
+                                StringComparison.Ordinal),
+                    });
+                }))
+            .ToArray();
     }
 
     private static string NormalizeShortcut(string shortcutText)
@@ -242,11 +273,62 @@ public static class EditorToolCatalog
         => descriptors
             .Select((descriptor, index) => descriptor with
             {
-                Order = index,
+                Order = GetDefaultContainerOrder(descriptor, index),
+                Container = GetDefaultContainer(descriptor),
+                DefaultContainer = GetDefaultContainer(descriptor),
+                CanPlaceInShapes = IsShapeOrigin(descriptor),
                 StartsSection = index > 0
                     && !string.Equals(descriptors[index - 1].GroupKey, descriptor.GroupKey, StringComparison.Ordinal),
             })
             .ToArray();
+
+    private static EditorToolbarContainer GetDefaultContainer(EditorToolDescriptor descriptor)
+        => descriptor.Mode != EditorMode.TwoD
+            ? EditorToolbarContainer.Main
+            : descriptor.CommandKey switch
+            {
+                "line" or "circle" or "rectangle" or "polygon" or "text" or "pen"
+                    => EditorToolbarContainer.Shapes,
+                "mirror" or "convert-lines" or "flip-horizontal" or "flip-vertical" or "duplicate"
+                    => EditorToolbarContainer.More,
+                _ => EditorToolbarContainer.Main,
+            };
+
+    private static bool IsShapeOrigin(EditorToolDescriptor descriptor)
+        => descriptor.Mode == EditorMode.TwoD
+            && GetDefaultContainer(descriptor) == EditorToolbarContainer.Shapes;
+
+    private static int GetDefaultContainerOrder(EditorToolDescriptor descriptor, int fallback)
+        => descriptor.Mode != EditorMode.TwoD ? fallback : descriptor.CommandKey switch
+        {
+            "select" => 0,
+            "move" => 1,
+            "pan" => 2,
+            "scale" => 3,
+            "offset" => 4,
+            "add-thickness" => 5,
+            "add-sewing-holes" => 6,
+            "cleanup" => 7,
+            "trim" => 8,
+            "measure" => 9,
+            "dimension" => 10,
+            "fillet" => 11,
+            "chamfer" => 12,
+            "pattern" => 13,
+            "paper-folding" => 14,
+            "line" => 0,
+            "circle" => 1,
+            "rectangle" => 2,
+            "polygon" => 3,
+            "text" => 4,
+            "pen" => 5,
+            "mirror" => 0,
+            "convert-lines" => 1,
+            "flip-horizontal" => 2,
+            "flip-vertical" => 3,
+            "duplicate" => 4,
+            _ => fallback,
+        };
 
     private static EditorToolDescriptor ThreeD(
         string CommandKey,

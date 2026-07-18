@@ -79,6 +79,9 @@ public sealed partial class EditorPageViewModel(
     private string? _errorMessage;
     private string? _lastGeneratedOutputPath;
     private string? _generatedOutputDataBase64;
+    private string? _preservableGeneratedDxfFingerprint;
+    private byte[]? _preservableGeneratedDxfSourceBytes;
+    private string? _preservableGeneratedDxfVersion;
     private EditorGeneratedOutputSummary? _generatedOutputSummary;
     private long _generatedOutputPreviewGeneration;
     private EditorMode _activeEditorMode = EditorMode.ThreeD;

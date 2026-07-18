@@ -21,6 +21,27 @@ public sealed partial class EditorPageViewModel
     public IReadOnlyList<EditorSidebarToolItemViewModel> SidebarTools
         => _sidebarTools
             .Where(tool => tool.Mode == ActiveEditorMode)
+            .OrderBy(tool => tool.Container)
+            .ThenBy(tool => tool.Order)
+            .ThenBy(tool => tool.Identifier, StringComparer.Ordinal)
+            .ToArray();
+
+    public IReadOnlyList<EditorSidebarToolItemViewModel> MainToolbarTools
+        => ToolbarTools(EditorToolbarContainer.Main);
+
+    public IReadOnlyList<EditorSidebarToolItemViewModel> ShapeToolbarTools
+        => ToolbarTools(EditorToolbarContainer.Shapes);
+
+    public IReadOnlyList<EditorSidebarToolItemViewModel> MoreToolbarTools
+        => ToolbarTools(EditorToolbarContainer.More);
+
+    public bool HasShapeToolbarTools => ShapeToolbarTools.Count > 0;
+
+    public bool HasMoreToolbarTools => MoreToolbarTools.Count > 0;
+
+    private IReadOnlyList<EditorSidebarToolItemViewModel> ToolbarTools(EditorToolbarContainer container)
+        => _sidebarTools
+            .Where(tool => tool.Mode == ActiveEditorMode && tool.Container == container)
             .OrderBy(tool => tool.Order)
             .ThenBy(tool => tool.Identifier, StringComparer.Ordinal)
             .ToArray();
@@ -94,7 +115,8 @@ public sealed partial class EditorPageViewModel
             .Select(descriptor => new EditorToolCustomization(
                 descriptor.Identifier,
                 descriptor.Order,
-                descriptor.ShortcutText))
+                descriptor.ShortcutText,
+                descriptor.Container))
             .ToArray();
 
     public bool IsToolbarCustomizationMode
@@ -269,32 +291,68 @@ public sealed partial class EditorPageViewModel
 
     public bool MoveToolCustomization(string identifier, int direction)
     {
-        var ordered = _toolDescriptors
-            .Where(descriptor => descriptor.Mode == ActiveEditorMode)
-            .OrderBy(descriptor => descriptor.Order)
-            .ThenBy(descriptor => descriptor.Identifier, StringComparer.Ordinal)
-            .ToArray();
-        var index = Array.FindIndex(ordered, descriptor => string.Equals(
-            descriptor.Identifier,
-            identifier,
-            StringComparison.Ordinal));
-        var target = index + Math.Sign(direction);
-        if (index < 0 || target < 0 || target >= ordered.Length)
+        var descriptor = _toolDescriptors.FirstOrDefault(candidate =>
+            candidate.Mode == ActiveEditorMode
+            && string.Equals(candidate.Identifier, identifier, StringComparison.Ordinal));
+        if (descriptor is null || direction == 0)
             return false;
 
-        var first = ordered[index];
-        var second = ordered[target];
-        var customizations = ToolCustomizations
-            .Select(customization => customization.Identifier switch
-            {
-                var value when string.Equals(value, first.Identifier, StringComparison.Ordinal)
-                    => customization with { Order = second.Order },
-                var value when string.Equals(value, second.Identifier, StringComparison.Ordinal)
-                    => customization with { Order = first.Order },
-                _ => customization,
-            })
-            .ToArray();
-        ApplyToolCustomizations(customizations, requestPersistence: true);
+        var layout = CreateMutableToolbarLayout();
+        var items = layout[descriptor.Container];
+        var index = items.FindIndex(item => string.Equals(item, identifier, StringComparison.Ordinal));
+        var target = index + Math.Sign(direction);
+        if (index < 0 || target < 0 || target >= items.Count)
+            return false;
+
+        (items[index], items[target]) = (items[target], items[index]);
+        ApplyActiveToolbarLayout(layout);
+        return true;
+    }
+
+    public bool CanPlaceToolInContainer(string identifier, EditorToolbarContainer container)
+    {
+        var descriptor = _toolDescriptors.FirstOrDefault(candidate =>
+            candidate.Mode == ActiveEditorMode
+            && string.Equals(candidate.Identifier, identifier, StringComparison.Ordinal));
+        return descriptor is not null
+            && (container != EditorToolbarContainer.Shapes || descriptor.CanPlaceInShapes);
+    }
+
+    public bool MoveToolToContainer(string identifier, EditorToolbarContainer container)
+    {
+        if (!CanPlaceToolInContainer(identifier, container))
+            return false;
+
+        var layout = CreateMutableToolbarLayout();
+        foreach (var items in layout.Values)
+            items.RemoveAll(item => string.Equals(item, identifier, StringComparison.Ordinal));
+        layout[container].Add(identifier);
+        ApplyActiveToolbarLayout(layout);
+        return true;
+    }
+
+    public bool MoveToolBefore(string identifier, string targetIdentifier)
+    {
+        if (string.Equals(identifier, targetIdentifier, StringComparison.Ordinal))
+            return false;
+
+        var target = _toolDescriptors.FirstOrDefault(candidate =>
+            candidate.Mode == ActiveEditorMode
+            && string.Equals(candidate.Identifier, targetIdentifier, StringComparison.Ordinal));
+        if (target is null || !CanPlaceToolInContainer(identifier, target.Container))
+            return false;
+
+        var layout = CreateMutableToolbarLayout();
+        foreach (var items in layout.Values)
+            items.RemoveAll(item => string.Equals(item, identifier, StringComparison.Ordinal));
+        var targetItems = layout[target.Container];
+        var targetIndex = targetItems.FindIndex(item =>
+            string.Equals(item, targetIdentifier, StringComparison.Ordinal));
+        if (targetIndex < 0)
+            return false;
+
+        targetItems.Insert(targetIndex, identifier);
+        ApplyActiveToolbarLayout(layout);
         return true;
     }
 
@@ -304,7 +362,12 @@ public sealed partial class EditorPageViewModel
             .ToDictionary(descriptor => descriptor.Identifier, StringComparer.Ordinal);
         var customizations = ToolCustomizations
             .Select(customization => defaults.TryGetValue(customization.Identifier, out var descriptor)
-                ? customization with { Order = descriptor.Order, ShortcutText = descriptor.ShortcutText }
+                ? customization with
+                {
+                    Order = descriptor.Order,
+                    ShortcutText = descriptor.ShortcutText,
+                    Container = descriptor.DefaultContainer,
+                }
                 : customization)
             .ToArray();
         ApplyToolCustomizations(customizations, requestPersistence: true);
@@ -316,12 +379,51 @@ public sealed partial class EditorPageViewModel
             .ToDictionary(descriptor => descriptor.Identifier, StringComparer.Ordinal);
         var customizations = ToolCustomizations
             .Select(customization => defaults.TryGetValue(customization.Identifier, out var descriptor)
-                ? customization with { Order = descriptor.Order, ShortcutText = descriptor.ShortcutText }
+                ? customization with
+                {
+                    Order = descriptor.Order,
+                    ShortcutText = descriptor.ShortcutText,
+                    Container = descriptor.DefaultContainer,
+                }
                 : customization)
             .ToArray();
         ApplyToolCustomizations(customizations, requestPersistence: true);
     }
 
+    private Dictionary<EditorToolbarContainer, List<string>> CreateMutableToolbarLayout()
+        => Enum.GetValues<EditorToolbarContainer>()
+            .ToDictionary(
+                container => container,
+                container => _toolDescriptors
+                    .Where(descriptor => descriptor.Mode == ActiveEditorMode
+                        && descriptor.Container == container)
+                    .OrderBy(descriptor => descriptor.Order)
+                    .ThenBy(descriptor => descriptor.Identifier, StringComparer.Ordinal)
+                    .Select(descriptor => descriptor.Identifier)
+                    .ToList());
+
+    private void ApplyActiveToolbarLayout(
+        IReadOnlyDictionary<EditorToolbarContainer, List<string>> layout)
+    {
+        var placements = layout
+            .SelectMany(pair => pair.Value.Select((identifier, order) => new
+            {
+                Identifier = identifier,
+                Container = pair.Key,
+                Order = order,
+            }))
+            .ToDictionary(item => item.Identifier, StringComparer.Ordinal);
+        var customizations = ToolCustomizations
+            .Select(customization => placements.TryGetValue(customization.Identifier, out var placement)
+                ? customization with
+                {
+                    Container = placement.Container,
+                    Order = placement.Order,
+                }
+                : customization)
+            .ToArray();
+        ApplyToolCustomizations(customizations, requestPersistence: true);
+    }
     public bool TryActivateEditorShortcut(string shortcutText)
     {
         if (ActiveEditorMode == EditorMode.Batch || string.IsNullOrWhiteSpace(shortcutText))
@@ -498,7 +600,7 @@ public sealed partial class EditorPageViewModel
         foreach (var tool in _sidebarTools)
             tool.IsCustomizationMode = IsToolbarCustomizationMode;
         SyncSidebarToolStates();
-        OnPropertyChanged(nameof(SidebarTools));
+        NotifyToolbarCollectionsChanged();
         OnPropertyChanged(nameof(CommandSearchResults));
         OnPropertyChanged(nameof(IsCommandSearchEmpty));
         OnPropertyChanged(nameof(ToolCustomizations));
@@ -507,6 +609,16 @@ public sealed partial class EditorPageViewModel
         if (requestPersistence)
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
     }
+    private void NotifyToolbarCollectionsChanged()
+    {
+        OnPropertyChanged(nameof(SidebarTools));
+        OnPropertyChanged(nameof(MainToolbarTools));
+        OnPropertyChanged(nameof(ShapeToolbarTools));
+        OnPropertyChanged(nameof(MoreToolbarTools));
+        OnPropertyChanged(nameof(HasShapeToolbarTools));
+        OnPropertyChanged(nameof(HasMoreToolbarTools));
+    }
+
 
     private void ExecuteSidebarAction(EditorSidebarAction action)
     {

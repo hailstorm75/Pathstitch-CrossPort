@@ -2054,7 +2054,7 @@ public sealed class EditorPageViewModelModeTests
             .Select(customization => customization.Identifier)
             .Order()
             .ToArray();
-        Assert.Equal("2d.circle", railIdentifiers[0]);
+        Assert.Equal("2d.circle", viewModel.ShapeToolbarTools[0].Identifier);
         Assert.All(railIdentifiers, identifier => Assert.Contains(identifier, searchIdentifiers));
         Assert.Contains(EditorCommandPaletteCatalog.SaveIdentifier, searchIdentifiers);
         Assert.Contains(EditorCommandPaletteCatalog.PreferencesIdentifier, searchIdentifiers);
@@ -2608,8 +2608,9 @@ public sealed class EditorPageViewModelModeTests
         IDocumentWindowService? documentWindowService = null,
         IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null,
         IEditorOutputLauncherService? outputLauncherService = null,
-        IEditor3DOperationService? threeDOperationService = null)
-        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, referenceImagePreparationService, projectPreviewRenderer, psdImportService, psdImportModePromptService, documentWindowService, projectOpenDispositionPromptService, outputLauncherService, threeDOperationService);
+        IEditor3DOperationService? threeDOperationService = null,
+        Project3DStateService? project3DStateService = null)
+        => CreateViewModel(projectFileDialogService, outputPreviewService, unsavedChangesPromptService, importUnitsPromptService, geometryKernelService, projectSessionService, referenceImageTraceService, referenceImagePreparationService, projectPreviewRenderer, psdImportService, psdImportModePromptService, documentWindowService, projectOpenDispositionPromptService, outputLauncherService, threeDOperationService, project3DStateService);
 
     private static EditorPageViewModel CreateViewModel(
         IProjectFileDialogService? projectFileDialogService = null,
@@ -2626,11 +2627,12 @@ public sealed class EditorPageViewModelModeTests
         IDocumentWindowService? documentWindowService = null,
         IProjectOpenDispositionPromptService? projectOpenDispositionPromptService = null,
         IEditorOutputLauncherService? outputLauncherService = null,
-        IEditor3DOperationService? threeDOperationService = null)
+        IEditor3DOperationService? threeDOperationService = null,
+        Project3DStateService? project3DStateService = null)
         => new(
             NullLogger<EditorPageViewModel>.Instance,
             new StubViewportAssetLocator(),
-            new Project3DStateService(),
+            project3DStateService ?? new Project3DStateService(),
             projectFileDialogService ?? new StubProjectFileDialogService(),
             outputLauncherService ?? new StubOutputLauncherService(),
             outputPreviewService ?? new StubOutputPreviewService(),

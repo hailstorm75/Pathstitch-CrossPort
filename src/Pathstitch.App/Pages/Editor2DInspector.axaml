@@ -276,6 +276,22 @@
           <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Max pitch (mm)" />
           <controls:AutomationSafeNumericUpDown Grid.Row="1" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.variable-max" MinWidth="160" Minimum="0.1" Increment="0.5" Value="{Binding SewingVariableSpacingMax, Mode=TwoWay}" />
         </Grid>
+        <Expander Header="Advanced geometry filters">
+          <StackPanel Spacing="6" Margin="8,6,0,0">
+            <CheckBox Content="Rounded offset corners" IsChecked="{Binding SewingOffsetCornerFillet, Mode=TwoWay}" />
+            <CheckBox Content="Interpolate corner placement (compatibility)" IsChecked="{Binding SewingCornerInterpolationEnabled, Mode=TwoWay}" />
+            <CheckBox Content="Merge nearby holes" IsChecked="{Binding SewingProximityFilterEnabled, Mode=TwoWay}" />
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding SewingProximityFilterEnabled}">
+              <TextBlock VerticalAlignment="Center" Text="Merge distance (mm)" />
+              <controls:AutomationSafeNumericUpDown Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.proximity-distance" MinWidth="160" Minimum="0" Increment="0.25" Value="{Binding SewingProximityFilterDistance, Mode=TwoWay}" />
+            </Grid>
+            <CheckBox Content="Reject holes near crossing lines" IsChecked="{Binding SewingLineProximityFilterEnabled, Mode=TwoWay}" />
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding SewingLineProximityFilterEnabled}">
+              <TextBlock VerticalAlignment="Center" Text="Line clearance (mm)" />
+              <controls:AutomationSafeNumericUpDown Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.line-proximity-threshold" MinWidth="160" Minimum="0" Increment="0.25" Value="{Binding SewingLineProximityThreshold, Mode=TwoWay}" />
+            </Grid>
+          </StackPanel>
+        </Expander>
         <CheckBox Content="Avoid tagged geometry" IsChecked="{Binding SewingAvoidanceEnabled, Mode=TwoWay}" />
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4" IsVisible="{Binding SewingAvoidanceEnabled}">
           <TextBlock VerticalAlignment="Center" Text="Clearance" />

@@ -52,6 +52,7 @@ internal static class DxfCanvasGeometryEditor
             Start = path.Start is { } start ? Transform(start) : null,
             Center = path.Center is { } center ? Transform(center) : null,
             Points = path.Points.Select(Transform).ToArray(),
+            FillLoops = TransformFillLoops(path.FillLoops, Transform),
             BezierAnchors = TransformBezierAnchors(path.BezierAnchors, Transform),
         }).ToArray());
     }
@@ -72,6 +73,7 @@ internal static class DxfCanvasGeometryEditor
             Radius = path.Radius is { } radius ? radius * normalized : null,
             TextHeight = path.TextHeight is { } textHeight ? textHeight * normalized : null,
             Points = path.Points.Select(Transform).ToArray(),
+            FillLoops = TransformFillLoops(path.FillLoops, Transform),
             BezierAnchors = TransformBezierAnchors(path.BezierAnchors, Transform),
         }).ToArray());
     }
@@ -90,6 +92,10 @@ internal static class DxfCanvasGeometryEditor
             .ToArray());
     }
 
+    private static IReadOnlyList<IReadOnlyList<Editor2DPoint>>? TransformFillLoops(
+        IReadOnlyList<IReadOnlyList<Editor2DPoint>>? loops,
+        Func<Editor2DPoint, Editor2DPoint> transform)
+        => loops?.Select(loop => (IReadOnlyList<Editor2DPoint>)loop.Select(transform).ToArray()).ToArray();
     public static Editor2DPreviewDocument Update(
         Editor2DPreviewDocument document,
         IReadOnlyList<Editor2DPreviewPath> paths)

@@ -50,9 +50,10 @@ public sealed class EditorShellRegressionTests
     public async Task TwoDTools_AreRenderedByTheSharedCatalogDrivenRail()
     {
         var rail = LoadPage("EditorToolRail.axaml");
-        Assert.Contains(
-            rail.Descendants().Attributes("ItemsSource"),
-            attribute => attribute.Value == "{Binding SidebarTools}");
+        var itemSources = rail.Descendants().Attributes("ItemsSource").Select(attribute => attribute.Value).ToArray();
+        Assert.Contains("{Binding MainToolbarTools}", itemSources);
+        Assert.Contains("{Binding ShapeToolbarTools}", itemSources);
+        Assert.Contains("{Binding MoreToolbarTools}", itemSources);
 
         var viewModel = CreateViewModel();
         await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
@@ -119,7 +120,11 @@ public sealed class EditorShellRegressionTests
     {
         var rail = LoadPage("EditorToolRail.axaml");
         XNamespace avalonia = "https://github.com/avaloniaui";
-        var items = Assert.Single(rail.Descendants(), element => element.Name == avalonia + "ItemsControl");
+        var items = Assert.Single(rail.Descendants(), element =>
+            element.Name == avalonia + "ItemsControl"
+            && element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "AutomationProperties.AutomationId"
+                && attribute.Value == "editor.tool-rail.main"));
         var scrollViewer = items.Ancestors(avalonia + "ScrollViewer").FirstOrDefault();
 
         Assert.NotNull(scrollViewer);

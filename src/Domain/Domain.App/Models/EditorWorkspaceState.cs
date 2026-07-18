@@ -2,10 +2,18 @@ using System.Text.Json.Serialization;
 
 namespace Domain.App.Models;
 
+public enum EditorToolbarContainer
+{
+    Main,
+    Shapes,
+    More,
+}
+
 public sealed record EditorToolCustomization(
     [property: JsonPropertyName("identifier")] string Identifier,
     [property: JsonPropertyName("order")] int Order,
-    [property: JsonPropertyName("shortcutText")] string? ShortcutText);
+    [property: JsonPropertyName("shortcutText")] string? ShortcutText,
+    [property: JsonPropertyName("container")] EditorToolbarContainer? Container = null);
 
 public sealed record EditorWorkspaceState(
     [property: JsonPropertyName("activeTool")] Editor3DTool ActiveTool,

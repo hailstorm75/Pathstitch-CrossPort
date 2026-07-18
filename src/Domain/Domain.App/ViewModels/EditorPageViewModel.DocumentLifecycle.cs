@@ -92,10 +92,13 @@ public sealed partial class EditorPageViewModel
         try
         {
             var stateBeingSaved = await CaptureProjectStateAsync(CancellationToken.None).ConfigureAwait(true);
+            var preparedState = await PrepareProjectStateForPersistenceAsync(
+                stateBeingSaved,
+                CancellationToken.None).ConfigureAwait(true);
             await _project3DStateService.SaveAsAsync(
                 currentSession.ProjectFilePath,
                 targetPath,
-                stateBeingSaved,
+                preparedState,
                 CancellationToken.None).ConfigureAwait(true);
             var replacementName = Path.GetFileNameWithoutExtension(targetPath);
             var replacement = _projectSessionService?.ReplaceSessionPath(
@@ -110,6 +113,8 @@ public sealed partial class EditorPageViewModel
                     TrackInRecentProjects = true,
                 };
             AdoptSaveAsSession(replacement);
+            if (_documentRevision == revisionBeingSaved)
+                PromotePersistedProjectState(preparedState);
             _savedDocumentRevision = revisionBeingSaved;
             RefreshDocumentDirtyState();
             StatusText = IsDirty ? "Project saved as; newer changes remain" : "Project saved as";
@@ -182,7 +187,9 @@ public sealed partial class EditorPageViewModel
         try
         {
             var stateBeingSaved = await CaptureProjectStateAsync(cancellationToken).ConfigureAwait(true);
-            await PersistDocumentAsync(stateBeingSaved, cancellationToken).ConfigureAwait(true);
+            var persistedState = await PersistDocumentAsync(stateBeingSaved, cancellationToken).ConfigureAwait(true);
+            if (_documentRevision == revisionBeingSaved)
+                PromotePersistedProjectState(persistedState);
             _savedDocumentRevision = revisionBeingSaved;
             RefreshDocumentDirtyState();
             StatusText = IsDirty ? "Project saved; newer changes remain" : "Project saved";

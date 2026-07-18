@@ -283,6 +283,7 @@ public sealed partial class EditorPageViewModel
         var paths = document.Paths.Select(path => path with
         {
             Points = path.Points.Select(Transform).ToArray(),
+            FillLoops = path.FillLoops?.Select(loop => (IReadOnlyList<Editor2DPoint>)loop.Select(Transform).ToArray()).ToArray(),
             Start = path.Start is { } start ? Transform(start) : null,
             Center = path.Center is { } center ? Transform(center) : null,
             Radius = path.Radius is { } radius ? radius * factor : null,

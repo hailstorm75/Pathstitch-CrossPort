@@ -32,6 +32,9 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
         InspectorPanelKey = descriptor.InspectorPanelKey;
         GroupKey = descriptor.GroupKey;
         Order = descriptor.Order;
+        Container = descriptor.Container;
+        CanPlaceInShapes = descriptor.CanPlaceInShapes;
+
         StartsSection = descriptor.StartsSection;
         IsEnabled = descriptor.IsEnabled;
         IsActive = descriptor.IsSelected;
@@ -70,6 +73,18 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
     public string IconPathData { get; }
 
     public bool HasIconPathData { get; }
+
+    public EditorToolbarContainer Container { get; }
+
+    public bool CanPlaceInShapes { get; }
+
+    public bool IsInMainContainer => Container == EditorToolbarContainer.Main;
+
+    public bool IsInShapesContainer => Container == EditorToolbarContainer.Shapes;
+
+    public bool IsInMoreContainer => Container == EditorToolbarContainer.More;
+
+    public bool CanMoveToShapes => CanPlaceInShapes && !IsInShapesContainer;
 
     public string FallbackGlyph { get; }
 

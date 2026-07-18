@@ -2,10 +2,104 @@
   x:Class="Pathstitch.App.Pages.EditorToolRail"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  xmlns:models="using:Domain.App.Models"
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:EditorPageViewModel"
   AutomationProperties.AutomationId="editor.tool-rail">
+  <UserControl.Resources>
+    <DataTemplate
+      x:Key="ToolbarItemTemplate"
+      x:DataType="viewModels:EditorSidebarToolItemViewModel">
+      <Border
+        Padding="0,2"
+        PointerPressed="OnToolbarItemPointerPressed"
+        DragDrop.AllowDrop="True"
+        DragDrop.DragOver="OnToolbarItemDragOver"
+        DragDrop.Drop="OnToolbarItemDrop">
+        <Border.ContextMenu>
+          <ContextMenu IsVisible="{Binding IsCustomizationMode}">
+            <MenuItem
+              Header="Move to Main"
+              Tag="{Binding Identifier}"
+              IsEnabled="{Binding !IsInMainContainer}"
+              Click="OnMoveToolToMainClicked" />
+            <MenuItem
+              Header="Move to Shapes"
+              Tag="{Binding Identifier}"
+              IsEnabled="{Binding CanMoveToShapes}"
+              Click="OnMoveToolToShapesClicked" />
+            <MenuItem
+              Header="Move to More"
+              Tag="{Binding Identifier}"
+              IsEnabled="{Binding !IsInMoreContainer}"
+              Click="OnMoveToolToMoreClicked" />
+          </ContextMenu>
+        </Border.ContextMenu>
+        <StackPanel Spacing="4">
+          <Border
+            Margin="0,4,0,0"
+            Height="1"
+            Background="{StaticResource BorderBrush}"
+            IsVisible="{Binding StartsSection}" />
+          <Button
+            AutomationProperties.AutomationId="{Binding Identifier}"
+            Width="36"
+            Height="36"
+            Classes="tool-button"
+            Classes.active="{Binding IsActive}"
+            IsEnabled="{Binding IsEnabled}"
+            Tag="{Binding Key}"
+            ToolTip.Tip="{Binding TooltipText}"
+            Click="OnSidebarToolClicked">
+            <Grid>
+              <Path
+                Width="18"
+                Height="18"
+                Data="{Binding IconPathData}"
+                Fill="{Binding $parent[Button].Foreground}"
+                IsVisible="{Binding HasIconPathData}"
+                Stretch="Uniform" />
+              <TextBlock
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                FontSize="12"
+                FontWeight="SemiBold"
+                Foreground="{Binding $parent[Button].Foreground}"
+                IsVisible="{Binding !HasIconPathData}"
+                Text="{Binding FallbackGlyph}" />
+            </Grid>
+          </Button>
+          <Grid
+            Width="36"
+            ColumnDefinitions="*,*"
+            IsVisible="{Binding IsCustomizationMode}">
+            <Button
+              Grid.Column="0"
+              AutomationProperties.AutomationId="{Binding Identifier, StringFormat={}{0}.move-up}"
+              Width="17"
+              Height="20"
+              Padding="0"
+              Tag="{Binding Identifier}"
+              ToolTip.Tip="Move tool earlier in this container"
+              Click="OnMoveToolEarlierClicked">
+              <TextBlock FontSize="10" Text="▲" />
+            </Button>
+            <Button
+              Grid.Column="1"
+              AutomationProperties.AutomationId="{Binding Identifier, StringFormat={}{0}.move-down}"
+              Width="17"
+              Height="20"
+              Padding="0"
+              Tag="{Binding Identifier}"
+              ToolTip.Tip="Move tool later in this container"
+              Click="OnMoveToolLaterClicked">
+              <TextBlock FontSize="10" Text="▼" />
+            </Button>
+          </Grid>
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+  </UserControl.Resources>
+
   <Border
     Grid.Column="0"
     Background="{StaticResource PanelBackgroundBrush}"
@@ -18,84 +112,97 @@
         Padding="10,16"
         HorizontalScrollBarVisibility="Disabled"
         VerticalScrollBarVisibility="Auto">
-      <ItemsControl
-        HorizontalAlignment="Stretch"
-        ItemsSource="{Binding SidebarTools}">
-        <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate>
-            <WrapPanel
-              HorizontalAlignment="Center"
-              Orientation="Horizontal" />
-          </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="viewModels:EditorSidebarToolItemViewModel">
-            <StackPanel Spacing="10">
-              <Border
-                Margin="0,4,0,0"
-                Height="1"
-                Background="{StaticResource BorderBrush}"
-                IsVisible="{Binding StartsSection}" />
-              <Button
-                AutomationProperties.AutomationId="{Binding Identifier}"
-                Width="36"
-                Height="36"
-                Classes="tool-button"
-                Classes.active="{Binding IsActive}"
-                IsEnabled="{Binding IsEnabled}"
-                Tag="{Binding Key}"
-                ToolTip.Tip="{Binding TooltipText}"
-                Click="OnSidebarToolClicked">
-                <Grid>
-                <Path
-                  Width="18"
-                  Height="18"
-                  Data="{Binding IconPathData}"
-                  Fill="{Binding $parent[Button].Foreground}"
-                  IsVisible="{Binding HasIconPathData}"
-                  Stretch="Uniform" />
-                <TextBlock
+        <StackPanel Spacing="6">
+          <ItemsControl
+            AutomationProperties.AutomationId="editor.tool-rail.main"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{Binding MainToolbarTools}"
+            ItemTemplate="{StaticResource ToolbarItemTemplate}"
+            Tag="Main"
+            DragDrop.AllowDrop="True"
+            DragDrop.DragOver="OnToolbarContainerDragOver"
+            DragDrop.Drop="OnToolbarContainerDrop">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel
                   HorizontalAlignment="Center"
-                  VerticalAlignment="Center"
-                  FontSize="12"
-                  FontWeight="SemiBold"
-                  Foreground="{Binding $parent[Button].Foreground}"
-                  IsVisible="{Binding !HasIconPathData}"
-                  Text="{Binding FallbackGlyph}" />
-                </Grid>
-              </Button>
-              <Grid
-                Width="36"
-                ColumnDefinitions="*,*"
-                IsVisible="{Binding IsCustomizationMode}">
-                <Button
-                  Grid.Column="0"
-                  AutomationProperties.AutomationId="{Binding Identifier, StringFormat={}{0}.move-up}"
-                  Width="17"
-                  Height="20"
-                  Padding="0"
-                  Tag="{Binding Identifier}"
-                  ToolTip.Tip="Move tool earlier"
-                  Click="OnMoveToolEarlierClicked">
-                  <TextBlock FontSize="10" Text="▲" />
-                </Button>
-                <Button
-                  Grid.Column="1"
-                  AutomationProperties.AutomationId="{Binding Identifier, StringFormat={}{0}.move-down}"
-                  Width="17"
-                  Height="20"
-                  Padding="0"
-                  Tag="{Binding Identifier}"
-                  ToolTip.Tip="Move tool later"
-                  Click="OnMoveToolLaterClicked">
-                  <TextBlock FontSize="10" Text="▼" />
-                </Button>
-              </Grid>
-            </StackPanel>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
+                  Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+          </ItemsControl>
+
+          <Button
+            AutomationProperties.AutomationId="editor.tool-rail.shapes"
+            Width="36"
+            Height="36"
+            HorizontalAlignment="Center"
+            Content="△"
+            Tag="Shapes"
+            ToolTip.Tip="Shapes"
+            IsVisible="{Binding HasShapeToolbarTools}"
+            DragDrop.AllowDrop="True"
+            DragDrop.DragOver="OnToolbarContainerDragOver"
+            DragDrop.Drop="OnToolbarContainerDrop">
+            <Button.Flyout>
+              <Flyout>
+                <StackPanel MinWidth="190" Spacing="8">
+                  <TextBlock FontSize="12" FontWeight="SemiBold" Text="Shapes" />
+                  <ItemsControl
+                    AutomationProperties.AutomationId="editor.tool-rail.shapes.items"
+                    ItemsSource="{Binding ShapeToolbarTools}"
+                    ItemTemplate="{StaticResource ToolbarItemTemplate}"
+                    Tag="Shapes"
+                    DragDrop.AllowDrop="True"
+                    DragDrop.DragOver="OnToolbarContainerDragOver"
+                    DragDrop.Drop="OnToolbarContainerDrop">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                  </ItemsControl>
+                </StackPanel>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
+
+          <Button
+            AutomationProperties.AutomationId="editor.tool-rail.more"
+            Width="36"
+            Height="36"
+            HorizontalAlignment="Center"
+            Content="•••"
+            Tag="More"
+            ToolTip.Tip="More tools"
+            IsVisible="{Binding HasMoreToolbarTools}"
+            DragDrop.AllowDrop="True"
+            DragDrop.DragOver="OnToolbarContainerDragOver"
+            DragDrop.Drop="OnToolbarContainerDrop">
+            <Button.Flyout>
+              <Flyout>
+                <StackPanel MinWidth="190" Spacing="8">
+                  <TextBlock FontSize="12" FontWeight="SemiBold" Text="More tools" />
+                  <ItemsControl
+                    AutomationProperties.AutomationId="editor.tool-rail.more.items"
+                    ItemsSource="{Binding MoreToolbarTools}"
+                    ItemTemplate="{StaticResource ToolbarItemTemplate}"
+                    Tag="More"
+                    DragDrop.AllowDrop="True"
+                    DragDrop.DragOver="OnToolbarContainerDragOver"
+                    DragDrop.Drop="OnToolbarContainerDrop">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                  </ItemsControl>
+                </StackPanel>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
+        </StackPanel>
       </ScrollViewer>
+
       <Border
         Grid.Row="1"
         Margin="10,8,10,16"
@@ -114,6 +221,7 @@
           Foreground="{StaticResource SecondaryTextBrush}"
           Text="BATCH" />
       </Border>
+
       <StackPanel
         Grid.Row="2"
         Margin="6,0,6,10"

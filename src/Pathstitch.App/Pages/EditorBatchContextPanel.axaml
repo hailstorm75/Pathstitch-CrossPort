@@ -118,6 +118,39 @@
         AutomationProperties.AutomationId="editor.batch.sewing-margin"
         PlaceholderText="Hole margin"
         Text="2" />
+      <Expander Header="Advanced sewing filters">
+        <StackPanel Spacing="6" Margin="8,6,0,0">
+          <CheckBox
+            x:Name="SewingOffsetCornerFilletCheck"
+            AutomationProperties.AutomationId="editor.batch.sewing-rounded-corners"
+            Content="Rounded offset corners" />
+          <CheckBox
+            x:Name="SewingCornerInterpolationCheck"
+            AutomationProperties.AutomationId="editor.batch.sewing-corner-interpolation"
+            Content="Corner interpolation compatibility"
+            IsChecked="True" />
+          <CheckBox
+            x:Name="SewingProximityFilterCheck"
+            AutomationProperties.AutomationId="editor.batch.sewing-proximity-filter"
+            Content="Merge nearby holes" />
+          <TextBox
+            x:Name="SewingProximityDistanceText"
+            AutomationProperties.AutomationId="editor.batch.sewing-proximity-distance"
+            IsEnabled="{Binding #SewingProximityFilterCheck.IsChecked}"
+            PlaceholderText="Merge distance"
+            Text="3" />
+          <CheckBox
+            x:Name="SewingLineProximityFilterCheck"
+            AutomationProperties.AutomationId="editor.batch.sewing-line-filter"
+            Content="Reject holes near crossing lines" />
+          <TextBox
+            x:Name="SewingLineProximityThresholdText"
+            AutomationProperties.AutomationId="editor.batch.sewing-line-threshold"
+            IsEnabled="{Binding #SewingLineProximityFilterCheck.IsChecked}"
+            PlaceholderText="Line clearance"
+            Text="1" />
+        </StackPanel>
+      </Expander>
       <Button
         AutomationProperties.AutomationId="editor.batch.apply-sewing-holes"
         Classes="panel-button"

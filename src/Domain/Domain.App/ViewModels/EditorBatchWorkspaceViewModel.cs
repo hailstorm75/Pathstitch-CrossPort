@@ -181,11 +181,13 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     {
         var itemSnapshots = Items.Select(item => new
         {
+            item.Id,
             item.FileName,
             item.FilePath,
             item.OriginalSourcePath,
             item.Document,
             item.IsSelected,
+            item.IsDocumentModified,
         }).ToArray();
         var continueOnError = ContinueOnError;
         var outputDirectory = OutputDirectory;
@@ -224,7 +226,9 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                 sourceDataBase64,
                 item.Document,
                 item.IsSelected,
-                Path.GetExtension(item.FilePath)));
+                Path.GetExtension(item.FilePath),
+                item.Id,
+                item.IsDocumentModified));
         }
 
         return new(
@@ -298,10 +302,11 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                 var recoveredPath = Path.Combine(cacheRoot, $"{index++:D4}-{Guid.NewGuid():N}-{recoveredFileName}");
                 await File.WriteAllBytesAsync(recoveredPath, sourceData ?? [], cancellationToken).ConfigureAwait(true);
                 var originalSourcePath = TryNormalizeOriginalPath(itemState.OriginalSourcePath) ?? recoveredPath;
-                var item = new EditorBatchItem(recoveredPath, originalSourcePath, fileName)
+                var item = new EditorBatchItem(recoveredPath, originalSourcePath, fileName, itemState.Id)
                 {
                     IsSelected = itemState.IsSelected,
                     Document = itemState.Document,
+                    IsDocumentModified = itemState.IsDocumentModified ?? itemState.Document is not null,
                 };
                 item.PropertyChanged += OnItemPropertyChanged;
                 Items.Add(item);
@@ -355,6 +360,52 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
     }
 
     public bool AddInputProject() => AddInputFile();
+
+    public EditorBatchItem? TryGetItem(string itemId)
+        => string.IsNullOrWhiteSpace(itemId)
+            ? null
+            : Items.FirstOrDefault(item => item.Id.Equals(itemId, StringComparison.Ordinal));
+
+    public async Task<EditorBatchItem?> EnsureDocumentAsync(
+        string itemId,
+        IEditorOutputPreviewService outputPreviewService,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(outputPreviewService);
+        var item = TryGetItem(itemId);
+        if (item is null)
+            return null;
+        if (item.Document is not null)
+            return item;
+        if (!IsSupportedDrawingInput(item.FilePath))
+            return null;
+
+        var document = await outputPreviewService
+            .LoadPreviewDocumentAsync(item.FilePath, cancellationToken)
+            .ConfigureAwait(true);
+        if (document is null || !ReferenceEquals(item, TryGetItem(itemId)))
+            return null;
+
+        item.Document = CloneDocument(document);
+        NotifyStateChanged();
+        return item;
+    }
+
+    public bool ReplaceEditedDocument(string itemId, Editor2DPreviewDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        var item = TryGetItem(itemId);
+        if (item is null)
+            return false;
+
+        item.Document = CloneDocument(document);
+        item.IsDocumentModified = true;
+        item.Status = EditorBatchItemStatus.Pending;
+        item.Message = "Edited; ready";
+        item.OutputPath = null;
+        NotifyStateChanged();
+        return true;
+    }
 
     public void RemoveProject(string filePath)
     {
@@ -457,11 +508,23 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                         ? $"{SanitizeExportName(CustomExportName, "Export")}_{index + 1}"
                         : SanitizeExportName(Path.GetFileNameWithoutExtension(item.FileName), "Export");
                     var outputPath = Path.Combine(outputDirectory, $"{baseName}{extension}");
-                    await outputPreviewService.SavePreviewDocumentAsync(
-                        document,
-                        outputPath,
-                        Editor2DExportOptions.Defaults,
-                        cancellationToken).ConfigureAwait(false);
+                    if (SelectedExportFormat == EditorBatchExportFormat.Dxf
+                        && Path.GetExtension(item.FilePath).Equals(".dxf", StringComparison.OrdinalIgnoreCase)
+                        && !item.IsDocumentModified)
+                    {
+                        await outputPreviewService.CopyDxfPreservingStructureAsync(
+                            item.FilePath,
+                            outputPath,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await outputPreviewService.SavePreviewDocumentAsync(
+                            document,
+                            outputPath,
+                            Editor2DExportOptions.Defaults,
+                            cancellationToken).ConfigureAwait(false);
+                    }
                     item.OutputPath = outputPath;
                     item.Status = EditorBatchItemStatus.Succeeded;
                     item.Message = $"{SelectedExportFormat} exported";
@@ -529,6 +592,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                         Paths = result.Paths,
                         EntityCounts = CountEntities(result.Paths),
                     };
+                    item.IsDocumentModified = true;
                     item.Status = EditorBatchItemStatus.Succeeded;
                     item.Message = "Offset applied";
                     succeeded++;
@@ -588,6 +652,7 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
                         Paths = paths,
                         EntityCounts = CountEntities(paths),
                     };
+                    item.IsDocumentModified = true;
                     item.Status = EditorBatchItemStatus.Succeeded;
                     item.Message = $"{holes.Count} sewing holes applied";
                     succeeded++;
@@ -758,6 +823,24 @@ public sealed class EditorBatchWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanOperateSelected));
         OnPropertyChanged(nameof(SelectedItemCount));
     }
+
+    internal static Editor2DPreviewDocument CloneDocument(Editor2DPreviewDocument document)
+        => new(
+            document.Paths.Select(path => path with
+            {
+                Points = path.Points.Select(point => point with { }).ToArray(),
+                Start = path.Start is null ? null : path.Start with { },
+                Center = path.Center is null ? null : path.Center with { },
+                BezierAnchors = path.BezierAnchors?.Select(anchor => anchor with
+                {
+                    Point = anchor.Point with { },
+                    HandleIn = anchor.HandleIn is null ? null : anchor.HandleIn with { },
+                    HandleOut = anchor.HandleOut is null ? null : anchor.HandleOut with { },
+                }).ToArray(),
+            }).ToArray(),
+            document.Bounds with { },
+            new Dictionary<string, int>(document.EntityCounts, StringComparer.OrdinalIgnoreCase),
+            document.UnsupportedEntityTypes.ToArray());
 
     private void NotifyStateChanged()
     {

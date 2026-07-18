@@ -49,7 +49,7 @@ public partial class EditorBatchContextPanel : UserControl
     private async void OnExportDxfClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is EditorBatchWorkspaceViewModel viewModel)
-            await viewModel.ExportDxfAsync(new DxfOutputPreviewService());
+            await viewModel.ExportDxfAsync(Ioc.Default.GetRequiredService<IEditorOutputPreviewService>());
     }
 
     private async void OnApplyOffsetClicked(object? sender, RoutedEventArgs e)
@@ -63,7 +63,7 @@ public partial class EditorBatchContextPanel : UserControl
             distance = 1.0;
 
         await viewModel.ApplyOffsetAsync(
-            new DxfOutputPreviewService(),
+            Ioc.Default.GetRequiredService<IEditorOutputPreviewService>(),
             Ioc.Default.GetRequiredService<IEditor2DGeometryKernelService>(),
             distance);
     }
@@ -78,9 +78,20 @@ public partial class EditorBatchContextPanel : UserControl
         var margin = double.TryParse(SewingMarginText.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedMargin)
             ? parsedMargin
             : 2.0;
+        var proximityDistance = ParseNonNegative(SewingProximityDistanceText.Text, 3.0);
+        var lineProximityThreshold = ParseNonNegative(SewingLineProximityThresholdText.Text, 1.0);
         await viewModel.ApplySewingHolesAsync(
-            new DxfOutputPreviewService(),
-            new Editor2DSewingHoleParameters(Diameter: diameter, Pitch: pitch, Margin: margin));
+            Ioc.Default.GetRequiredService<IEditorOutputPreviewService>(),
+            new Editor2DSewingHoleParameters(
+                Diameter: diameter,
+                Pitch: pitch,
+                Margin: margin,
+                OffsetCornerFillet: SewingOffsetCornerFilletCheck.IsChecked == true,
+                ProximityFilterEnabled: SewingProximityFilterCheck.IsChecked == true,
+                CornerInterpolationEnabled: SewingCornerInterpolationCheck.IsChecked == true,
+                LineProximityFilterEnabled: SewingLineProximityFilterCheck.IsChecked == true,
+                LineProximityThreshold: lineProximityThreshold,
+                ProximityFilterDistance: proximityDistance));
     }
 
     private void OnSelectAllClicked(object? sender, RoutedEventArgs e)
@@ -99,4 +110,9 @@ public partial class EditorBatchContextPanel : UserControl
         => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) && parsed > 0
             ? parsed
             : fallback;
+    private static double ParseNonNegative(string? value, double fallback)
+        => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0
+            ? parsed
+            : fallback;
+
 }

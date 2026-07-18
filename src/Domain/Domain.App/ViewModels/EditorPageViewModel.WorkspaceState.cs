@@ -301,7 +301,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDViewportSummary));
         OnPropertyChanged(nameof(TwoDToolHint));
         OnPropertyChanged(nameof(ActiveToolLabel));
-        OnPropertyChanged(nameof(SidebarTools));
+        NotifyToolbarCollectionsChanged();
         OnPropertyChanged(nameof(CanFrameHome));
         OnPropertyChanged(nameof(WorkspaceModeHint));
         OnPropertyChanged(nameof(IsTwoDSelectToolActive));
@@ -356,7 +356,7 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(VisibleBodyCount));
         OnPropertyChanged(nameof(HiddenBodyCount));
         OnPropertyChanged(nameof(CanFrameHome));
-        OnPropertyChanged(nameof(SidebarTools));
+        NotifyToolbarCollectionsChanged();
     }
 
     private void ApplyPersistedEditorWorkspaceState(EditorWorkspaceState? state)

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Avalonia.Media;
 using Domain.App.Models;
 using Domain.App.ViewModels;
@@ -67,7 +68,7 @@ public sealed class EditorToolCatalogTests
                 Assert.False(string.IsNullOrWhiteSpace(descriptor.InspectorPanelKey));
         }
 
-        foreach (var modeGroup in EditorToolCatalog.All.GroupBy(descriptor => descriptor.Mode))
+        foreach (var modeGroup in EditorToolCatalog.All.GroupBy(descriptor => (descriptor.Mode, descriptor.Container)))
         {
             Assert.Equal(
                 Enumerable.Range(0, modeGroup.Count()),
@@ -168,7 +169,8 @@ public sealed class EditorToolCatalogTests
             .Select(descriptor => new EditorToolCustomization(
                 descriptor.Identifier,
                 descriptor.Order,
-                descriptor.ShortcutText))
+                descriptor.ShortcutText,
+                descriptor.Container))
             .ToArray();
         var circleIndex = Array.FindIndex(customizations, customization => customization.Identifier == "2d.circle");
         customizations[circleIndex] = customizations[circleIndex] with { Order = -10, ShortcutText = " g " };
@@ -179,7 +181,7 @@ public sealed class EditorToolCatalogTests
             EditorToolCatalog.All.Select(descriptor => descriptor.Identifier).Order(),
             customized.Select(descriptor => descriptor.Identifier).Order());
         var circle = Assert.Single(customized, descriptor => descriptor.Identifier == "2d.circle");
-        Assert.Equal(-10, circle.Order);
+        Assert.Equal(0, circle.Order);
         Assert.Equal("G", circle.ShortcutText);
         Assert.Equal(circle, EditorToolCatalog.FindByShortcut(customized, EditorMode.TwoD, "g"));
     }
@@ -195,6 +197,102 @@ public sealed class EditorToolCatalogTests
         ]));
 
         Assert.Equal("C", EditorToolCatalog.Find(EditorMode.TwoD, "circle")!.ShortcutText);
+    }
+
+    [Fact]
+    public void DefaultLayout_UsesMainShapesAndMoreWithEveryToolPlacedExactlyOnce()
+    {
+        var twoD = EditorToolCatalog.ForMode(EditorMode.TwoD);
+
+        Assert.Equal(twoD.Count, twoD.Select(descriptor => descriptor.Identifier).Distinct().Count());
+        Assert.Equal(
+        [
+            "2d.select", "2d.move", "2d.pan", "2d.scale", "2d.offset",
+            "2d.add-thickness", "2d.add-sewing-holes", "2d.cleanup", "2d.trim",
+            "2d.measure", "2d.dimension", "2d.fillet", "2d.chamfer",
+            "2d.pattern", "2d.paper-folding",
+        ],
+            twoD.Where(descriptor => descriptor.Container == EditorToolbarContainer.Main)
+                .OrderBy(descriptor => descriptor.Order)
+                .Select(descriptor => descriptor.Identifier));
+        Assert.Equal(
+        [
+            "2d.line", "2d.circle", "2d.rectangle", "2d.polygon", "2d.text", "2d.pen",
+        ],
+            twoD.Where(descriptor => descriptor.Container == EditorToolbarContainer.Shapes)
+                .OrderBy(descriptor => descriptor.Order)
+                .Select(descriptor => descriptor.Identifier));
+        Assert.Equal(
+        [
+            "2d.mirror", "2d.convert-lines", "2d.flip-horizontal", "2d.flip-vertical", "2d.duplicate",
+        ],
+            twoD.Where(descriptor => descriptor.Container == EditorToolbarContainer.More)
+                .OrderBy(descriptor => descriptor.Order)
+                .Select(descriptor => descriptor.Identifier));
+        Assert.All(
+            twoD.Where(descriptor => descriptor.Container == EditorToolbarContainer.Shapes),
+            descriptor => Assert.True(descriptor.CanPlaceInShapes));
+        Assert.All(
+            EditorToolCatalog.ForMode(EditorMode.ThreeD),
+            descriptor => Assert.Equal(EditorToolbarContainer.Main, descriptor.Container));
+    }
+
+    [Fact]
+    public void ApplyCustomizations_MigratesLegacyOneRailOrderToMainWithoutLosingTools()
+    {
+        var legacy = EditorToolCatalog.ForMode(EditorMode.TwoD)
+            .OrderByDescending(descriptor => descriptor.Identifier, StringComparer.Ordinal)
+            .Select((descriptor, order) => new EditorToolCustomization(
+                descriptor.Identifier,
+                order,
+                descriptor.ShortcutText))
+            .ToArray();
+
+        var customized = EditorToolCatalog.ApplyCustomizations(legacy)
+            .Where(descriptor => descriptor.Mode == EditorMode.TwoD)
+            .OrderBy(descriptor => descriptor.Order)
+            .ToArray();
+
+        Assert.Equal(legacy.Select(item => item.Identifier), customized.Select(item => item.Identifier));
+        Assert.All(customized, descriptor => Assert.Equal(EditorToolbarContainer.Main, descriptor.Container));
+    }
+
+    [Fact]
+    public void ApplyCustomizations_RepairsDuplicatesUnknownsInvalidShapesAndMissingTools()
+    {
+        var customized = EditorToolCatalog.ApplyCustomizations(
+        [
+            new EditorToolCustomization("2d.line", 4, "L", EditorToolbarContainer.More),
+            new EditorToolCustomization("2d.line", 0, "L", EditorToolbarContainer.Shapes),
+            new EditorToolCustomization("2d.select", 0, "1", EditorToolbarContainer.Shapes),
+            new EditorToolCustomization("removed.tool", 0, null, EditorToolbarContainer.Main),
+        ]);
+
+        Assert.Equal(
+            EditorToolCatalog.All.Select(descriptor => descriptor.Identifier).Order(),
+            customized.Select(descriptor => descriptor.Identifier).Order());
+        Assert.Equal(
+            EditorToolbarContainer.More,
+            Assert.Single(customized, descriptor => descriptor.Identifier == "2d.line").Container);
+        Assert.Equal(
+            EditorToolbarContainer.Main,
+            Assert.Single(customized, descriptor => descriptor.Identifier == "2d.select").Container);
+        Assert.Equal(
+            EditorToolbarContainer.Shapes,
+            Assert.Single(customized, descriptor => descriptor.Identifier == "2d.circle").Container);
+        Assert.All(
+            customized.Where(descriptor => descriptor.Container == EditorToolbarContainer.Shapes),
+            descriptor => Assert.True(descriptor.CanPlaceInShapes));
+    }
+
+    [Fact]
+    public void LegacyCustomizationJson_DeserializesWithNoContainer()
+    {
+        var customization = JsonSerializer.Deserialize<EditorToolCustomization>(
+            """{"identifier":"2d.circle","order":3,"shortcutText":"C"}""");
+
+        Assert.NotNull(customization);
+        Assert.Null(customization.Container);
     }
 
     [Fact]

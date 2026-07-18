@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -11,6 +11,8 @@ public abstract partial class BasePageViewModel(
     IMessenger? messenger = null) : ObservableValidator, INavigablePageViewModel
 {
     private readonly CancellationTokenSource _pageLeaveCancellationSource = new();
+    private CancellationTokenSource? _loadCancellationSource;
+    private bool _isDisposed;
     protected IMessenger Messenger { get; } = messenger ?? WeakReferenceMessenger.Default;
 
     private bool _isLoaded;
@@ -38,10 +40,10 @@ public abstract partial class BasePageViewModel(
             logger.LogInformation("Loading page started");
             var start = Stopwatch.GetTimestamp();
             
-            using var linkedCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(
+            _loadCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(
                 _pageLeaveCancellationSource.Token,
                 cancellationToken);
-            await LoadPageAsync(linkedCancellationSource.Token).ConfigureAwait(true);
+            await LoadPageAsync(_loadCancellationSource.Token).ConfigureAwait(true);
 
             logger.LogInformation("Loading page completed in {Time}ms", Stopwatch.GetElapsedTime(start));
         }
@@ -85,6 +87,13 @@ public abstract partial class BasePageViewModel(
 
     public void Dispose()
     {
+        if (_isDisposed)
+            return;
+
+        _isDisposed = true;
+        _pageLeaveCancellationSource.Cancel();
         Messenger.UnregisterAll(this);
+        _loadCancellationSource?.Dispose();
+        _pageLeaveCancellationSource.Dispose();
     }
 }

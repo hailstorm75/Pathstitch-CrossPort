@@ -270,7 +270,7 @@
           Click="OnDocumentationClicked" />
         <MenuItem
           AutomationProperties.AutomationId="editor.menu.help.check-updates"
-          Header="Check for _Updates…"
+          Header="_Download Updates Manually…"
           Click="OnCheckForUpdatesClicked" />
         <MenuItem
           x:Name="StartScreenMenuItem"
@@ -375,6 +375,32 @@
         <Grid IsVisible="{Binding IsShowingBatchWorkspace}">
           <pages:EditorBatchView AutomationProperties.AutomationId="editor.workspace.batch" DataContext="{Binding BatchWorkspace}" />
         </Grid>
+        <Border
+          AutomationProperties.AutomationId="editor.batch.edit-banner"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Top"
+          Margin="12"
+          Padding="10,8"
+          Background="{StaticResource PanelBackgroundBrush}"
+          BorderBrush="{StaticResource AccentBrush}"
+          BorderThickness="1"
+          CornerRadius="6"
+          IsVisible="{Binding IsBatchItemEditActive}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock
+              VerticalAlignment="Center"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="{Binding BatchItemEditTitle}" />
+            <Button
+              AutomationProperties.AutomationId="editor.batch.save-return"
+              Content="Save &amp; Return"
+              Click="OnSaveBatchItemEditClicked" />
+            <Button
+              AutomationProperties.AutomationId="editor.batch.cancel-return"
+              Content="Cancel"
+              Click="OnCancelBatchItemEditClicked" />
+          </StackPanel>
+        </Border>
         <StackPanel
           HorizontalAlignment="Right"
           VerticalAlignment="Top"

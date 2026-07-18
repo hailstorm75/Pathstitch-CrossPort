@@ -70,6 +70,7 @@ public partial class Editor2DView : EditorInteractionControlBase
         if (paths.Length == 0)
             return;
 
+        UpdateTwoDViewportSize(viewModel);
         var insertionPoint = TwoDPreviewCanvas.ScreenPointToWorld(e.GetPosition(TwoDPreviewCanvas));
         await viewModel.OpenDroppedFilesAsync(paths, insertionPoint).ConfigureAwait(true);
     }
@@ -82,6 +83,8 @@ public partial class Editor2DView : EditorInteractionControlBase
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
+        if (DataContext is Domain.App.ViewModels.EditorPageViewModel viewModel)
+            UpdateTwoDViewportSize(viewModel);
         _pointerTopLevel = TopLevel.GetTopLevel(this);
         _pointerTopLevel?.AddHandler(
             InputElement.PointerPressedEvent,
@@ -95,6 +98,18 @@ public partial class Editor2DView : EditorInteractionControlBase
         _pointerTopLevel?.RemoveHandler(InputElement.PointerPressedEvent, OnWorkspacePointerPressed);
         _pointerTopLevel = null;
     }
+
+    protected override void OnSizeChanged(SizeChangedEventArgs e)
+    {
+        base.OnSizeChanged(e);
+        if (DataContext is Domain.App.ViewModels.EditorPageViewModel viewModel)
+            UpdateTwoDViewportSize(viewModel);
+    }
+
+    private void UpdateTwoDViewportSize(Domain.App.ViewModels.EditorPageViewModel viewModel)
+        => viewModel.UpdateTwoDViewportSize(
+            TwoDPreviewCanvas.Bounds.Width,
+            TwoDPreviewCanvas.Bounds.Height);
 
     private void OnReferenceImageTransformChanged(
         string layerId,
