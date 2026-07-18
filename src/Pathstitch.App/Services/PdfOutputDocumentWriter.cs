@@ -231,22 +231,17 @@ internal static class PdfOutputDocumentWriter
         BundledPdfFonts fonts)
     {
         var mapped = ToPagePoint(start, bounds, scale);
-        var height = Math.Max(path.TextHeight ?? 5.0, 0.1);
+        var basis = Editor2DGeometry.ResolveTextBasis(path);
+        var height = Math.Sqrt((basis.Vx * basis.Vx) + (basis.Vy * basis.Vy));
         var textHeight = height * scale;
-        var sourceWidthFactor = path.WidthFactor ?? 1.0;
-        var widthMagnitude = Math.Max(Math.Abs(sourceWidthFactor), 0.1);
-        var widthFactor = sourceWidthFactor < 0.0 ? -widthMagnitude : widthMagnitude;
-        var angleDegrees = path.RotationDegrees ?? 0.0;
-        var angle = angleDegrees * Math.PI / 180.0;
-        var cosine = Math.Cos(angle);
-        var sine = Math.Sin(angle);
+        var widthMagnitude = Math.Sqrt((basis.Ux * basis.Ux) + (basis.Uy * basis.Uy)) / height;
         var characterSpacing = double.IsFinite(path.CharacterSpacing)
             ? path.CharacterSpacing * scale / widthMagnitude
             : 0.0;
         var lines = path.Text!
-            .Replace("\r", string.Empty, StringComparison.Ordinal)
-            .Replace("\t", "    ", StringComparison.Ordinal)
-            .Split('\n');
+            .Replace(((char)13).ToString(), string.Empty, StringComparison.Ordinal)
+            .Replace(((char)9).ToString(), "    ", StringComparison.Ordinal)
+            .Split((char)10);
         var lineAdvance = height * 1.2 * scale;
         using var paint = new SKPaint
         {
@@ -254,15 +249,24 @@ internal static class PdfOutputDocumentWriter
             Color = color,
             Style = SKPaintStyle.Fill,
         };
+
+        canvas.Save();
+        var textMatrix = new SKMatrix
+        {
+            ScaleX = (float)(basis.Ux / height),
+            SkewX = (float)(-basis.Vx / height),
+            TransX = (float)mapped.X,
+            SkewY = (float)(-basis.Uy / height),
+            ScaleY = (float)(basis.Vy / height),
+            TransY = (float)(PageHeight - mapped.Y),
+            Persp2 = 1.0f,
+        };
+        canvas.Concat(textMatrix);
         for (var index = 0; index < lines.Length; index++)
         {
-            var offset = (lines.Length - 1 - index) * lineAdvance;
-            var lineX = mapped.X - (sine * offset);
-            var lineY = mapped.Y + (cosine * offset);
+            var baseline = -(lines.Length - 1 - index) * lineAdvance;
             canvas.Save();
-            canvas.Translate((float)lineX, (float)(PageHeight - lineY));
-            canvas.RotateDegrees((float)-angleDegrees);
-            canvas.Scale((float)widthFactor, 1);
+            canvas.Translate(0.0f, (float)baseline);
             var advance = DrawUnicodeLine(
                 canvas,
                 lines[index],
@@ -285,8 +289,8 @@ internal static class PdfOutputDocumentWriter
             }
             canvas.Restore();
         }
+        canvas.Restore();
     }
-
     private static float DrawUnicodeLine(
         SKCanvas canvas,
         string line,
@@ -504,42 +508,38 @@ internal static class PdfOutputDocumentWriter
         double scale)
     {
         var mapped = ToPagePoint(start, bounds, scale);
-        var height = Math.Max(path.TextHeight ?? 5.0, 0.1);
+        var basis = Editor2DGeometry.ResolveTextBasis(path);
+        var height = Math.Sqrt((basis.Vx * basis.Vx) + (basis.Vy * basis.Vy));
         var textHeight = height * scale;
-        var sourceWidthFactor = path.WidthFactor ?? 1.0;
-        var widthMagnitude = Math.Max(Math.Abs(sourceWidthFactor), 0.1);
-        var widthFactor = sourceWidthFactor < 0.0 ? -widthMagnitude : widthMagnitude;
-        var angle = (path.RotationDegrees ?? 0.0) * Math.PI / 180.0;
-        var cosine = Math.Cos(angle);
-        var sine = Math.Sin(angle);
-        var matrixA = cosine * widthFactor;
-        var matrixB = sine * widthFactor;
-        var matrixC = -sine;
-        var matrixD = cosine;
+        var uLength = Math.Sqrt((basis.Ux * basis.Ux) + (basis.Uy * basis.Uy));
+        var widthMagnitude = uLength / height;
+        var matrixA = basis.Ux / height;
+        var matrixB = basis.Uy / height;
+        var matrixC = basis.Vx / height;
+        var matrixD = basis.Vy / height;
         var characterSpacing = double.IsFinite(path.CharacterSpacing)
             ? path.CharacterSpacing * scale / widthMagnitude
             : 0.0;
         var fontResource = ResolvePdfFontResource(path.FontFamily, path.IsBold, path.IsItalic);
         var lines = path.Text!
-            .Replace("\r", string.Empty, StringComparison.Ordinal)
-            .Split('\n');
+            .Replace(((char)13).ToString(), string.Empty, StringComparison.Ordinal)
+            .Split((char)10);
         var lineAdvance = height * 1.2 * scale;
         for (var index = 0; index < lines.Length; index++)
         {
             var offset = (lines.Length - 1 - index) * lineAdvance;
-            var lineX = mapped.X - (sine * offset);
-            var lineY = mapped.Y + (cosine * offset);
+            var lineX = mapped.X + ((basis.Vx / height) * offset);
+            var lineY = mapped.Y + ((basis.Vy / height) * offset);
             content.Append("BT /").Append(fontResource).Append(' ').Append(Number(textHeight)).Append(" Tf ")
                 .Append(Number(characterSpacing)).Append(" Tc ")
                 .Append(Number(matrixA)).Append(' ').Append(Number(matrixB)).Append(' ')
                 .Append(Number(matrixC)).Append(' ').Append(Number(matrixD)).Append(' ')
                 .Append(Number(lineX)).Append(' ').Append(Number(lineY)).Append(" Tm (")
-                .Append(EscapeText(lines[index])).Append(") Tj ET\n");
+                .Append(EscapeText(lines[index])).Append(") Tj ET").Append((char)10);
             if (path.IsUnderline && lines[index].Length > 0)
-                AppendUnderline(content, lines[index], lineX, lineY, height, widthFactor, path.CharacterSpacing, angle, scale);
+                AppendUnderline(content, lines[index], lineX, lineY, height, basis, path.CharacterSpacing, scale);
         }
     }
-
     private static string ResolvePdfFontResource(
         string? fontFamily,
         bool isBold,
@@ -565,27 +565,22 @@ internal static class PdfOutputDocumentWriter
         double lineX,
         double lineY,
         double height,
-        double widthFactor,
+        Editor2DTextBasis basis,
         double characterSpacing,
-        double angle,
         double scale)
     {
-        var widthMagnitude = Math.Abs(widthFactor);
-        var direction = widthFactor < 0.0 ? -1.0 : 1.0;
-        var width = direction * ((line.Length * height * 0.6 * widthMagnitude)
-                                 + (Math.Max(line.Length - 1, 0) * characterSpacing));
-        var cosine = Math.Cos(angle);
-        var sine = Math.Sin(angle);
+        var uLength = Math.Sqrt((basis.Ux * basis.Ux) + (basis.Uy * basis.Uy));
+        var localWidth = (line.Length * 0.6)
+                         + (Math.Max(line.Length - 1, 0) * characterSpacing / uLength);
         var underlineOffset = height * 0.1 * scale;
-        var startX = lineX + (sine * underlineOffset);
-        var startY = lineY - (cosine * underlineOffset);
-        var endX = startX + (cosine * width * scale);
-        var endY = startY + (sine * width * scale);
+        var startX = lineX - ((basis.Vx / height) * underlineOffset);
+        var startY = lineY - ((basis.Vy / height) * underlineOffset);
+        var endX = startX + (basis.Ux * localWidth * scale);
+        var endY = startY + (basis.Uy * localWidth * scale);
         content.Append(Number(Math.Max(TextHeightStroke(height, scale), 0.25))).Append(" w ")
             .Append(Number(startX)).Append(' ').Append(Number(startY)).Append(" m ")
-            .Append(Number(endX)).Append(' ').Append(Number(endY)).Append(" l S\n");
+            .Append(Number(endX)).Append(' ').Append(Number(endY)).Append(" l S").Append((char)10);
     }
-
     private static double TextHeightStroke(double height, double scale)
         => height * scale * 0.06;
     private static (double X, double Y) ToPagePoint(Editor2DPoint point, Editor2DBounds bounds, double scale)

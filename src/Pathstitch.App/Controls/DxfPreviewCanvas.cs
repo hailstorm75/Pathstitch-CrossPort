@@ -5936,7 +5936,7 @@ Selection:
             return true;
         }
 
-        if (TryGetTextGeometry(path, out var textStart, out var textValue, out var textHeight, out var rotationDegrees, out var widthFactor))
+        if (TryGetTextGeometry(path, out var textStart, out var textValue, out var textHeight, out var textBasis))
         {
             var screenStart = WorldToScreen(textStart, size);
             var fontSize = Math.Max(textHeight * Zoom, 8.0);
@@ -5961,10 +5961,14 @@ Selection:
                 ? Math.Max((formattedText.Width + spacingPixels) / formattedText.Width, 0.1)
                 : 1.0;
 
-            using var transform = context.PushTransform(
-                Matrix.CreateTranslation(screenStart.X, screenStart.Y)
-                * Matrix.CreateRotation(-rotationDegrees * Math.PI / 180.0)
-                * Matrix.CreateScale(widthFactor * spacingScale, 1.0));
+            var basisScale = 1.0 / textHeight;
+            using var transform = context.PushTransform(new Matrix(
+                textBasis.Ux * basisScale * spacingScale,
+                -textBasis.Uy * basisScale * spacingScale,
+                -textBasis.Vx * basisScale,
+                textBasis.Vy * basisScale,
+                screenStart.X,
+                screenStart.Y));
             context.DrawText(formattedText, new Point(0.0, -formattedText.Height));
             if (path.IsUnderline)
             {
@@ -6015,7 +6019,7 @@ Selection:
             return true;
         }
 
-        if (TryGetTextGeometry(path, out _, out _, out _, out _, out _))
+        if (TryGetTextGeometry(path, out _, out _, out _, out _))
         {
             var polygon = path.Points
                 .Select(static point => new Point(point.X, point.Y))
@@ -6055,8 +6059,7 @@ Selection:
         out Editor2DPoint start,
         out string text,
         out double textHeight,
-        out double rotationDegrees,
-        out double widthFactor)
+        out Editor2DTextBasis textBasis)
     {
         if (path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase)
             && path.Start is Editor2DPoint resolvedStart
@@ -6064,23 +6067,17 @@ Selection:
         {
             start = resolvedStart;
             text = path.Text!;
-            textHeight = Math.Max(path.TextHeight ?? 5.0, 0.1);
-            rotationDegrees = path.RotationDegrees ?? 0.0;
-            var resolvedWidthFactor = path.WidthFactor ?? 1.0;
-            widthFactor = resolvedWidthFactor < 0.0
-                ? -Math.Max(Math.Abs(resolvedWidthFactor), 0.1)
-                : Math.Max(resolvedWidthFactor, 0.1);
-            return true;
+            textBasis = Editor2DGeometry.ResolveTextBasis(path);
+            textHeight = Math.Sqrt((textBasis.Vx * textBasis.Vx) + (textBasis.Vy * textBasis.Vy));
+            return textHeight > 1e-9;
         }
 
         start = default!;
         text = string.Empty;
         textHeight = 0.0;
-        rotationDegrees = 0.0;
-        widthFactor = 1.0;
+        textBasis = default!;
         return false;
     }
-
     private static bool TryGetArcGeometry(
         Editor2DPreviewPath path,
         out Editor2DPoint center,

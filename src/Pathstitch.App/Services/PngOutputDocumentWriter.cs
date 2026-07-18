@@ -109,10 +109,12 @@ internal static class PngOutputDocumentWriter
         var style = path.IsBold
             ? path.IsItalic ? SKFontStyle.BoldItalic : SKFontStyle.Bold
             : path.IsItalic ? SKFontStyle.Italic : SKFontStyle.Normal;
+        var basis = Editor2DGeometry.ResolveTextBasis(path);
+        var height = Math.Sqrt((basis.Vx * basis.Vx) + (basis.Vy * basis.Vy));
         using var typeface = SKTypeface.FromFamilyName(
             string.IsNullOrWhiteSpace(path.FontFamily) ? null : path.FontFamily,
             style);
-        using var font = new SKFont(typeface, (float)(Math.Max(path.TextHeight ?? 5.0, 0.1) * scale));
+        using var font = new SKFont(typeface, (float)(height * scale));
         using var textPaint = new SKPaint
         {
             Color = color,
@@ -120,22 +122,28 @@ internal static class PngOutputDocumentWriter
             IsAntialias = true,
         };
 
-        var sourceWidthFactor = path.WidthFactor ?? 1.0;
-        var widthMagnitude = Math.Max(Math.Abs(sourceWidthFactor), 0.1);
-        var widthFactor = sourceWidthFactor < 0.0 ? -widthMagnitude : widthMagnitude;
+        var widthMagnitude = Math.Sqrt((basis.Ux * basis.Ux) + (basis.Uy * basis.Uy)) / height;
         var spacing = double.IsFinite(path.CharacterSpacing)
             ? path.CharacterSpacing * scale / widthMagnitude
             : 0.0;
         var lines = path.Text!.Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n');
-        var lineAdvance = Math.Max(path.TextHeight ?? 5.0, 0.1) * 1.2 * scale;
+        var lineAdvance = height * 1.2 * scale;
         var pixelX = (start.X - bounds.MinX) * scale;
         var pixelY = (bounds.MaxY - start.Y) * scale;
 
         canvas.Save();
         canvas.ResetMatrix();
-        canvas.Translate((float)pixelX, (float)pixelY);
-        canvas.RotateDegrees((float)-(path.RotationDegrees ?? 0.0));
-        canvas.Scale((float)widthFactor, 1.0f);
+        var textMatrix = new SKMatrix
+        {
+            ScaleX = (float)(basis.Ux / height),
+            SkewX = (float)(-basis.Vx / height),
+            TransX = (float)pixelX,
+            SkewY = (float)(-basis.Uy / height),
+            ScaleY = (float)(basis.Vy / height),
+            TransY = (float)pixelY,
+            Persp2 = 1.0f,
+        };
+        canvas.Concat(textMatrix);
         for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
         {
             var baseline = -(lines.Length - 1 - lineIndex) * lineAdvance;

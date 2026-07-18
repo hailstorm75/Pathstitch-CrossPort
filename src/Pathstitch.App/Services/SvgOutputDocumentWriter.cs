@@ -179,14 +179,59 @@ internal static class SvgOutputDocumentWriter
             return false;
         }
 
+        if (path.TextBasis is null)
+            return AppendLegacyText(builder, path, textStart, precision);
+
+        var basis = Editor2DGeometry.ResolveTextBasis(path);
+        var height = Math.Sqrt((basis.Vx * basis.Vx) + (basis.Vy * basis.Vy));
+        var uLength = Math.Sqrt((basis.Ux * basis.Ux) + (basis.Uy * basis.Uy));
+        var widthMagnitude = uLength / height;
+        var normalizedText = path.Text.Replace(((char)13).ToString(), string.Empty, StringComparison.Ordinal);
+        var lines = normalizedText.Split((char)10);
+        builder.Append("<text font-size=\"").Append(Number(height, precision)).Append('"')
+            .Append(" fill=\"currentColor\" stroke=\"none\"");
+        if (!string.IsNullOrWhiteSpace(path.FontFamily))
+            builder.Append(" font-family=\"").Append(XmlEncode(path.FontFamily.Trim())).Append('"');
+        if (path.IsBold)
+            builder.Append(" font-weight=\"bold\"");
+        if (path.IsItalic)
+            builder.Append(" font-style=\"italic\"");
+        if (path.IsUnderline)
+            builder.Append(" text-decoration=\"underline\"");
+        if (Math.Abs(path.CharacterSpacing) > 1e-12)
+            builder.Append(" letter-spacing=\"").Append(Number(path.CharacterSpacing / widthMagnitude, precision)).Append('"');
+
+        builder.Append(" transform=\"matrix(")
+            .Append(Number(basis.Ux / height, precision)).Append(' ')
+            .Append(Number(-basis.Uy / height, precision)).Append(' ')
+            .Append(Number(-basis.Vx / height, precision)).Append(' ')
+            .Append(Number(basis.Vy / height, precision)).Append(' ')
+            .Append(Number(textStart.X, precision)).Append(' ')
+            .Append(Number(SvgCoordinateSystem.WorldToSvgY(textStart.Y), precision)).Append(")\">");
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var localY = -(lines.Length - 1 - index) * height * 1.2;
+            builder.Append("<tspan x=\"0\" y=\"")
+                .Append(Number(localY, precision)).Append("\">")
+                .Append(XmlEncode(lines[index])).Append("</tspan>");
+        }
+        builder.Append("</text>");
+        return true;
+    }
+    private static bool AppendLegacyText(
+        StringBuilder builder,
+        Editor2DPreviewPath path,
+        Editor2DPoint textStart,
+        int precision)
+    {
         var height = Math.Max(path.TextHeight ?? 5.0, 0.1);
         var sourceWidthFactor = path.WidthFactor ?? 1.0;
         var widthMagnitude = Math.Max(Math.Abs(sourceWidthFactor), 0.1);
         var widthFactor = sourceWidthFactor < 0.0 ? -widthMagnitude : widthMagnitude;
         var rotation = path.RotationDegrees ?? 0.0;
         var svgStartY = SvgCoordinateSystem.WorldToSvgY(textStart.Y);
-        var normalizedText = path.Text.Replace("\r", string.Empty, StringComparison.Ordinal);
-        var lines = normalizedText.Split('\n');
+        var normalizedText = path.Text!.Replace(((char)13).ToString(), string.Empty, StringComparison.Ordinal);
+        var lines = normalizedText.Split((char)10);
         builder.Append("<text font-size=\"").Append(Number(height, precision)).Append('"')
             .Append(" fill=\"currentColor\" stroke=\"none\"");
         if (!string.IsNullOrWhiteSpace(path.FontFamily))
@@ -252,7 +297,10 @@ internal static class SvgOutputDocumentWriter
     }
 
     private static string Number(double value, int precision)
-        => value.ToString($"0.{new string('#', precision)}", CultureInfo.InvariantCulture);
+    {
+        var normalized = value == 0.0 ? 0.0 : value;
+        return normalized.ToString($"0.{new string('#', precision)}", CultureInfo.InvariantCulture);
+    }
 
     private static string XmlEncode(string value)
         => System.Security.SecurityElement.Escape(value) ?? string.Empty;
