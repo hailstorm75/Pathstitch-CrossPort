@@ -63,14 +63,27 @@ public sealed partial class PreferencesDialog : Window
             : Equals(themeKey, ThemeVariant.Dark.Key) ? 2 : 0;
         AppearanceSelector.SelectionChanged += OnAppearanceChanged;
         ReversePanDirection.IsChecked = DxfPreviewCanvas.ReversePanDirection;
-        ConsolidateSvgStrokes.IsChecked = _preferencesStore.Load().ConsolidateSvgStrokes;
         var preferences = _preferencesStore.Load();
+        ConsolidateSvgStrokes.IsChecked = preferences.ConsolidateSvgStrokes;
         SvgFillModeSelector.SelectedIndex = string.Equals(preferences.SvgFillMode, "preserve", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
         SvgImportThickness.Text = preferences.SvgImportThickness.ToString("0.###", CultureInfo.InvariantCulture);
+        AppIconSelector.SelectedIndex = preferences.AppIcon.Trim().ToLowerInvariant() switch
+        {
+            "light" => 1,
+            "dark" => 2,
+            _ => 0,
+        };
+        FinderPreviewDxf.IsChecked = preferences.FinderPreviewDxf;
+        FinderPreviewStep.IsChecked = preferences.FinderPreviewStep;
+        FinderPreviewStch.IsChecked = preferences.FinderPreviewStch;
         ReversePanDirection.IsCheckedChanged += OnReversePanDirectionChanged;
         ConsolidateSvgStrokes.IsCheckedChanged += OnConsolidateSvgStrokesChanged;
         SvgFillModeSelector.SelectionChanged += OnSvgFillModeChanged;
         SvgImportThickness.TextChanged += OnSvgImportThicknessChanged;
+        AppIconSelector.SelectionChanged += OnAppIconChanged;
+        FinderPreviewDxf.IsCheckedChanged += OnFinderPreviewChanged;
+        FinderPreviewStep.IsCheckedChanged += OnFinderPreviewChanged;
+        FinderPreviewStch.IsCheckedChanged += OnFinderPreviewChanged;
     }
 
     private void OnReversePanDirectionChanged(object? sender, RoutedEventArgs e)
@@ -114,6 +127,20 @@ public sealed partial class PreferencesDialog : Window
         SavePreferences();
     }
 
+    private void OnAppIconChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var choice = AppIconSelector.SelectedIndex switch
+        {
+            1 => "Light",
+            2 => "Dark",
+            _ => "Automatic",
+        };
+        MacOSIntegrationService.TryApplyDockIcon(choice);
+        SavePreferences();
+    }
+
+    private void OnFinderPreviewChanged(object? sender, RoutedEventArgs e) => SavePreferences();
+
     private void SavePreferences()
     {
         var importThickness = ParseImportThickness();
@@ -123,14 +150,25 @@ public sealed partial class PreferencesDialog : Window
             2 => "Dark",
             _ => "System",
         };
-        _preferencesStore.Save(_preferencesStore.Load() with
+        var updated = _preferencesStore.Load() with
         {
             Appearance = appearance,
             ReversePanDirection = DxfPreviewCanvas.ReversePanDirection,
             ConsolidateSvgStrokes = ConsolidateSvgStrokes.IsChecked == true,
             SvgFillMode = SvgFillModeSelector.SelectedIndex == 1 ? "preserve" : "strokes",
             SvgImportThickness = importThickness,
-        });
+            AppIcon = AppIconSelector.SelectedIndex switch
+            {
+                1 => "Light",
+                2 => "Dark",
+                _ => "Automatic",
+            },
+            FinderPreviewDxf = FinderPreviewDxf.IsChecked == true,
+            FinderPreviewStep = FinderPreviewStep.IsChecked == true,
+            FinderPreviewStch = FinderPreviewStch.IsChecked == true,
+        };
+        _preferencesStore.Save(updated);
+        MacOSIntegrationService.TryApply(updated);
     }
 
     private double ParseImportThickness()

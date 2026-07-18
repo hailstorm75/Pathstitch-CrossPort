@@ -9,6 +9,11 @@ public final class ThumbnailProvider: QLThumbnailProvider {
     ) {
         let renderSize = CGSize(width: 1024, height: 1024)
         let ext = request.fileURL.pathExtension.lowercased()
+        guard PathstitchQuickLookPreferences.isEnabled(for: request.fileURL) else {
+            handler(nil, nil)
+            return
+        }
+
         let image: CGImage?
         if ext == "step" || ext == "stp" {
             image = loadStepMesh(url: request.fileURL).flatMap { renderStepMeshToImage($0, size: renderSize) }

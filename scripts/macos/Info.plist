@@ -8,6 +8,7 @@
   <key>CFBundleIdentifier</key><string>com.pathstitch.crossport</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleName</key><string>Pathstitch</string>
+  <key>CFBundleIconFile</key><string>Pathstitch</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0.0</string>
   <key>CFBundleVersion</key><string>1</string>

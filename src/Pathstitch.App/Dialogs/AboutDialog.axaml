@@ -48,7 +48,7 @@
     <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button
         AutomationProperties.AutomationId="dialog.about.check-updates"
-        Content="Check for Updates…"
+        Content="Download Updates Manually…"
         Click="OnCheckForUpdatesClicked" />
       <Button
         AutomationProperties.AutomationId="dialog.about.support"

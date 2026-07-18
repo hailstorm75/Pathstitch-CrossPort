@@ -25,8 +25,8 @@ $env:APPLE_APP_PASSWORD = "app-specific-password"
   -Notarize
 ```
 
-The script enables hardened runtime, signs nested native libraries, verifies the sealed bundle, submits the ZIP with `notarytool`, and staples the result. CI intentionally uses an ad-hoc signature unless release secrets and a certificate are configured.
+The script pins ZIPFoundation 0.9.20 source for in-process STCH decoding, generates the registered ICNS, targets arm64-apple-macos13.0, signs every nested Mach-O before both Quick Look extensions and the app, verifies the sealed bundle, submits the ZIP with notarytool, and staples the result. App and extensions share the group.com.pathstitch.crossport application group; distribution signing must authorize that entitlement. CI intentionally uses an ad-hoc signature and does not claim notarization or provisioned cross-process app-group authority.
 
 ## CI gates
 
-`.github/workflows/macos-release.yml` restores and tests `osx-arm64`, creates and verifies the bundle, checks its packaged runtimes, starts the real executable long enough to initialize Avalonia/WebView, and uploads the ZIP. The .NET suite includes file-dialog routing and `.stch` save/reopen tests.
+.github/workflows/macos-release.yml runs on the current macos-15 arm64 image, prunes duplicate multi-gigabyte publish/runtime trees before later phases, creates and verifies the bundle, and runs the real packaged app. Acceptance covers Avalonia/WebView, native storage capability, preference write/readback, Dock icons, STEP import/project/unfold, byte-exact source/output plus serialized-topology STCH round-trip, running-app Finder activation, renderer-level STCH/DXF/STEP smoke, and one mapped qlmanage thumbnail per fixture. CI uploads the ZIP plus a self-validating Pathstitch-native-evidence-osx-arm64 manifest with exact run identity and hashes for acceptance, signing, entitlements, provider inventory/logs, output mapping, and PNGs. See docs/architecture/PAR-007-macos-native-evidence.md for the remaining preview-extension and provisioned-sharing sign-off rules.

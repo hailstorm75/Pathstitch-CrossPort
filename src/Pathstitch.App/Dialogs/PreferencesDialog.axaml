@@ -4,13 +4,13 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   Title="Preferences"
   Width="620"
-  Height="600"
+  Height="700"
   MinWidth="520"
   MinHeight="360"
   ShowInTaskbar="False"
   WindowStartupLocation="CenterOwner"
   AutomationProperties.AutomationId="dialog.preferences">
-  <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto">
     <TextBlock FontSize="20" FontWeight="SemiBold" Text="Preferences" />
     <TextBlock Grid.Row="1" Margin="0,6,0,14"
                Foreground="Gray"
@@ -26,7 +26,39 @@
         <ComboBoxItem Content="Dark" />
       </ComboBox>
     </Grid>
-    <Grid Grid.Row="3" Margin="0,0,0,14" ColumnDefinitions="*,Auto,Auto,Auto">
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+      <TextBlock VerticalAlignment="Center" Text="App icon" />
+      <ComboBox x:Name="AppIconSelector"
+                Grid.Column="1"
+                Margin="12,0,0,0"
+                AutomationProperties.AutomationId="dialog.preferences.app-icon">
+        <ComboBoxItem Content="Automatic" />
+        <ComboBoxItem Content="Light" />
+        <ComboBoxItem Content="Dark" />
+      </ComboBox>
+    </Grid>
+    <StackPanel Grid.Row="4" Margin="0,0,0,12" Spacing="4">
+      <TextBlock FontWeight="SemiBold" Text="Finder previews" />
+      <WrapPanel>
+        <CheckBox x:Name="FinderPreviewDxf"
+                  Margin="0,0,14,0"
+                  Content="DXF"
+                  AutomationProperties.AutomationId="dialog.preferences.finder-preview-dxf" />
+        <CheckBox x:Name="FinderPreviewStep"
+                  Margin="0,0,14,0"
+                  Content="STEP / STP"
+                  AutomationProperties.AutomationId="dialog.preferences.finder-preview-step" />
+        <CheckBox x:Name="FinderPreviewStch"
+                  Content="STCH"
+                  AutomationProperties.AutomationId="dialog.preferences.finder-preview-stch" />
+      </WrapPanel>
+      <TextBlock
+        FontSize="11"
+        Foreground="Gray"
+        TextWrapping="Wrap"
+        Text="Choose which formats Pathstitch previews in Finder. Disabled formats yield to Finder." />
+    </StackPanel>
+    <Grid Grid.Row="5" Margin="0,0,0,14" ColumnDefinitions="*,Auto,Auto,Auto">
       <CheckBox
                 x:Name="ReversePanDirection"
                 Content="Reverse pan direction"
@@ -49,11 +81,11 @@
               Click="OnShowModeIntrosClicked"
               AutomationProperties.AutomationId="dialog.preferences.show-mode-intros" />
     </Grid>
-    <CheckBox Grid.Row="4"
+    <CheckBox Grid.Row="6"
               x:Name="ConsolidateSvgStrokes"
               Content="Consolidate narrow SVG strokes"
               AutomationProperties.AutomationId="dialog.preferences.consolidate-svg-strokes" />
-    <Grid Grid.Row="5" ColumnDefinitions="Auto,*" Margin="0,8,0,14">
+    <Grid Grid.Row="7" ColumnDefinitions="Auto,*" Margin="0,8,0,14">
       <TextBlock VerticalAlignment="Center" Text="SVG fill mode" />
       <ComboBox x:Name="SvgFillModeSelector" Grid.Column="1" Margin="12,0,0,0"
                 AutomationProperties.AutomationId="dialog.preferences.svg-fill-mode">
@@ -61,15 +93,15 @@
         <ComboBoxItem Content="Preserve fills" Tag="preserve" />
       </ComboBox>
     </Grid>
-    <Grid Grid.Row="6" ColumnDefinitions="Auto,*" Margin="0,0,0,14">
+    <Grid Grid.Row="8" ColumnDefinitions="Auto,*" Margin="0,0,0,14">
       <TextBlock VerticalAlignment="Center" Text="SVG import thickness (mm)" />
       <TextBox x:Name="SvgImportThickness" Grid.Column="1" Margin="12,0,0,0" Width="120"
                AutomationProperties.AutomationId="dialog.preferences.svg-import-thickness" />
     </Grid>
-    <ScrollViewer Grid.Row="7" VerticalScrollBarVisibility="Auto">
+    <ScrollViewer Grid.Row="9" VerticalScrollBarVisibility="Auto">
       <StackPanel x:Name="ToolRows" Spacing="6" />
     </ScrollViewer>
-    <Grid Grid.Row="8" Margin="0,10,0,0" ColumnDefinitions="*,Auto">
+    <Grid Grid.Row="10" Margin="0,10,0,0" ColumnDefinitions="*,Auto">
       <TextBlock x:Name="StatusText"
                  Foreground="IndianRed" TextWrapping="Wrap" />
       <Button x:Name="ResolveConflictButton"
@@ -80,7 +112,7 @@
               Click="OnResolveConflictClicked"
               AutomationProperties.AutomationId="dialog.preferences.shortcut-reassign" />
     </Grid>
-    <StackPanel Grid.Row="9" Margin="0,16,0,0" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+    <StackPanel Grid.Row="11" Margin="0,16,0,0" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button AutomationProperties.AutomationId="dialog.preferences.reset"
               Content="Reset Toolbar" Click="OnResetClicked" />
       <Button AutomationProperties.AutomationId="dialog.preferences.reset-all"

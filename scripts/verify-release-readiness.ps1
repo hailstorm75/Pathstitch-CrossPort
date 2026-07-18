@@ -2,6 +2,7 @@
 param(
     [string]$Configuration = "Release",
     [switch]$SkipLaunchSmoke,
+    [switch]$PruneNativePublish,
     [string]$EvidenceLabel = "local"
 )
 
@@ -244,6 +245,16 @@ try {
                 Stop-Process -Id $process.Id
             }
         }
+    }
+
+    if ($PruneNativePublish -and (Test-Path -LiteralPath $nativePublish)) {
+        $resolvedNativePublish = [IO.Path]::GetFullPath($nativePublish)
+        if (-not $resolvedNativePublish.StartsWith(
+                $artifacts,
+                [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to prune native publish outside $artifacts"
+        }
+        Remove-Item -LiteralPath $resolvedNativePublish -Recurse -Force
     }
 
     $succeeded = $true

@@ -162,7 +162,7 @@ public partial class HomePageView : BasePageView
         _preferencesStore.Save(_preferencesStore.Load() with { SupportCardDismissed = true });
     }
 
-    private static void OnSupportCardClicked(object? sender, RoutedEventArgs e)
+    private void OnSupportCardClicked(object? sender, RoutedEventArgs e)
     {
         Process.Start(new ProcessStartInfo
         {

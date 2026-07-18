@@ -10,6 +10,7 @@ using Pathstitch.App.Tests.Fixtures;
 
 namespace Pathstitch.App.Tests;
 
+[Collection("SvgPreviewParserSettings")]
 public sealed class EditorPreferencesTests
 {
     private readonly HeadlessUiFixture _ui = new();
@@ -39,6 +40,56 @@ public sealed class EditorPreferencesTests
         await _ui.RunAsync(dialog.Close);
         DxfPreviewCanvas.ReversePanDirection = false;
         File.Delete(path);
+    }
+
+    [Fact]
+    public async Task PreferencesDialog_PersistsAppIconAndFinderPreviewToggles()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-ui-macos-preferences-{Guid.NewGuid():N}.json");
+        try
+        {
+            var store = new UserPreferencesStore(path);
+            store.Save(new UserPreferences(
+                AppIcon: "Light",
+                FinderPreviewDxf: true,
+                FinderPreviewStep: false,
+                FinderPreviewStch: true));
+            var dialog = await _ui.RunAsync(() => new PreferencesDialog(null, store));
+            await _ui.RunAsync(() =>
+            {
+                dialog.Show();
+                dialog.UpdateLayout();
+                Assert.Equal(1, _ui.FindByAutomationId<ComboBox>(
+                    dialog,
+                    "dialog.preferences.app-icon").SelectedIndex);
+                Assert.False(_ui.FindByAutomationId<CheckBox>(
+                    dialog,
+                    "dialog.preferences.finder-preview-step").IsChecked);
+                _ui.FindByAutomationId<ComboBox>(
+                    dialog,
+                    "dialog.preferences.app-icon").SelectedIndex = 2;
+                _ui.FindByAutomationId<CheckBox>(
+                    dialog,
+                    "dialog.preferences.finder-preview-dxf").IsChecked = false;
+                _ui.FindByAutomationId<CheckBox>(
+                    dialog,
+                    "dialog.preferences.finder-preview-step").IsChecked = true;
+                _ui.FindByAutomationId<CheckBox>(
+                    dialog,
+                    "dialog.preferences.finder-preview-stch").IsChecked = false;
+            });
+
+            var persisted = store.Load();
+            Assert.Equal("Dark", persisted.AppIcon);
+            Assert.False(persisted.FinderPreviewDxf);
+            Assert.True(persisted.FinderPreviewStep);
+            Assert.False(persisted.FinderPreviewStch);
+            await _ui.RunAsync(dialog.Close);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]

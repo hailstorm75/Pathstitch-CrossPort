@@ -41,12 +41,13 @@ private func writePNG(_ image: CGImage, to url: URL) throws {
 @main
 private enum PreviewGeometrySmoke {
     static func main() throws {
-        guard CommandLine.arguments.count == 4 else {
+        guard CommandLine.arguments.count == 5 else {
             throw NSError(domain: "PathstitchPreviewSmoke", code: 2)
         }
         let dxf = URL(fileURLWithPath: CommandLine.arguments[1])
         let step = URL(fileURLWithPath: CommandLine.arguments[2])
-        let output = URL(fileURLWithPath: CommandLine.arguments[3], isDirectory: true)
+        let stch = URL(fileURLWithPath: CommandLine.arguments[3])
+        let output = URL(fileURLWithPath: CommandLine.arguments[4], isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
         let dxfEntities = DXFParser.parse(url: dxf)
@@ -58,13 +59,19 @@ private enum PreviewGeometrySmoke {
               let stepImage = renderStepMeshToImage(mesh, size: CGSize(width: 512, height: 512)) else {
             throw NSError(domain: "PathstitchPreviewSmoke", code: 4)
         }
+        guard !stchEmbeddedDXF(url: stch).isEmpty,
+              let stchImage = renderFileToImage(url: stch, size: CGSize(width: 512, height: 512)) else {
+            throw NSError(domain: "PathstitchPreviewSmoke", code: 5)
+        }
         let dxfInk = inkPixelCount(dxfImage)
         let stepInk = inkPixelCount(stepImage)
-        guard dxfInk > 100, stepInk > 100 else {
-            throw NSError(domain: "PathstitchPreviewSmoke", code: 5)
+        let stchInk = inkPixelCount(stchImage)
+        guard dxfInk > 100, stepInk > 100, stchInk > 100 else {
+            throw NSError(domain: "PathstitchPreviewSmoke", code: 6)
         }
         try writePNG(dxfImage, to: output.appendingPathComponent("dxf-preview.png"))
         try writePNG(stepImage, to: output.appendingPathComponent("step-preview.png"))
-        print("preview geometry ok: dxfEntities=\(dxfEntities.count) dxfInk=\(dxfInk) stepVertices=\(mesh.vertexCount) stepTriangles=\(mesh.indices.count / 3) stepInk=\(stepInk)")
+        try writePNG(stchImage, to: output.appendingPathComponent("stch-preview.png"))
+        print("preview geometry ok: dxfEntities=\(dxfEntities.count) dxfInk=\(dxfInk) stepVertices=\(mesh.vertexCount) stepTriangles=\(mesh.indices.count / 3) stepInk=\(stepInk) stchInk=\(stchInk)")
     }
 }

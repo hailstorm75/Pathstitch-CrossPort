@@ -75,7 +75,7 @@ public sealed class ReleaseReadinessConfigurationTests
         Assert.Contains("verify-release-readiness.ps1", windows, StringComparison.Ordinal);
         Assert.Contains("artifacts/readiness", windows, StringComparison.Ordinal);
         Assert.Contains("micromamba-version: 2.8.1-0", windows, StringComparison.Ordinal);
-        Assert.Contains("macos-14", macos, StringComparison.Ordinal);
+        Assert.Contains("macos-15", macos, StringComparison.Ordinal);
         Assert.Contains("verify-release-readiness.ps1", macos, StringComparison.Ordinal);
         Assert.Contains("artifacts/readiness", macos, StringComparison.Ordinal);
         Assert.Contains("micromamba-version: 2.8.1-0", macos, StringComparison.Ordinal);

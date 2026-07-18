@@ -30,6 +30,108 @@ public sealed class RecentProjectsServiceTests
         Assert.Equal(Convert.ToBase64String(previewBytes), recent.ThumbnailDataBase64);
     }
 
+    [Fact]
+    public async Task DiscoveryMerge_PreservesPersistedMetadataMissingEntriesAndNewestOrder()
+    {
+        using var workspace = TestWorkspace.Create();
+        var persistedPath = workspace.GetPath("persisted.stch");
+        var discoveredPath = workspace.GetPath("discovered.stch");
+        var missingPath = workspace.GetPath("missing.stch");
+        File.WriteAllText(persistedPath, "{}");
+        File.WriteAllText(discoveredPath, "{}");
+        File.WriteAllText(missingPath, "{}");
+        var now = DateTimeOffset.UtcNow;
+        var provider = new FakeProjectDiscoveryProvider(
+        [
+            new DiscoveredProject(persistedPath, now.AddMinutes(2)),
+            new DiscoveredProject(discoveredPath, now.AddMinutes(1)),
+            new DiscoveredProject(discoveredPath, now),
+        ]);
+        var service = new RecentProjectsService(provider, workspace.GetPath("recents.json"));
+        service.RecordProject(CreateSession("Persisted metadata", persistedPath));
+        service.RecordProject(CreateSession("Missing metadata", missingPath));
+        File.Delete(missingPath);
+
+        var recent = await service.GetRecentProjectsWithDiscoveryAsync();
+
+        Assert.Equal(3, recent.Count);
+        Assert.Equal(Path.GetFullPath(persistedPath), recent[0].ProjectFilePath);
+        Assert.Equal("Persisted metadata", recent[0].ProjectName);
+        Assert.Equal("blank", recent[0].TemplateId);
+        Assert.Contains(recent, project =>
+            project.ProjectFilePath == Path.GetFullPath(missingPath)
+            && project.IsMissing
+            && project.ProjectName == "Missing metadata");
+        Assert.Single(recent, project => project.ProjectFilePath == Path.GetFullPath(discoveredPath));
+    }
+
+    [Fact]
+    public async Task RemovedDiscoveredProject_StaysHiddenUntilReopened()
+    {
+        using var workspace = TestWorkspace.Create();
+        var projectPath = workspace.GetPath("spotlight.stch");
+        File.WriteAllText(projectPath, "{}");
+        var provider = new FakeProjectDiscoveryProvider(
+        [
+            new DiscoveredProject(projectPath, DateTimeOffset.UtcNow),
+        ]);
+        var service = new RecentProjectsService(provider, workspace.GetPath("recents.json"));
+
+        Assert.Single(await service.GetRecentProjectsWithDiscoveryAsync());
+        Assert.Single(service.GetRecentProjectsIncludingDiscovery());
+        service.RemoveProject(projectPath);
+        Assert.Empty(service.GetRecentProjectsIncludingDiscovery());
+        Assert.Empty(await service.GetRecentProjectsWithDiscoveryAsync());
+
+        service.RecordProject(CreateSession("Reopened", projectPath));
+        var reopened = Assert.Single(service.GetRecentProjectsIncludingDiscovery());
+        Assert.Equal("Reopened", reopened.ProjectName);
+    }
+
+    [Fact]
+    public async Task DiscoveryMerge_CapsNewestProjectsAtTwenty()
+    {
+        using var workspace = TestWorkspace.Create();
+        var baseline = DateTimeOffset.UtcNow.AddHours(-1);
+        var discovered = Enumerable.Range(0, 25)
+            .Select(index =>
+            {
+                var path = workspace.GetPath($"project-{index:00}.stch");
+                File.WriteAllText(path, "{}");
+                return new DiscoveredProject(path, baseline.AddMinutes(index));
+            })
+            .ToArray();
+        var service = new RecentProjectsService(
+            new FakeProjectDiscoveryProvider(discovered),
+            workspace.GetPath("recents.json"));
+
+        var recent = await service.GetRecentProjectsWithDiscoveryAsync();
+
+        Assert.Equal(20, recent.Count);
+        Assert.Equal("project-24", recent[0].ProjectName);
+        Assert.DoesNotContain(recent, project => project.ProjectName == "project-00");
+    }
+
+    private static ProjectSession CreateSession(string name, string path)
+        => new(
+            Guid.NewGuid(),
+            name,
+            path,
+            new ProjectTemplateDefinition("blank", "Blank", "Untitled"),
+            ProjectSessionOrigin.Opened,
+            DateTimeOffset.UtcNow);
+
+    private sealed class FakeProjectDiscoveryProvider(
+        IReadOnlyList<DiscoveredProject> projects) : IProjectDiscoveryProvider
+    {
+        public Task<IReadOnlyList<DiscoveredProject>> DiscoverAsync(
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(projects);
+        }
+    }
+
     private static void CreateProjectArchive(string path, byte[] previewBytes)
     {
         using var archive = ZipFile.Open(path, ZipArchiveMode.Create);

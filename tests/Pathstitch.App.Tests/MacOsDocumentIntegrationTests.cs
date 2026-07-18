@@ -22,6 +22,7 @@ public sealed class MacOsDocumentIntegrationTests
         Assert.Contains("dxf", values);
         Assert.Contains("step", values);
         Assert.Contains("stp", values);
+        Assert.Contains("Pathstitch", values);
         Assert.Contains("Editor", values);
         Assert.Contains("Viewer", values);
         Assert.Contains("Owner", values);
@@ -45,7 +46,7 @@ public sealed class MacOsDocumentIntegrationTests
         Assert.Contains(principalClass, values);
         Assert.Contains("com.pathstitch.dxf", values);
         Assert.Contains("com.pathstitch.step", values);
-        Assert.DoesNotContain("com.pathstitch.project", values);
+        Assert.Contains("com.pathstitch.project", values);
         Assert.Contains("13.0", values);
     }
 
@@ -93,10 +94,22 @@ public sealed class MacOsDocumentIntegrationTests
         Assert.Contains("preview-smoke.dxf", packaging, StringComparison.Ordinal);
         Assert.Contains("analytic-multibody-hole.step", packaging, StringComparison.Ordinal);
         Assert.Contains("codesign --verify --deep", packaging, StringComparison.Ordinal);
+        Assert.DoesNotContain("codesign --force --deep", packaging, StringComparison.Ordinal);
+        Assert.Contains("PathstitchQuickLook.entitlements", packaging, StringComparison.Ordinal);
+        Assert.Contains("libPathstitchMacBridge.dylib", packaging, StringComparison.Ordinal);
+        Assert.Contains("AppIconLight.png", packaging, StringComparison.Ordinal);
+        Assert.Contains("AppIconDark.png", packaging, StringComparison.Ordinal);
+        Assert.Contains("Pathstitch.icns", packaging, StringComparison.Ordinal);
+        Assert.Contains("iconutil -c icns", packaging, StringComparison.Ordinal);
         Assert.Contains("Assert-Arm64MachO", packaging, StringComparison.Ordinal);
         Assert.Contains("Assert-NoDeveloperRuntimeDependencies", packaging, StringComparison.Ordinal);
         Assert.Contains("stapler validate", packaging, StringComparison.Ordinal);
         Assert.Contains("stapled app archive recreation failed", packaging, StringComparison.Ordinal);
+        Assert.Contains("22787ffb59de99e5dc1fbfe80b19c97a904ad48d", packaging, StringComparison.Ordinal);
+        Assert.Contains("$zipFoundationSources", packaging, StringComparison.Ordinal);
+        Assert.Contains("arm64-apple-macos13.0", packaging, StringComparison.Ordinal);
+        Assert.Contains("PruneNativeInputsBeforeArchive", packaging, StringComparison.Ordinal);
+        Assert.Contains("Nested Mach-O signing failed", packaging, StringComparison.Ordinal);
 
         var smoke = Read("scripts", "macos", "quicklook", "PreviewGeometrySmoke.swift");
         Assert.Contains("DXFParser.parse(url:", smoke, StringComparison.Ordinal);
@@ -105,6 +118,9 @@ public sealed class MacOsDocumentIntegrationTests
         Assert.Contains("dxfInk > 100, stepInk > 100", smoke, StringComparison.Ordinal);
         Assert.Contains("writePNG(dxfImage", smoke, StringComparison.Ordinal);
         Assert.Contains("writePNG(stepImage", smoke, StringComparison.Ordinal);
+        Assert.Contains("stchEmbeddedDXF(url:", smoke, StringComparison.Ordinal);
+        Assert.Contains("stchInk > 100", smoke, StringComparison.Ordinal);
+        Assert.Contains("writePNG(stchImage", smoke, StringComparison.Ordinal);
 
         var workflow = Read(".github", "workflows", "macos-release.yml");
         Assert.Contains("lsregister", workflow, StringComparison.Ordinal);
@@ -117,11 +133,58 @@ public sealed class MacOsDocumentIntegrationTests
         Assert.Contains("preview-smoke/dxf-preview.png", workflow, StringComparison.Ordinal);
         Assert.Contains("preview-smoke/step-preview.png", workflow, StringComparison.Ordinal);
         Assert.Contains("Get-FileHash", workflow, StringComparison.Ordinal);
-        Assert.Contains("Quick Look did not generate DXF and STEP fixture thumbnails", workflow, StringComparison.Ordinal);
+        Assert.Contains("Quick Look did not generate exactly one STCH, DXF, and STEP fixture thumbnail", workflow, StringComparison.Ordinal);
+        Assert.Contains("stch-preview.png", workflow, StringComparison.Ordinal);
+        Assert.Contains("quicklook-output-map.json", workflow, StringComparison.Ordinal);
+        var validator = Read("scripts", "collect-native-macos-evidence.ps1");
+        Assert.Contains("schemaVersion = 4", validator, StringComparison.Ordinal);
+        Assert.Contains("validationErrors = @($validationErrors)", validator, StringComparison.Ordinal);
+        Assert.Contains("status = $status", validator, StringComparison.Ordinal);
         Assert.Contains("PATHSTITCH_MACOS_FILE_ACTIVATION_OUTPUT", workflow, StringComparison.Ordinal);
         Assert.Contains("open -a $app $fixture", workflow, StringComparison.Ordinal);
         Assert.Contains("file-activation-acceptance.json", workflow, StringComparison.Ordinal);
         Assert.Contains("Running app did not receive the Finder file activation", workflow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FinderPreferencesAndSpotlightDiscoveryUsePackagedMacIntegration()
+    {
+        var preferences = Read("scripts", "macos", "quicklook", "QuickLookPreferences.swift");
+        Assert.Contains("UserDefaults(suiteName: appGroupIdentifier)", preferences, StringComparison.Ordinal);
+        Assert.Contains("quicklook.preview.enabled.dxf", preferences, StringComparison.Ordinal);
+        Assert.Contains("quicklook.preview.enabled.step", preferences, StringComparison.Ordinal);
+        Assert.Contains("quicklook.preview.enabled.stch", preferences, StringComparison.Ordinal);
+        Assert.Contains("object(forKey: key) != nil", preferences, StringComparison.Ordinal);
+
+        var bridge = Read("scripts", "macos", "PathstitchMacBridge.swift");
+        Assert.Contains("@_cdecl(\"pathstitch_set_quicklook_preferences\")", bridge, StringComparison.Ordinal);
+        Assert.Contains("@_cdecl(\"pathstitch_get_quicklook_preference\")", bridge, StringComparison.Ordinal);
+        Assert.Contains("@_cdecl(\"pathstitch_apply_app_icon\")", bridge, StringComparison.Ordinal);
+        Assert.Contains("Bundle.main.path(forResource:", bridge, StringComparison.Ordinal);
+        Assert.Contains("effectiveAppearance", bridge, StringComparison.Ordinal);
+
+        var appEntitlements = Read("scripts", "macos", "Pathstitch.entitlements");
+        var extensionEntitlements = Read(
+            "scripts",
+            "macos",
+            "quicklook",
+            "PathstitchQuickLook.entitlements");
+        Assert.Contains("group.com.pathstitch.crossport", appEntitlements, StringComparison.Ordinal);
+        Assert.Contains("group.com.pathstitch.crossport", extensionEntitlements, StringComparison.Ordinal);
+        Assert.Contains("com.apple.security.app-sandbox", extensionEntitlements, StringComparison.Ordinal);
+
+        var discovery = Read(
+            "src",
+            "Pathstitch.App",
+            "Services",
+            "MacOSSpotlightProjectDiscoveryProvider.cs");
+        Assert.Contains("/usr/bin/mdfind", discovery, StringComparison.Ordinal);
+        Assert.Contains("kMDItemFSName == \\\"*.stch\\\"c", discovery, StringComparison.Ordinal);
+        Assert.Contains("CancelAfter(DiscoveryTimeout)", discovery, StringComparison.Ordinal);
+        Assert.Contains("ArgumentList.Add(\"-0\")", discovery, StringComparison.Ordinal);
+        Assert.Contains("WatchAsync", discovery, StringComparison.Ordinal);
+        Assert.Contains("PeriodicTimer(RefreshInterval)", discovery, StringComparison.Ordinal);
+        Assert.Contains("SnapshotsEqual", discovery, StringComparison.Ordinal);
     }
 
     private static XDocument LoadPlist(params string[] pathParts)

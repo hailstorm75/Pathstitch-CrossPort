@@ -6,6 +6,12 @@ public sealed class AppUpdateService(IProcessLauncher processLauncher) : IAppUpd
 {
     internal const string ReleasePageUrl = "https://github.com/Pathstitch/Pathstitch-CrossPort/releases/latest";
 
+    public AppUpdateStrategy Strategy => AppUpdateStrategy.ManualBrowserDownload;
+
+    public bool SupportsAutomaticChecks => false;
+
+    public bool InstallsUpdates => false;
+
     public void CheckForUpdates()
         => processLauncher.Start(new ProcessStartInfo
         {

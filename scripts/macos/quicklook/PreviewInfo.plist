@@ -14,7 +14,7 @@
     <key>NSExtensionPrincipalClass</key><string>PathstitchQuickLook.PreviewProvider</string>
     <key>NSExtensionAttributes</key><dict>
       <key>QLSupportedContentTypes</key><array>
-        <string>com.pathstitch.dxf</string><string>com.pathstitch.step</string>
+        <string>com.pathstitch.dxf</string><string>com.pathstitch.step</string><string>com.pathstitch.project</string>
       </array>
       <key>QLSupportsSearchableItems</key><false/>
     </dict>

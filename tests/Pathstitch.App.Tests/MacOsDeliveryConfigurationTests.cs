@@ -33,7 +33,7 @@ public sealed class MacOsDeliveryConfigurationTests
     {
         var workflow = File.ReadAllText(Find(".github", "workflows", "macos-release.yml"));
 
-        Assert.Contains("runs-on: macos-14", workflow, StringComparison.Ordinal);
+        Assert.Contains("runs-on: macos-15", workflow, StringComparison.Ordinal);
         Assert.Contains("verify-release-readiness.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("package-avalonia-macos.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("libAvaloniaNative.dylib", workflow, StringComparison.Ordinal);

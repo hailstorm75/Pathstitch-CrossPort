@@ -17,7 +17,11 @@ public sealed record UserPreferences(
     bool ConsolidateSvgStrokes = true,
     string SvgFillMode = "strokes",
     double SvgImportThickness = 3.0,
-    IReadOnlyDictionary<string, string>? AppCommandShortcuts = null);
+    IReadOnlyDictionary<string, string>? AppCommandShortcuts = null,
+    string AppIcon = "Automatic",
+    bool FinderPreviewDxf = true,
+    bool FinderPreviewStep = true,
+    bool FinderPreviewStch = true);
 
 public sealed class UserPreferencesStore
 {

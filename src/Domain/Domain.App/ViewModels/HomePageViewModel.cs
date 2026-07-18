@@ -117,6 +117,7 @@ public sealed partial class HomePageViewModel(
         ProjectName = SelectedTemplate.DefaultProjectName;
         CurrentSession = projectSessionService.CurrentSession;
         RefreshRecentProjects();
+        _ = WatchDiscoveredRecentProjectsAsync(token);
         HomeStatusText = "Drop a Pathstitch project, drawing, reference image, or 3D model to continue.";
         return ValueTask.CompletedTask;
     }
@@ -243,7 +244,7 @@ public sealed partial class HomePageViewModel(
         HomeStatusText = recentProject.IsAvailable
             ? $"Selected recent project: {recentProject.ProjectName}"
             : $"Recent project missing: {recentProject.ProjectName}";
-        RefreshRecentProjects();
+        ApplyRecentProjects(RecentProjects);
     }
 
     public Task OpenSelectedRecentProjectAsync()
@@ -310,22 +311,55 @@ public sealed partial class HomePageViewModel(
     }
 
     private void RefreshRecentProjects()
+        => ApplyRecentProjects(projectSessionService.RecentProjects);
+
+    private async Task WatchDiscoveredRecentProjectsAsync(CancellationToken cancellationToken)
     {
-        var recentProjects = projectSessionService.RecentProjects;
+        try
+        {
+            await foreach (var recentProjects in projectSessionService
+                .WatchRecentProjectsAsync(cancellationToken)
+                .WithCancellation(cancellationToken)
+                .ConfigureAwait(true))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                ApplyRecentProjects(recentProjects);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Page navigation canceled live discovery.
+        }
+        catch (Exception exception)
+        {
+            logger.LogDebug(exception, "Live project discovery stopped");
+        }
+    }
+
+    private void ApplyRecentProjects(IReadOnlyList<RecentProjectSummary> recentProjects)
+    {
         var selectedProjectPath = SelectedRecentProject?.ProjectFilePath;
+        var nextProjects = recentProjects
+            .Select(project => project with
+            {
+                IsSelected = selectedProjectPath is not null
+                    && string.Equals(
+                        project.ProjectFilePath,
+                        selectedProjectPath,
+                        StringComparison.OrdinalIgnoreCase),
+            })
+            .ToArray();
+
+        if (!RecentProjects.SequenceEqual(nextProjects))
+            RecentProjects = nextProjects;
 
         SelectedRecentProject = selectedProjectPath is null
             ? null
-            : recentProjects.FirstOrDefault(project =>
-                string.Equals(project.ProjectFilePath, selectedProjectPath, StringComparison.OrdinalIgnoreCase));
-
-        RecentProjects = recentProjects
-            .Select(project => project with
-            {
-                IsSelected = SelectedRecentProject is not null
-                    && string.Equals(project.ProjectFilePath, SelectedRecentProject.ProjectFilePath, StringComparison.OrdinalIgnoreCase),
-            })
-            .ToArray();
+            : RecentProjects.FirstOrDefault(project =>
+                string.Equals(
+                    project.ProjectFilePath,
+                    selectedProjectPath,
+                    StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task OpenFilesAsync(IReadOnlyList<string> filePaths, CancellationToken cancellationToken = default)

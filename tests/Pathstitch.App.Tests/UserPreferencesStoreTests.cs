@@ -30,6 +30,58 @@ public sealed class UserPreferencesStoreTests
     }
 
     [Fact]
+    public void SaveAndLoad_RoundTripsMacIconAndIndependentFinderPreviewToggles()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pathstitch-macos-preferences-{Guid.NewGuid():N}.json");
+        try
+        {
+            var store = new UserPreferencesStore(path);
+            store.Save(new UserPreferences(
+                AppIcon: "Dark",
+                FinderPreviewDxf: false,
+                FinderPreviewStep: true,
+                FinderPreviewStch: false));
+
+            var loaded = store.Load();
+
+            Assert.Equal("Dark", loaded.AppIcon);
+            Assert.False(loaded.FinderPreviewDxf);
+            Assert.True(loaded.FinderPreviewStep);
+            Assert.False(loaded.FinderPreviewStch);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void MacPreferences_DefaultToAutomaticIconAndEnabledPreviews()
+    {
+        var defaults = new UserPreferences();
+
+        Assert.Equal("Automatic", defaults.AppIcon);
+        Assert.True(defaults.FinderPreviewDxf);
+        Assert.True(defaults.FinderPreviewStep);
+        Assert.True(defaults.FinderPreviewStch);
+        Assert.Equal(MacOSAppIconVariant.Light, MacOSAppIconResolver.Resolve("Light", true));
+        Assert.Equal(MacOSAppIconVariant.Dark, MacOSAppIconResolver.Resolve("Dark", false));
+        Assert.Equal(MacOSAppIconVariant.Dark, MacOSAppIconResolver.Resolve("Automatic", true));
+    }
+
+    [Fact]
+    public void MacIntegrationBridgePath_UsesPackagedFrameworksDirectory()
+    {
+        var candidates = MacOSIntegrationService.GetCandidateLibraryPaths(
+            Path.Combine("bundle", "Contents", "MacOS"));
+
+        Assert.Contains(candidates, path =>
+            path.EndsWith(
+                Path.Combine("Contents", "Frameworks", "libPathstitchMacBridge.dylib"),
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Load_MalformedFile_ReturnsDefaults()
     {
         var path = Path.Combine(Path.GetTempPath(), $"pathstitch-preferences-{Guid.NewGuid():N}.json");

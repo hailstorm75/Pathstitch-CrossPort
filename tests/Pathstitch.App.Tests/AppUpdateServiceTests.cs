@@ -10,8 +10,12 @@ public sealed class AppUpdateServiceTests
     {
         var launcher = new RecordingProcessLauncher();
 
-        new AppUpdateService(launcher).CheckForUpdates();
+        var service = new AppUpdateService(launcher);
 
+        service.CheckForUpdates();
+
+        Assert.Equal(AppUpdateStrategy.ManualBrowserDownload, service.Strategy);
+        Assert.False(service.SupportsAutomaticChecks);
         Assert.NotNull(launcher.StartInfo);
         Assert.Equal("https://github.com/Pathstitch/Pathstitch-CrossPort/releases/latest", launcher.StartInfo!.FileName);
         Assert.True(launcher.StartInfo.UseShellExecute);

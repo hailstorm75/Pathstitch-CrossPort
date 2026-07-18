@@ -26,7 +26,7 @@ public sealed partial class AboutDialog : Window
     private void OnCheckForUpdatesClicked(object? sender, RoutedEventArgs e)
         => _updateService.CheckForUpdates();
 
-    private static void OnSupportClicked(object? sender, RoutedEventArgs e)
+    private void OnSupportClicked(object? sender, RoutedEventArgs e)
         => Process.Start(new ProcessStartInfo
         {
             FileName = "https://buymeacoffee.com/masonchen",

@@ -115,14 +115,21 @@ function Invoke-NativeRuntimeSmoke([string]$RuntimeRoot) {
     }
     $previousPythonPath = $env:PYTHONPATH
     $previousPath = $env:PATH
+    $previousPsdFixtureMatrix = $env:PATHSTITCH_PSD_FIXTURE_MATRIX
     $env:PYTHONPATH = $RuntimeRoot
     $env:PATH = if ($IsWindows) { Join-Path $env:SystemRoot 'System32' } else { '/usr/bin:/bin' }
+    $env:PATHSTITCH_PSD_FIXTURE_MATRIX = Join-Path $repo 'tests/Pathstitch.App.Tests/Fixtures/psd-import-parity-cases.json'
     try {
         & $runtimePython -B -c "import OCC, OCC.Core.STEPControl, ezdxf, shapely, numpy, scipy, pdfplumber, psd_tools; import pathstitch_core.geometry_worker, pathstitch_core.worker; print('packaged Pathstitch workers import ok')"
         if ($LASTEXITCODE -ne 0) { throw 'Packaged worker import smoke test failed.' }
+        & $runtimePython -B -m pathstitch_core.test_mesh_worker_parity
+        if ($LASTEXITCODE -ne 0) { throw 'Packaged OBJ/STL parity matrix failed.' }
+        & $runtimePython -B -m pathstitch_core.test_psd_fixture_matrix
+        if ($LASTEXITCODE -ne 0) { throw 'Packaged PSD fixture matrix failed.' }
     } finally {
         $env:PYTHONPATH = $previousPythonPath
         $env:PATH = $previousPath
+        $env:PATHSTITCH_PSD_FIXTURE_MATRIX = $previousPsdFixtureMatrix
     }
 }
 
