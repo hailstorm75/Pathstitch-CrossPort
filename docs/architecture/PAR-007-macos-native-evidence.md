@@ -2,10 +2,11 @@
 
 **Status:** Pending native run  
 **Target:** Apple-silicon macOS, osx-arm64  
-**Workflow:** .github/workflows/macos-release.yml  
+**Runtime workflow:** .github/workflows/macos-release.yml
+**Distribution workflow:** .github/workflows/macos-distribution.yml
 **Evidence artifact:** Pathstitch-native-evidence-osx-arm64
 
-Source-level implementation and Windows-hosted verification are complete: the evidence collector, independent reviewer, packaged app-group writer/collector, and real-extension runtime attestation paths parse or build cleanly; warnings-as-errors build passes with 0 warnings/errors; focused collector/delivery contracts pass 36/36; full .NET suite passes 1155/1155; unit/import/export contracts pass 80/80 plus Python 7/7; and packaged OCCT mesh/import/unfold tests pass 23/23. The executable evidence-validator suite passes 33/33, including thirty-one corrupted, tampered, identity-mismatched, fallback, or preference-mismatched bundles that cannot report passed. This document must not be changed to Passed until a macOS run from the exact reviewed commit completes and its self-contained evidence artifact is retained.
+Source-level implementation and Windows-hosted verification are complete: the evidence collector, independent reviewer, packaged app-group writer/collector, and real-extension runtime attestation paths parse or build cleanly; warnings-as-errors build passes with 0 warnings/errors; focused native-evidence/delivery/document contracts pass 46/46; full .NET suite passes 1156/1156; unit/import/export contracts pass 80/80 plus Python 7/7; and packaged OCCT mesh/import/unfold tests pass 23/23. The executable evidence-validator suite passes 33/33, including thirty-one corrupted, tampered, identity-mismatched, fallback, or preference-mismatched bundles that cannot report passed. This document must not be changed to Passed until a macOS run from the exact reviewed commit completes and its self-contained evidence artifact is retained.
 
 ## Native gates
 
@@ -23,7 +24,7 @@ The macOS workflow must prove all following against packaged Pathstitch.app:
 
 PAR-012 changed the packaged Python/DXF unit contract, so native evidence must come from a post-PAR-012 exact commit; earlier artifacts are stale.
 
-Runtime-probe source now proves cross-process app-group access only when packaged app and real sandboxed extensions successfully exchange nonce-bound evidence. Ad-hoc signing may fail that gate; authorized signing remains required when platform provisioning demands it. Source presence alone is not proof: exact native artifact must contain passed writer, preview, thumbnail, and collector records.
+Runtime-probe source proves cross-process app-group access only when packaged app and real sandboxed extensions successfully exchange nonce-bound evidence. Ad-hoc signing may fail that gate; Developer ID execution remains required for release-authority sign-off. Apple documents com.apple.security.application-groups as unrestricted for macOS Developer ID distribution, so separate provisioning profiles are not required solely for this entitlement. Source presence alone is not proof: exact native artifact must contain passed writer, preview, thumbnail, and collector records.
 
 ## Required evidence files
 
@@ -63,6 +64,12 @@ Runtime-probe source now proves cross-process app-group access only when package
 
 packaged-app-acceptance.json must use schema 4 and report status: passed; native WebView navigation; native file dialogs; mac integration; STEP import/projection/unfold; exact project preservation; OBJ/STL topology; four-body mixed import; connected/separate net generation; manual seam behavior; and tab/hole decoration. Every retained input/output descriptor must match the copied artifact's size and SHA-256; every DXF descriptor must also report INSUNITS code 4 and MEASUREMENT code 1. Both ZIP and STCH archives must be readable, and the embedded generated DXF must match the external unfold hash.
 
+## Distribution candidate gate
+
+Manual .github/workflows/macos-distribution.yml runs only from main through protected macos-distribution environment. It imports an exact Developer ID Application certificate into temporary keychain, requires secure timestamp and hardened runtime, submits with notarytool, retains submission and log JSON, staples ticket, runs strict code-sign verification plus Gatekeeper assessment, recreates readable ZIP, and uploads hash-bound schema-1 distribution evidence for 90 days. Temporary certificate/keychain cleanup runs even after failure.
+
+Distribution evidence is distinct from schema-5 runtime evidence. Neither substitutes for the other: release sign-off needs exact native runtime artifact plus independent receipt, while distribution candidate additionally needs accepted Developer ID/notarization artifact.
+
 ## Independent review
 
 Download exact workflow artifact into dedicated directory, then bind it to commit and run selected independently from GitHub UI or reviewed commit:
@@ -98,10 +105,10 @@ Fill from one exact workflow run:
 - DXF Quick Look: Pending
 - STEP Quick Look: Pending
 - Preview-extension runtime: Pending
-- Provisioned cross-process app-group read: Pending
+- Developer ID-authorized cross-process app-group read: Pending
 - Code-sign verification: Pending
 - Distribution notarization: Not exercised by ad-hoc CI
 - Reviewer:
 - Date:
 
-Developer ID/notarization evidence remains required only for a distribution candidate. Ad-hoc CI proves bundle sealing, nested signature shape, and same-process preference readback; it does not prove Gatekeeper approval or provisioned sandbox sharing.
+Developer ID/notarization evidence remains required only for a distribution candidate. Ad-hoc CI proves bundle sealing, nested signature shape, and runtime behavior when platform permits it; it does not prove Developer ID release authority, notarization, stapling, or Gatekeeper approval.

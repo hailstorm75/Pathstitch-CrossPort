@@ -11,7 +11,7 @@ Avalonia has broad functional parity. All three workspaces exist. All 23 named 2
 
 Remaining work:
 
-1. **P1 release evidence:** native macOS packaging/CI, schema-5 artifact verification, real `qlmanage -p` preview attestation, and nonce-bound packaged-app/extension app-group probes exist. Exact-commit Apple-silicon execution under release-appropriate signing authority and retained passed artifact remain under PAR-007.
+1. **P1 release evidence:** native macOS packaging/CI, schema-5 artifact verification, real `qlmanage -p` preview attestation, nonce-bound packaged-app/extension app-group probes, and protected Developer ID/notarization workflow exist. Exact-commit Apple-silicon runtime execution, independent review, Developer ID distribution run, and retained passed artifacts remain under PAR-007.
 
 Edited DXF structural fidelity closed in PAR-019. Exact tilted/sheared OCS TEXT fidelity closed in PAR-020. Safety-gated cases outside source-merge contract use model serialization without risking opaque source corruption.
 
@@ -251,13 +251,14 @@ Acceptance: toggle each format independently, restart app/extension, verify disa
 ### PAR-007 — Produce native macOS evidence and repair tracker
 
 **Priority:** P1 release gate  
-**Status (in progress 2026-07-18):** Native source gate now includes corrected compilable Swift bridge, pinned package inputs, inside-out Mach-O signing, packaged WebView/dialog/OCCT/STCH acceptance, Finder activation, mapped thumbnails, real `qlmanage -p` preview execution, and schema-5 cross-process runtime evidence. Packaged app writes cryptographic nonce plus nondefault `dxf=false, step=true, stch=false` values through app-group bridge. Real preview and thumbnail extension processes read same defaults and atomically write nonce/fixture/bundle/process attestations into group container; second packaged app process collects them. Probe now restores exact pre-run preference presence/value after success, terminal failure, or timeout, while a distinct not-ready result keeps bounded polling safe. Collector rejects missing/mismatched nonce, preference vector, process identity, bundle ID, retained STEP hash, fallback preview, absent SceneKit view, disabled camera control, or empty mesh. Independent reviewer requires schema 5 and re-runs same semantic gate without mutating artifact. Thirty-one invalid synthetic bundles cannot pass; validator tests pass 33/33, focused collector/delivery contracts pass 36/36, warnings-as-errors build passes, and full .NET suite passes 1155/1155. AUD-021, AUD-022, and AUD-032 remain In progress until one exact-commit Apple-silicon run under appropriate signing authority produces retained passed artifact; no native result is claimed from Windows host. Sign-off template: docs/architecture/PAR-007-macos-native-evidence.md.
+**Status (in progress 2026-07-18):** Native source gate now includes corrected compilable Swift bridge, pinned package inputs, inside-out Mach-O signing, packaged WebView/dialog/OCCT/STCH acceptance, Finder activation, mapped thumbnails, real `qlmanage -p` preview execution, and schema-5 cross-process runtime evidence. Packaged app writes cryptographic nonce plus nondefault `dxf=false, step=true, stch=false` values through app-group bridge. Real preview and thumbnail extension processes read same defaults and atomically write nonce/fixture/bundle/process attestations into group container; second packaged app process collects them. Probe now restores exact pre-run preference presence/value after success, terminal failure, or timeout, while a distinct not-ready result keeps bounded polling safe. Collector rejects missing/mismatched nonce, preference vector, process identity, bundle ID, retained STEP hash, fallback preview, absent SceneKit view, disabled camera control, or empty mesh. Independent reviewer requires schema 5 and re-runs same semantic gate without mutating artifact. Protected manual distribution workflow imports exact Developer ID identity into temporary keychain, requires secure timestamp/hardened runtime, retains notary JSON, staples, assesses with Gatekeeper, uploads hash-bound evidence, and always cleans signing material. Apple documents macOS application-groups entitlement as unrestricted for Developer ID, so separate provisioning profiles are not required solely for this group. Thirty-one invalid synthetic bundles cannot pass; validator tests pass 33/33, focused native-evidence/delivery/document contracts pass 46/46, warnings-as-errors build passes, and full .NET suite passes 1156/1156. AUD-021, AUD-022, and AUD-032 remain In progress until one exact-commit Apple-silicon run under appropriate signing authority produces retained passed artifact; no native result is claimed from Windows host. Sign-off template: docs/architecture/PAR-007-macos-native-evidence.md.
 **Risk:** packaged failures hidden by source-level parity
 
 Existing implementation:
 
 - `scripts/package-avalonia-macos.ps1:59-126` builds Quick Look/thumbnail extensions and fixtures.
 - `.github/workflows/macos-release.yml:51-146` validates metadata, architectures, project round trip, DXF/STEP previews.
+- `.github/workflows/macos-distribution.yml` provides protected manual Developer ID signing, notarization, stapling, Gatekeeper assessment, retained evidence, and guaranteed temporary-keychain cleanup.
 - `docs/architecture/AUD-017-step-parity-evidence.md:33-41` documents accepted canonical-curve differences and requests native execution.
 
 Prepared source gates:
@@ -522,7 +523,7 @@ Original has known persistence defects. Match intended outcome, not bugs.
 ## Verification notes
 
 - Source-based audit. Full means implementation surface and supporting tests/evidence found, not every path executed here.
-- Final warnings-as-errors verification passed with 0 warnings/errors; full .NET suite passed 1155/1155. PAR-018 Unicode PDF tests passed 3/3, PAR-019 structure-preservation tests passed 46/46, Python unit/export/append contracts passed 7/7, recent-project lifecycle tests passed 9/9, focused collector/delivery contracts passed 36/36, executable native-evidence validation passed 33/33, and combined packaged OCCT mesh/import/unfold Python suites passed 23/23. Native macOS packaging cannot execute on this Windows host and remains explicitly gated by PAR-007.
+- Final warnings-as-errors verification passed with 0 warnings/errors; full .NET suite passed 1156/1156. PAR-018 Unicode PDF tests passed 3/3, PAR-019 structure-preservation tests passed 46/46, Python unit/export/append contracts passed 7/7, recent-project lifecycle tests passed 9/9, focused native-evidence/delivery/document contracts passed 46/46, executable native-evidence validation passed 33/33, and combined packaged OCCT mesh/import/unfold Python suites passed 23/23. Native macOS packaging cannot execute on this Windows host and remains explicitly gated by PAR-007.
 - Source changed during audit. Explode became reachable. Re-check ticket evidence before starting; close/report work already completed concurrently.
 - `AUDIT_TASKS.md` is not authoritative alone: several Todo labels conflict with current macOS package/Quick Look source.
 - Explicit original Batch picker is drawing/project-oriented; port's DXF/SVG/PDF/STCH input set is not treated as a parity gap. Main confirmed Batch gap is preview/edit round trip.
@@ -541,5 +542,5 @@ Original has known persistence defects. Match intended outcome, not bugs.
 - Port 3D: `Editor3DWorkspaceViewModel.cs`, `EditorPageViewModel.UnfoldConfiguration.cs`
 - Port persistence: `src/Domain/Domain.App/Services/Project3DStateService.cs`
 - Port preferences: `PreferencesDialog.axaml(.cs)`, `UserPreferencesStore.cs`
-- macOS delivery: `scripts/package-avalonia-macos.ps1`, `.github/workflows/macos-release.yml`, `docs/macos-delivery.md`
+- macOS delivery: `scripts/package-avalonia-macos.ps1`, `.github/workflows/macos-release.yml`, `.github/workflows/macos-distribution.yml`, `docs/macos-delivery.md`
 
