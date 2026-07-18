@@ -29,7 +29,7 @@ internal static class SvgPreviewDocumentParser
             var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var unsupported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var index = 0;
-            foreach (var element in root.Descendants())
+            foreach (var (element, layerName) in EnumerateDrawableElements(root))
             {
                 var type = element.Name.LocalName.ToUpperInvariant();
                 if (type is "SVG" or "G" or "DEFS" or "TITLE" or "DESC" or "STYLE")
@@ -43,12 +43,23 @@ internal static class SvgPreviewDocumentParser
                         unsupported.Add(type);
                     else
                     {
-                        foreach (var parsedPath in parsedPaths)
+                        var preserveFill = PreserveFill(element);
+                        var closedPaths = parsedPaths.Where(static path => path.IsClosed).ToArray();
+                        if (preserveFill && closedPaths.Length > 0)
                         {
-                            var parsed = parsedPath.IsClosed ? parsedPath with { IsFilled = PreserveFill(element) } : parsedPath;
-                            parsed = ConsolidateStrokes ? ConsolidateStroke(parsed) : parsed;
-                            parsed = ThickenStroke(parsed);
-                            paths.Add(parsed);
+                            var outer = closedPaths.MaxBy(static path => Math.Abs(SignedArea(path.Points)))!;
+                            var loops = closedPaths.Where(path => ReferenceEquals(path, outer))
+                                .Concat(closedPaths.Where(path => !ReferenceEquals(path, outer)))
+                                .Select(static path => path.Points)
+                                .ToArray();
+                            paths.Add(outer with { IsFilled = true, FillLoops = loops, LayerName = layerName });
+                            foreach (var openPath in parsedPaths.Where(static path => !path.IsClosed))
+                                paths.Add(openPath with { LayerName = layerName });
+                        }
+                        else
+                        {
+                            foreach (var parsedPath in parsedPaths)
+                                paths.Add(parsedPath with { IsFilled = false, LayerName = layerName });
                         }
                     }
                 }
@@ -70,9 +81,7 @@ internal static class SvgPreviewDocumentParser
                     {
                         if (parsed.IsClosed)
                             parsed = parsed with { IsFilled = PreserveFill(element) };
-                        parsed = ConsolidateStrokes ? ConsolidateStroke(parsed) : parsed;
-                        parsed = ThickenStroke(parsed);
-                        paths.Add(parsed);
+                        paths.Add(parsed with { LayerName = layerName });
                     }
                 }
                 index++;
@@ -82,12 +91,65 @@ internal static class SvgPreviewDocumentParser
             if (transform is not null)
                 paths = paths.Select(svgPath => TransformPath(svgPath, transform.Value)).ToList();
 
+            paths = SvgCoordinateSystem.SvgPathsToPositiveWorld(paths).ToList();
+            paths = paths.Select(path =>
+            {
+                var resolved = ConsolidateStrokes ? ConsolidateStroke(path) : path;
+                return ThickenStroke(resolved);
+            }).ToList();
+
             return new DxfPreviewDocument(paths, counts, unsupported.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray());
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or XmlException)
         {
             return Empty();
         }
+    }
+
+    private static IEnumerable<(XElement Element, string LayerName)> EnumerateDrawableElements(
+        XElement parent,
+        string currentLayer = "ORIGINAL")
+    {
+        foreach (var child in parent.Elements())
+        {
+            var type = child.Name.LocalName.ToUpperInvariant();
+            if (type is "DEFS" or "TITLE" or "DESC" or "STYLE" or "CLIPPATH" or "MASK" or "SYMBOL")
+                continue;
+
+            if (type is "G" or "SVG")
+            {
+                var childLayer = type == "G"
+                    ? ResolveLayerName(child, currentLayer)
+                    : currentLayer;
+                foreach (var descendant in EnumerateDrawableElements(child, childLayer))
+                    yield return descendant;
+                continue;
+            }
+
+            yield return (child, currentLayer);
+        }
+    }
+
+    private static string ResolveLayerName(XElement group, string inheritedLayer)
+    {
+        var explicitName = (string?)group.Attribute("data-layer-name");
+        if (string.IsNullOrWhiteSpace(explicitName))
+        {
+            explicitName = group.Attributes()
+                .Where(attribute => string.Equals(attribute.Name.LocalName, "label", StringComparison.OrdinalIgnoreCase)
+                    && attribute.Name.NamespaceName.Contains("inkscape", StringComparison.OrdinalIgnoreCase))
+                .Select(attribute => attribute.Value)
+                .FirstOrDefault();
+        }
+        if (string.IsNullOrWhiteSpace(explicitName))
+            explicitName = (string?)group.Attribute("id");
+        if (string.IsNullOrWhiteSpace(explicitName))
+            return inheritedLayer;
+
+        var name = explicitName.Trim();
+        return name.StartsWith("layer_", StringComparison.OrdinalIgnoreCase)
+            ? name["layer_".Length..]
+            : name;
     }
 
     private static DxfPreviewPath? ParseLine(XElement element, int index)
@@ -497,7 +559,7 @@ internal static class SvgPreviewDocumentParser
 
     private static DxfPreviewPath ConsolidateStroke(DxfPreviewPath path)
     {
-        if (!path.IsClosed || path.Points.Count < 4
+        if (path.IsFilled || !path.IsClosed || path.Points.Count < 4
             || (path.EntityType is not "RECTANGLE" and not "POLYGON"))
             return path;
 
@@ -608,6 +670,7 @@ internal static class SvgPreviewDocumentParser
         return path with
         {
             Points = path.Points.Select(Transform).ToArray(),
+            FillLoops = path.FillLoops?.Select(loop => (IReadOnlyList<DxfPoint>)loop.Select(Transform).ToArray()).ToArray(),
             Start = path.Start is { } start ? Transform(start) : null,
             Center = path.Center is { } center ? Transform(center) : null,
             Radius = path.Radius is { } radius ? radius * (transform.ScaleX + transform.ScaleY) / 2.0 : null,
@@ -648,6 +711,17 @@ internal static class SvgPreviewDocumentParser
     private static bool TryDouble(XElement element, string name, out double value)
         => double.TryParse((string?)element.Attribute(name), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
 
+    private static double SignedArea(IReadOnlyList<DxfPoint> points)
+    {
+        var area = 0.0;
+        for (var index = 0; index < points.Count; index++)
+        {
+            var current = points[index];
+            var next = points[(index + 1) % points.Count];
+            area += (current.X * next.Y) - (next.X * current.Y);
+        }
+        return area * 0.5;
+    }
     private static bool AreSamePoint(DxfPoint left, DxfPoint right)
         => Math.Abs(left.X - right.X) <= 1e-6
            && Math.Abs(left.Y - right.Y) <= 1e-6;

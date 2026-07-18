@@ -60,7 +60,8 @@ public sealed record Editor2DPreviewPath(
     bool IsFilled = false,
     bool IsConstruction = false,
     string? SourceLayerName = null,
-    string? SourceEntityHandle = null);
+    string? SourceEntityHandle = null,
+    IReadOnlyList<IReadOnlyList<Editor2DPoint>>? FillLoops = null);
 
 public sealed record Editor2DMeasurement(
     string Id,

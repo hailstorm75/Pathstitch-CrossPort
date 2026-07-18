@@ -133,6 +133,54 @@ public sealed class ImportedDrawingGroupTests
     }
 
     [Fact]
+    public void AddImportedDrawing_PreservesSourceLayersAndReloadUpdatesThem()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var source = Document(
+            Line("cut", 0, 10, "CUT"),
+            Line("score", 20, 30, "SCORE"),
+            Line("cut-2", 40, 50, "CUT"));
+
+        Assert.True(workspace.AddImportedDrawings(
+            [new Editor2DImportedDrawing("pattern.dxf", 1, source)]).IsSuccess);
+
+        var imported = Assert.Single(workspace.ImportGroups);
+        Assert.Equal(2, imported.GeneratedLayerIds!.Count);
+        var importedLayers = imported.GeneratedLayerIds
+            .Select(id => workspace.Layers.Single(layer => layer.Id == id))
+            .ToArray();
+        Assert.Equal(["CUT", "SCORE"], importedLayers.Select(layer => layer.Name));
+        Assert.Equal(2, importedLayers[0].PathIds.Count);
+        Assert.Single(importedLayers[1].PathIds);
+        Assert.All(
+            importedLayers.SelectMany(layer => layer.PathIds),
+            id => Assert.Contains(id, imported.GeneratedPathIds));
+
+        workspace.ClearHistory();
+        var reloadedSource = Document(
+            Line("new-score", 0, 5, "SCORE"),
+            Line("new-print", 10, 15, "PRINT"));
+        Assert.True(workspace.ReloadImportGroups(
+            new Dictionary<string, Editor2DPreviewDocument> { [imported.Id] = reloadedSource }).IsSuccess);
+
+        var reloaded = Assert.Single(workspace.ImportGroups);
+        var reloadedLayers = reloaded.GeneratedLayerIds!
+            .Select(id => workspace.Layers.Single(layer => layer.Id == id))
+            .ToArray();
+        Assert.Equal(["SCORE", "PRINT"], reloadedLayers.Select(layer => layer.Name));
+        Assert.Equal(["SCORE", "PRINT"], workspace.Layers.OrderBy(layer => layer.Order).Select(layer => layer.Name));
+        Assert.All(reloadedLayers, layer => Assert.Single(layer.PathIds));
+        Assert.DoesNotContain(workspace.Layers, layer => layer.Name == "CUT" && layer.PathIds.Count == 0);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal(["CUT", "SCORE"], workspace.ImportGroups[0].GeneratedLayerIds!
+            .Select(id => workspace.Layers.Single(layer => layer.Id == id).Name));
+        Assert.True(workspace.Redo());
+        Assert.Equal(["SCORE", "PRINT"], workspace.ImportGroups[0].GeneratedLayerIds!
+            .Select(id => workspace.Layers.Single(layer => layer.Id == id).Name));
+    }
+
+    [Fact]
     public void Workspace_NormalizesOwnershipAndLooksUpSelectedImportGroup()
     {
         var first = Line("first", 0);
@@ -201,7 +249,7 @@ public sealed class ImportedDrawingGroupTests
         var path = Line("imported", 0);
         var document = Document(path);
         var layer = new Editor2DLayer("geometry", "Geometry", [path.Id]);
-        var group = new Editor2DImportGroup("import", "source.svg", 2.5, [path.Id], layer.Id, 0, 0, ["FILTER"]);
+        var group = new Editor2DImportGroup("import", "source.svg", 2.5, [path.Id], layer.Id, 0, 0, ["FILTER"], [layer.Id]);
         var workspaceState = new Editor2DWorkspaceState(
             document,
             Layers: [layer],
@@ -224,6 +272,7 @@ public sealed class ImportedDrawingGroupTests
             Assert.Equal(group.GeneratedPathIds, restoredGroup.GeneratedPathIds);
             Assert.Equal(group.OwningLayerId, restoredGroup.OwningLayerId);
             Assert.Equal(group.UnsupportedEntityTypes, restoredGroup.UnsupportedEntityTypes);
+            Assert.Equal(group.GeneratedLayerIds, restoredGroup.GeneratedLayerIds);
 
             var legacy = new Editor2DWorkspaceViewModel();
             legacy.Apply(new Editor2DWorkspaceState(document, Layers: [layer]), recordHistory: false);
@@ -250,8 +299,8 @@ public sealed class ImportedDrawingGroupTests
     private static Editor2DPreviewPath Line(string id, double x)
         => Line(id, x, x + 5);
 
-    private static Editor2DPreviewPath Line(string id, double startX, double endX)
-        => new(id, "LINE", [new(startX, 0), new(endX, 0)], false);
+    private static Editor2DPreviewPath Line(string id, double startX, double endX, string? sourceLayerName = null)
+        => new(id, "LINE", [new(startX, 0), new(endX, 0)], false, SourceLayerName: sourceLayerName);
 
     private static Editor2DPreviewDocument Document(params Editor2DPreviewPath[] paths)
         => DocumentWithUnsupported([], paths);

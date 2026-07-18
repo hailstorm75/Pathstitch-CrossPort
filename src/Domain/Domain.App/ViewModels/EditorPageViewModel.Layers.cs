@@ -33,6 +33,21 @@ public sealed partial class EditorPageViewModel
 
     public bool HasTwoDReferenceTraceSession => _twoDWorkspace.HasReferenceImageTraceSession;
 
+    public bool IsTwoDPsdBatchTrace => _twoDWorkspace.IsReferenceImageTraceBatch;
+
+    public int TwoDReferenceTraceBatchCount => _twoDWorkspace.ReferenceImageTraceBatchCount;
+
+    public string TwoDReferenceTraceTitle
+        => IsTwoDPsdBatchTrace ? "PSD VECTORIZATION" : "IMAGE TRACING";
+
+    public string TwoDReferenceTraceHelpText
+        => IsTwoDPsdBatchTrace
+            ? $"Shared settings apply to all {TwoDReferenceTraceBatchCount} PSD raster layer(s). Cyan contours preview all queued layers."
+            : "Preview contours draw in cyan.";
+
+    public string TwoDReferenceTraceCommitLabel
+        => IsTwoDPsdBatchTrace ? "Vectorize All Layers" : "Generate Vectors";
+
     public bool IsTwoDReferenceTraceRunning => _twoDWorkspace.IsReferenceImageTracePreviewPending;
 
     public bool ShowTwoDReferenceCalibration
@@ -45,7 +60,9 @@ public sealed partial class EditorPageViewModel
         => IsTwoDReferenceTraceRunning
             ? "Tracing image…"
             : CanCommitTwoDReferenceTrace
-            ? $"{_twoDWorkspace.ReferenceImageTracePreviewPaths.Count} cyan contour(s) ready"
+            ? IsTwoDPsdBatchTrace
+                ? $"{_twoDWorkspace.ReferenceImageTracePreviewPaths.Count} cyan preview contour(s); {TwoDReferenceTraceBatchCount} layer(s) queued"
+                : $"{_twoDWorkspace.ReferenceImageTracePreviewPaths.Count} cyan contour(s) ready"
             : "No trace contours found";
 
     public double TwoDReferenceTraceThreshold
@@ -456,18 +473,26 @@ public sealed partial class EditorPageViewModel
 
     public void CommitTwoDReferenceTrace()
     {
+        var batchCount = _twoDWorkspace.ReferenceImageTraceBatchCount;
         if (_twoDWorkspace.CommitReferenceImageTrace() is null)
             return;
         RefreshTwoDLayerFacade();
-        StatusText = "Reference image vectorized; source image hidden";
-        RecordActivity("Trace Reference Image", "Generated editable vectors");
+        StatusText = batchCount > 0
+            ? $"Vectorized {batchCount} PSD raster layer(s); source images hidden"
+            : "Reference image vectorized; source image hidden";
+        RecordActivity(
+            batchCount > 0 ? "Vectorize PSD Layers" : "Trace Reference Image",
+            batchCount > 0 ? $"Generated editable vectors from {batchCount} PSD raster layer(s)" : "Generated editable vectors");
     }
 
     public void CancelTwoDReferenceTrace()
     {
+        var wasPsdBatch = _twoDWorkspace.IsReferenceImageTraceBatch;
         _twoDWorkspace.CancelReferenceImageTrace();
         RefreshTwoDLayerFacade();
-        StatusText = "Reference image tracing cancelled";
+        StatusText = wasPsdBatch
+            ? "PSD vectorization cancelled; imported source layers retained"
+            : "Reference image tracing cancelled";
     }
 
     public void RemoveTwoDReferenceImageBackground(string layerId)
@@ -594,6 +619,11 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDActiveReferenceImageLocked));
         OnPropertyChanged(nameof(TwoDReferenceImageTransformEditActive));
         OnPropertyChanged(nameof(HasTwoDReferenceTraceSession));
+        OnPropertyChanged(nameof(IsTwoDPsdBatchTrace));
+        OnPropertyChanged(nameof(TwoDReferenceTraceBatchCount));
+        OnPropertyChanged(nameof(TwoDReferenceTraceTitle));
+        OnPropertyChanged(nameof(TwoDReferenceTraceHelpText));
+        OnPropertyChanged(nameof(TwoDReferenceTraceCommitLabel));
         OnPropertyChanged(nameof(IsTwoDReferenceTraceRunning));
         OnPropertyChanged(nameof(ShowTwoDReferenceCalibration));
         OnPropertyChanged(nameof(CanCommitTwoDReferenceTrace));

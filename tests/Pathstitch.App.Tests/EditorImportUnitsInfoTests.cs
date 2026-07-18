@@ -48,6 +48,34 @@ public sealed class EditorImportUnitsInfoTests
     }
 
     [Fact]
+    public async Task MalformedUnitDeclaration_AlwaysPromptsAndExplainsConflict()
+    {
+        var info = new Editor2DImportUnitsInfo(
+            "conflicting.dxf",
+            null,
+            null,
+            120,
+            80,
+            HasMalformedUnitDeclaration: true);
+
+        Assert.True(info.RequiresPrompt);
+        Assert.False(info.HasStrongUnitDeclaration);
+        Assert.Equal(1.0, info.RecommendedScaleFactor);
+
+        await _ui.RunAsync(() =>
+        {
+            var dialog = new EditorImportUnitsDialog();
+            dialog.SetImportInfo(info);
+
+            Assert.Contains(
+                "malformed or conflicting $INSUNITS",
+                dialog.GetLogicalDescendants().OfType<TextBlock>().Single(text =>
+                    text.Text?.Contains("conflicting.dxf", StringComparison.Ordinal) == true).Text,
+                StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
     public void EmptyBounds_DoNotPrompt()
     {
         var info = new Editor2DImportUnitsInfo("empty.dxf", 1, 25.4, 0, 0);

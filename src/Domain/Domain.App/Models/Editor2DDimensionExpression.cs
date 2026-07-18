@@ -120,7 +120,12 @@ internal static class Editor2DDimensionExpression
                     if (index < text.Length && text[index] == '"')
                     {
                         index++;
-                        number *= 25.4;
+                        if (!EditorLengthUnits.TryConvertExpressionUnitToMillimeters(number, "in", out number))
+                        {
+                            tokens = [];
+                            error = $"Number at position {position + 1} is outside the supported range.";
+                            return false;
+                        }
                     }
                     else
                     {
@@ -128,12 +133,12 @@ internal static class Editor2DDimensionExpression
                         var suffix = text[suffixStart..index];
                         if (suffix.Length == 0)
                             index = unitStart;
-                        else if (TryGetUnitScale(suffix, out var scale))
-                            number *= scale;
-                        else
+                        else if (!EditorLengthUnits.TryConvertExpressionUnitToMillimeters(number, suffix, out number))
                         {
                             tokens = [];
-                            error = $"Unsupported unit '{suffix}' at position {suffixStart + 1}.";
+                            error = EditorLengthUnits.TryConvertExpressionUnitToMillimeters(1, suffix, out _)
+                                ? $"Number at position {position + 1} is outside the supported range."
+                                : $"Unsupported unit '{suffix}' at position {suffixStart + 1}.";
                             return false;
                         }
                     }
@@ -361,7 +366,7 @@ internal static class Editor2DDimensionExpression
                     error = $"Unknown function '{identifier.Text}'.";
                     return false;
                 }
-                if (TryGetUnitScale(identifier.Text, out _))
+                if (EditorLengthUnits.TryConvertExpressionUnitToMillimeters(1, identifier.Text, out _))
                 {
                     value = 0.0;
                     error = $"Unit '{identifier.Text}' must follow a number.";
@@ -399,18 +404,5 @@ internal static class Editor2DDimensionExpression
         private Token Current => tokens[Math.Min(_index, tokens.Count - 1)];
 
         private Token Advance() => tokens[_index++];
-    }
-
-    private static bool TryGetUnitScale(string suffix, out double scale)
-    {
-        scale = suffix.ToLowerInvariant() switch
-        {
-            "mm" => 1.0,
-            "cm" => 10.0,
-            "m" => 1000.0,
-            "in" or "inch" or "inches" => 25.4,
-            _ => 0.0,
-        };
-        return scale > 0.0;
     }
 }

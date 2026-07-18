@@ -27,13 +27,42 @@ public sealed partial class Editor2DWorkspaceViewModel
         if (selected.Count == 0)
             return Editor2DWorkspaceOperationResult.Failure("Select one or more filled paths before converting to stroke");
 
-        var ids = selected.Select(path => path.Id).ToHashSet(StringComparer.Ordinal);
-        var nextPaths = Document.Paths
-            .Select(path => ids.Contains(path.Id) ? path with { IsFilled = false } : path)
+        var replacements = selected.ToDictionary(
+            static path => path.Id,
+            Editor2DGeometry.ConvertFillToStrokePaths,
+            StringComparer.Ordinal);
+        var nextPaths = Document.Paths.SelectMany(path => replacements.TryGetValue(path.Id, out var strokes)
+                ? strokes
+                : [path])
             .ToArray();
-        CommitDocumentEdit(RebuildDocument(Document, nextPaths), SelectedPathIds);
+        var nextSelection = SelectedPathIds.SelectMany(id => replacements.TryGetValue(id, out var strokes)
+                ? strokes.Select(static stroke => stroke.Id)
+                : [id])
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var nextLayers = Layers.Select(layer => layer with
+            {
+                PathIds = layer.PathIds.SelectMany(id => replacements.TryGetValue(id, out var strokes)
+                        ? strokes.Select(static stroke => stroke.Id)
+                        : [id])
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray(),
+            })
+            .ToArray();
+
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, nextPaths),
+            IsInitialized = true,
+            SelectedPathIds = nextSelection,
+            SelectedMeasurementId = null,
+            Layers = nextLayers,
+        });
+        var strokeCount = replacements.Values.Sum(static strokes => strokes.Count);
         return Editor2DWorkspaceOperationResult.Success(
-            selected.Count == 1 ? "Converted 1 fill to stroke" : $"Converted {selected.Count} fills to stroke");
+            selected.Count == 1
+                ? $"Converted 1 fill to {strokeCount} stroke{(strokeCount == 1 ? "" : "s")}"
+                : $"Converted {selected.Count} fills to {strokeCount} strokes");
     }
 
     public Editor2DWorkspaceOperationResult ApplyExplodeCompoundPaths()
@@ -909,22 +938,32 @@ public sealed partial class Editor2DWorkspaceViewModel
             var generated = drawing.Document.Paths.Select((path, index) =>
                 Editor2DGeometry.TranslatePath(path, deltaX, deltaY, $"import-{groupId}-{index}")).ToArray();
             var generatedIds = generated.Select(path => path.Id).ToArray();
-            var layerId = $"import-layer-{groupId}";
-            var layerName = Path.GetFileNameWithoutExtension(drawing.SourceFilePath.Trim());
-            appendedLayers.Add(new Editor2DLayer(
-                layerId,
-                string.IsNullOrWhiteSpace(layerName) ? "Imported Drawing" : layerName,
-                generatedIds,
-                Order: nextLayerOrder++));
+            var fallbackLayerName = Path.GetFileNameWithoutExtension(drawing.SourceFilePath.Trim());
+            if (string.IsNullOrWhiteSpace(fallbackLayerName))
+                fallbackLayerName = "Imported Drawing";
+            var generatedLayerIds = new List<string>();
+            foreach (var sourceLayer in generated.GroupBy(
+                path => ImportedSourceLayerName(path, fallbackLayerName),
+                StringComparer.Ordinal))
+            {
+                var layerId = $"import-layer-{groupId}-{generatedLayerIds.Count}";
+                generatedLayerIds.Add(layerId);
+                appendedLayers.Add(new Editor2DLayer(
+                    layerId,
+                    sourceLayer.Key,
+                    sourceLayer.Select(path => path.Id).ToArray(),
+                    Order: nextLayerOrder++));
+            }
             groups.Add(new Editor2DImportGroup(
                 groupId,
                 drawing.SourceFilePath.Trim(),
                 drawing.AppliedUnitScale,
                 generatedIds,
-                layerId,
+                generatedLayerIds[0],
                 0,
                 Document.Paths.Count + appendedPaths.Count,
-                drawing.Document.UnsupportedEntityTypes));
+                drawing.Document.UnsupportedEntityTypes,
+                generatedLayerIds));
             appendedPaths.AddRange(generated);
             cursorX += bounds.Width + normalizedSpacing;
         }
@@ -951,6 +990,10 @@ public sealed partial class Editor2DWorkspaceViewModel
             : $"Imported {groups.Count} drawings side by side");
     }
 
+    private static string ImportedSourceLayerName(Editor2DPreviewPath path, string fallbackLayerName)
+        => string.IsNullOrWhiteSpace(path.SourceLayerName)
+            ? fallbackLayerName
+            : path.SourceLayerName.Trim();
     public Editor2DWorkspaceOperationResult ReloadImportGroups(
         IReadOnlyDictionary<string, Editor2DPreviewDocument> documentsByGroupId)
     {
@@ -1004,25 +1047,91 @@ public sealed partial class Editor2DWorkspaceViewModel
                 nextPaths.AddRange(replacements[groupId].Paths);
         }
 
-        var nextLayers = Layers.Select(layer =>
-        {
-            var insertedLayerGroups = new HashSet<string>(StringComparer.Ordinal);
-            var pathIds = new List<string>();
-            foreach (var pathId in layer.PathIds)
+        var nextLayers = Layers
+            .Select(layer => layer with
             {
-                if (!oldOwnerByPathId.TryGetValue(pathId, out var groupId))
+                PathIds = layer.PathIds.Where(pathId => !oldOwnerByPathId.ContainsKey(pathId)).ToArray(),
+            })
+            .ToList();
+        var layerAssignments = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+        var nextLayerOrder = nextLayers.Select(layer => layer.Order).DefaultIfEmpty(-1).Max() + 1;
+        foreach (var replacement in replacements.Values.OrderBy(item => item.Existing.DocumentPathIndex))
+        {
+            var fallbackLayerName = Path.GetFileNameWithoutExtension(replacement.Existing.SourceFilePath);
+            if (string.IsNullOrWhiteSpace(fallbackLayerName))
+                fallbackLayerName = "Imported Drawing";
+            var reusableLayerIds = (replacement.Existing.GeneratedLayerIds ?? [replacement.Existing.OwningLayerId])
+                .ToHashSet(StringComparer.Ordinal);
+            var assignedLayerIds = new List<string>();
+            foreach (var sourceLayer in replacement.Paths.GroupBy(
+                path => ImportedSourceLayerName(path, fallbackLayerName),
+                StringComparer.Ordinal))
+            {
+                var layerIndex = nextLayers.FindIndex(layer =>
+                    reusableLayerIds.Contains(layer.Id)
+                    && !assignedLayerIds.Contains(layer.Id, StringComparer.Ordinal)
+                    && layer.Name.Equals(sourceLayer.Key, StringComparison.Ordinal));
+                if (layerIndex < 0)
                 {
-                    pathIds.Add(pathId);
-                    continue;
+                    layerIndex = nextLayers.FindIndex(layer =>
+                        reusableLayerIds.Contains(layer.Id)
+                        && !assignedLayerIds.Contains(layer.Id, StringComparer.Ordinal));
                 }
-                if (layer.Id == replacements[groupId].Existing.OwningLayerId
-                    && insertedLayerGroups.Add(groupId))
-                    pathIds.AddRange(replacements[groupId].Paths.Select(path => path.Id));
+
+                var sourcePathIds = sourceLayer.Select(path => path.Id).ToArray();
+                if (layerIndex >= 0)
+                {
+                    var existingLayer = nextLayers[layerIndex];
+                    nextLayers[layerIndex] = existingLayer with
+                    {
+                        Name = sourceLayer.Key,
+                        PathIds = existingLayer.PathIds.Concat(sourcePathIds).ToArray(),
+                    };
+                    assignedLayerIds.Add(existingLayer.Id);
+                }
+                else
+                {
+                    var layerId = $"import-layer-{replacement.Existing.Id}-{Guid.NewGuid():N}";
+                    nextLayers.Add(new Editor2DLayer(
+                        layerId,
+                        sourceLayer.Key,
+                        sourcePathIds,
+                        Order: nextLayerOrder++));
+                    assignedLayerIds.Add(layerId);
+                }
             }
-            return layer with { PathIds = pathIds };
-        }).ToArray();
+            var assignedLayers = assignedLayerIds
+                .Select(id => nextLayers.Single(layer => layer.Id == id))
+                .ToArray();
+            var assignedIndices = assignedLayerIds
+                .Select(id => nextLayers.FindIndex(layer => layer.Id == id))
+                .Where(index => index >= 0)
+                .ToArray();
+            var insertionIndex = assignedIndices.DefaultIfEmpty(nextLayers.Count).Min();
+            nextLayers.RemoveAll(layer => assignedLayerIds.Contains(layer.Id, StringComparer.Ordinal));
+            nextLayers.InsertRange(Math.Min(insertionIndex, nextLayers.Count), assignedLayers);
+            layerAssignments[replacement.Existing.Id] = assignedLayerIds;
+        }
+
+        var assignedLayerIdSet = layerAssignments.Values.SelectMany(ids => ids).ToHashSet(StringComparer.Ordinal);
+        var staleGeneratedLayerIds = replacements.Values
+            .SelectMany(item => item.Existing.GeneratedLayerIds ?? [item.Existing.OwningLayerId])
+            .Where(id => !assignedLayerIdSet.Contains(id))
+            .ToHashSet(StringComparer.Ordinal);
+        nextLayers.RemoveAll(layer => staleGeneratedLayerIds.Contains(layer.Id) && layer.PathIds.Count == 0);
+        nextLayers = nextLayers.Select((layer, order) => layer with { Order = order }).ToList();
+
         var nextGroups = ImportGroups.Select(group =>
-            replacements.TryGetValue(group.Id, out var replacement) ? replacement.Updated : group).ToArray();
+        {
+            if (!replacements.TryGetValue(group.Id, out var replacement))
+                return group;
+            var generatedLayerIds = layerAssignments[group.Id];
+            return replacement.Updated with
+            {
+                OwningLayerId = generatedLayerIds[0],
+                GeneratedLayerIds = generatedLayerIds,
+            };
+        }).ToArray();
         var selectedIds = nextGroups
             .Where(group => replacements.ContainsKey(group.Id))
             .SelectMany(group => group.GeneratedPathIds)

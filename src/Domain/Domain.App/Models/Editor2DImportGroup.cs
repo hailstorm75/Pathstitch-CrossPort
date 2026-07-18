@@ -10,7 +10,8 @@ public sealed record Editor2DImportGroup(
     [property: JsonPropertyName("owningLayerId")] string OwningLayerId,
     [property: JsonPropertyName("owningLayerPathIndex")] int OwningLayerPathIndex,
     [property: JsonPropertyName("documentPathIndex")] int DocumentPathIndex,
-    [property: JsonPropertyName("unsupportedEntityTypes")] IReadOnlyList<string>? UnsupportedEntityTypes = null);
+    [property: JsonPropertyName("unsupportedEntityTypes")] IReadOnlyList<string>? UnsupportedEntityTypes = null,
+    [property: JsonPropertyName("generatedLayerIds")] IReadOnlyList<string>? GeneratedLayerIds = null);
 
 public sealed record Editor2DImportedDrawing(
     string SourceFilePath,

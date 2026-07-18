@@ -20,9 +20,11 @@ public sealed partial class EditorImportUnitsDialog : Window
 
     public void SetImportInfo(Editor2DImportUnitsInfo info)
     {
-        DescriptionText.Text = info.HasStrongUnitDeclaration
-            ? $"\u201c{Path.GetFileName(info.SourcePath)}\u201d imported at {info.Width:0.###} \u00d7 {info.Height:0.###} mm and declares its units as {info.DeclaredUnit}. Confirm the real-world size."
-            : $"\u201c{Path.GetFileName(info.SourcePath)}\u201d imported at {info.Width:0.###} \u00d7 {info.Height:0.###} mm, which looks unusually {(info.MaxDimension > 2000.0 ? "large" : "small")}. Pick the real-world size.";
+        DescriptionText.Text = info.HasMalformedUnitDeclaration
+            ? $"\u201c{Path.GetFileName(info.SourcePath)}\u201d imported at {info.Width:0.###} \u00d7 {info.Height:0.###} drawing units, but its DXF contains malformed or conflicting $INSUNITS metadata. Pick the real-world size."
+            : info.HasStrongUnitDeclaration
+                ? $"\u201c{Path.GetFileName(info.SourcePath)}\u201d imported at {info.Width:0.###} \u00d7 {info.Height:0.###} mm and declares its units as {info.DeclaredUnit}. Confirm the real-world size."
+                : $"\u201c{Path.GetFileName(info.SourcePath)}\u201d imported at {info.Width:0.###} \u00d7 {info.Height:0.###} mm, which looks unusually {(info.MaxDimension > 2000.0 ? "large" : "small")}. Pick the real-world size.";
         var choices = new List<Choice> { new($"Keep current size ({info.Width:0.###} \u00d7 {info.Height:0.###} mm)", 1.0) };
         if (info.HasStrongUnitDeclaration
             && info.MillimetersPerDrawingUnit is { } fileFactor

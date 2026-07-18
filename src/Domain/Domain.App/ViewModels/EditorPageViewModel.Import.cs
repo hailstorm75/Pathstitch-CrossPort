@@ -17,6 +17,32 @@ public sealed partial class EditorPageViewModel
         ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tif", ".tiff", ".avif", ".heic", ".heif", ".psd",
     };
     private readonly SemaphoreSlim _importFilesGate = new(1, 1);
+    private double _twoDViewportPixelWidth;
+    private double _twoDViewportPixelHeight;
+
+    public void UpdateTwoDViewportSize(double pixelWidth, double pixelHeight)
+    {
+        if (!double.IsFinite(pixelWidth)
+            || !double.IsFinite(pixelHeight)
+            || pixelWidth <= 0.0
+            || pixelHeight <= 0.0)
+        {
+            return;
+        }
+
+        _twoDViewportPixelWidth = pixelWidth;
+        _twoDViewportPixelHeight = pixelHeight;
+    }
+
+    private Editor2DViewportPlacement? CurrentTwoDViewportPlacement
+        => _twoDViewportPixelWidth > 0.0 && _twoDViewportPixelHeight > 0.0
+            ? new Editor2DViewportPlacement(
+                _twoDViewportPixelWidth,
+                _twoDViewportPixelHeight,
+                TwoDViewportZoom,
+                TwoDViewportOffsetX,
+                TwoDViewportOffsetY)
+            : null;
 
     private bool CanImportFiles()
         => ProjectSession is not null
@@ -384,7 +410,11 @@ public sealed partial class EditorPageViewModel
             var mode = await _psdImportModePromptService.PromptAsync(import, cancellationToken).ConfigureAwait(true);
             if (mode is null)
                 return 0;
-            var result = _twoDWorkspace.ImportPsd(import, mode.Value, insertionPoint);
+            var result = _twoDWorkspace.ImportPsd(
+                import,
+                mode.Value,
+                insertionPoint,
+                CurrentTwoDViewportPlacement);
             if (!CompleteTwoDWorkspaceOperation(result))
                 return 0;
             return 1;

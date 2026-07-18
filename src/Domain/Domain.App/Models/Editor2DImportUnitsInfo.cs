@@ -5,18 +5,36 @@ public sealed record Editor2DImportUnitsInfo(
     int? InsUnitsCode,
     double? MillimetersPerDrawingUnit,
     double Width,
-    double Height)
+    double Height,
+    bool HasMalformedUnitDeclaration = false)
 {
     private static readonly double[] StandardScaleFactors =
-        [10.0, 25.4, 1000.0, 0.1, 1.0 / 25.4, 0.001];
+    [
+        RequiredDxfScale(5),
+        RequiredDxfScale(1),
+        RequiredDxfScale(6),
+        1.0 / RequiredDxfScale(5),
+        1.0 / RequiredDxfScale(1),
+        1.0 / RequiredDxfScale(6),
+    ];
 
     public double MaxDimension => Math.Max(Width, Height);
 
-    public bool HasStrongUnitDeclaration => InsUnitsCode is 1 or 2 or 5 or 10;
+    // Metres are deliberately weak: ezdxf and several exporters commonly stamp
+    // code 6 onto millimetre drawings. Other non-mm official declarations are
+    // unusual enough to require an explicit physical-scale choice.
+    public bool HasStrongUnitDeclaration
+        => InsUnitsCode is { } code
+           && code != EditorLengthUnits.MillimeterInsUnitsCode
+           && code != 6
+           && EditorLengthUnits.TryGetDxfUnit(code, out _);
 
     public bool RequiresPrompt
         => MaxDimension > 0.0
-           && (HasStrongUnitDeclaration || MaxDimension > 2000.0 || MaxDimension < 1.0);
+           && (HasMalformedUnitDeclaration
+               || HasStrongUnitDeclaration
+               || MaxDimension > 2000.0
+               || MaxDimension < 1.0);
 
     public IReadOnlyList<double> GetScaleFactorChoices()
     {
@@ -75,16 +93,9 @@ public sealed record Editor2DImportUnitsInfo(
         }
     }
 
-    public string DeclaredUnit => InsUnitsCode switch
-    {
-        1 => "inches",
-        2 => "feet",
-        3 => "miles",
-        4 => "millimetres",
-        5 => "centimetres",
-        6 => "metres",
-        10 => "yards",
-        null or 0 => "unitless",
-        _ => "CAD units",
-    };
+    public string DeclaredUnit => EditorLengthUnits.DxfUnitName(InsUnitsCode);
+
+    private static double RequiredDxfScale(int code)
+        => EditorLengthUnits.MillimetersPerDrawingUnit(code)
+           ?? throw new InvalidOperationException($"Missing DXF unit definition for code {code}.");
 }
