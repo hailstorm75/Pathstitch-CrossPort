@@ -4,6 +4,7 @@ param(
     [string]$OutputDirectory = "",
     [string]$SigningIdentity = "-",
     [switch]$Notarize,
+    [string]$DistributionEvidenceDirectory = "",
     [switch]$PruneNativeInputsBeforeArchive
 )
 
@@ -22,6 +23,28 @@ $frameworks = Join-Path $contents "Frameworks"
 $swiftTarget = "arm64-apple-macos13.0"
 $zipFoundationRevision = "22787ffb59de99e5dc1fbfe80b19c97a904ad48d"
 $zipFoundationRoot = Join-Path $output "swift-packages/ZIPFoundation"
+$distributionEvidence = if ([string]::IsNullOrWhiteSpace($DistributionEvidenceDirectory)) {
+    Join-Path $output "distribution-evidence"
+} else {
+    [IO.Path]::GetFullPath($DistributionEvidenceDirectory)
+}
+
+if ($Notarize) {
+    if ($SigningIdentity -notmatch '^Developer ID Application: .+ \([A-Z0-9]+\)$') {
+        throw "-Notarize requires an exact Developer ID Application identity."
+    }
+    foreach ($name in "APPLE_ID", "APPLE_TEAM_ID", "APPLE_APP_SPECIFIC_PASSWORD") {
+        if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+            throw "$name is required for notarization"
+        }
+    }
+    $identityTeamIdentifier = [regex]::Match(
+        $SigningIdentity,
+        '\((?<team>[A-Z0-9]+)\)$').Groups["team"].Value
+    if ($identityTeamIdentifier -ne $env:APPLE_TEAM_ID) {
+        throw "Developer ID identity team does not match APPLE_TEAM_ID."
+    }
+}
 
 if (Test-Path -LiteralPath $output) { Remove-Item -LiteralPath $output -Recurse -Force }
 New-Item -ItemType Directory -Path $macos -Force | Out-Null
@@ -227,6 +250,18 @@ if (Get-Command codesign -ErrorAction SilentlyContinue) {
     $previewExtension = Join-Path $contents "PlugIns/PathstitchQuickLook.appex"
     $thumbnailExtension = Join-Path $contents "PlugIns/PathstitchThumbnail.appex"
     $extensionEntitlements = Join-Path $repo "scripts/macos/quicklook/PathstitchQuickLook.entitlements"
+    $timestampArguments = if ($SigningIdentity -eq "-") { @() } else { @("--timestamp") }
+
+    if ($Notarize) {
+        if (-not (Get-Command security -ErrorAction SilentlyContinue)) {
+            throw "security is required to validate Developer ID identity."
+        }
+        $signingIdentityOutput = (& security find-identity -v -p codesigning 2>&1) -join [Environment]::NewLine
+        if ($LASTEXITCODE -ne 0 -or
+            -not $signingIdentityOutput.Contains('"' + $SigningIdentity + '"', [StringComparison]::Ordinal)) {
+            throw "Exact Developer ID Application identity is unavailable: $SigningIdentity"
+        }
+    }
 
     $machOFiles = @(
         Get-ChildItem -LiteralPath $app -Recurse -File | Where-Object {
@@ -234,16 +269,16 @@ if (Get-Command codesign -ErrorAction SilentlyContinue) {
         } | Sort-Object { $_.FullName.Length } -Descending
     )
     foreach ($machOFile in $machOFiles) {
-        & codesign --force --options runtime --sign $SigningIdentity $machOFile.FullName
+        & codesign --force --options runtime @timestampArguments --sign $SigningIdentity $machOFile.FullName
         if ($LASTEXITCODE -ne 0) {
             throw "Nested Mach-O signing failed: $($machOFile.FullName)"
         }
     }
-    & codesign --force --options runtime --entitlements $extensionEntitlements --sign $SigningIdentity $previewExtension
+    & codesign --force --options runtime @timestampArguments --entitlements $extensionEntitlements --sign $SigningIdentity $previewExtension
     if ($LASTEXITCODE -ne 0) { throw "Quick Look preview extension signing failed" }
-    & codesign --force --options runtime --entitlements $extensionEntitlements --sign $SigningIdentity $thumbnailExtension
+    & codesign --force --options runtime @timestampArguments --entitlements $extensionEntitlements --sign $SigningIdentity $thumbnailExtension
     if ($LASTEXITCODE -ne 0) { throw "Quick Look thumbnail extension signing failed" }
-    & codesign --force --options runtime --entitlements (Join-Path $repo "scripts/macos/Pathstitch.entitlements") --sign $SigningIdentity $app
+    & codesign --force --options runtime @timestampArguments --entitlements (Join-Path $repo "scripts/macos/Pathstitch.entitlements") --sign $SigningIdentity $app
     if ($LASTEXITCODE -ne 0) { throw "application signing failed" }
 
     & codesign --verify --strict --verbose=2 $previewExtension
@@ -258,6 +293,8 @@ if (Get-Command codesign -ErrorAction SilentlyContinue) {
     if ($LASTEXITCODE -ne 0) { throw "Quick Look thumbnail extension verification failed" }
     & codesign --verify --deep --strict --verbose=2 $app
     if ($LASTEXITCODE -ne 0) { throw "application signing verification failed" }
+} elseif ($Notarize) {
+    throw "codesign is required for Developer ID distribution."
 }
 
 $zip = Join-Path $output "Pathstitch-osx-arm64.zip"
@@ -275,25 +312,142 @@ if ($PruneNativeInputsBeforeArchive) {
     }
 }
 
-if (Get-Command ditto -ErrorAction SilentlyContinue) {
-    & ditto -c -k --keepParent $app $zip
-    if ($LASTEXITCODE -ne 0) { throw "app archive creation failed" }
+if (-not (Get-Command ditto -ErrorAction SilentlyContinue)) {
+    throw "ditto is required to create the macOS archive."
 }
+& ditto -c -k --keepParent $app $zip
+if ($LASTEXITCODE -ne 0) { throw "app archive creation failed" }
+if (-not (Test-Path -LiteralPath $zip -PathType Leaf) -or
+    (Get-Item -LiteralPath $zip).Length -le 0) {
+    throw "app archive is missing or empty"
+}
+& unzip -t $zip
+if ($LASTEXITCODE -ne 0) { throw "app archive readability check failed" }
 
 if ($Notarize) {
-    foreach ($name in "APPLE_ID", "APPLE_TEAM_ID", "APPLE_APP_PASSWORD") {
-        if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
-            throw "$name is required for notarization"
-        }
+    New-Item -ItemType Directory -Path $distributionEvidence -Force | Out-Null
+    $submissionPath = Join-Path $distributionEvidence "notarytool-submit.json"
+    $notarySubmissionLines = @(
+        & xcrun notarytool submit $zip `
+            --apple-id $env:APPLE_ID `
+            --team-id $env:APPLE_TEAM_ID `
+            --password $env:APPLE_APP_SPECIFIC_PASSWORD `
+            --wait `
+            --output-format json 2>&1
+    )
+    $notarySubmitExitCode = $LASTEXITCODE
+    $notarySubmissionText = $notarySubmissionLines -join [Environment]::NewLine
+    [IO.File]::WriteAllText(
+        $submissionPath,
+        $notarySubmissionText,
+        [Text.UTF8Encoding]::new($false))
+    if ($notarySubmitExitCode -ne 0) { throw "notarization failed" }
+
+    try {
+        $notarySubmission = $notarySubmissionText | ConvertFrom-Json
+    } catch {
+        throw "notarytool returned invalid JSON: $($_.Exception.Message)"
     }
-    & xcrun notarytool submit $zip --apple-id $env:APPLE_ID --team-id $env:APPLE_TEAM_ID --password $env:APPLE_APP_PASSWORD --wait
-    if ($LASTEXITCODE -ne 0) { throw "notarization failed" }
+    if ($notarySubmission.status -ne "Accepted" -or
+        [string]::IsNullOrWhiteSpace([string]$notarySubmission.id)) {
+        throw "notarization was not accepted"
+    }
+    $submissionId = [string]$notarySubmission.id
+
+    $notaryLogPath = Join-Path $distributionEvidence "notarytool-log.json"
+    $notaryLogLines = @(
+        & xcrun notarytool log $submissionId `
+            --apple-id $env:APPLE_ID `
+            --team-id $env:APPLE_TEAM_ID `
+            --password $env:APPLE_APP_SPECIFIC_PASSWORD `
+            --output-format json 2>&1
+    )
+    $notaryLogExitCode = $LASTEXITCODE
+    [IO.File]::WriteAllText(
+        $notaryLogPath,
+        ($notaryLogLines -join [Environment]::NewLine),
+        [Text.UTF8Encoding]::new($false))
+    if ($notaryLogExitCode -ne 0) { throw "notarization log retrieval failed" }
+
     & xcrun stapler staple $app
     if ($LASTEXITCODE -ne 0) { throw "notarization stapling failed" }
     & xcrun stapler validate $app
     if ($LASTEXITCODE -ne 0) { throw "notarization ticket validation failed" }
+
+    $codeSignVerificationLines = @(
+        & codesign --verify --deep --strict --verbose=4 $app 2>&1
+    )
+    $codeSignVerificationExitCode = $LASTEXITCODE
+    [IO.File]::WriteAllText(
+        (Join-Path $distributionEvidence "codesign-verification.txt"),
+        ($codeSignVerificationLines -join [Environment]::NewLine),
+        [Text.UTF8Encoding]::new($false))
+    if ($codeSignVerificationExitCode -ne 0) {
+        throw "stapled application signing verification failed"
+    }
+
+    $codeSignDetailsLines = @(& codesign -d --verbose=4 $app 2>&1)
+    $codeSignDetailsExitCode = $LASTEXITCODE
+    $codeSignDetails = $codeSignDetailsLines -join [Environment]::NewLine
+    [IO.File]::WriteAllText(
+        (Join-Path $distributionEvidence "codesign-details.txt"),
+        $codeSignDetails,
+        [Text.UTF8Encoding]::new($false))
+    if ($codeSignDetailsExitCode -ne 0 -or
+        -not $codeSignDetails.Contains(
+            "Authority=$SigningIdentity",
+            [StringComparison]::Ordinal) -or
+        -not $codeSignDetails.Contains(
+            "TeamIdentifier=$env:APPLE_TEAM_ID",
+            [StringComparison]::Ordinal) -or
+        $codeSignDetails -notmatch '(?m)^Timestamp=' -or
+        $codeSignDetails -notmatch '(?m)^flags=.*\(runtime\)') {
+        throw "Developer ID authority, team, secure timestamp, or hardened runtime is missing"
+    }
+
+    $gatekeeperLines = @(
+        & spctl --assess --type execute --verbose=4 $app 2>&1
+    )
+    $gatekeeperExitCode = $LASTEXITCODE
+    $gatekeeperText = $gatekeeperLines -join [Environment]::NewLine
+    [IO.File]::WriteAllText(
+        (Join-Path $distributionEvidence "gatekeeper-assessment.txt"),
+        $gatekeeperText,
+        [Text.UTF8Encoding]::new($false))
+    if ($gatekeeperExitCode -ne 0 -or $gatekeeperText -notmatch '(?i)accepted') {
+        throw "Gatekeeper assessment failed"
+    }
+
+    Remove-Item -LiteralPath $zip -Force
     & ditto -c -k --keepParent $app $zip
     if ($LASTEXITCODE -ne 0) { throw "stapled app archive recreation failed" }
+    & unzip -t $zip
+    if ($LASTEXITCODE -ne 0) { throw "stapled app archive readability check failed" }
+
+    $zipInfo = Get-Item -LiteralPath $zip
+    $distributionManifest = [ordered]@{
+        schemaVersion = 1
+        status = "passed"
+        signingIdentity = $SigningIdentity
+        secureTimestamp = $true
+        hardenedRuntime = $true
+        notarization = [ordered]@{
+            status = [string]$notarySubmission.status
+            submissionId = $submissionId
+            submissionFile = "notarytool-submit.json"
+            logFile = "notarytool-log.json"
+        }
+        staplerValidated = $true
+        gatekeeperAccepted = $true
+        applicationGroup = "group.com.pathstitch.crossport"
+        package = [ordered]@{
+            file = $zipInfo.Name
+            bytes = $zipInfo.Length
+            sha256 = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    }
+    $distributionManifest | ConvertTo-Json -Depth 6 |
+        Set-Content -LiteralPath (Join-Path $distributionEvidence "distribution-evidence.json") -Encoding utf8NoBOM
 }
 
 Write-Output $app
