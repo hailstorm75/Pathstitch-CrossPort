@@ -16,7 +16,38 @@
   WindowStartupLocation="CenterScreen"
   WindowState="Maximized"
   mc:Ignorable="d">
-  <ContentControl
-    x:Name="PART_PageContainer"
-    AutomationProperties.AutomationId="app.page-host" />
+  <Grid RowDefinitions="*,Auto">
+    <ContentControl
+      x:Name="PART_PageContainer"
+      AutomationProperties.AutomationId="app.page-host" />
+
+    <Border
+      Grid.Row="1"
+      AutomationProperties.AutomationId="app.contextual-help-status"
+      MinHeight="26"
+      Padding="10,4"
+      Background="#141418"
+      BorderBrush="#1FFFFFFF"
+      BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock
+          x:Name="PART_ContextualHelpText"
+          AutomationProperties.AutomationId="app.contextual-help-text"
+          VerticalAlignment="Center"
+          FontSize="11"
+          Foreground="#A9A9B4"
+          Text="Hover over a control for help." />
+        <TextBlock
+          x:Name="PART_ContextualHelpShortcut"
+          Grid.Column="1"
+          Margin="16,0,0,0"
+          VerticalAlignment="Center"
+          FontSize="10"
+          FontWeight="SemiBold"
+          Foreground="#6A6A74"
+          IsVisible="False"
+          Text="F1  Open documentation" />
+      </Grid>
+    </Border>
+  </Grid>
 </Window>

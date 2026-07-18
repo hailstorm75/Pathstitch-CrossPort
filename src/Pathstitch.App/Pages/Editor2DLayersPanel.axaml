@@ -2,6 +2,7 @@
   x:Class="Pathstitch.App.Pages.Editor2DLayersPanel"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:help="using:Pathstitch.App.Help"
   xmlns:models="using:Domain.App.Models"
   xmlns:viewModels="using:Domain.App.ViewModels"
   xmlns:converters="using:Pathstitch.App.Converters"
@@ -307,11 +308,12 @@
       <StackPanel Grid.Row="2" Margin="0,8,0,0" Spacing="8">
         <CheckBox
           AutomationProperties.AutomationId="editor.layers.auto-crop-reference-images"
-          AutomationProperties.HelpText="Trim fully transparent borders from newly imported reference images"
+          help:ContextualHelp.Text="Trim fully transparent borders from newly imported reference images"
           Content="Crop transparent margins on import"
           IsChecked="{Binding AutoCropTransparentReferenceImages, Mode=TwoWay}" />
         <Border
           IsVisible="{Binding HasTwoDReferenceTraceSession}"
+          help:ContextualHelp.Text="{Binding TwoDReferenceTraceHelpText}"
           Padding="8"
           Background="{StaticResource InputBackgroundBrush}"
           BorderBrush="#22D3EE"
@@ -319,7 +321,6 @@
           CornerRadius="6">
           <StackPanel Spacing="5">
             <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding TwoDReferenceTraceTitle}" />
-            <TextBlock FontSize="9" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDReferenceTraceHelpText}" TextWrapping="Wrap" />
             <CheckBox Content="Silhouette only" IsChecked="{Binding TwoDReferenceTraceSilhouetteOnly, Mode=TwoWay}" />
             <Grid ColumnDefinitions="*,Auto">
               <TextBlock FontSize="10" Text="Threshold" />

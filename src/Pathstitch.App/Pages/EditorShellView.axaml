@@ -2,6 +2,7 @@
   x:Class="Pathstitch.App.Pages.EditorShellView"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:help="using:Pathstitch.App.Help"
   xmlns:pages="using:Pathstitch.App.Pages"
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:EditorPageViewModel"
@@ -249,12 +250,13 @@
         <MenuItem
           x:Name="ActivityLogMenuItem"
           AutomationProperties.AutomationId="editor.menu.view.log-tray"
+          help:ContextualHelp.Text="{Binding ActivityLogToggleHelpText}"
           Header="{Binding ActivityLogToggleLabel}"
           Click="OnToggleActivityLogClicked" />
         <MenuItem
           x:Name="LearnModeMenuItem"
           AutomationProperties.AutomationId="editor.menu.view.learn-mode"
-          AutomationProperties.HelpText="{Binding LearnModeToggleHelpText}"
+          help:ContextualHelp.Text="{Binding LearnModeToggleHelpText}"
           Header="_Learn Mode"
           ToggleType="CheckBox"
           IsChecked="{Binding LearnModeEnabled, Mode=OneWay}"
@@ -464,7 +466,7 @@
           <Button
             AutomationProperties.AutomationId="editor.workspace.log-tray"
             AutomationProperties.Name="{Binding ActivityLogToggleLabel}"
-            AutomationProperties.HelpText="{Binding ActivityLogToggleHelpText}"
+            help:ContextualHelp.Text="{Binding ActivityLogToggleHelpText}"
             Classes="chip-button"
             Classes.active="{Binding IsActivityLogExpanded}"
             Width="34"

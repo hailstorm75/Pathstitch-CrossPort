@@ -240,6 +240,22 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
+    public void HomePage_ContextualizesDropGuidanceAndConstrainsRecentProjects()
+    {
+        var home = ReadPage("HomePageView.axaml");
+
+        Assert.Contains(
+            "help:ContextualHelp.Text=\"Drop a Pathstitch project, drawing, reference image, or 3D model to continue.\"",
+            home,
+            StringComparison.Ordinal);
+        Assert.Contains("ClipToBounds=\"True\"", home, StringComparison.Ordinal);
+        Assert.Contains("<Grid RowDefinitions=\"Auto,*\">", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open a .stch project or drop one or more 3D models", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"3D Kernel\"", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeometryKernelRuntimeSummary", home, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void HelpMenu_ExposesPreferencesShortcutEditor()
     {
         var shell = ReadPage("EditorShellView.axaml");

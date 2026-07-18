@@ -27,7 +27,7 @@ public sealed partial class HomePageViewModel(
     private ProjectSession? _currentSession;
     private IReadOnlyList<RecentProjectSummary> _recentProjects = [];
     private RecentProjectSummary? _selectedRecentProject;
-    private string _homeStatusText = "Drop a Pathstitch project or 3D model to continue.";
+    private string _homeStatusText = string.Empty;
     private bool _isLoading;
 
     public IReadOnlyList<ProjectTemplateDefinition> AvailableTemplates => projectSessionService.AvailableTemplates;
@@ -118,7 +118,7 @@ public sealed partial class HomePageViewModel(
         CurrentSession = projectSessionService.CurrentSession;
         RefreshRecentProjects();
         _ = WatchDiscoveredRecentProjectsAsync(token);
-        HomeStatusText = "Drop a Pathstitch project, drawing, reference image, or 3D model to continue.";
+        HomeStatusText = string.Empty;
         return ValueTask.CompletedTask;
     }
 
