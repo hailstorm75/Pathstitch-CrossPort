@@ -160,6 +160,10 @@ public sealed class MacOsDocumentIntegrationTests
         Assert.Contains("@_cdecl(\"pathstitch_set_quicklook_preferences\")", bridge, StringComparison.Ordinal);
         Assert.Contains("@_cdecl(\"pathstitch_get_quicklook_preference\")", bridge, StringComparison.Ordinal);
         Assert.Contains("@_cdecl(\"pathstitch_apply_app_icon\")", bridge, StringComparison.Ordinal);
+        Assert.Matches(
+            @"return defaults\.bool\(forKey: key\) \? 1 : 0\s*}\s*@_cdecl\(""pathstitch_apply_app_icon""\)",
+            bridge);
+        Assert.Equal(bridge.Count(character => character == '{'), bridge.Count(character => character == '}'));
         Assert.Contains("Bundle.main.path(forResource:", bridge, StringComparison.Ordinal);
         Assert.Contains("effectiveAppearance", bridge, StringComparison.Ordinal);
 

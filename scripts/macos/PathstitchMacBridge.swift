@@ -103,6 +103,7 @@ public func pathstitchGetQuickLookPreference(
     }
     guard defaults.object(forKey: key) != nil else { return -1 }
     return defaults.bool(forKey: key) ? 1 : 0
+}
 
 @_cdecl("pathstitch_apply_app_icon")
 public func pathstitchApplyAppIcon(
