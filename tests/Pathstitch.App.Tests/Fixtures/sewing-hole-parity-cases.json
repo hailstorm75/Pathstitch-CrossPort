@@ -1,0 +1,1109 @@
+{
+  "schemaVersion": 1,
+  "source": "pathstitch_core.dxf_ops.op_add_holes",
+  "cases": [
+    {
+      "name": "count-open-line",
+      "coordinateTolerance": 0.001,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              0
+            ]
+          ],
+          "closed": false,
+          "selected": true,
+          "keepout": false
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 5.0,
+        "margin": 2.0,
+        "cornerMode": "Continuous",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": false,
+        "avoidanceClearance": 3.0,
+        "avoidPathIds": [],
+        "symmetricDistribution": true,
+        "distributionMode": "Count",
+        "count": 5,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Left",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": false,
+        "proximityFilterEnabled": false,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": false,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 3.0
+      },
+      "expected": [
+        {
+          "x": 0.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 5.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 10.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 15.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 20.0,
+          "y": 2.0,
+          "radius": 0.5
+        }
+      ]
+    },
+    {
+      "name": "line-proximity-threshold",
+      "coordinateTolerance": 0.001,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              0
+            ]
+          ],
+          "closed": false,
+          "selected": true,
+          "keepout": false
+        },
+        {
+          "id": "crossing",
+          "type": "LINE",
+          "points": [
+            [
+              10.75,
+              -5
+            ],
+            [
+              10.75,
+              5
+            ]
+          ],
+          "closed": false,
+          "selected": false,
+          "keepout": false
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 5.0,
+        "margin": 2.0,
+        "cornerMode": "Continuous",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": false,
+        "avoidanceClearance": 3.0,
+        "avoidPathIds": [],
+        "symmetricDistribution": true,
+        "distributionMode": "Pitch",
+        "count": 5,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Left",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": false,
+        "proximityFilterEnabled": false,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": true,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 3.0
+      },
+      "expected": [
+        {
+          "x": 0.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 5.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 15.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 20.0,
+          "y": 2.0,
+          "radius": 0.5
+        }
+      ]
+    },
+    {
+      "name": "nearly-parallel-line",
+      "coordinateTolerance": 0.001,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              0
+            ]
+          ],
+          "closed": false,
+          "selected": true,
+          "keepout": false
+        },
+        {
+          "id": "parallel",
+          "type": "LINE",
+          "points": [
+            [
+              0,
+              2.75
+            ],
+            [
+              20,
+              2.75
+            ]
+          ],
+          "closed": false,
+          "selected": false,
+          "keepout": false
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 5.0,
+        "margin": 2.0,
+        "cornerMode": "Continuous",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": false,
+        "avoidanceClearance": 3.0,
+        "avoidPathIds": [],
+        "symmetricDistribution": true,
+        "distributionMode": "Pitch",
+        "count": 5,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Left",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": false,
+        "proximityFilterEnabled": false,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": true,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 3.0
+      },
+      "expected": []
+    },
+    {
+      "name": "tagged-keepout",
+      "coordinateTolerance": 0.001,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              0
+            ]
+          ],
+          "closed": false,
+          "selected": true,
+          "keepout": false
+        },
+        {
+          "id": "keepout",
+          "type": "LINE",
+          "points": [
+            [
+              10.75,
+              -5
+            ],
+            [
+              10.75,
+              5
+            ]
+          ],
+          "closed": false,
+          "selected": false,
+          "keepout": true
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 5.0,
+        "margin": 2.0,
+        "cornerMode": "Continuous",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": true,
+        "avoidanceClearance": 1.0,
+        "avoidPathIds": [
+          "keepout"
+        ],
+        "symmetricDistribution": true,
+        "distributionMode": "Pitch",
+        "count": 5,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Left",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": false,
+        "proximityFilterEnabled": false,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": false,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 3.0
+      },
+      "expected": [
+        {
+          "x": 0.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 5.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 15.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 20.0,
+          "y": 2.0,
+          "radius": 0.5
+        }
+      ]
+    },
+    {
+      "name": "hole-radius-obstacle",
+      "coordinateTolerance": 0.001,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              0
+            ]
+          ],
+          "closed": false,
+          "selected": true,
+          "keepout": false
+        },
+        {
+          "id": "nearby",
+          "type": "LINE",
+          "points": [
+            [
+              10.25,
+              -5
+            ],
+            [
+              10.25,
+              5
+            ]
+          ],
+          "closed": false,
+          "selected": false,
+          "keepout": false
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 5.0,
+        "margin": 2.0,
+        "cornerMode": "Continuous",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": false,
+        "avoidanceClearance": 3.0,
+        "avoidPathIds": [],
+        "symmetricDistribution": true,
+        "distributionMode": "Pitch",
+        "count": 5,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Left",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": false,
+        "proximityFilterEnabled": false,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": false,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 3.0
+      },
+      "expected": [
+        {
+          "x": 0.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 5.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 15.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 20.0,
+          "y": 2.0,
+          "radius": 0.5
+        }
+      ]
+    },
+    {
+      "name": "closed-obstacle",
+      "coordinateTolerance": 0.001,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              0
+            ]
+          ],
+          "closed": false,
+          "selected": true,
+          "keepout": false
+        },
+        {
+          "id": "obstacle",
+          "type": "LWPOLYLINE",
+          "points": [
+            [
+              8,
+              1
+            ],
+            [
+              12,
+              1
+            ],
+            [
+              12,
+              3
+            ],
+            [
+              8,
+              3
+            ]
+          ],
+          "closed": true,
+          "selected": false
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 5.0,
+        "margin": 2.0,
+        "cornerMode": "Continuous",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": false,
+        "avoidanceClearance": 3.0,
+        "avoidPathIds": [],
+        "symmetricDistribution": true,
+        "distributionMode": "Pitch",
+        "count": 5,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Left",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": false,
+        "proximityFilterEnabled": false,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": false,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 3.0
+      },
+      "expected": [
+        {
+          "x": 0.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 5.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 10.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 15.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 20.0,
+          "y": 2.0,
+          "radius": 0.5
+        }
+      ]
+    },
+    {
+      "name": "existing-circle",
+      "coordinateTolerance": 0.001,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              0
+            ]
+          ],
+          "closed": false,
+          "selected": true,
+          "keepout": false
+        },
+        {
+          "id": "hardware",
+          "type": "CIRCLE",
+          "center": [
+            10,
+            2
+          ],
+          "radius": 0.5,
+          "closed": true,
+          "selected": false
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 5.0,
+        "margin": 2.0,
+        "cornerMode": "Continuous",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": false,
+        "avoidanceClearance": 3.0,
+        "avoidPathIds": [],
+        "symmetricDistribution": true,
+        "distributionMode": "Pitch",
+        "count": 5,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Left",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": false,
+        "proximityFilterEnabled": false,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": false,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 1.0
+      },
+      "expected": [
+        {
+          "x": 0.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 5.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 15.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 20.0,
+          "y": 2.0,
+          "radius": 0.5
+        }
+      ]
+    },
+    {
+      "name": "acute-mitre",
+      "coordinateTolerance": 0.1,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LWPOLYLINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              10,
+              0
+            ],
+            [
+              12,
+              8
+            ]
+          ],
+          "closed": false,
+          "selected": true
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 4.0,
+        "margin": 2.0,
+        "cornerMode": "IncludeCorners",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": false,
+        "avoidanceClearance": 3.0,
+        "avoidPathIds": [],
+        "symmetricDistribution": true,
+        "distributionMode": "Pitch",
+        "count": 5,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Left",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": false,
+        "proximityFilterEnabled": false,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": false,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 3.0
+      },
+      "expected": [
+        {
+          "x": 0.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 4.219225,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 8.438448,
+          "y": 2.000003,
+          "radius": 0.5
+        },
+        {
+          "x": 9.249081,
+          "y": 5.242537,
+          "radius": 0.5
+        },
+        {
+          "x": 10.059715,
+          "y": 8.485071,
+          "radius": 0.5
+        }
+      ]
+    },
+    {
+      "name": "acute-round",
+      "coordinateTolerance": 0.1,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LWPOLYLINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              10,
+              0
+            ],
+            [
+              12,
+              8
+            ]
+          ],
+          "closed": false,
+          "selected": true
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 4.0,
+        "margin": 2.0,
+        "cornerMode": "IncludeCorners",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": false,
+        "avoidanceClearance": 3.0,
+        "avoidPathIds": [],
+        "symmetricDistribution": true,
+        "distributionMode": "Pitch",
+        "count": 5,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Left",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": true,
+        "proximityFilterEnabled": false,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": false,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 3.0
+      },
+      "expected": [
+        {
+          "x": 0.0,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 4.219225,
+          "y": 2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 8.438448,
+          "y": 2.000003,
+          "radius": 0.5
+        },
+        {
+          "x": 9.249081,
+          "y": 5.242537,
+          "radius": 0.5
+        },
+        {
+          "x": 10.059715,
+          "y": 8.485071,
+          "radius": 0.5
+        }
+      ]
+    },
+    {
+      "name": "outer-sharp-count",
+      "coordinateTolerance": 0.001,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LWPOLYLINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              10,
+              0
+            ],
+            [
+              10,
+              10
+            ]
+          ],
+          "closed": false,
+          "selected": true
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 5.0,
+        "margin": 2.0,
+        "cornerMode": "Continuous",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": false,
+        "avoidanceClearance": 3.0,
+        "avoidPathIds": [],
+        "symmetricDistribution": true,
+        "distributionMode": "Count",
+        "count": 3,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Right",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": false,
+        "proximityFilterEnabled": false,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": false,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 3.0
+      },
+      "expected": [
+        {
+          "x": 0.0,
+          "y": -2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 12.0,
+          "y": -2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 12.0,
+          "y": 10.0,
+          "radius": 0.5
+        }
+      ]
+    },
+    {
+      "name": "outer-round-count",
+      "coordinateTolerance": 0.1,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LWPOLYLINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              10,
+              0
+            ],
+            [
+              10,
+              10
+            ]
+          ],
+          "closed": false,
+          "selected": true
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 5.0,
+        "margin": 2.0,
+        "cornerMode": "Continuous",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": false,
+        "avoidanceClearance": 3.0,
+        "avoidPathIds": [],
+        "symmetricDistribution": true,
+        "distributionMode": "Count",
+        "count": 3,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Right",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": true,
+        "proximityFilterEnabled": false,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": false,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 3.0
+      },
+      "expected": [
+        {
+          "x": 0.0,
+          "y": -2.0,
+          "radius": 0.5
+        },
+        {
+          "x": 11.414214,
+          "y": -1.414214,
+          "radius": 0.5
+        },
+        {
+          "x": 12.0,
+          "y": 10.0,
+          "radius": 0.5
+        }
+      ]
+    },
+    {
+      "name": "self-near-proximity",
+      "coordinateTolerance": 0.1,
+      "radiusTolerance": 0.0001,
+      "entities": [
+        {
+          "id": "source",
+          "type": "LWPOLYLINE",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              0
+            ],
+            [
+              20,
+              4
+            ],
+            [
+              4,
+              4
+            ],
+            [
+              4,
+              8
+            ],
+            [
+              20,
+              8
+            ]
+          ],
+          "closed": false,
+          "selected": true
+        }
+      ],
+      "parameters": {
+        "diameter": 1.0,
+        "pitch": 2.0,
+        "margin": 1.0,
+        "cornerMode": "IncludeCorners",
+        "cornerClearance": 2.0,
+        "avoidanceEnabled": false,
+        "avoidanceClearance": 3.0,
+        "avoidPathIds": [],
+        "symmetricDistribution": true,
+        "distributionMode": "Pitch",
+        "count": 5,
+        "variableSpacingEnabled": false,
+        "variableSpacingMin": 4.0,
+        "variableSpacingMax": 5.0,
+        "pattern": "Single",
+        "side": "Left",
+        "saddleSpacing": 3.0,
+        "offsetCornerFillet": false,
+        "proximityFilterEnabled": true,
+        "cornerInterpolationEnabled": true,
+        "lineProximityFilterEnabled": false,
+        "lineProximityThreshold": 1.0,
+        "proximityFilterDistance": 1.5
+      },
+      "expected": [
+        {
+          "x": 0.0,
+          "y": 1.0,
+          "radius": 0.5
+        },
+        {
+          "x": 1.9,
+          "y": 1.0,
+          "radius": 0.5
+        },
+        {
+          "x": 3.0,
+          "y": 6.0,
+          "radius": 0.5
+        },
+        {
+          "x": 3.0,
+          "y": 8.0,
+          "radius": 0.5
+        },
+        {
+          "x": 3.8,
+          "y": 1.0,
+          "radius": 0.5
+        },
+        {
+          "x": 4.0,
+          "y": 3.0,
+          "radius": 0.5
+        },
+        {
+          "x": 5.7,
+          "y": 1.0,
+          "radius": 0.5
+        },
+        {
+          "x": 5.875,
+          "y": 3.0,
+          "radius": 0.5
+        },
+        {
+          "x": 6.0,
+          "y": 9.0,
+          "radius": 0.5
+        },
+        {
+          "x": 7.6,
+          "y": 1.0,
+          "radius": 0.5
+        },
+        {
+          "x": 7.75,
+          "y": 3.0,
+          "radius": 0.5
+        },
+        {
+          "x": 8.0,
+          "y": 9.0,
+          "radius": 0.5
+        },
+        {
+          "x": 9.5,
+          "y": 1.0,
+          "radius": 0.5
+        },
+        {
+          "x": 9.625,
+          "y": 3.0,
+          "radius": 0.5
+        },
+        {
+          "x": 10.0,
+          "y": 9.0,
+          "radius": 0.5
+        },
+        {
+          "x": 11.4,
+          "y": 1.0,
+          "radius": 0.5
+        },
+        {
+          "x": 11.5,
+          "y": 3.0,
+          "radius": 0.5
+        },
+        {
+          "x": 12.0,
+          "y": 9.0,
+          "radius": 0.5
+        },
+        {
+          "x": 13.3,
+          "y": 1.0,
+          "radius": 0.5
+        },
+        {
+          "x": 13.375,
+          "y": 3.0,
+          "radius": 0.5
+        },
+        {
+          "x": 14.0,
+          "y": 9.0,
+          "radius": 0.5
+        },
+        {
+          "x": 15.2,
+          "y": 1.0,
+          "radius": 0.5
+        },
+        {
+          "x": 15.25,
+          "y": 3.0,
+          "radius": 0.5
+        },
+        {
+          "x": 16.0,
+          "y": 9.0,
+          "radius": 0.5
+        },
+        {
+          "x": 17.1,
+          "y": 1.0,
+          "radius": 0.5
+        },
+        {
+          "x": 17.125,
+          "y": 3.0,
+          "radius": 0.5
+        },
+        {
+          "x": 18.0,
+          "y": 9.0,
+          "radius": 0.5
+        },
+        {
+          "x": 19.0,
+          "y": 1.0,
+          "radius": 0.5
+        },
+        {
+          "x": 19.0,
+          "y": 3.0,
+          "radius": 0.5
+        },
+        {
+          "x": 20.0,
+          "y": 9.0,
+          "radius": 0.5
+        }
+      ]
+    }
+  ]
+}

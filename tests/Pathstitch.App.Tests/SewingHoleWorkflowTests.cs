@@ -42,7 +42,12 @@ public sealed class SewingHoleWorkflowTests
                 AvoidPathIds = [keepout.Id],
             }, "avoid");
 
-        Assert.True(corners.Count > continuous.Count);
+        Assert.Equal(4, corners.Count);
+        Assert.NotEqual(continuous.Count, corners.Count);
+        Assert.Contains(corners, hole => Distance(hole.Center!, new(1, 1)) < 1e-8);
+        Assert.Contains(corners, hole => Distance(hole.Center!, new(9, 1)) < 1e-8);
+        Assert.Contains(corners, hole => Distance(hole.Center!, new(9, 9)) < 1e-8);
+        Assert.Contains(corners, hole => Distance(hole.Center!, new(1, 9)) < 1e-8);
         Assert.True(avoided.Count < continuous.Count);
         Assert.DoesNotContain(avoided, hole => Math.Abs(hole.Center!.X - 5) < 2.5);
     }
@@ -212,6 +217,21 @@ public sealed class SewingHoleWorkflowTests
     }
 
     [Fact]
+    public void Parameters_DeserializeLegacyJsonWithCompatibilityDefaults()
+    {
+        var parameters = System.Text.Json.JsonSerializer.Deserialize<Editor2DSewingHoleParameters>(
+            """{"diameter":1.5,"pitch":4,"margin":2}""");
+
+        Assert.NotNull(parameters);
+        Assert.False(parameters.OffsetCornerFillet);
+        Assert.False(parameters.ProximityFilterEnabled);
+        Assert.True(parameters.CornerInterpolationEnabled);
+        Assert.False(parameters.LineProximityFilterEnabled);
+        Assert.Equal(1.0, parameters.LineProximityThreshold);
+        Assert.Equal(3.0, parameters.ProximityFilterDistance);
+    }
+
+    [Fact]
     public async Task ProjectPersistence_RoundTripsEditableSewingParametersAndOperationLinks()
     {
         var workspace = CreateWorkspace(
@@ -229,6 +249,12 @@ public sealed class SewingHoleWorkflowTests
         workspace.SewingCornerMode = Editor2DSewingCornerMode.AvoidCorners;
         workspace.SewingCornerClearance = 1.5;
         workspace.SewingSymmetricDistribution = false;
+        workspace.SewingOffsetCornerFillet = true;
+        workspace.SewingProximityFilterEnabled = true;
+        workspace.SewingCornerInterpolationEnabled = false;
+        workspace.SewingLineProximityFilterEnabled = true;
+        workspace.SewingLineProximityThreshold = 0.75;
+        workspace.SewingProximityFilterDistance = 1.25;
         Assert.True(workspace.RefreshSewingHolePreview());
         Assert.True(workspace.CommitSewingHolePreview());
         var projectPath = Path.Combine(Path.GetTempPath(), $"sewing-{Guid.NewGuid():N}.stch");
@@ -254,6 +280,12 @@ public sealed class SewingHoleWorkflowTests
             Assert.Equal(Editor2DSewingCornerMode.AvoidCorners, operation.Parameters.CornerMode);
             Assert.Equal(1.5, operation.Parameters.CornerClearance);
             Assert.False(operation.Parameters.SymmetricDistribution);
+            Assert.True(operation.Parameters.OffsetCornerFillet);
+            Assert.True(operation.Parameters.ProximityFilterEnabled);
+            Assert.False(operation.Parameters.CornerInterpolationEnabled);
+            Assert.True(operation.Parameters.LineProximityFilterEnabled);
+            Assert.Equal(0.75, operation.Parameters.LineProximityThreshold);
+            Assert.Equal(1.25, operation.Parameters.ProximityFilterDistance);
             Assert.True(operation.Parameters.AvoidanceEnabled);
             Assert.Equal(["keepout"], operation.Parameters.AvoidPathIds);
             Assert.True(restored.BeginEditSewingHoleOperation(operation.Id));
@@ -274,6 +306,7 @@ public sealed class SewingHoleWorkflowTests
     {
         var inspector = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DInspector.axaml");
         var viewport = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DView.axaml");
+        var batchPanel = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorBatchContextPanel.axaml");
 
         Assert.Contains("SewingHolePitch", inspector, StringComparison.Ordinal);
         Assert.Contains("SewingHoleMargin", inspector, StringComparison.Ordinal);
@@ -289,6 +322,12 @@ public sealed class SewingHoleWorkflowTests
         Assert.Contains("editor.sewing.saddle-spacing", inspector, StringComparison.Ordinal);
         Assert.Contains("SewingAvoidanceEnabled", inspector, StringComparison.Ordinal);
         Assert.Contains("SewingSymmetricDistribution", inspector, StringComparison.Ordinal);
+        Assert.Contains("SewingOffsetCornerFillet", inspector, StringComparison.Ordinal);
+        Assert.Contains("SewingProximityFilterEnabled", inspector, StringComparison.Ordinal);
+        Assert.Contains("SewingCornerInterpolationEnabled", inspector, StringComparison.Ordinal);
+        Assert.Contains("SewingLineProximityFilterEnabled", inspector, StringComparison.Ordinal);
+        Assert.Contains("SewingLineProximityThreshold", inspector, StringComparison.Ordinal);
+        Assert.Contains("SewingProximityFilterDistance", inspector, StringComparison.Ordinal);
         Assert.Contains("OnPreviewSewingHolesClicked", inspector, StringComparison.Ordinal);
         Assert.Contains("OnCommitSewingHolesClicked", inspector, StringComparison.Ordinal);
         Assert.Contains("SelectedSewingHoleOperation", inspector, StringComparison.Ordinal);
@@ -298,6 +337,12 @@ public sealed class SewingHoleWorkflowTests
         Assert.Contains("editor.2d.sewing.preview", inspector, StringComparison.Ordinal);
         Assert.Contains("editor.2d.sewing.commit", inspector, StringComparison.Ordinal);
         Assert.Contains("PreviewPaths=\"{Binding TwoDWorkspace.SewingHolePreviewPaths}\"", viewport, StringComparison.Ordinal);
+        Assert.Contains("SewingOffsetCornerFilletCheck", batchPanel, StringComparison.Ordinal);
+        Assert.Contains("SewingCornerInterpolationCheck", batchPanel, StringComparison.Ordinal);
+        Assert.Contains("SewingProximityFilterCheck", batchPanel, StringComparison.Ordinal);
+        Assert.Contains("SewingProximityDistanceText", batchPanel, StringComparison.Ordinal);
+        Assert.Contains("SewingLineProximityFilterCheck", batchPanel, StringComparison.Ordinal);
+        Assert.Contains("SewingLineProximityThresholdText", batchPanel, StringComparison.Ordinal);
     }
 
     private static Editor2DWorkspaceViewModel CreateWorkspace(params Editor2DPreviewPath[] paths)
@@ -318,6 +363,9 @@ public sealed class SewingHoleWorkflowTests
 
     private static Editor2DPreviewDocument Document(params Editor2DPreviewPath[] paths)
         => new(paths, new Editor2DBounds(-10, -10, 20, 20), new Dictionary<string, int>(), []);
+
+    private static double Distance(Editor2DPoint first, Editor2DPoint second)
+        => Math.Sqrt(Math.Pow(second.X - first.X, 2) + Math.Pow(second.Y - first.Y, 2));
 
     private static string ReadRepositoryFile(params string[] pathParts)
     {

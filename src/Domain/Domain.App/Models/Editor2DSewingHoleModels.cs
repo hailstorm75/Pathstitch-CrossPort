@@ -45,7 +45,13 @@ public sealed record Editor2DSewingHoleParameters(
     [property: JsonPropertyName("variableSpacingMax")] double VariableSpacingMax = 5.0,
     [property: JsonPropertyName("pattern")] Editor2DSewingPattern Pattern = Editor2DSewingPattern.Single,
     [property: JsonPropertyName("side")] Editor2DSewingSide Side = Editor2DSewingSide.Left,
-    [property: JsonPropertyName("saddleSpacing")] double SaddleSpacing = 3.0)
+    [property: JsonPropertyName("saddleSpacing")] double SaddleSpacing = 3.0,
+    [property: JsonPropertyName("offsetCornerFillet")] bool OffsetCornerFillet = false,
+    [property: JsonPropertyName("proximityFilterEnabled")] bool ProximityFilterEnabled = false,
+    [property: JsonPropertyName("cornerInterpolationEnabled")] bool CornerInterpolationEnabled = true,
+    [property: JsonPropertyName("lineProximityFilterEnabled")] bool LineProximityFilterEnabled = false,
+    [property: JsonPropertyName("lineProximityThreshold")] double LineProximityThreshold = 1.0,
+    [property: JsonPropertyName("proximityFilterDistance")] double ProximityFilterDistance = 3.0)
 {
     public static Editor2DSewingHoleParameters Default { get; } = new();
 }

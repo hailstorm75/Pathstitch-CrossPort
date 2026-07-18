@@ -137,7 +137,171 @@ public sealed class SewingHolePatternGeometryTests
 
         var near = holes.Where(hole => Math.Abs(DistanceToPath(hole.Center!, polyline.Points) - 1) < 1e-6).Count();
         var far = holes.Where(hole => Math.Abs(DistanceToPath(hole.Center!, polyline.Points) - 3) < 1e-6).Count();
-        Assert.Equal(near, far);
+        Assert.Equal(5, near);
+        Assert.Equal(3, far);
+    }
+
+    [Fact]
+    public void ProximityFilter_MergesNearbyPitchPlacements()
+    {
+        var source = Line();
+        var filtered = Build(source, new(
+            Pitch: 1,
+            Margin: 2,
+            CornerMode: Editor2DSewingCornerMode.Continuous,
+            ProximityFilterEnabled: true,
+            ProximityFilterDistance: 3));
+        var unfiltered = Build(source, new(
+            Pitch: 1,
+            Margin: 2,
+            CornerMode: Editor2DSewingCornerMode.Continuous,
+            ProximityFilterEnabled: false,
+            ProximityFilterDistance: 3));
+
+        Assert.Equal(7, filtered.Count);
+        Assert.Equal(21, unfiltered.Count);
+    }
+
+    [Fact]
+    public void ProximityFilter_CountModePreservesExactRequestedCount()
+    {
+        var holes = Build(Line(), new(
+            Margin: 2,
+            DistributionMode: Editor2DSewingDistributionMode.Count,
+            Count: 5,
+            CornerMode: Editor2DSewingCornerMode.Continuous,
+            ProximityFilterEnabled: true,
+            ProximityFilterDistance: 100));
+
+        Assert.Equal(5, holes.Count);
+    }
+
+    [Fact]
+    public void LineProximityFilter_RejectsCrossingLine()
+    {
+        var source = Line();
+        var crossing = new Editor2DPreviewPath(
+            "crossing", "LINE", [new(10.75, -5), new(10.75, 5)], false);
+        var document = new Editor2DPreviewDocument(
+            [source, crossing], new(-10, -10, 40, 40), new Dictionary<string, int>(), []);
+        var parameters = new Editor2DSewingHoleParameters(
+            Pitch: 5,
+            Margin: 2,
+            CornerMode: Editor2DSewingCornerMode.Continuous,
+            ProximityFilterEnabled: false,
+            LineProximityFilterEnabled: true,
+            LineProximityThreshold: 1);
+
+        var filtered = Editor2DSewingHoleGeometry.BuildPreview(document, [source.Id], parameters, "filtered");
+        var unfiltered = Editor2DSewingHoleGeometry.BuildPreview(
+            document, [source.Id], parameters with { LineProximityFilterEnabled = false }, "unfiltered");
+
+        Assert.Equal(4, filtered.Count);
+        Assert.Equal(5, unfiltered.Count);
+        Assert.DoesNotContain(filtered, hole => Math.Abs(hole.Center!.X - 10) < 1e-8);
+    }
+
+    [Fact]
+    public void HoleRadius_RejectsNearbyObstacleWhenLineFilterIsDisabled()
+    {
+        var source = Line();
+        var obstacle = new Editor2DPreviewPath(
+            "nearby", "LINE", [new(10.25, -5), new(10.25, 5)], false);
+        var document = new Editor2DPreviewDocument(
+            [source, obstacle], new(-10, -10, 40, 40), new Dictionary<string, int>(), []);
+        var holes = Editor2DSewingHoleGeometry.BuildPreview(
+            document,
+            [source.Id],
+            new Editor2DSewingHoleParameters(
+                Diameter: 1,
+                Pitch: 5,
+                Margin: 2,
+                CornerMode: Editor2DSewingCornerMode.Continuous,
+                LineProximityFilterEnabled: false),
+            "radius-filter");
+
+        Assert.Equal(4, holes.Count);
+        Assert.DoesNotContain(holes, hole => Math.Abs(hole.Center!.X - 10) < 1e-8);
+    }
+
+    [Fact]
+    public void ClosedObstacle_RejectsContainedHoleWhenLineFilterIsDisabled()
+    {
+        var source = Line();
+        var obstacle = new Editor2DPreviewPath(
+            "closed-obstacle",
+            "LWPOLYLINE",
+            [new(8, 1), new(12, 1), new(12, 3), new(8, 3)],
+            true);
+        var document = new Editor2DPreviewDocument(
+            [source, obstacle], new(-10, -10, 40, 40), new Dictionary<string, int>(), []);
+        var holes = Editor2DSewingHoleGeometry.BuildPreview(
+            document,
+            [source.Id],
+            new Editor2DSewingHoleParameters(
+                Diameter: 1,
+                Pitch: 5,
+                Margin: 2,
+                CornerMode: Editor2DSewingCornerMode.Continuous,
+                LineProximityFilterEnabled: false),
+            "closed-filter");
+
+        Assert.Equal(4, holes.Count);
+        Assert.DoesNotContain(holes, hole => Math.Abs(hole.Center!.X - 10) < 1e-8);
+    }
+
+    [Fact]
+    public void ExistingCircle_UsesConfiguredProximityDistance()
+    {
+        var source = Line();
+        var existing = new Editor2DPreviewPath(
+            "existing", "CIRCLE", [], true, Center: new(10, 2), Radius: 0.5);
+        var document = new Editor2DPreviewDocument(
+            [source, existing], new(-10, -10, 40, 40), new Dictionary<string, int>(), []);
+        var holes = Editor2DSewingHoleGeometry.BuildPreview(
+            document,
+            [source.Id],
+            new Editor2DSewingHoleParameters(
+                Pitch: 5,
+                Margin: 2,
+                CornerMode: Editor2DSewingCornerMode.Continuous,
+                ProximityFilterEnabled: true,
+                LineProximityFilterEnabled: false,
+                ProximityFilterDistance: 1),
+            "circle-filter");
+
+        Assert.Equal(4, holes.Count);
+        Assert.DoesNotContain(holes, hole => Math.Abs(hole.Center!.X - 10) < 1e-8);
+    }
+
+    [Fact]
+    public void OuterRoundedCorner_ChangesOffsetCurveArcLengthSampling()
+    {
+        var polyline = new Editor2DPreviewPath(
+            "corner",
+            "LWPOLYLINE",
+            [new(0, 0), new(10, 0), new(10, 10)],
+            false);
+        var parameters = new Editor2DSewingHoleParameters(
+            Margin: 2,
+            CornerMode: Editor2DSewingCornerMode.Continuous,
+            DistributionMode: Editor2DSewingDistributionMode.Count,
+            Count: 3,
+            Side: Editor2DSewingSide.Right,
+            OffsetCornerFillet: true);
+
+        var rounded = Build(polyline, parameters);
+        var sharp = Build(polyline, parameters with { OffsetCornerFillet = false });
+
+        Assert.Equal(3, rounded.Count);
+        Assert.Equal(3, sharp.Count);
+        Assert.Equal(12, sharp[1].Center!.X, 8);
+        Assert.Equal(-2, sharp[1].Center!.Y, 8);
+        var roundedMiddle = rounded[1].Center!;
+        var distanceFromCorner = Math.Sqrt(
+            Math.Pow(roundedMiddle.X - 10, 2) + Math.Pow(roundedMiddle.Y, 2));
+        Assert.Equal(2, distanceFromCorner, 6);
+        Assert.True(Math.Abs(roundedMiddle.X - 12) > 1e-3 || Math.Abs(roundedMiddle.Y + 2) > 1e-3);
     }
 
     private static IReadOnlyList<Editor2DPreviewPath> Build(
