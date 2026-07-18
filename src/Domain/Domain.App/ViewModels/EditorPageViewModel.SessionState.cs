@@ -279,22 +279,10 @@ public sealed partial class EditorPageViewModel
 
     private static Editor2DPreviewDocument ScaleImportedTwoDDocument(Editor2DPreviewDocument document, double factor)
     {
-        Editor2DPoint Transform(Editor2DPoint point) => new(point.X * factor, point.Y * factor);
-        var paths = document.Paths.Select(path => path with
-        {
-            Points = path.Points.Select(Transform).ToArray(),
-            FillLoops = path.FillLoops?.Select(loop => (IReadOnlyList<Editor2DPoint>)loop.Select(Transform).ToArray()).ToArray(),
-            Start = path.Start is { } start ? Transform(start) : null,
-            Center = path.Center is { } center ? Transform(center) : null,
-            Radius = path.Radius is { } radius ? radius * factor : null,
-            TextHeight = path.TextHeight is { } textHeight ? textHeight * factor : null,
-            BezierAnchors = path.BezierAnchors?.Select(anchor => anchor with
-            {
-                Point = Transform(anchor.Point),
-                HandleIn = anchor.HandleIn is { } handleIn ? Transform(handleIn) : null,
-                HandleOut = anchor.HandleOut is { } handleOut ? Transform(handleOut) : null,
-            }).ToArray(),
-        }).ToArray();
+        var transform = new Editor2DAffineTransform(factor, 0.0, 0.0, factor, 0.0, 0.0);
+        var paths = document.Paths
+            .Select(path => Editor2DGeometry.TransformPath(path, transform, path.Id))
+            .ToArray();
         var bounds = document.Bounds;
         return document with
         {

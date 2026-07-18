@@ -698,13 +698,27 @@ public sealed partial class Editor2DWorkspaceViewModel
             if (targetWidth > 0.1 && naturalWidth > 0.1)
                 widthFactor = Math.Max(0.1, targetWidth / naturalWidth);
         }
+        Editor2DTextBasis? updatedTextBasis = null;
+        if (source.TextBasis is { } sourceBasis)
+        {
+            var sourceBasisHeight = Math.Sqrt((sourceBasis.Vx * sourceBasis.Vx) + (sourceBasis.Vy * sourceBasis.Vy));
+            var sourceProjectedWidth = Math.Max(Math.Abs(source.WidthFactor ?? 1.0), 1e-9);
+            var heightScale = normalizedHeight / sourceBasisHeight;
+            var widthScale = Math.Abs(widthFactor) / sourceProjectedWidth;
+            updatedTextBasis = new Editor2DTextBasis(
+                sourceBasis.Ux * heightScale * widthScale,
+                sourceBasis.Uy * heightScale * widthScale,
+                sourceBasis.Vx * heightScale,
+                sourceBasis.Vy * heightScale);
+        }
         var updated = source with
         {
             Start = start, Text = normalizedText, TextHeight = normalizedHeight, FontFamily = font,
             CharacterSpacing = spacing, IsBold = bold, IsItalic = italic, IsUnderline = underline,
             WidthFactor = widthFactor,
+            TextBasis = updatedTextBasis,
             Points = Editor2DGeometry.BuildTextBoundsPoints(start, normalizedText, normalizedHeight,
-                source.RotationDegrees ?? 0, widthFactor, spacing),
+                source.RotationDegrees ?? 0, widthFactor, spacing, updatedTextBasis),
         };
         CommitDocumentEdit(RebuildDocument(Document, Document.Paths.Select(path => path.Id == source.Id ? updated : path).ToArray()), SelectedPathIds);
         return Editor2DWorkspaceOperationResult.Success("Updated the selected text entity", normalizedText, normalizedHeight);

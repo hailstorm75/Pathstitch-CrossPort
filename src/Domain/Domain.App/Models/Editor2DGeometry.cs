@@ -196,39 +196,76 @@ public static class Editor2DGeometry
         return true;
     }
 
+    public static Editor2DTextBasis ResolveTextBasis(Editor2DPreviewPath path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (path.TextBasis is { } basis)
+        {
+            if (!basis.IsFinite || Math.Abs(basis.Determinant) <= PolylineTolerance)
+                throw new InvalidDataException("Text basis must be finite and non-singular.");
+            return basis;
+        }
+
+        return CreateLegacyTextBasis(
+            path.TextHeight ?? 5.0,
+            path.RotationDegrees ?? 0.0,
+            path.WidthFactor ?? 1.0);
+    }
+
+    public static Editor2DTextBasis CreateLegacyTextBasis(
+        double height,
+        double rotationDegrees = 0.0,
+        double widthFactor = 1.0)
+    {
+        var normalizedHeight = Math.Max(Math.Abs(height), 0.1);
+        var normalizedWidthFactor = widthFactor < 0.0
+            ? -Math.Max(Math.Abs(widthFactor), 0.1)
+            : Math.Max(widthFactor, 0.1);
+        var radians = rotationDegrees * Math.PI / 180.0;
+        var cosine = Math.Cos(radians);
+        var sine = Math.Sin(radians);
+        return new Editor2DTextBasis(
+            normalizedHeight * normalizedWidthFactor * cosine,
+            normalizedHeight * normalizedWidthFactor * sine,
+            normalizedHeight * -sine,
+            normalizedHeight * cosine);
+    }
+
     public static Editor2DPoint[] BuildTextBoundsPoints(
         Editor2DPoint start,
         string? text,
         double height,
         double rotationDegrees = 0.0,
         double widthFactor = 1.0,
-        double characterSpacing = 0.0)
+        double characterSpacing = 0.0,
+        Editor2DTextBasis? textBasis = null)
     {
-        var normalizedHeight = Math.Max(height, 0.1);
-        var normalizedWidthFactor = Math.Max(Math.Abs(widthFactor), 0.1);
+        var basis = textBasis ?? CreateLegacyTextBasis(height, rotationDegrees, widthFactor);
+        if (!basis.IsFinite || Math.Abs(basis.Determinant) <= PolylineTolerance)
+            throw new InvalidDataException("Text basis must be finite and non-singular.");
+
         var lines = (text ?? string.Empty)
-            .Replace("\r", string.Empty)
-            .Split('\n');
+            .Replace(((char)13).ToString(), string.Empty)
+            .Split((char)10);
         var longestLineLength = Math.Max(lines.Max(static line => line.Length), 1);
-        var spacingWidth = Math.Max(longestLineLength - 1, 0) * characterSpacing;
-        var width = Math.Max(
-            (longestLineLength * normalizedHeight * 0.6 * normalizedWidthFactor) + spacingWidth,
-            normalizedHeight * 0.6 * normalizedWidthFactor);
-        var totalHeight = Math.Max(lines.Length, 1) * normalizedHeight * 1.2;
-        var signedWidth = widthFactor < 0.0 ? -width : width;
-        var angleRadians = rotationDegrees * Math.PI / 180.0;
-        var cosAngle = Math.Cos(angleRadians);
-        var sinAngle = Math.Sin(angleRadians);
+        var uLength = Math.Sqrt((basis.Ux * basis.Ux) + (basis.Uy * basis.Uy));
+        var localSpacing = Math.Max(longestLineLength - 1, 0) * characterSpacing / uLength;
+        var localWidth = Math.Max((longestLineLength * 0.6) + localSpacing, 0.6);
+        var localHeight = Math.Max(lines.Length, 1) * 1.2;
+
+        Editor2DPoint Map(double x, double y)
+            => new(
+                start.X + (basis.Ux * x) + (basis.Vx * y),
+                start.Y + (basis.Uy * x) + (basis.Vy * y));
 
         return
         [
-            RotateTextPoint(start, 0.0, 0.0, cosAngle, sinAngle),
-            RotateTextPoint(start, signedWidth, 0.0, cosAngle, sinAngle),
-            RotateTextPoint(start, signedWidth, totalHeight, cosAngle, sinAngle),
-            RotateTextPoint(start, 0.0, totalHeight, cosAngle, sinAngle),
+            Map(0.0, 0.0),
+            Map(localWidth, 0.0),
+            Map(localWidth, localHeight),
+            Map(0.0, localHeight),
         ];
     }
-
     public static bool TryBuildAttachedMeasurement(
         Editor2DPreviewPath path,
         string? dimensionType,
@@ -912,38 +949,24 @@ public static class Editor2DGeometry
         var transformedWidthFactor = transform.Determinant < 0 && path.WidthFactor is double widthFactor
             ? -widthFactor
             : path.WidthFactor;
+        var transformedTextBasis = path.TextBasis;
         if (!preservesDirection
             && path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase))
         {
-            var sourceRotation = path.RotationDegrees ?? 0.0;
-            var sourceWidthFactor = path.WidthFactor ?? 1.0;
-            var radians = sourceRotation * Math.PI / 180.0;
-            var cos = Math.Cos(radians);
-            var sin = Math.Sin(radians);
-            var transformedTextX = transform.TransformVector(new Editor2DPoint(
-                sourceWidthFactor * cos,
-                sourceWidthFactor * sin));
-            var transformedTextY = transform.TransformVector(new Editor2DPoint(-sin, cos));
-            if (TryDecomposeTextAxes(
-                    transformedTextX,
-                    transformedTextY,
-                    out var decomposedRotation,
-                    out var decomposedWidthFactor,
-                    out var textHeightScale))
-            {
-                transformedRotation = path.RotationDegrees is null && Math.Abs(decomposedRotation) <= PolylineTolerance
-                    ? null
-                    : decomposedRotation;
-                transformedWidthFactor = path.WidthFactor is null
-                                         && Math.Abs(decomposedWidthFactor - 1.0) <= PolylineTolerance
-                    ? null
-                    : decomposedWidthFactor;
-                transformedTextHeight = path.TextHeight is double sourceTextHeight
-                    ? sourceTextHeight * textHeightScale
-                    : null;
-            }
+            var sourceBasis = ResolveTextBasis(path);
+            var transformedU = transform.TransformVector(new Editor2DPoint(sourceBasis.Ux, sourceBasis.Uy));
+            var transformedV = transform.TransformVector(new Editor2DPoint(sourceBasis.Vx, sourceBasis.Vy));
+            transformedTextBasis = new Editor2DTextBasis(
+                transformedU.X,
+                transformedU.Y,
+                transformedV.X,
+                transformedV.Y);
+            ProjectTextBasis(
+                transformedTextBasis,
+                out transformedTextHeight,
+                out transformedRotation,
+                out transformedWidthFactor);
         }
-
         return path with
         {
             Id = id ?? path.Id,
@@ -956,6 +979,7 @@ public static class Editor2DGeometry
             Radius = isUniformScale && path.Radius is double radius ? radius * uniformScale : path.Radius,
             TextHeight = transformedTextHeight,
             WidthFactor = transformedWidthFactor,
+            TextBasis = transformedTextBasis,
             Points = transformedPoints,
             FillLoops = path.FillLoops?.Select(loop => (IReadOnlyList<Editor2DPoint>)loop
                 .Select(transform.TransformPoint).ToArray()).ToArray(),
@@ -979,47 +1003,25 @@ public static class Editor2DGeometry
         var reflectedRotation = path.RotationDegrees;
         var reflectedWidthFactor = path.WidthFactor;
         var reflectedTextHeight = path.TextHeight;
+        var reflectedTextBasis = path.TextBasis;
         if (path.EntityType.Equals("TEXT", StringComparison.OrdinalIgnoreCase)
             && path.Start is Editor2DPoint textStart)
         {
-            var sourceRotation = path.RotationDegrees ?? 0.0;
-            var sourceWidthFactor = path.WidthFactor ?? 1.0;
-            var radians = sourceRotation * Math.PI / 180.0;
-            var cos = Math.Cos(radians);
-            var sin = Math.Sin(radians);
+            var sourceBasis = ResolveTextBasis(path);
             var resolvedStart = reflectedStart ?? Transform(textStart);
-            var reflectedTextXEnd = Transform(new Editor2DPoint(
-                textStart.X + (sourceWidthFactor * cos),
-                textStart.Y + (sourceWidthFactor * sin)));
-            var reflectedTextYEnd = Transform(new Editor2DPoint(
-                textStart.X - sin,
-                textStart.Y + cos));
-            var reflectedTextX = new Editor2DPoint(
-                reflectedTextXEnd.X - resolvedStart.X,
-                reflectedTextXEnd.Y - resolvedStart.Y);
-            var reflectedTextY = new Editor2DPoint(
-                reflectedTextYEnd.X - resolvedStart.X,
-                reflectedTextYEnd.Y - resolvedStart.Y);
-            if (TryDecomposeTextAxes(
-                    reflectedTextX,
-                    reflectedTextY,
-                    out var decomposedRotation,
-                    out var decomposedWidthFactor,
-                    out var textHeightScale))
-            {
-                reflectedRotation = path.RotationDegrees is null && Math.Abs(decomposedRotation) <= PolylineTolerance
-                    ? null
-                    : decomposedRotation;
-                reflectedWidthFactor = path.WidthFactor is null
-                                       && Math.Abs(decomposedWidthFactor - 1.0) <= PolylineTolerance
-                    ? null
-                    : decomposedWidthFactor;
-                reflectedTextHeight = path.TextHeight is double sourceTextHeight
-                    ? sourceTextHeight * textHeightScale
-                    : null;
-            }
+            var reflectedUEnd = Transform(new Editor2DPoint(textStart.X + sourceBasis.Ux, textStart.Y + sourceBasis.Uy));
+            var reflectedVEnd = Transform(new Editor2DPoint(textStart.X + sourceBasis.Vx, textStart.Y + sourceBasis.Vy));
+            reflectedTextBasis = new Editor2DTextBasis(
+                reflectedUEnd.X - resolvedStart.X,
+                reflectedUEnd.Y - resolvedStart.Y,
+                reflectedVEnd.X - resolvedStart.X,
+                reflectedVEnd.Y - resolvedStart.Y);
+            ProjectTextBasis(
+                reflectedTextBasis,
+                out reflectedTextHeight,
+                out reflectedRotation,
+                out reflectedWidthFactor);
         }
-
         var reflectedPoints = path.Points.Select(Transform).ToArray();
         var reflectedStartAngle = path.StartAngleDegrees;
         var reflectedEndAngle = path.EndAngleDegrees;
@@ -1055,6 +1057,7 @@ public static class Editor2DGeometry
             RotationDegrees = reflectedRotation,
             WidthFactor = reflectedWidthFactor,
             TextHeight = reflectedTextHeight,
+            TextBasis = reflectedTextBasis,
             StartAngleDegrees = reflectedStartAngle,
             EndAngleDegrees = reflectedEndAngle,
             Points = reflectedPoints,
@@ -1710,39 +1713,26 @@ public static class Editor2DGeometry
         return true;
     }
 
-    private static bool TryDecomposeTextAxes(
-        Editor2DPoint transformedTextX,
-        Editor2DPoint transformedTextY,
-        out double rotationDegrees,
-        out double widthFactor,
-        out double heightScale)
+    public static void ProjectTextBasis(
+        Editor2DTextBasis basis,
+        out double? height,
+        out double? rotationDegrees,
+        out double? widthFactor)
     {
-        var widthScale = Math.Sqrt(
-            (transformedTextX.X * transformedTextX.X)
-            + (transformedTextX.Y * transformedTextX.Y));
-        heightScale = Math.Sqrt(
-            (transformedTextY.X * transformedTextY.X)
-            + (transformedTextY.Y * transformedTextY.Y));
-        if (!double.IsFinite(widthScale)
-            || !double.IsFinite(heightScale)
-            || widthScale <= PolylineTolerance
-            || heightScale <= PolylineTolerance)
-        {
-            rotationDegrees = 0.0;
-            widthFactor = 1.0;
-            return false;
-        }
+        if (!basis.IsFinite || Math.Abs(basis.Determinant) <= PolylineTolerance)
+            throw new InvalidDataException("Text basis must be finite and non-singular.");
 
-        var determinant = (transformedTextX.X * transformedTextY.Y)
-                          - (transformedTextX.Y * transformedTextY.X);
-        var orientation = determinant < 0.0 ? -1.0 : 1.0;
-        var rotationX = orientation * transformedTextX.X;
-        var rotationY = orientation * transformedTextX.Y;
-        rotationDegrees = NormalizeAngleDegrees(Math.Atan2(rotationY, rotationX) * 180.0 / Math.PI);
-        if (Math.Abs(rotationDegrees - 360.0) <= PolylineTolerance)
-            rotationDegrees = 0.0;
+        var widthScale = Math.Sqrt((basis.Ux * basis.Ux) + (basis.Uy * basis.Uy));
+        var heightScale = Math.Sqrt((basis.Vx * basis.Vx) + (basis.Vy * basis.Vy));
+        var orientation = basis.Determinant < 0.0 ? -1.0 : 1.0;
+        var rotation = NormalizeAngleDegrees(
+            Math.Atan2(orientation * basis.Uy, orientation * basis.Ux) * 180.0 / Math.PI);
+        if (Math.Abs(rotation - 360.0) <= PolylineTolerance)
+            rotation = 0.0;
+
+        height = heightScale;
+        rotationDegrees = rotation;
         widthFactor = orientation * widthScale / heightScale;
-        return double.IsFinite(widthFactor);
     }
     private static double NormalizeAngleDegrees(double angleDegrees)
     {

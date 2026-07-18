@@ -145,7 +145,8 @@ public sealed partial class EditorPageViewModel
                             dxfOptions,
                             cancellationToken)
                         .ConfigureAwait(true);
-                }                if (!mergeResult.Succeeded)
+                }
+                if (!mergeResult.Succeeded)
                 {
                     await _editorOutputPreviewService
                         .SaveExportDocumentAsync(exportDocument, outputPath, dxfOptions, cancellationToken)
@@ -443,6 +444,19 @@ public sealed partial class EditorPageViewModel
                     writer.WriteNumber("textHeight", path.TextHeight ?? 5.0);
                     writer.WriteNumber("rotation", path.RotationDegrees ?? 0.0);
                     writer.WriteNumber("widthFactor", path.WidthFactor ?? 1.0);
+                    if (path.TextBasis is { } textBasis)
+                    {
+                        writer.WriteStartObject("textBasis");
+                        writer.WriteNumber("ux", textBasis.Ux);
+                        writer.WriteNumber("uy", textBasis.Uy);
+                        writer.WriteNumber("vx", textBasis.Vx);
+                        writer.WriteNumber("vy", textBasis.Vy);
+                        writer.WriteEndObject();
+                    }
+                    else
+                    {
+                        writer.WriteNull("textBasis");
+                    }
                     writer.WriteString("fontFamily", path.FontFamily);
                     writer.WriteNumber("characterSpacing", path.CharacterSpacing);
                     writer.WriteBoolean("bold", path.IsBold);

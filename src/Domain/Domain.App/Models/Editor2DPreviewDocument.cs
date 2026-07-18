@@ -31,6 +31,27 @@ public enum Editor2DTool
 
 public sealed record Editor2DPoint(double X, double Y);
 
+/// <summary>
+/// Physical world-space basis for text local X/Y coordinates. Columns U and V preserve
+/// arbitrary shear, reflection, and non-uniform affine transforms exactly.
+/// </summary>
+public sealed record Editor2DTextBasis(
+    double Ux,
+    double Uy,
+    double Vx,
+    double Vy)
+{
+    [JsonIgnore]
+    public bool IsFinite
+        => double.IsFinite(Ux)
+           && double.IsFinite(Uy)
+           && double.IsFinite(Vx)
+           && double.IsFinite(Vy);
+
+    [JsonIgnore]
+    public double Determinant => (Ux * Vy) - (Uy * Vx);
+}
+
 public sealed record Editor2DBezierAnchor(
     Editor2DPoint Point,
     Editor2DPoint? HandleIn = null,
@@ -61,7 +82,8 @@ public sealed record Editor2DPreviewPath(
     bool IsConstruction = false,
     string? SourceLayerName = null,
     string? SourceEntityHandle = null,
-    IReadOnlyList<IReadOnlyList<Editor2DPoint>>? FillLoops = null);
+    IReadOnlyList<IReadOnlyList<Editor2DPoint>>? FillLoops = null,
+    Editor2DTextBasis? TextBasis = null);
 
 public sealed record Editor2DMeasurement(
     string Id,

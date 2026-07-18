@@ -65,19 +65,12 @@ internal static class DxfCanvasGeometryEditor
     {
         var selected = selectedIds.ToHashSet(StringComparer.Ordinal);
         var normalized = Math.Max(factor, 0.05);
-        Editor2DPoint Transform(Editor2DPoint point) => ScalePoint(point, center, normalized);
-        return Update(document, document.Paths.Select(path => !selected.Contains(path.Id) ? path : path with
-        {
-            Start = path.Start is { } start ? ScalePoint(start, center, normalized) : null,
-            Center = path.Center is { } pathCenter ? ScalePoint(pathCenter, center, normalized) : null,
-            Radius = path.Radius is { } radius ? radius * normalized : null,
-            TextHeight = path.TextHeight is { } textHeight ? textHeight * normalized : null,
-            Points = path.Points.Select(Transform).ToArray(),
-            FillLoops = TransformFillLoops(path.FillLoops, Transform),
-            BezierAnchors = TransformBezierAnchors(path.BezierAnchors, Transform),
-        }).ToArray());
+        return Update(document, document.Paths
+            .Select(path => selected.Contains(path.Id)
+                ? Editor2DGeometry.ScalePath(path, center, normalized, path.Id)
+                : path)
+            .ToArray());
     }
-
     public static Editor2DPreviewDocument Rotate(
         Editor2DPreviewDocument document,
         IReadOnlyList<string> selectedIds,
