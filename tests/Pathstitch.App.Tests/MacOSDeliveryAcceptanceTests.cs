@@ -138,6 +138,18 @@ public sealed class MacOSDeliveryAcceptanceTests
         var bridge = File.ReadAllText(Find("scripts", "macos", "PathstitchMacBridge.swift"));
         Assert.Contains("pathstitch_prepare_quicklook_runtime_probe", bridge, StringComparison.Ordinal);
         Assert.Contains("pathstitch_collect_quicklook_runtime_probe", bridge, StringComparison.Ordinal);
+        Assert.Contains("pathstitch_cancel_quicklook_runtime_probe", bridge, StringComparison.Ordinal);
+        Assert.Contains("runtimeProbeOriginalPreferencesKey", bridge, StringComparison.Ordinal);
+        Assert.Contains("\"present\": present", bridge, StringComparison.Ordinal);
+        Assert.Contains("defaults.removeObject(forKey: key)", bridge, StringComparison.Ordinal);
+        Assert.Contains("pathstitchCleanupRuntimeProbe(defaults, container, nonce) ? 1 : -1", bridge, StringComparison.Ordinal);
+        var integration = File.ReadAllText(
+            Find("src", "Pathstitch.App", "Services", "MacOSPlatformPreferences.cs"));
+        var acceptance = File.ReadAllText(
+            Find("src", "Pathstitch.App", "MacOSQuickLookRuntimeProbeAcceptance.cs"));
+        Assert.Contains("MacOSQuickLookRuntimeProbeCollectionResult.NotReady", integration, StringComparison.Ordinal);
+        Assert.Contains("pathstitch_cancel_quicklook_runtime_probe", integration, StringComparison.Ordinal);
+        Assert.Contains("TryCancelQuickLookRuntimeProbe", acceptance, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -37,6 +37,7 @@ internal static class MacOSQuickLookRuntimeProbeAcceptance
             },
         };
 
+        var cancelOnFailure = false;
         try
         {
             if (!Guid.TryParseExact(nonce, "N", out _))
@@ -45,6 +46,7 @@ internal static class MacOSQuickLookRuntimeProbeAcceptance
             switch (normalizedAction)
             {
                 case "prepare":
+                    cancelOnFailure = true;
                     if (!MacOSIntegrationService.TryPrepareQuickLookRuntimeProbe(nonce))
                         throw new InvalidOperationException("Packaged app could not prepare app-group runtime probe.");
                     var dxfEnabled = false;
@@ -68,11 +70,25 @@ internal static class MacOSQuickLookRuntimeProbeAcceptance
                     evidence["status"] = "passed";
                     break;
                 case "collect":
+                    cancelOnFailure = true;
                     var deadline = DateTimeOffset.UtcNow + CollectionTimeout;
-                    while (!MacOSIntegrationService.TryCollectQuickLookRuntimeProbe(
-                               nonce,
-                               outputDirectory))
+                    while (true)
                     {
+                        var collectionResult =
+                            MacOSIntegrationService.CollectQuickLookRuntimeProbe(
+                                nonce,
+                                outputDirectory);
+                        if (collectionResult ==
+                            MacOSQuickLookRuntimeProbeCollectionResult.Collected)
+                        {
+                            break;
+                        }
+                        if (collectionResult ==
+                            MacOSQuickLookRuntimeProbeCollectionResult.Failed)
+                        {
+                            throw new InvalidOperationException(
+                                "Packaged app could not collect Quick Look runtime attestations.");
+                        }
                         if (DateTimeOffset.UtcNow >= deadline)
                             throw new TimeoutException("Quick Look extensions did not produce both runtime attestations.");
                         await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(true);
@@ -101,6 +117,8 @@ internal static class MacOSQuickLookRuntimeProbeAcceptance
         }
         catch (Exception exception)
         {
+            if (cancelOnFailure)
+                _ = MacOSIntegrationService.TryCancelQuickLookRuntimeProbe(nonce);
             evidence["status"] = "failed";
             evidence["error"] = exception.ToString();
             await WriteEvidenceAsync(evidencePath, evidence).ConfigureAwait(true);
