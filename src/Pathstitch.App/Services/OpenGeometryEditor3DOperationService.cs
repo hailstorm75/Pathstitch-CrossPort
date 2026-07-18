@@ -35,8 +35,11 @@ public sealed class OpenGeometryEditor3DOperationService(
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (IsStepPath(sourceModelPath))
-            return LoadStepModelAsync(sourceModelPath, cancellationToken);
+        if (IsStepPath(sourceModelPath)
+            || (_stepGeometryKernelService is not null && IsPackagedGeometryPath(sourceModelPath)))
+        {
+            return LoadPackagedGeometryModelAsync(sourceModelPath, cancellationToken);
+        }
 
         if (string.IsNullOrWhiteSpace(sourceModelPath) || !File.Exists(sourceModelPath))
         {
@@ -89,23 +92,32 @@ public sealed class OpenGeometryEditor3DOperationService(
                 Failure: CreateFailure(GeometryKernelFailureCode.InvalidInput, GeometryKernelOperation.Import, message));
         }
 
-        var incomingContainsStep = normalizedPaths.Any(IsStepPath);
-        var incomingContainsMesh = normalizedPaths.Any(path => !IsStepPath(path));
         var hasExistingSource = !string.IsNullOrWhiteSpace(existingSourceModelPath) && File.Exists(existingSourceModelPath);
-        var existingIsStep = hasExistingSource && IsStepPath(existingSourceModelPath!);
-        if ((incomingContainsStep && incomingContainsMesh)
-            || (existingIsStep && incomingContainsMesh)
-            || (incomingContainsStep && hasExistingSource && !existingIsStep))
+        var existingUsesPackagedFormat = hasExistingSource && IsPackagedGeometryPath(existingSourceModelPath!);
+        var incomingUsePackagedFormats = normalizedPaths.All(IsPackagedGeometryPath);
+        var requiresPackagedRuntime = normalizedPaths.Any(IsStepPath)
+            || (hasExistingSource && IsStepPath(existingSourceModelPath!));
+
+        if (incomingUsePackagedFormats
+            && (!hasExistingSource || existingUsesPackagedFormat)
+            && (_stepGeometryKernelService is not null || requiresPackagedRuntime))
         {
-            const string message = "STEP B-rep and mesh documents cannot be combined in one 3D workspace import.";
+            return await LoadCombinedPackagedModelsAsync(
+                    normalizedPaths,
+                    existingUsesPackagedFormat ? existingSourceModelPath : null,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        var mixesUnsupportedWithPackagedGeometry = normalizedPaths.Any(IsStepPath)
+            || (hasExistingSource && existingUsesPackagedFormat && !incomingUsePackagedFormats);
+        if (mixesUnsupportedWithPackagedGeometry)
+        {
+            const string message = "Packaged STEP/OBJ/STL documents cannot be combined with a legacy mesh workspace or unsupported 3D source formats. Re-import the OBJ/STL source files to normalize them through the packaged OpenGeometry worker.";
             return new EditorModelLoadResult(
                 false,
                 message,
                 Failure: CreateFailure(GeometryKernelFailureCode.InvalidInput, GeometryKernelOperation.Import, message));
         }
-
-        if (incomingContainsStep)
-            return await LoadCombinedStepModelsAsync(normalizedPaths, existingIsStep ? existingSourceModelPath : null, cancellationToken).ConfigureAwait(false);
 
         if (normalizedPaths.Length == 1
             && (string.IsNullOrWhiteSpace(existingSourceModelPath) || !File.Exists(existingSourceModelPath)))
@@ -150,14 +162,14 @@ public sealed class OpenGeometryEditor3DOperationService(
         }
     }
 
-    private async Task<EditorModelLoadResult> LoadCombinedStepModelsAsync(
+    private async Task<EditorModelLoadResult> LoadCombinedPackagedModelsAsync(
         IReadOnlyList<string> incomingPaths,
         string? existingSourceModelPath,
         CancellationToken cancellationToken)
     {
         if (_stepGeometryKernelService is null)
         {
-            const string message = "The app-owned STEP geometry worker runtime is not installed.";
+            const string message = "The app-owned OpenGeometry worker runtime is not installed.";
             return new EditorModelLoadResult(
                 false,
                 message,
@@ -165,7 +177,7 @@ public sealed class OpenGeometryEditor3DOperationService(
         }
 
         if (string.IsNullOrWhiteSpace(existingSourceModelPath) && incomingPaths.Count == 1)
-            return await LoadStepModelAsync(incomingPaths[0], cancellationToken).ConfigureAwait(false);
+            return await LoadPackagedGeometryModelAsync(incomingPaths[0], cancellationToken).ConfigureAwait(false);
 
         var generatedPaths = new List<string>();
         var current = existingSourceModelPath ?? incomingPaths[0];
@@ -202,7 +214,7 @@ public sealed class OpenGeometryEditor3DOperationService(
             var action = existingSourceModelPath is null ? "Loaded" : "Appended";
             return new EditorModelLoadResult(
                 true,
-                $"{action} STEP documents into one {imported.ViewportBodies?.Count ?? 0}-body B-rep workspace.",
+                $"{action} 3D documents into one {imported.ViewportBodies?.Count ?? 0}-body OpenGeometry workspace.",
                 current,
                 imported.ViewportJson,
                 imported.ViewportBodies,
@@ -230,7 +242,9 @@ public sealed class OpenGeometryEditor3DOperationService(
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (sourceModelPath is not null && IsStepPath(sourceModelPath))
+        if (sourceModelPath is not null
+            && (IsStepPath(sourceModelPath)
+                || (_stepGeometryKernelService is not null && IsPackagedGeometryPath(sourceModelPath))))
         {
             return _stepGeometryKernelService?.ComputeDistortionAsync(sourceModelPath, selectedFace, distortionMode, cancellationToken)
                 ?? Task.FromResult(MissingStepRuntimeDistortion());
@@ -293,7 +307,9 @@ public sealed class OpenGeometryEditor3DOperationService(
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (request.SourceModelPath is not null && IsStepPath(request.SourceModelPath))
+        if (request.SourceModelPath is not null
+            && (IsStepPath(request.SourceModelPath)
+                || (_stepGeometryKernelService is not null && IsPackagedGeometryPath(request.SourceModelPath))))
         {
             return _stepGeometryKernelService?.UnfoldAsync(request, cancellationToken)
                 ?? Task.FromResult(MissingStepRuntimeOperation(GeometryKernelOperation.Unfold));
@@ -382,7 +398,9 @@ public sealed class OpenGeometryEditor3DOperationService(
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (request.SourceModelPath is not null && IsStepPath(request.SourceModelPath))
+        if (request.SourceModelPath is not null
+            && (IsStepPath(request.SourceModelPath)
+                || (_stepGeometryKernelService is not null && IsPackagedGeometryPath(request.SourceModelPath))))
         {
             return _stepGeometryKernelService is null
                 ? MissingStepRuntimeOperation(GeometryKernelOperation.Projection)
@@ -488,11 +506,11 @@ public sealed class OpenGeometryEditor3DOperationService(
         }
     }
 
-    private async Task<EditorModelLoadResult> LoadStepModelAsync(string sourceModelPath, CancellationToken cancellationToken)
+    private async Task<EditorModelLoadResult> LoadPackagedGeometryModelAsync(string sourceModelPath, CancellationToken cancellationToken)
     {
         if (_stepGeometryKernelService is null)
         {
-            const string message = "The app-owned STEP geometry worker runtime is not installed.";
+            const string message = "The app-owned OpenGeometry worker runtime is not installed.";
             return new EditorModelLoadResult(
                 false,
                 message,
@@ -518,9 +536,18 @@ public sealed class OpenGeometryEditor3DOperationService(
             || extension.Equals(".stp", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsPackagedGeometryPath(string path)
+    {
+        var extension = Path.GetExtension(path);
+        return IsStepPath(path)
+            || extension.Equals(".obj", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".stl", StringComparison.OrdinalIgnoreCase);
+    }
+
+
     private static EditorOperationResult MissingStepRuntimeOperation(GeometryKernelOperation operation)
     {
-        const string message = "The app-owned STEP geometry worker runtime is not installed.";
+        const string message = "The app-owned OpenGeometry worker runtime is not installed.";
         return new EditorOperationResult(
             false,
             message,
@@ -529,7 +556,7 @@ public sealed class OpenGeometryEditor3DOperationService(
 
     private static EditorFaceDistortionResult MissingStepRuntimeDistortion()
     {
-        const string message = "The app-owned STEP geometry worker runtime is not installed.";
+        const string message = "The app-owned OpenGeometry worker runtime is not installed.";
         return new EditorFaceDistortionResult(
             false,
             message,

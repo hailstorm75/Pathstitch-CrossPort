@@ -1162,7 +1162,7 @@ public sealed class Project3DStateServiceTests
             ShowTwoDWorkspace: false,
             ToolCustomizations:
             [
-                new EditorToolCustomization("2d.circle", -10, "G"),
+                new EditorToolCustomization("2d.circle", -10, "G", EditorToolbarContainer.Main),
                 new EditorToolCustomization("3d.project", 2, "P"),
             ]);
 

@@ -99,7 +99,7 @@ public sealed class PackagedStepGeometryKernelService(
             var bodies = viewport.GetProperty("bodies").EnumerateArray().Select(ParseBody).ToArray();
             return new StepGeometryImportResult(
                 true,
-                $"Imported {bodies.Length} STEP B-rep body/bodies through packaged OCCT worker.",
+                $"Imported {bodies.Length} 3D body/bodies through packaged OCCT worker.",
                 protocol,
                 topology,
                 viewport.GetRawText(),
@@ -148,7 +148,7 @@ public sealed class PackagedStepGeometryKernelService(
                 : 0;
             return new StepGeometryCombineResult(
                 true,
-                $"Combined {bodyCount} STEP B-rep body/bodies through packaged OCCT worker.",
+                $"Combined {bodyCount} 3D body/bodies through packaged OCCT worker.",
                 outputPath,
                 bodyCount);
         }
@@ -206,7 +206,7 @@ public sealed class PackagedStepGeometryKernelService(
             }, cancellationToken).ConfigureAwait(false);
             var geometry = response.GetProperty("data").GetProperty("typedGeometry")
                 .Deserialize<StepOperationGeometry>(JsonOptions);
-            return new EditorOperationResult(true, "Projected STEP B-rep through packaged OCCT worker.", output, Geometry: geometry);
+            return new EditorOperationResult(true, "Projected 3D geometry through packaged OCCT worker.", output, Geometry: geometry);
         }
         catch (GeometryWorkerException ex)
         {
@@ -271,8 +271,8 @@ public sealed class PackagedStepGeometryKernelService(
                 .Deserialize<StepOperationGeometry>(JsonOptions);
             return new EditorOperationResult(true,
                 request.NetLayout.Equals("connected", StringComparison.OrdinalIgnoreCase)
-                    ? "Unfolded connected STEP net through packaged OCCT worker."
-                    : "Flattened separate STEP pieces through packaged OCCT worker.",
+                    ? "Unfolded connected 3D net through packaged OCCT worker."
+                    : "Flattened separate 3D pieces through packaged OCCT worker.",
                 output, Geometry: geometry);
         }
         catch (GeometryWorkerException ex)
@@ -300,7 +300,7 @@ public sealed class PackagedStepGeometryKernelService(
                 face_index = face.FaceIndex,
                 distortion_mode = distortionMode,
             }, cancellationToken).ConfigureAwait(false);
-            return new EditorFaceDistortionResult(true, "Computed STEP face distortion through packaged OCCT worker.", response.GetProperty("data").GetRawText());
+            return new EditorFaceDistortionResult(true, "Computed 3D face distortion through packaged OCCT worker.", response.GetProperty("data").GetRawText());
         }
         catch (GeometryWorkerException ex)
         {

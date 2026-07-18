@@ -39,4 +39,6 @@ The DXF representation remains intentionally identical for compatibility; it is 
 canonical B-rep-derived result.
 
 Native macOS must run the same executable test before release sign-off; cross-built output alone is not
-parity evidence.
+parity evidence. The packaged macOS acceptance now imports, projects, and unfolds the representative STEP
+fixture and records output hashes, but this source is not proof of execution. Record one exact-commit green
+run in PAR-007-macos-native-evidence.md.

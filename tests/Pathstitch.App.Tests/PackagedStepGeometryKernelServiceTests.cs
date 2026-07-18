@@ -63,6 +63,128 @@ public sealed class PackagedStepGeometryKernelServiceTests
     }
 
     [Fact]
+    public async Task PinnedWorker_ImportsCombinesAndUnfoldsObjAndStlThroughOcct()
+    {
+        var runtime = TryFindPinnedRuntime();
+        if (runtime is null)
+            return;
+
+        var temporaryDirectory = Path.Combine(Path.GetTempPath(), $"pathstitch-mesh-occt-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(temporaryDirectory);
+        var obj = Path.Combine(temporaryDirectory, "square.obj");
+        var stl = Path.Combine(temporaryDirectory, "square.stl");
+        await File.WriteAllTextAsync(obj,
+            """
+            v 0 0 0
+            v 10 0 0
+            v 10 10 0
+            v 0 10 0
+            f 1 2 3
+            f 1 3 4
+            """);
+        await File.WriteAllTextAsync(stl,
+            """
+            solid square
+            facet normal 0 0 1
+            outer loop
+            vertex 0 0 0
+            vertex 10 0 0
+            vertex 10 10 0
+            endloop
+            endfacet
+            facet normal 0 0 1
+            outer loop
+            vertex 0 0 0
+            vertex 10 10 0
+            vertex 0 10 0
+            endloop
+            endfacet
+            endsolid square
+            """);
+        var generated = new List<string>();
+        try
+        {
+            using var service = CreateService(runtime);
+            var handshake = await service.HandshakeAsync();
+            Assert.Contains("obj-import", handshake.Capabilities);
+            Assert.Contains("stl-import", handshake.Capabilities);
+            Assert.Contains("mixed-combine", handshake.Capabilities);
+
+            var objImport = await service.ImportAsync(obj);
+            var repeatedObjImport = await service.ImportAsync(obj);
+            var stlImport = await service.ImportAsync(stl);
+            Assert.True(objImport.IsSuccess, objImport.Message);
+            Assert.True(stlImport.IsSuccess, stlImport.Message);
+            Assert.Equal(objImport.Document!.DocumentId, repeatedObjImport.Document!.DocumentId);
+            Assert.Single(objImport.Document.Bodies);
+            Assert.Equal(2, objImport.Document.Bodies[0].Faces.Count);
+            Assert.Equal(5, objImport.Document.Bodies[0].Edges.Count);
+            Assert.Single(stlImport.Document!.Bodies);
+            Assert.Equal(2, stlImport.Document.Bodies[0].Faces.Count);
+            Assert.Equal(5, stlImport.Document.Bodies[0].Edges.Count);
+
+            var fixture = FindRepositoryFile("tests", "Pathstitch.App.Tests", "Fixtures", "box-cylinder.step");
+            var stepAndObj = await service.CombineAsync(fixture, obj);
+            Assert.True(stepAndObj.IsSuccess, stepAndObj.Message);
+            generated.Add(stepAndObj.OutputPath!);
+            Assert.Equal(3, stepAndObj.BodyCount);
+            var allFormats = await service.CombineAsync(stepAndObj.OutputPath!, stl);
+            Assert.True(allFormats.IsSuccess, allFormats.Message);
+            generated.Add(allFormats.OutputPath!);
+            Assert.Equal(4, allFormats.BodyCount);
+            var combinedImport = await service.ImportAsync(allFormats.OutputPath!);
+            Assert.True(combinedImport.IsSuccess, combinedImport.Message);
+            Assert.Equal(4, combinedImport.Document!.Bodies.Count);
+
+            var body = objImport.Document.Bodies[0];
+            var connected = await service.UnfoldAsync(new EditorUnfoldRequest(
+                obj,
+                body.Faces.Select((face, index) => new SelectedFace3D(0, index, body.Id, face.Id)).ToArray(),
+                [0],
+                WholeBody: true,
+                DistortionMode: "conformal",
+                SelectedFaceIds: body.Faces.Select(face => face.Id).ToArray(),
+                VisibleBodyIds: [body.Id],
+                NetLayout: "connected"));
+            Assert.True(connected.IsSuccess, connected.Message);
+            generated.Add(connected.OutputPath!);
+            Assert.Contains("CREASE", await File.ReadAllTextAsync(connected.OutputPath!), StringComparison.Ordinal);
+
+            var decoratedCut = await service.UnfoldAsync(new EditorUnfoldRequest(
+                obj,
+                body.Faces.Select((face, index) => new SelectedFace3D(0, index, body.Id, face.Id)).ToArray(),
+                [0],
+                WholeBody: true,
+                DistortionMode: "conformal",
+                SelectedFaceIds: body.Faces.Select(face => face.Id).ToArray(),
+                VisibleBodyIds: [body.Id],
+                SeamControlMode: "manual",
+                ForcedSeams: [new EditorSeamEdge3D(0, 3)],
+                SeamDecoration: "tabs",
+                NetLayout: "connected",
+                TabHeight: 2));
+            Assert.True(decoratedCut.IsSuccess, decoratedCut.Message);
+            generated.Add(decoratedCut.OutputPath!);
+            Assert.Contains("GLUE_TABS", await File.ReadAllTextAsync(decoratedCut.OutputPath!), StringComparison.Ordinal);
+
+            var projection = await service.ProjectAsync(new EditorProjectionRequest(
+                obj, "XY", 0, null, null, [0], [], VisibleBodyIds: [body.Id]));
+            Assert.True(projection.IsSuccess, projection.Message);
+            generated.Add(projection.OutputPath!);
+            Assert.NotEmpty(projection.Geometry!.Curves);
+        }
+        finally
+        {
+            foreach (var path in generated.Where(path => !string.IsNullOrWhiteSpace(path)))
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
+            if (Directory.Exists(temporaryDirectory))
+                Directory.Delete(temporaryDirectory, recursive: true);
+        }
+    }
+    [Fact]
     public async Task PinnedWorker_ProjectionAndUnfoldAppendExistingDxf()
     {
         var runtime = TryFindPinnedRuntime();
@@ -480,6 +602,9 @@ public sealed class PackagedStepGeometryKernelServiceTests
         Assert.DoesNotContain("GetEnvironmentVariable(\"PATH\")", resolver, StringComparison.Ordinal);
         Assert.Contains("GeometryWorker", project, StringComparison.Ordinal);
         Assert.Contains("step-combine", runtimeSpec, StringComparison.Ordinal);
+        Assert.Contains("obj-import", runtimeSpec, StringComparison.Ordinal);
+        Assert.Contains("stl-import", runtimeSpec, StringComparison.Ordinal);
+        Assert.Contains("mixed-combine", runtimeSpec, StringComparison.Ordinal);
     }
 
     private static void AssertExistingLineAndGeneratedGeometry(string outputPath)

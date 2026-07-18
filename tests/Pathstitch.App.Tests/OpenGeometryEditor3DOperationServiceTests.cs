@@ -96,7 +96,7 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
     }
 
     [Fact]
-    public async Task LoadModelsAsync_RejectsMixedStepAndMeshWithoutCallingKernel()
+    public async Task LoadModelsAsync_NormalizesMixedStepAndMeshThroughPackagedKernel()
     {
         using var workspace = TestWorkspace.Create();
         var step = workspace.WriteText("part.step", "step");
@@ -106,10 +106,101 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
 
         var result = await service.LoadModelsAsync([step, mesh]);
 
+        Assert.True(result.IsSuccess, result.Message);
+        Assert.Equal([(step, mesh)], kernel.CombineCalls);
+        Assert.Single(kernel.CombinedPaths);
+        Assert.Equal(kernel.CombinedPaths[0], kernel.ImportedPath);
+        Assert.Equal(kernel.CombinedPaths[0], result.SourceModelPath);
+        Assert.True(File.Exists(result.SourceModelPath));
+        Assert.Equal(2, result.Bodies?.Count);
+    }
+
+    [Fact]
+    public async Task LoadModelsAsync_RejectsLegacyJsonAndStepWithoutMutatingLegacyWorkspace()
+    {
+        using var workspace = TestWorkspace.Create();
+        var first = workspace.WriteText("first.obj", TriangleObj);
+        var second = workspace.WriteText("second.obj", TriangleObj);
+        var legacyService = CreateService();
+        var legacy = await legacyService.LoadModelsAsync([first, second]);
+        var original = await File.ReadAllBytesAsync(legacy.SourceModelPath!);
+        var step = workspace.WriteText("part.step", "step");
+        var service = CreateService(new RecordingStepKernel(workspace));
+
+        var result = await service.LoadModelsAsync([step], legacy.SourceModelPath);
+
         Assert.False(result.IsSuccess);
-        Assert.Empty(kernel.CombineCalls);
-        Assert.Null(kernel.ImportedPath);
-        Assert.Contains("cannot be combined", result.Message, StringComparison.Ordinal);
+        Assert.Equal(GeometryKernelFailureCode.InvalidInput, result.Failure?.Code);
+        Assert.Contains("legacy mesh workspace", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(original, await File.ReadAllBytesAsync(legacy.SourceModelPath!));
+    }
+    [Fact]
+    public async Task LoadModelAsync_RoutesObjThroughPackagedKernelWhenAvailable()
+    {
+        using var workspace = TestWorkspace.Create();
+        var mesh = workspace.WriteText("part.obj", TriangleObj);
+        var kernel = new RecordingStepKernel(workspace);
+        var service = CreateService(kernel);
+
+        var result = await service.LoadModelAsync(mesh);
+
+        Assert.True(result.IsSuccess, result.Message);
+        Assert.Equal(mesh, kernel.ImportedPath);
+        Assert.Equal(mesh, result.SourceModelPath);
+        Assert.Single(result.Bodies!);
+    }
+
+    [Fact]
+    public async Task PackagedMeshOperations_RouteAllParityControlsToKernel()
+    {
+        using var workspace = TestWorkspace.Create();
+        var mesh = workspace.WriteText("part.obj", TriangleObj);
+        var kernel = new RecordingStepKernel(workspace);
+        var service = CreateService(kernel);
+        var projectionRequest = new EditorProjectionRequest(
+            mesh,
+            "XY",
+            2.5,
+            FaceIndex: null,
+            FaceBodyIndex: null,
+            VisibleBodyIndices: [0],
+            BodyOffsets: [],
+            VisibleBodyIds: ["body-0"]);
+        var unfoldRequest = new EditorUnfoldRequest(
+            mesh,
+            SelectedFaces: [new SelectedFace3D(0, 0, "body-0", "face-0")],
+            VisibleBodyIndices: [0],
+            WholeBody: false,
+            DistortionMode: "balanced",
+            SelectedFaceIds: ["face-0"],
+            VisibleBodyIds: ["body-0"],
+            SeamControlMode: "manual",
+            ForcedSeams: [new EditorSeamEdge3D(0, 2)],
+            AnchorFace: new SelectedFace3D(0, 0, "body-0", "face-0"),
+            SeamDecoration: "holes",
+            SeamDecorations: [new EditorSeamDecoration3D(new EditorSeamEdge3D(0, 2), "tabs")],
+            NetLayout: "connected",
+            UnrollMode: "spanning",
+            TabHeight: 7,
+            HoleDiameter: 1.5,
+            HoleSpacing: 6,
+            HoleMargin: 3);
+        var selectedFace = new SelectedFace3D(0, 0, "body-0", "face-0");
+
+        var projection = await service.ProjectEdgesAsync(projectionRequest);
+        var unfold = await service.UnfoldAsync(unfoldRequest);
+        var distortion = await service.ComputeFaceDistortionAsync(mesh, selectedFace, "balanced");
+
+        Assert.True(projection.IsSuccess);
+        Assert.True(unfold.IsSuccess);
+        Assert.True(distortion.IsSuccess);
+        Assert.Same(projectionRequest, kernel.ProjectRequest);
+        Assert.Same(unfoldRequest, kernel.UnfoldRequest);
+        Assert.Equal((mesh, selectedFace, "balanced"), kernel.DistortionRequest);
+        Assert.Equal("manual", kernel.UnfoldRequest!.SeamControlMode);
+        Assert.Equal("connected", kernel.UnfoldRequest.NetLayout);
+        Assert.Equal("holes", kernel.UnfoldRequest.SeamDecoration);
+        Assert.Equal(7, kernel.UnfoldRequest.TabHeight);
     }
 
     [Fact]
@@ -382,7 +473,7 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
         Assert.NotNull(result.Failure);
         Assert.Equal(GeometryKernelFailureCode.SourceUnavailable, result.Failure.Code);
         Assert.Equal(GeometryKernelOperation.Import, result.Failure.Operation);
-        Assert.Contains("app-owned STEP geometry worker", result.Message, StringComparison.Ordinal);
+        Assert.Contains("app-owned OpenGeometry worker", result.Message, StringComparison.Ordinal);
     }
 
     private static OpenGeometryEditor3DOperationService CreateService(IStepGeometryKernelService? stepKernel = null)
@@ -422,6 +513,9 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
         public List<(string Existing, string Incoming)> CombineCalls { get; } = [];
         public List<string> CombinedPaths { get; } = [];
         public string? ImportedPath { get; private set; }
+        public EditorProjectionRequest? ProjectRequest { get; private set; }
+        public EditorUnfoldRequest? UnfoldRequest { get; private set; }
+        public (string SourcePath, SelectedFace3D Face, string DistortionMode)? DistortionRequest { get; private set; }
         public bool FailCombine { get; init; }
 
         public Task<StepGeometryProtocolInfo> HandshakeAsync(CancellationToken cancellationToken = default)
@@ -463,17 +557,26 @@ public sealed class OpenGeometryEditor3DOperationServiceTests
         }
 
         public Task<EditorOperationResult> ProjectAsync(EditorProjectionRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        {
+            ProjectRequest = request;
+            return Task.FromResult(new EditorOperationResult(true, "projected"));
+        }
 
         public Task<EditorOperationResult> UnfoldAsync(EditorUnfoldRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        {
+            UnfoldRequest = request;
+            return Task.FromResult(new EditorOperationResult(true, "unfolded"));
+        }
 
         public Task<EditorFaceDistortionResult> ComputeDistortionAsync(
             string sourcePath,
             SelectedFace3D face,
             string distortionMode,
             CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        {
+            DistortionRequest = (sourcePath, face, distortionMode);
+            return Task.FromResult(new EditorFaceDistortionResult(true, "distortion"));
+        }
     }
 
     private static int CountDxfEntities(string dxf, string entityName)

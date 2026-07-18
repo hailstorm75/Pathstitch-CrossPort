@@ -1,4 +1,4 @@
-"""Versioned, STEP/B-rep-only Pathstitch geometry worker.
+"""Versioned OpenGeometry B-rep/mesh Pathstitch geometry worker.
 
 Protocol v1 uses 4-byte big-endian length-prefixed UTF-8 JSON frames. No OCC or
 Python implementation types cross the boundary. The worker writes protocol frames
@@ -17,7 +17,7 @@ import traceback
 from typing import Any, Dict
 
 PROTOCOL_VERSION = 1
-CAPABILITIES = ["step-import", "step-combine", "brep-topology", "exact-curves", "pcurves", "projection", "unfold", "distortion"]
+CAPABILITIES = ["step-import", "obj-import", "stl-import", "step-combine", "mixed-combine", "brep-topology", "exact-curves", "pcurves", "projection", "unfold", "distortion"]
 
 
 def _read_exact(stream, count):
@@ -47,7 +47,8 @@ def _orientation(value):
 
 def _source_units(path):
     try:
-        text = open(path, "r", encoding="ascii", errors="ignore").read(262144).upper()
+        with open(path, "r", encoding="ascii", errors="ignore") as source:
+            text = source.read(262144).upper()
         if "SI_UNIT(.MILLI.,.METRE.)" in text:
             return "mm"
         if "SI_UNIT($,.METRE.)" in text:
@@ -60,7 +61,8 @@ def _source_units(path):
 
 
 def _document_id(path):
-    return hashlib.sha256(open(path, "rb").read()).hexdigest()[:24]
+    with open(path, "rb") as source:
+        return hashlib.sha256(source.read()).hexdigest()[:24]
 
 
 def _surface_info(face):
@@ -242,7 +244,7 @@ def _resolve_stable_references(path, payload, operation):
     document_id = topology["documentId"]
     requested_document = payload.get("document_id")
     if requested_document and requested_document != document_id:
-        raise ValueError("Stable topology references belong to a different STEP document.")
+        raise ValueError("Stable topology references belong to a different 3D document.")
 
     bodies = {body["id"]: index for index, body in enumerate(topology["bodies"])}
     faces = {
@@ -371,13 +373,13 @@ def _dispatch(operation, payload):
     if operation == "import":
         path = payload.get("sourcePath")
         if not path or not os.path.isfile(path):
-            return _error("source-unavailable", "STEP source file is unavailable.")
+            return _error("source-unavailable", "3D source file is unavailable.")
         try:
             topology = _extract_topology(path)
         except Exception as exc:
-            return _error("invalid-input", "The STEP document could not be parsed or transferred.", str(exc), False)
+            return _error("invalid-input", "The 3D document could not be parsed or transferred.", str(exc), False)
         if not topology["bodies"]:
-            return _error("geometry-not-found", "The STEP document did not contain transferable bodies, shells, or faces.")
+            return _error("geometry-not-found", "The 3D document did not contain transferable bodies, shells, or faces.")
         from pathstitch_core.step_ops import op_list_bodies
         viewport = op_list_bodies({"input": path})
         if viewport.get("status") != "ok":

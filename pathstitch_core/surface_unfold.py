@@ -8,6 +8,7 @@ Supports planar projection, cylinder unrolling, and cone unrolling.
 import math
 from typing import List, Tuple, Dict, Any
 import ezdxf
+from pathstitch_core.dxf_units import new_millimeter_dxf
 import numpy as np
 
 from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
@@ -520,7 +521,7 @@ def unfold_face_geometry(face, mode="conformal") -> List[List[Tuple[float, float
 
 def save_polylines_to_dxf(wires: List[List[Tuple[float, float]]], output_path: str):
     """Saves lists of 2D points as polylines in a DXF file."""
-    doc = ezdxf.new(dxfversion="R2010")
+    doc = new_millimeter_dxf(dxfversion="R2010")
     msp = doc.modelspace()
     
     for pts in wires:

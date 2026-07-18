@@ -11,6 +11,7 @@ import os
 import math
 from typing import Dict, List, Any, Tuple, Optional
 import ezdxf
+from pathstitch_core.dxf_units import new_millimeter_dxf, require_millimeter_dxf
 
 from OCC.Core.STEPControl import STEPControl_Reader
 from OCC.Core.IFSelect import IFSelect_RetDone
@@ -43,15 +44,15 @@ def load_step_shape(file_path: str):
         
     elif ext == ".obj":
         from OCC.Core.gp import gp_Pnt
-        from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
-        from OCC.Core.TopoDS import TopoDS_Compound
-        from OCC.Core.BRep import BRep_Builder
-        
+        from OCC.Core.BRepBuilderAPI import (
+            BRepBuilderAPI_MakePolygon,
+            BRepBuilderAPI_MakeFace,
+            BRepBuilderAPI_Sewing,
+        )
+
         vertices = []
-        builder = BRep_Builder()
-        compound = TopoDS_Compound()
-        builder.MakeCompound(compound)
-        
+        sewing = BRepBuilderAPI_Sewing(1.0e-6, True, True, True, False)
+
         has_faces = False
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
@@ -88,22 +89,26 @@ def load_step_shape(file_path: str):
                     if len(face_vertices) >= 3:
                         try:
                             poly = BRepBuilderAPI_MakePolygon()
-                            for v in face_vertices:
-                                poly.Add(v)
+                            for vertex in face_vertices:
+                                poly.Add(vertex)
                             poly.Close()
                             face_maker = BRepBuilderAPI_MakeFace(poly.Wire())
                             if not face_maker.IsDone():
                                 continue
                             face = face_maker.Face()
                             if not face.IsNull():
-                                builder.Add(compound, face)
+                                sewing.Add(face)
                                 has_faces = True
                         except Exception:
                             pass
         if not has_faces:
             raise ValueError(f"No valid faces could be parsed from OBJ file: {file_path}")
-        return compound
-        
+
+        sewing.Perform()
+        sewn_shape = sewing.SewedShape()
+        if sewn_shape.IsNull():
+            raise ValueError(f"OBJ faces could not be sewn into a transferable shape: {file_path}")
+        return sewn_shape
     else:
         # Default to STEP
         reader = STEPControl_Reader()
@@ -112,31 +117,51 @@ def load_step_shape(file_path: str):
             raise ValueError(f"STEP control reader failed to read. Status code: {status}")
             
         reader.TransferRoots()
-        return reader.OneShape()
+        shape = reader.OneShape()
 
+        # STEP files produced from mixed solid/mesh imports may contain adjacent
+        # free shells whose shared triangulation edges were split by STEP export.
+        # Sewing restores those bodies without changing disconnected solids.
+        from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Sewing
+        sewing = BRepBuilderAPI_Sewing(1.0e-6, True, True, True, False)
+        sewing.Add(shape)
+        sewing.Perform()
+        sewn_shape = sewing.SewedShape()
+        return shape if sewn_shape.IsNull() else sewn_shape
 def get_solid_bodies(shape) -> List[Any]:
-    """Isolates and returns all solid bodies (or shells as fallback)."""
-    bodies = []
-    
-    # 1. Search for Solids
+    """Returns solids plus free shells, without duplicating shells inside solids."""
+    solids = []
     exp = TopExp_Explorer(shape, TopAbs_SOLID)
     while exp.More():
-        bodies.append(exp.Current())
+        solids.append(exp.Current())
         exp.Next()
-        
-    # 2. Search for Shells if no Solids found
-    if not bodies:
-        exp = TopExp_Explorer(shape, TopAbs_SHELL)
-        while exp.More():
-            bodies.append(exp.Current())
-            exp.Next()
-            
-    # 3. Fallback: treat the entire shape as a single body if it contains any faces
+
+    def is_shell_inside_solid(shell) -> bool:
+        for solid in solids:
+            nested = TopExp_Explorer(solid, TopAbs_SHELL)
+            while nested.More():
+                if nested.Current().IsSame(shell):
+                    return True
+                nested.Next()
+        return False
+
+    free_shells = []
+    exp = TopExp_Explorer(shape, TopAbs_SHELL)
+    while exp.More():
+        shell = exp.Current()
+        if not is_shell_inside_solid(shell):
+            free_shells.append(shell)
+        exp.Next()
+
+    bodies = solids + free_shells
+
+    # Loose-face documents have neither solids nor shells. Preserve the source
+    # compound as one body so all faces remain available to projection/unfold.
     if not bodies:
         exp = TopExp_Explorer(shape, TopAbs_FACE)
         if exp.More():
             bodies.append(shape)
-            
+
     return bodies
 
 def op_list_bodies(args: Dict[str, Any]) -> Dict[str, Any]:
@@ -393,6 +418,7 @@ def op_unfold_face(args: Dict[str, Any]) -> Dict[str, Any]:
         # Load or create DXF
         if existing_dxf and os.path.exists(existing_dxf):
             doc = ezdxf.readfile(existing_dxf)
+            require_millimeter_dxf(doc)
             msp = doc.modelspace()
             bounds = get_dxf_bounds(msp)
             if bounds:
@@ -402,7 +428,7 @@ def op_unfold_face(args: Dict[str, Any]) -> Dict[str, Any]:
                 start_x = 0.0
                 start_y = 0.0
         else:
-            doc = ezdxf.new(dxfversion="R2010")
+            doc = new_millimeter_dxf(dxfversion="R2010")
             msp = doc.modelspace()
             start_x = 0.0
             start_y = 0.0
@@ -456,6 +482,7 @@ def op_unfold_faces(args: Dict[str, Any]) -> Dict[str, Any]:
         # Load or create DXF
         if existing_dxf and os.path.exists(existing_dxf):
             doc = ezdxf.readfile(existing_dxf)
+            require_millimeter_dxf(doc)
             msp = doc.modelspace()
             bounds = get_dxf_bounds(msp)
             if bounds:
@@ -465,7 +492,7 @@ def op_unfold_faces(args: Dict[str, Any]) -> Dict[str, Any]:
                 current_x_offset = 0.0
                 current_y_offset = 0.0
         else:
-            doc = ezdxf.new(dxfversion="R2010")
+            doc = new_millimeter_dxf(dxfversion="R2010")
             msp = doc.modelspace()
             current_x_offset = 0.0
             current_y_offset = 0.0
@@ -881,6 +908,7 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
         
         if existing_dxf and os.path.exists(existing_dxf):
             doc = ezdxf.readfile(existing_dxf)
+            require_millimeter_dxf(doc)
             msp = doc.modelspace()
             bounds = get_dxf_bounds(msp)
             if bounds:
@@ -890,7 +918,7 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
                 start_x = 0.0
                 start_y = 0.0
         else:
-            doc = ezdxf.new(dxfversion="R2010")
+            doc = new_millimeter_dxf(dxfversion="R2010")
             msp = doc.modelspace()
             start_x = 0.0
             start_y = 0.0

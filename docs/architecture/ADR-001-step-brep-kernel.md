@@ -1,6 +1,6 @@
 # ADR-001: Restore STEP/B-rep support through a packaged OCCT worker
 
-- Status: Accepted
+- Status: Accepted; implementation amended 2026-07-18
 - Date: 2026-07-10
 - Deciders: Pathstitch maintainers
 - Backlog: AUD-015; unblocks AUD-016 and AUD-017
@@ -11,12 +11,17 @@ Pathstitch needs more than a rendered STEP mesh. The 3D-to-2D workflow depends o
 
 The repository currently has three relevant paths:
 
-1. The active Avalonia editor calls the .NET `IEditor3DOperationService` contract in `src/Domain/Domain.App/Services/IEditor3DOperationService.cs`. Its implementation, `src/Pathstitch.App/Services/OpenGeometryEditor3DOperationService.cs`, accepts OBJ/STL meshes and explicitly rejects STEP. OpenGeometry 2.0.11 is invoked by a Node/WASM helper for supported operations (`src/Pathstitch.App/Assets/OpenGeometry/opengeometry-worker.mjs` and `package.json`). The checked package declares MPL-2.0. This is a useful mesh/2D path, but the desktop bridge currently does not expose the STEP B-rep data required here.
+1. The active Avalonia editor calls the .NET `IEditor3DOperationService` contract in `src/Domain/Domain.App/Services/IEditor3DOperationService.cs`. Its implementation, `src/Pathstitch.App/Services/OpenGeometryEditor3DOperationService.cs`, now routes STEP/STP/OBJ/STL through the packaged OCCT worker in production. Mixed imports normalize pairwise to a retained STEP document. The Node/WASM OpenGeometry bridge remains useful for 2D operations and the explicit null-kernel/legacy-JSON mesh fallback.
 2. The original macOS application keeps one persistent length-prefixed JSON worker (`Pathstitch/Pathstitch/Bridge/PythonBridge.swift`). `pathstitch_core/step_ops.py`, `surface_unfold.py`, and `net_unfold.py` use pythonOCC/OpenCASCADE for STEP transfer, body/face/edge traversal, analytic surface recognition, exact edge and p-curve access, sections/HLR, and planar/cylindrical/conical plus mesh-based unfolding. `scripts/package_app.sh` proves an Apple-silicon Python 3.11/OCC environment can be bundled, although the documented trimmed environment is still about 1.1 GB and is not a deterministic cross-platform Avalonia package.
 3. `native/step_mesh` wraps the pinned MIT/Apache-2.0 foxtrot tessellator for macOS Quick Look. Its contract returns triangles only. It remains appropriate for previews, not editor STEP topology or exact geometry.
 
 The repository is GPL-3.0. Even so, dependency notices, source/offer obligations, dynamic-linking terms, and platform redistributability must be reviewed before release; this ADR is an engineering decision, not legal advice.
 
+## 2026-07-18 implementation amendment
+
+The packaged worker contract is still kernel-neutral, but its accepted source scope now includes OBJ and STL as well as STEP. The existing Python loader already supported all three formats and pairwise mixed-format combine; C# dispatch had prevented packaged mesh imports from reaching it. PAR-009 unified routing and added `obj-import`, `stl-import`, and `mixed-combine` capabilities.
+
+Mesh normalization also required two topology repairs: OBJ faces are sewn before extraction, and STEP reload sewing retains free mesh shells beside solids after mixed-format export. Packaged tests prove stable two-triangle OBJ/STL topology, connected-net folds and manual cuts, decoration layers, projection, and STEP + OBJ + STL reimport. Legacy JSON mesh workspaces remain on the reduced fallback and cannot be combined with STEP.
 ## Decision drivers
 
 - Preserve B-rep topology, analytic surface classification and exact boundary curves through import, selection, projection, unfold, save and reopen.
@@ -71,7 +76,7 @@ Projection and unfold operations must consume stable IDs and return typed 2D cur
 - On macOS, build and test both target architectures (or explicitly publish architecture-specific artifacts), fix dylib install names/rpaths, include the worker and libraries in code signing, enable hardened runtime, notarize the final app, and verify execution from a quarantined `.app` without Homebrew/Conda. The worker remains outside the sandboxed Quick Look extension; `native/step_mesh` continues to serve preview-only needs.
 - On Windows, ship the matching worker executable/runtime and OCCT DLL closure beside the app, and verify operation on a clean VM without Python, Node or Visual C++ components beyond those included by the installer.
 
-OpenGeometry remains the current backend for already-supported 2D/mesh operations. It must not be used as a STEP substitute until a pinned desktop API independently passes the same B-rep contract and parity gates.
+OpenGeometry remains the current backend for supported 2D operations and the reduced legacy mesh fallback. Packaged releases normalize STEP/STP/OBJ/STL through OCCT so every 3D source format uses one stable-topology projection/unfold contract.
 
 ## Migration plan
 
@@ -81,7 +86,7 @@ OpenGeometry remains the current backend for already-supported 2D/mesh operation
 4. Replace filesystem-only DXF responses with typed geometry while retaining a temporary adapter for comparison. Introduce stable topology IDs and map viewport triangles back to them.
 5. Build locked worker artifacts for Windows x64 and supported macOS architectures. Add clean-machine packaging tests, SBOM/notices, signing and notarization checks.
 6. Add a backend selector/feature flag. Run the packaged worker and legacy reference against the parity suite; use OpenGeometry only for capabilities it declares.
-7. Enable STEP in the Avalonia file picker and project persistence only after all mandatory gates pass. Keep OBJ/STL behavior unchanged.
+7. Enable the packaged backend for STEP/STP/OBJ/STL and mixed imports after the mandatory gates pass. Retain legacy JSON mesh workspaces only as an explicit reduced fallback.
 8. After two release cycles with telemetry-free local diagnostic logs showing no systemic regression, remove the temporary legacy protocol adapter. Retain fixtures and contract tests permanently.
 
 ## Mandatory test gates
@@ -118,7 +123,7 @@ Replacement of the Python backend is encouraged when a cross-platform OCCT bindi
 - STEP parity can be restored incrementally using proven repository code while the active Avalonia architecture remains .NET-first.
 - The application carries a larger platform-specific runtime and must own worker lifecycle, protocol compatibility and packaging security.
 - Two geometry implementations coexist temporarily, so capability reporting and contract tests are mandatory.
-- Foxtrot and OBJ/STL tessellation remain preview/mesh paths only.
+- Foxtrot remains preview-only. OBJ/STL editor imports normalize through packaged OCCT; their tessellation remains a derived viewport representation.
 - AUD-016 may proceed against the packaged worker decision; AUD-017 owns the reusable conformance/parity suite described above.
 
 ## Repository evidence

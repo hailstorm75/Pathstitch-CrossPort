@@ -30,6 +30,7 @@ import math
 from typing import Dict, List, Any, Tuple, Optional
 
 import ezdxf
+from pathstitch_core.dxf_units import new_millimeter_dxf, require_millimeter_dxf
 
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopAbs import TopAbs_FACE, TopAbs_EDGE
@@ -1046,11 +1047,12 @@ def op_unfold_connected(args: Dict[str, Any]) -> Dict[str, Any]:
         # Load or create the destination DXF, appending after existing content
         if args.get("existing_dxf") and os.path.exists(args["existing_dxf"]):
             doc = ezdxf.readfile(args["existing_dxf"])
+            require_millimeter_dxf(doc)
             msp = doc.modelspace()
             bounds = get_dxf_bounds(msp)
             start_x, start_y = (bounds[2] + GAP, bounds[1]) if bounds else (0.0, 0.0)
         else:
-            doc = ezdxf.new(dxfversion="R2010", setup=True)
+            doc = new_millimeter_dxf(dxfversion="R2010", setup=True)
             msp = doc.modelspace()
             start_x, start_y = 0.0, 0.0
 
