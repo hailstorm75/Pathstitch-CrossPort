@@ -5,7 +5,7 @@
 **Workflow:** .github/workflows/macos-release.yml  
 **Evidence artifact:** Pathstitch-native-evidence-osx-arm64
 
-Source-level implementation and Windows-hosted verification are complete: the evidence collector parses cleanly, warnings-as-errors build passes with 0 warnings/errors, focused collector/delivery contracts pass 28/28, the full .NET suite passes 1039/1039, unit/import/export contracts pass 80/80 plus Python 7/7, and packaged OCCT mesh/import/unfold tests pass 23/23. The executable evidence-validator suite passes 26/26, including twenty-five intentionally corrupted bundles that cannot report passed. This document must not be changed to Passed until a macOS run from the exact reviewed commit completes and its self-contained evidence artifact is retained.
+Source-level implementation and Windows-hosted verification are complete: the evidence collector and independent reviewer parse cleanly, warnings-as-errors build passes with 0 warnings/errors, focused collector/delivery contracts pass 32/32, the full .NET suite passes 1151/1151, unit/import/export contracts pass 80/80 plus Python 7/7, and packaged OCCT mesh/import/unfold tests pass 23/23. The executable evidence-validator suite passes 29/29, including twenty-seven corrupted, tampered, or identity-mismatched bundles that cannot report passed. This document must not be changed to Passed until a macOS run from the exact reviewed commit completes and its self-contained evidence artifact is retained.
 
 ## Native gates
 
@@ -58,6 +58,24 @@ Ad-hoc CI proves entitlement shape and bridge suite readback, but not provisione
 
 packaged-app-acceptance.json must use schema 4 and report status: passed; native WebView navigation; native file dialogs; mac integration; STEP import/projection/unfold; exact project preservation; OBJ/STL topology; four-body mixed import; connected/separate net generation; manual seam behavior; and tab/hole decoration. Every retained input/output descriptor must match the copied artifact's size and SHA-256; every DXF descriptor must also report INSUNITS code 4 and MEASUREMENT code 1. Both ZIP and STCH archives must be readable, and the embedded generated DXF must match the external unfold hash.
 
+## Independent review
+
+Download exact workflow artifact into dedicated directory, then bind it to commit and run selected independently from GitHub UI or reviewed commit:
+
+```powershell
+gh run download 8675309 `
+  --name Pathstitch-native-evidence-osx-arm64 `
+  --dir artifacts/native-review/evidence
+./scripts/verify-native-macos-evidence.ps1 `
+  -EvidenceRoot artifacts/native-review/evidence `
+  -ExpectedCommit 0123456789abcdef0123456789abcdef01234567 `
+  -ExpectedWorkflowRunId 8675309 `
+  -ExpectedWorkflowRunAttempt 2 `
+  -ReceiptPath artifacts/native-review/native-evidence-review.json
+```
+
+Reviewer leaves producer evidence unchanged, verifies exact file-set/size/SHA-256 inventory, rejects commit/run mismatches, copies evidence to isolated temporary storage, and re-runs portable semantic collector checks. Receipt binds producer and revalidated manifest hashes. Store receipt with sign-off. This proves retained artifact integrity; it does not replace native preview-extension observation or provisioned cross-process app-group proof.
+
 ## Sign-off record
 
 Fill from one exact workflow run:
@@ -66,7 +84,9 @@ Fill from one exact workflow run:
 - Workflow run URL:
 - Run ID / attempt:
 - Runner image:
-- Artifact SHA-256:
+- GitHub artifact digest:
+- Reviewer receipt SHA-256:
+- Package ZIP SHA-256:
 - Package acceptance: Pending
 - Finder activation: Pending
 - STCH Quick Look: Pending
