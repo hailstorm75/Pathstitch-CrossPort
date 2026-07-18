@@ -27,6 +27,7 @@ public final class PreviewProvider: NSViewController, QLPreviewingController {
 
         let isAccessing = url.startAccessingSecurityScopedResource()
         let isStep = ext == "step" || ext == "stp"
+        let fixtureSha256 = PathstitchQuickLookRuntimeProbe.fixtureSha256IfRequested(url)
         let mesh = isStep ? loadStepMesh(url: url) : nil
         let fallbackImage: CGImage?
         if let mesh {
@@ -55,6 +56,18 @@ public final class PreviewProvider: NSViewController, QLPreviewingController {
             if let mesh,
                let sceneView = makeInteractiveStepPreview(mesh: mesh, frame: self.view.bounds) {
                 self.replaceContent(with: sceneView)
+                PathstitchQuickLookRuntimeProbe.record(
+                    providerKind: "preview",
+                    bundleIdentifier: Bundle(for: PreviewProvider.self).bundleIdentifier ?? "",
+                    fileURL: url,
+                    fixtureSha256: fixtureSha256,
+                    rendered: true,
+                    interactiveSceneKit: true,
+                    sceneViewInstalled: true,
+                    cameraControlEnabled: sceneView.allowsCameraControl,
+                    fallbackImageInstalled: false,
+                    vertexCount: mesh.vertexCount,
+                    triangleCount: mesh.indices.count / 3)
                 handler(nil)
                 return
             }
@@ -72,6 +85,18 @@ public final class PreviewProvider: NSViewController, QLPreviewingController {
             imageView.imageScaling = .scaleProportionallyUpOrDown
             imageView.image = NSImage(cgImage: fallbackImage, size: size)
             self.replaceContent(with: imageView)
+            PathstitchQuickLookRuntimeProbe.record(
+                providerKind: "preview",
+                bundleIdentifier: Bundle(for: PreviewProvider.self).bundleIdentifier ?? "",
+                fileURL: url,
+                fixtureSha256: fixtureSha256,
+                rendered: true,
+                interactiveSceneKit: false,
+                sceneViewInstalled: false,
+                cameraControlEnabled: false,
+                fallbackImageInstalled: true,
+                vertexCount: mesh?.vertexCount ?? 0,
+                triangleCount: (mesh?.indices.count ?? 0) / 3)
             handler(nil)
         }
     }
@@ -83,3 +108,4 @@ public final class PreviewProvider: NSViewController, QLPreviewingController {
         view.addSubview(content)
     }
 }
+

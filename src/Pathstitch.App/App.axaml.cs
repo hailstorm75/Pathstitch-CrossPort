@@ -120,6 +120,27 @@ public partial class App : Application
                 }
             };
 
+            var runtimeProbeAction = Environment.GetEnvironmentVariable(
+                "PATHSTITCH_MACOS_RUNTIME_PROBE_ACTION");
+            var runtimeProbeNonce = Environment.GetEnvironmentVariable(
+                "PATHSTITCH_MACOS_RUNTIME_PROBE_NONCE");
+            var runtimeProbeOutput = Environment.GetEnvironmentVariable(
+                "PATHSTITCH_MACOS_RUNTIME_PROBE_OUTPUT");
+            if (!string.IsNullOrWhiteSpace(runtimeProbeAction))
+            {
+                desktop.MainWindow.Opened += async (_, _) =>
+                {
+                    var exitCode = string.IsNullOrWhiteSpace(runtimeProbeNonce)
+                        || string.IsNullOrWhiteSpace(runtimeProbeOutput)
+                        ? 1
+                        : await MacOSQuickLookRuntimeProbeAcceptance.RunAsync(
+                            runtimeProbeAction,
+                            runtimeProbeNonce,
+                            runtimeProbeOutput).ConfigureAwait(true);
+                    desktop.Shutdown(exitCode);
+                };
+            }
+
             var acceptanceOutput = Environment.GetEnvironmentVariable("PATHSTITCH_MACOS_ACCEPTANCE_OUTPUT");
             if (!string.IsNullOrWhiteSpace(acceptanceOutput) && _services is not null)
             {

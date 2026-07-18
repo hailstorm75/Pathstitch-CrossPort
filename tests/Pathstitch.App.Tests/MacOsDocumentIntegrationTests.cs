@@ -137,7 +137,7 @@ public sealed class MacOsDocumentIntegrationTests
         Assert.Contains("stch-preview.png", workflow, StringComparison.Ordinal);
         Assert.Contains("quicklook-output-map.json", workflow, StringComparison.Ordinal);
         var validator = Read("scripts", "collect-native-macos-evidence.ps1");
-        Assert.Contains("schemaVersion = 4", validator, StringComparison.Ordinal);
+        Assert.Contains("schemaVersion = 5", validator, StringComparison.Ordinal);
         Assert.Contains("validationErrors = @($validationErrors)", validator, StringComparison.Ordinal);
         Assert.Contains("status = $status", validator, StringComparison.Ordinal);
         Assert.Contains("PATHSTITCH_MACOS_FILE_ACTIVATION_OUTPUT", workflow, StringComparison.Ordinal);
@@ -161,7 +161,7 @@ public sealed class MacOsDocumentIntegrationTests
         Assert.Contains("@_cdecl(\"pathstitch_get_quicklook_preference\")", bridge, StringComparison.Ordinal);
         Assert.Contains("@_cdecl(\"pathstitch_apply_app_icon\")", bridge, StringComparison.Ordinal);
         Assert.Matches(
-            @"return defaults\.bool\(forKey: key\) \? 1 : 0\s*}\s*@_cdecl\(""pathstitch_apply_app_icon""\)",
+            @"return defaults\.bool\(forKey: key\) \? 1 : 0\s*}",
             bridge);
         Assert.Equal(bridge.Count(character => character == '{'), bridge.Count(character => character == '}'));
         Assert.Contains("Bundle.main.path(forResource:", bridge, StringComparison.Ordinal);

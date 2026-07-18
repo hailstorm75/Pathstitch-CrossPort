@@ -18,13 +18,18 @@ public sealed class NativeMacOSEvidenceValidatorTests
         Assert.Equal(0, result.ExitCode);
         using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(fixture.ManifestPath));
         Assert.Equal("passed", manifest.RootElement.GetProperty("status").GetString());
-        Assert.Equal(4, manifest.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(5, manifest.RootElement.GetProperty("schemaVersion").GetInt32());
         Assert.Empty(manifest.RootElement.GetProperty("validationErrors").EnumerateArray());
         Assert.True(File.Exists(Path.Combine(fixture.EvidenceRoot, "Pathstitch-osx-arm64.zip")));
         Assert.Equal(3, manifest.RootElement.GetProperty("quickLookThumbnailCount").GetInt32());
         Assert.Equal(7, manifest.RootElement.GetProperty("dxfUnitEvidence").GetArrayLength());
         Assert.Equal(4, manifest.RootElement.GetProperty("embeddedProjectDxfEvidence").GetProperty("insUnitsCode").GetInt32());
         Assert.Equal(1, manifest.RootElement.GetProperty("embeddedProjectDxfEvidence").GetProperty("measurementCode").GetInt32());
+        var runtimeProbe = manifest.RootElement.GetProperty("runtimeProbeEvidence");
+        Assert.Equal("0123456789abcdef0123456789abcdef", runtimeProbe.GetProperty("nonce").GetString());
+        Assert.True(runtimeProbe.GetProperty("preview").GetProperty("interactiveSceneKit").GetBoolean());
+        Assert.True(runtimeProbe.GetProperty("preview").GetProperty("cameraControlEnabled").GetBoolean());
+        Assert.Equal("com.pathstitch.crossport.thumbnail", runtimeProbe.GetProperty("thumbnail").GetProperty("bundleIdentifier").GetString());
     }
 
     [Fact]
@@ -88,6 +93,10 @@ public sealed class NativeMacOSEvidenceValidatorTests
     [InlineData("duplicate_insunits")]
     [InlineData("embedded_wrong_units")]
     [InlineData("extra_bad_dxf")]
+    [InlineData("missing_runtime_probe")]
+    [InlineData("runtime_nonce_mismatch")]
+    [InlineData("preview_fallback")]
+    [InlineData("app_group_pref_mismatch")]
     public async Task CorruptedSyntheticBundle_CannotProducePassedManifest(string mutation)
     {
         using var fixture = NativeEvidenceFixture.Create();
@@ -137,6 +146,8 @@ public sealed class NativeMacOSEvidenceValidatorTests
         private readonly string _roundTripPath;
         private readonly string _appEntitlementsPath;
         private readonly string _pluginInventoryPath;
+        private readonly string _previewRuntimeProbePath;
+        private readonly string _thumbnailRuntimeProbePath;
 
         private NativeEvidenceFixture(string root)
         {
@@ -145,12 +156,14 @@ public sealed class NativeMacOSEvidenceValidatorTests
             PackageAcceptanceDirectory = Path.Combine(root, "package-acceptance");
             FileActivationDirectory = Path.Combine(root, "file-activation");
             QuickLookDirectory = Path.Combine(root, "quicklook");
+            RuntimeProbeDirectory = Path.Combine(root, "runtime-probes");
             PackageZip = Path.Combine(root, "Pathstitch-osx-arm64.zip");
             _expectedActivationFixture = Path.Combine(root, "preview-smoke.dxf");
             Directory.CreateDirectory(EvidenceRoot);
             Directory.CreateDirectory(PackageAcceptanceDirectory);
             Directory.CreateDirectory(FileActivationDirectory);
             Directory.CreateDirectory(QuickLookDirectory);
+            Directory.CreateDirectory(RuntimeProbeDirectory);
             File.WriteAllBytes(_expectedActivationFixture, CreateBytes(256, 11));
             CreateZip(PackageZip, "Pathstitch.app/Contents/MacOS/Pathstitch.App", 4096, 17);
 
@@ -194,6 +207,7 @@ public sealed class NativeMacOSEvidenceValidatorTests
             _firstLogPath = Path.Combine(QuickLookDirectory, "sample-dxf-qlmanage.log");
             _quickLookMapPath = Path.Combine(QuickLookDirectory, "quicklook-output-map.json");
             File.WriteAllText(_quickLookMapPath, JsonSerializer.Serialize(quickLookEntries));
+            (_previewRuntimeProbePath, _thumbnailRuntimeProbePath) = WriteRuntimeProbeEvidence();
 
             var stepInput = WritePackageArtifact("packaged-input.step", 1200, 38);
             var objInput = WritePackageArtifact("packaged-input.obj", 1100, 39);
@@ -292,6 +306,7 @@ public sealed class NativeMacOSEvidenceValidatorTests
         private string PackageAcceptanceDirectory { get; }
         private string FileActivationDirectory { get; }
         private string QuickLookDirectory { get; }
+        private string RuntimeProbeDirectory { get; }
         private string PackageZip { get; }
         public string ManifestPath => Path.Combine(EvidenceRoot, "native-evidence-manifest.json");
         public string ReviewReceiptPath => Path.Combine(_root, "native-evidence-review.json");
@@ -400,6 +415,33 @@ public sealed class NativeMacOSEvidenceValidatorTests
                         Path.Combine(PackageAcceptanceDirectory, "future-generated-output.dxf"),
                         CreateMetricDxfBytes(measurementCode: 0));
                     break;
+                case "missing_runtime_probe":
+                    File.Delete(_previewRuntimeProbePath);
+                    break;
+                case "runtime_nonce_mismatch":
+                {
+                    var json = JsonNode.Parse(File.ReadAllText(_thumbnailRuntimeProbePath))!;
+                    json["nonce"] = "fedcba9876543210fedcba9876543210";
+                    File.WriteAllText(_thumbnailRuntimeProbePath, json.ToJsonString());
+                    break;
+                }
+                case "preview_fallback":
+                {
+                    var json = JsonNode.Parse(File.ReadAllText(_previewRuntimeProbePath))!;
+                    json["interactiveSceneKit"] = false;
+                    json["sceneViewInstalled"] = false;
+                    json["cameraControlEnabled"] = false;
+                    json["fallbackImageInstalled"] = true;
+                    File.WriteAllText(_previewRuntimeProbePath, json.ToJsonString());
+                    break;
+                }
+                case "app_group_pref_mismatch":
+                {
+                    var json = JsonNode.Parse(File.ReadAllText(_previewRuntimeProbePath))!;
+                    json["observedPreferences"]!["dxf"] = true;
+                    File.WriteAllText(_previewRuntimeProbePath, json.ToJsonString());
+                    break;
+                }
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mutation), mutation, null);
             }
@@ -472,6 +514,7 @@ public sealed class NativeMacOSEvidenceValidatorTests
                 "-PackageAcceptanceDirectory", PackageAcceptanceDirectory,
                 "-FileActivationDirectory", FileActivationDirectory,
                 "-QuickLookDirectory", QuickLookDirectory,
+                "-RuntimeProbeDirectory", RuntimeProbeDirectory,
                 "-PackageZip", PackageZip,
                 "-ExpectedActivationFixture", _expectedActivationFixture,
                 "-SkipPlatformCollection",
@@ -519,6 +562,87 @@ public sealed class NativeMacOSEvidenceValidatorTests
 
         public void TamperCollectedEvidence(string name)
             => File.AppendAllText(Path.Combine(EvidenceRoot, name), "tampered");
+
+        private (string Preview, string Thumbnail) WriteRuntimeProbeEvidence()
+        {
+            const string nonce = "0123456789abcdef0123456789abcdef";
+            var fixture = Path.Combine(RuntimeProbeDirectory, "runtime-probe.step");
+            File.WriteAllBytes(fixture, CreateBytes(1600, 81));
+            var fixtureHash = HashFile(fixture);
+            File.WriteAllText(
+                Path.Combine(RuntimeProbeDirectory, "app-group-writer-probe.json"),
+                JsonSerializer.Serialize(new
+                {
+                    schemaVersion = 1,
+                    status = "passed",
+                    action = "prepare",
+                    nonce,
+                    processIdentifier = 1001,
+                    expectedPreferences = new { dxf = false, step = true, stch = false },
+                    observedPreferences = new { dxf = false, step = true, stch = false },
+                }));
+            var preview = Path.Combine(
+                RuntimeProbeDirectory,
+                "quicklook-preview-runtime-probe.json");
+            File.WriteAllText(preview, JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                status = "passed",
+                providerKind = "preview",
+                bundleIdentifier = "com.pathstitch.crossport.quicklook",
+                processIdentifier = 2001,
+                nonce,
+                fixture = Path.GetFileName(fixture),
+                fixtureSha256 = fixtureHash,
+                observedPreferences = new { dxf = false, step = true, stch = false },
+                rendered = true,
+                interactiveSceneKit = true,
+                sceneViewInstalled = true,
+                cameraControlEnabled = true,
+                fallbackImageInstalled = false,
+                vertexCount = 24,
+                triangleCount = 12,
+            }));
+            var thumbnail = Path.Combine(
+                RuntimeProbeDirectory,
+                "quicklook-thumbnail-runtime-probe.json");
+            File.WriteAllText(thumbnail, JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                status = "passed",
+                providerKind = "thumbnail",
+                bundleIdentifier = "com.pathstitch.crossport.thumbnail",
+                processIdentifier = 2002,
+                nonce,
+                fixture = Path.GetFileName(fixture),
+                fixtureSha256 = fixtureHash,
+                observedPreferences = new { dxf = false, step = true, stch = false },
+                rendered = true,
+                interactiveSceneKit = false,
+                sceneViewInstalled = false,
+                cameraControlEnabled = false,
+                fallbackImageInstalled = true,
+                vertexCount = 0,
+                triangleCount = 0,
+            }));
+            File.WriteAllText(
+                Path.Combine(RuntimeProbeDirectory, "app-group-collector-probe.json"),
+                JsonSerializer.Serialize(new
+                {
+                    schemaVersion = 1,
+                    status = "passed",
+                    action = "collect",
+                    nonce,
+                    processIdentifier = 1002,
+                    expectedPreferences = new { dxf = false, step = true, stch = false },
+                    collectedFiles = new[]
+                    {
+                        DescribeArtifact(preview),
+                        DescribeArtifact(thumbnail),
+                    },
+                }));
+            return (preview, thumbnail);
+        }
 
         private Dictionary<string, object?> WriteProjectArchiveArtifact(string name, byte[] generatedDxf)
         {

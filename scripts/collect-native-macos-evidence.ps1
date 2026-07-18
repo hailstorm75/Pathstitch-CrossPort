@@ -8,6 +8,7 @@ param(
     [string]$FileActivationDirectory,
     [Parameter(Mandatory)]
     [string]$QuickLookDirectory,
+    [string]$RuntimeProbeDirectory = '',
     [Parameter(Mandatory)]
     [string]$PackageZip,
     [Parameter(Mandatory)]
@@ -224,6 +225,14 @@ if (Test-Path -LiteralPath $QuickLookDirectory -PathType Container) {
         }
     }
 }
+if (-not [string]::IsNullOrWhiteSpace($RuntimeProbeDirectory) -and
+    (Test-Path -LiteralPath $RuntimeProbeDirectory -PathType Container)) {
+    foreach ($file in Get-ChildItem -LiteralPath $RuntimeProbeDirectory -File) {
+        if ($file.Extension -in @('.json', '.log', '.step')) {
+            Copy-IfPresent $file.FullName
+        }
+    }
+}
 Copy-IfPresent $PackageZip 'Pathstitch-osx-arm64.zip'
 
 if (-not $SkipPlatformCollection) {
@@ -289,7 +298,12 @@ $requiredNames = @(
     'packaged-obj-separate.dxf',
     'packaged-obj-tabs.dxf',
     'packaged-obj-holes.dxf',
-    'Pathstitch-osx-arm64.zip'
+    'Pathstitch-osx-arm64.zip',
+    'app-group-writer-probe.json',
+    'app-group-collector-probe.json',
+    'quicklook-preview-runtime-probe.json',
+    'quicklook-thumbnail-runtime-probe.json',
+    'runtime-probe.step'
 )
 $missingRequiredFiles = @(
     foreach ($name in $requiredNames) {
@@ -507,6 +521,141 @@ if ($null -ne $quickLookMap) {
 $quickLookPngs = @(Get-ChildItem -LiteralPath $EvidenceRoot -Filter '*.png' -File)
 if ($quickLookPngs.Count -ne 3) { Add-ValidationError 'Native evidence must contain exactly three Quick Look PNGs.' }
 
+function Test-RuntimeProbePreferences($Preferences, [string]$Label) {
+    if ($null -eq $Preferences -or
+        $Preferences.dxf -ne $false -or
+        $Preferences.step -ne $true -or
+        $Preferences.stch -ne $false) {
+        Add-ValidationError "$Label must report dxf=false, step=true, stch=false."
+    }
+}
+
+$writerProbe = Read-JsonEvidence (
+    Join-Path $EvidenceRoot 'app-group-writer-probe.json') 'app-group writer runtime probe'
+$collectorProbe = Read-JsonEvidence (
+    Join-Path $EvidenceRoot 'app-group-collector-probe.json') 'app-group collector runtime probe'
+$previewProbe = Read-JsonEvidence (
+    Join-Path $EvidenceRoot 'quicklook-preview-runtime-probe.json') 'Quick Look preview runtime probe'
+$thumbnailProbe = Read-JsonEvidence (
+    Join-Path $EvidenceRoot 'quicklook-thumbnail-runtime-probe.json') 'Quick Look thumbnail runtime probe'
+$runtimeFixturePath = Join-Path $EvidenceRoot 'runtime-probe.step'
+$runtimeFixture = if (Test-Path -LiteralPath $runtimeFixturePath -PathType Leaf) {
+    Get-FileEvidence $runtimeFixturePath
+} else { $null }
+$runtimeNonce = if ($null -ne $writerProbe) { [string]$writerProbe.nonce } else { '' }
+if ($null -ne $writerProbe) {
+    if ([int]$writerProbe.schemaVersion -lt 1 -or $writerProbe.status -ne 'passed' -or
+        $writerProbe.action -ne 'prepare') {
+        Add-ValidationError 'App-group writer runtime probe did not pass schema/action validation.'
+    }
+    if ($runtimeNonce -notmatch '^[0-9a-f]{32}$') {
+        Add-ValidationError 'App-group runtime-probe nonce is invalid.'
+    }
+    if ([int]$writerProbe.processIdentifier -le 0) {
+        Add-ValidationError 'App-group writer runtime probe lacks a process identifier.'
+    }
+    Test-RuntimeProbePreferences $writerProbe.expectedPreferences 'Writer expectedPreferences'
+    Test-RuntimeProbePreferences $writerProbe.observedPreferences 'Writer observedPreferences'
+}
+if ($null -ne $collectorProbe) {
+    if ([int]$collectorProbe.schemaVersion -lt 1 -or $collectorProbe.status -ne 'passed' -or
+        $collectorProbe.action -ne 'collect' -or [string]$collectorProbe.nonce -ne $runtimeNonce) {
+        Add-ValidationError 'App-group collector runtime probe did not pass schema/action/nonce validation.'
+    }
+    if ([int]$collectorProbe.processIdentifier -le 0 -or
+        [int]$collectorProbe.processIdentifier -eq [int]$writerProbe.processIdentifier) {
+        Add-ValidationError 'App-group collector must run in a separate identified app process.'
+    }
+    Test-RuntimeProbePreferences $collectorProbe.expectedPreferences 'Collector expectedPreferences'
+    $collectedFiles = @($collectorProbe.collectedFiles)
+    if ($collectedFiles.Count -ne 2) {
+        Add-ValidationError 'App-group collector must describe exactly two extension attestations.'
+    } else {
+        foreach ($descriptor in $collectedFiles) {
+            Test-DescribedArtifact $descriptor 'Collected extension attestation'
+        }
+    }
+}
+if ($null -ne $previewProbe) {
+    if ([int]$previewProbe.schemaVersion -lt 1 -or $previewProbe.status -ne 'passed' -or
+        $previewProbe.providerKind -ne 'preview' -or
+        $previewProbe.bundleIdentifier -ne 'com.pathstitch.crossport.quicklook' -or
+        [string]$previewProbe.nonce -ne $runtimeNonce) {
+        Add-ValidationError 'Quick Look preview runtime probe failed identity validation.'
+    }
+    if ([int]$previewProbe.processIdentifier -le 0 -or
+        [int]$previewProbe.processIdentifier -eq [int]$writerProbe.processIdentifier) {
+        Add-ValidationError 'Quick Look preview must run in a separate identified extension process.'
+    }
+    Test-RuntimeProbePreferences $previewProbe.observedPreferences 'Preview observedPreferences'
+    foreach ($field in @('rendered', 'interactiveSceneKit', 'sceneViewInstalled', 'cameraControlEnabled')) {
+        Test-TrueField $previewProbe.$field "previewProbe.$field"
+    }
+    if ($previewProbe.fallbackImageInstalled -ne $false) {
+        Add-ValidationError 'Quick Look STEP preview runtime probe must not use fallback image.'
+    }
+    if ([int]$previewProbe.vertexCount -le 0 -or [int]$previewProbe.triangleCount -le 0) {
+        Add-ValidationError 'Quick Look STEP preview runtime probe lacks mesh geometry.'
+    }
+}
+if ($null -ne $thumbnailProbe) {
+    if ([int]$thumbnailProbe.schemaVersion -lt 1 -or $thumbnailProbe.status -ne 'passed' -or
+        $thumbnailProbe.providerKind -ne 'thumbnail' -or
+        $thumbnailProbe.bundleIdentifier -ne 'com.pathstitch.crossport.thumbnail' -or
+        [string]$thumbnailProbe.nonce -ne $runtimeNonce) {
+        Add-ValidationError 'Quick Look thumbnail runtime probe failed identity validation.'
+    }
+    if ([int]$thumbnailProbe.processIdentifier -le 0 -or
+        [int]$thumbnailProbe.processIdentifier -eq [int]$writerProbe.processIdentifier) {
+        Add-ValidationError 'Quick Look thumbnail must run in a separate identified extension process.'
+    }
+    Test-RuntimeProbePreferences $thumbnailProbe.observedPreferences 'Thumbnail observedPreferences'
+    Test-TrueField $thumbnailProbe.rendered 'thumbnailProbe.rendered'
+}
+if ($null -ne $runtimeFixture -and $null -ne $previewProbe -and $null -ne $thumbnailProbe) {
+    foreach ($probe in @($previewProbe, $thumbnailProbe)) {
+        if ([string]$probe.fixture -ne $runtimeFixture.name -or
+            [string]$probe.fixtureSha256 -ne $runtimeFixture.sha256) {
+            Add-ValidationError 'Quick Look runtime probe fixture name or SHA-256 does not match retained STEP.'
+        }
+    }
+}
+
+$runtimeProbeEvidence = [ordered]@{
+    nonce = $runtimeNonce
+    writerProcessIdentifier = if ($null -ne $writerProbe) {
+        $writerProbe.processIdentifier
+    } else { $null }
+    collectorProcessIdentifier = if ($null -ne $collectorProbe) {
+        $collectorProbe.processIdentifier
+    } else { $null }
+    preview = if ($null -ne $previewProbe) {
+        [ordered]@{
+            bundleIdentifier = $previewProbe.bundleIdentifier
+            processIdentifier = $previewProbe.processIdentifier
+            fixture = $previewProbe.fixture
+            fixtureSha256 = $previewProbe.fixtureSha256
+            observedPreferences = $previewProbe.observedPreferences
+            interactiveSceneKit = $previewProbe.interactiveSceneKit
+            sceneViewInstalled = $previewProbe.sceneViewInstalled
+            cameraControlEnabled = $previewProbe.cameraControlEnabled
+            fallbackImageInstalled = $previewProbe.fallbackImageInstalled
+            vertexCount = $previewProbe.vertexCount
+            triangleCount = $previewProbe.triangleCount
+        }
+    } else { $null }
+    thumbnail = if ($null -ne $thumbnailProbe) {
+        [ordered]@{
+            bundleIdentifier = $thumbnailProbe.bundleIdentifier
+            processIdentifier = $thumbnailProbe.processIdentifier
+            fixture = $thumbnailProbe.fixture
+            fixtureSha256 = $thumbnailProbe.fixtureSha256
+            observedPreferences = $thumbnailProbe.observedPreferences
+            rendered = $thumbnailProbe.rendered
+        }
+    } else { $null }
+}
+
 $dxfUnitEvidence = @(
     foreach ($dxfFile in Get-ChildItem -LiteralPath $EvidenceRoot -Filter '*.dxf' -File | Sort-Object Name) {
         Get-DxfFileUnitEvidence $dxfFile.FullName "Retained DXF $($dxfFile.Name)"
@@ -529,7 +678,7 @@ $inventory = @(
 )
 $status = if ($validationErrors.Count -eq 0) { 'passed' } else { 'failed' }
 $manifest = [ordered]@{
-    schemaVersion = 4
+    schemaVersion = 5
     status = $status
     commit = $env:GITHUB_SHA
     workflowRunId = $env:GITHUB_RUN_ID
@@ -549,6 +698,7 @@ $manifest = [ordered]@{
     quickLookThumbnailCount = $quickLookPngs.Count
     dxfUnitEvidence = $dxfUnitEvidence
     embeddedProjectDxfEvidence = $embeddedProjectDxfEvidence
+    runtimeProbeEvidence = $runtimeProbeEvidence
     validationErrors = @($validationErrors)
 }
 $manifestPath = Join-Path $EvidenceRoot 'native-evidence-manifest.json'

@@ -51,8 +51,8 @@ if (-not (Test-Path -LiteralPath $producerManifestPath -PathType Leaf)) {
 }
 
 if ($null -ne $producerManifest) {
-    if ([int]$producerManifest.schemaVersion -lt 4) {
-        Add-ReviewError 'Producer manifest schemaVersion must be at least 4.'
+    if ([int]$producerManifest.schemaVersion -lt 5) {
+        Add-ReviewError 'Producer manifest schemaVersion must be at least 5.'
     }
     if ([string]$producerManifest.status -ne 'passed') {
         Add-ReviewError 'Producer manifest status is not passed.'

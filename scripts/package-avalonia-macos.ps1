@@ -146,7 +146,8 @@ function Build-QuickLookExtension {
     $sharedSources = @(
         (Join-Path $repo "Pathstitch/DxfPreviewer/DxfPreviewShared.swift"),
         (Join-Path $repo "Pathstitch/DxfPreviewer/StepPreviewShared.swift"),
-        (Join-Path $repo "scripts/macos/quicklook/QuickLookPreferences.swift")
+        (Join-Path $repo "scripts/macos/quicklook/QuickLookPreferences.swift"),
+        (Join-Path $repo "scripts/macos/quicklook/QuickLookRuntimeProbe.swift")
     )
     & xcrun swiftc `
         -O `

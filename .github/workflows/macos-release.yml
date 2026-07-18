@@ -255,6 +255,105 @@ jobs:
           $quickLookImages = @(Get-ChildItem $previews -Filter '*.png')
           if ($quickLookImages.Count -ne 3) { throw "Quick Look did not generate exactly one STCH, DXF, and STEP fixture thumbnail" }
           if ($quickLookImages | Where-Object Length -LT 1024) { throw "Quick Look generated an empty or trivial thumbnail" }
+      - name: Quick Look preview and app-group runtime probe
+        shell: pwsh
+        run: |
+          $app = (Resolve-Path "artifacts/macos/Pathstitch.app").Path
+          $fixture = (Resolve-Path "tests/Pathstitch.App.Tests/Fixtures/analytic-multibody-hole.step").Path
+          $runtime = (Resolve-Path "artifacts/macos").Path + "/runtime-probes"
+          New-Item -ItemType Directory -Force $runtime | Out-Null
+          Copy-Item -LiteralPath $fixture -Destination (Join-Path $runtime "runtime-probe.step")
+          $fixture = (Resolve-Path (Join-Path $runtime "runtime-probe.step")).Path
+          $nonce = [Convert]::ToHexString(
+            [Security.Cryptography.RandomNumberGenerator]::GetBytes(16)).ToLowerInvariant()
+          $env:PATHSTITCH_MACOS_RUNTIME_PROBE_NONCE = $nonce
+          $env:PATHSTITCH_MACOS_RUNTIME_PROBE_OUTPUT = $runtime
+          function Invoke-RuntimeProbeApp([string]$Action, [int]$TimeoutSeconds) {
+            $env:PATHSTITCH_MACOS_RUNTIME_PROBE_ACTION = $Action
+            $process = Start-Process "$app/Contents/MacOS/Pathstitch.App" -PassThru
+            Wait-Process -Id $process.Id -Timeout $TimeoutSeconds -ErrorAction Stop
+            if ($process.ExitCode -ne 0) {
+              throw "Packaged runtime-probe $Action exited with $($process.ExitCode)."
+            }
+          }
+          Invoke-RuntimeProbeApp "prepare" 20
+          $writer = Get-Content "$runtime/app-group-writer-probe.json" -Raw | ConvertFrom-Json
+          if ($writer.status -ne 'passed' -or
+              $writer.action -ne 'prepare' -or
+              $writer.nonce -ne $nonce -or
+              $writer.processIdentifier -le 0 -or
+              $writer.expectedPreferences.dxf -ne $false -or
+              $writer.expectedPreferences.step -ne $true -or
+              $writer.expectedPreferences.stch -ne $false -or
+              $writer.observedPreferences.dxf -ne $false -or
+              $writer.observedPreferences.step -ne $true -or
+              $writer.observedPreferences.stch -ne $false) {
+            throw "Packaged app did not prepare exact app-group runtime-probe values."
+          }
+
+          & "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister" -f $app
+          & qlmanage -r cache
+          $previewOut = Join-Path $runtime "step-preview-qlmanage.stdout.log"
+          $previewError = Join-Path $runtime "step-preview-qlmanage.stderr.log"
+          $previewProcess = Start-Process /usr/bin/qlmanage `
+            -ArgumentList @('-p', $fixture) `
+            -RedirectStandardOutput $previewOut `
+            -RedirectStandardError $previewError `
+            -PassThru
+          try {
+            Start-Sleep -Seconds 3
+            $thumbnailOutput = (& qlmanage -t -s 256 -o $runtime $fixture 2>&1) -join [Environment]::NewLine
+            $thumbnailOutput | Set-Content "$runtime/step-thumbnail-qlmanage.log" -Encoding utf8
+            if ($LASTEXITCODE -ne 0) { throw "Quick Look thumbnail runtime probe failed." }
+            Invoke-RuntimeProbeApp "collect" 40
+
+            $preview = Get-Content "$runtime/quicklook-preview-runtime-probe.json" -Raw | ConvertFrom-Json
+            $thumbnail = Get-Content "$runtime/quicklook-thumbnail-runtime-probe.json" -Raw | ConvertFrom-Json
+            $collector = Get-Content "$runtime/app-group-collector-probe.json" -Raw | ConvertFrom-Json
+            $fixtureHash = (Get-FileHash $fixture -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($preview.status -ne 'passed' -or
+                $preview.providerKind -ne 'preview' -or
+                $preview.bundleIdentifier -ne 'com.pathstitch.crossport.quicklook' -or
+                $preview.processIdentifier -le 0 -or
+                $preview.nonce -ne $nonce -or
+                $preview.fixtureSha256 -ne $fixtureHash -or
+                $preview.observedPreferences.dxf -ne $false -or
+                $preview.observedPreferences.step -ne $true -or
+                $preview.observedPreferences.stch -ne $false -or
+                -not $preview.rendered -or
+                -not $preview.interactiveSceneKit -or
+                -not $preview.sceneViewInstalled -or
+                -not $preview.cameraControlEnabled -or
+                $preview.fallbackImageInstalled -or
+                $preview.vertexCount -le 0 -or
+                $preview.triangleCount -le 0) {
+              throw "Quick Look preview extension did not attest an interactive SceneKit STEP preview."
+            }
+            if ($thumbnail.status -ne 'passed' -or
+                $thumbnail.providerKind -ne 'thumbnail' -or
+                $thumbnail.bundleIdentifier -ne 'com.pathstitch.crossport.thumbnail' -or
+                $thumbnail.processIdentifier -le 0 -or
+                $thumbnail.nonce -ne $nonce -or
+                $thumbnail.fixtureSha256 -ne $fixtureHash -or
+                $thumbnail.observedPreferences.dxf -ne $false -or
+                $thumbnail.observedPreferences.step -ne $true -or
+                $thumbnail.observedPreferences.stch -ne $false -or
+                -not $thumbnail.rendered) {
+              throw "Quick Look thumbnail extension did not attest app-group preferences and rendering."
+            }
+            if ($collector.status -ne 'passed' -or
+                $collector.action -ne 'collect' -or
+                $collector.nonce -ne $nonce -or
+                @($collector.collectedFiles).Count -ne 2) {
+              throw "Packaged app did not collect both extension attestations from app-group storage."
+            }
+          }
+          finally {
+            if (-not $previewProcess.HasExited) { Stop-Process -Id $previewProcess.Id -Force }
+            Remove-Item Env:PATHSTITCH_MACOS_RUNTIME_PROBE_ACTION -ErrorAction SilentlyContinue
+            Remove-Item Env:PATHSTITCH_MACOS_RUNTIME_PROBE_NONCE -ErrorAction SilentlyContinue
+            Remove-Item Env:PATHSTITCH_MACOS_RUNTIME_PROBE_OUTPUT -ErrorAction SilentlyContinue
+          }
       - name: Collect and validate native macOS evidence
         if: always()
         shell: pwsh
@@ -265,6 +364,7 @@ jobs:
             -PackageAcceptanceDirectory "artifacts/macos/packaged-app-acceptance" `
             -FileActivationDirectory "artifacts/macos/file-activation-acceptance" `
             -QuickLookDirectory "artifacts/macos/quicklook-previews" `
+            -RuntimeProbeDirectory "artifacts/macos/runtime-probes" `
             -PackageZip "artifacts/macos/Pathstitch-osx-arm64.zip" `
             -ExpectedActivationFixture (Resolve-Path "scripts/macos/quicklook/Fixtures/preview-smoke.dxf").Path
       - name: Upload native macOS evidence

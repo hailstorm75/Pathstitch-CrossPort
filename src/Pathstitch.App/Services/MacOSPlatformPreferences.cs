@@ -41,6 +41,8 @@ public static class MacOSIntegrationService
     private static SetQuickLookPreferencesDelegate? _setQuickLookPreferences;
     private static GetQuickLookPreferenceDelegate? _getQuickLookPreference;
     private static ApplyAppIconDelegate? _applyAppIcon;
+    private static PrepareQuickLookRuntimeProbeDelegate? _prepareQuickLookRuntimeProbe;
+    private static CollectQuickLookRuntimeProbeDelegate? _collectQuickLookRuntimeProbe;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int SetQuickLookPreferencesDelegate(int dxfEnabled, int stepEnabled, int stchEnabled);
@@ -51,6 +53,15 @@ public static class MacOSIntegrationService
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int ApplyAppIconDelegate(
         [MarshalAs(UnmanagedType.LPUTF8Str)] string choice);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int PrepareQuickLookRuntimeProbeDelegate(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string nonce);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int CollectQuickLookRuntimeProbeDelegate(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string nonce,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string outputDirectory);
 
     public static bool TryApply(UserPreferences preferences)
     {
@@ -127,6 +138,51 @@ public static class MacOSIntegrationService
             return false;
         }
     }
+    public static bool TryPrepareQuickLookRuntimeProbe(string nonce)
+    {
+        if (!Guid.TryParseExact(nonce, "N", out _)
+            || !TryInitialize()
+            || _prepareQuickLookRuntimeProbe is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return _prepareQuickLookRuntimeProbe(nonce) != 0;
+        }
+        catch (Exception exception) when (
+            exception is SEHException
+            or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    public static bool TryCollectQuickLookRuntimeProbe(string nonce, string outputDirectory)
+    {
+        if (!Guid.TryParseExact(nonce, "N", out _)
+            || string.IsNullOrWhiteSpace(outputDirectory)
+            || !TryInitialize()
+            || _collectQuickLookRuntimeProbe is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return _collectQuickLookRuntimeProbe(nonce, Path.GetFullPath(outputDirectory)) != 0;
+        }
+        catch (Exception exception) when (
+            exception is IOException
+            or UnauthorizedAccessException
+            or SEHException
+            or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
     public static IReadOnlyList<string> GetCandidateLibraryPaths(string applicationBaseDirectory)
         =>
         [
@@ -149,7 +205,9 @@ public static class MacOSIntegrationService
                 return _libraryHandle != IntPtr.Zero
                     && _setQuickLookPreferences is not null
                     && _getQuickLookPreference is not null
-                    && _applyAppIcon is not null;
+                    && _applyAppIcon is not null
+                    && _prepareQuickLookRuntimeProbe is not null
+                    && _collectQuickLookRuntimeProbe is not null;
 
             _initializationAttempted = true;
             foreach (var candidate in GetCandidateLibraryPaths(AppContext.BaseDirectory))
@@ -169,7 +227,15 @@ public static class MacOSIntegrationService
                         || !NativeLibrary.TryGetExport(
                             handle,
                             "pathstitch_apply_app_icon",
-                            out var appIconExport))
+                            out var appIconExport)
+                        || !NativeLibrary.TryGetExport(
+                            handle,
+                            "pathstitch_prepare_quicklook_runtime_probe",
+                            out var prepareRuntimeProbeExport)
+                        || !NativeLibrary.TryGetExport(
+                            handle,
+                            "pathstitch_collect_quicklook_runtime_probe",
+                            out var collectRuntimeProbeExport))
                     {
                         NativeLibrary.Free(handle);
                         continue;
@@ -181,6 +247,12 @@ public static class MacOSIntegrationService
                         Marshal.GetDelegateForFunctionPointer<GetQuickLookPreferenceDelegate>(getQuickLookExport);
                     _applyAppIcon =
                         Marshal.GetDelegateForFunctionPointer<ApplyAppIconDelegate>(appIconExport);
+                    _prepareQuickLookRuntimeProbe =
+                        Marshal.GetDelegateForFunctionPointer<PrepareQuickLookRuntimeProbeDelegate>(
+                            prepareRuntimeProbeExport);
+                    _collectQuickLookRuntimeProbe =
+                        Marshal.GetDelegateForFunctionPointer<CollectQuickLookRuntimeProbeDelegate>(
+                            collectRuntimeProbeExport);
                     _libraryHandle = handle;
                     return true;
                 }

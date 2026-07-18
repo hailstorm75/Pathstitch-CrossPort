@@ -108,7 +108,7 @@ public sealed class MacOSDeliveryAcceptanceTests
         Assert.Contains("packaged-input.obj", validator, StringComparison.Ordinal);
         Assert.Contains("packaged-input.stl", validator, StringComparison.Ordinal);
         Assert.Contains("nested-codesign-details.txt", validator, StringComparison.Ordinal);
-        Assert.Contains("schemaVersion = 4", validator, StringComparison.Ordinal);
+        Assert.Contains("schemaVersion = 5", validator, StringComparison.Ordinal);
         Assert.Contains("Quick Look PNG SHA-256 mismatch", validator, StringComparison.Ordinal);
         Assert.Contains("sample-dxf-qlmanage.log", validator, StringComparison.Ordinal);
         Assert.Contains("sample-step-qlmanage.log", validator, StringComparison.Ordinal);
@@ -119,7 +119,25 @@ public sealed class MacOSDeliveryAcceptanceTests
         Assert.Contains("evidenceFiles = $inventory", validator, StringComparison.Ordinal);
         Assert.Contains("dxfUnitEvidence = $dxfUnitEvidence", validator, StringComparison.Ordinal);
         Assert.Contains("embeddedProjectDxfEvidence", validator, StringComparison.Ordinal);
+        Assert.Contains("runtimeProbeEvidence = $runtimeProbeEvidence", validator, StringComparison.Ordinal);
         Assert.Contains("exactly one HEADER", validator, StringComparison.Ordinal);
+        Assert.Contains("quicklook-preview-runtime-probe.json", validator, StringComparison.Ordinal);
+        Assert.Contains("'cameraControlEnabled'", validator, StringComparison.Ordinal);
+        Assert.Contains("App-group collector must run in a separate identified app process.", validator, StringComparison.Ordinal);
+        var runtimeProbe = File.ReadAllText(Find("scripts", "macos", "quicklook", "QuickLookRuntimeProbe.swift"));
+        var sceneInstall = preview.IndexOf("replaceContent(with: sceneView)", StringComparison.Ordinal);
+        var previewAttestation = preview.IndexOf("providerKind: \"preview\"", sceneInstall, StringComparison.Ordinal);
+        Assert.True(sceneInstall >= 0 && previewAttestation > sceneInstall);
+        Assert.Contains("cameraControlEnabled: sceneView.allowsCameraControl", preview, StringComparison.Ordinal);
+        Assert.Equal(runtimeProbe.Count(character => character == '{'), runtimeProbe.Count(character => character == '}'));
+        Assert.Contains("forSecurityApplicationGroupIdentifier:", runtimeProbe, StringComparison.Ordinal);
+        Assert.Contains("quicklook.runtimeProbe.nonce", runtimeProbe, StringComparison.Ordinal);
+        Assert.Contains("data.write(to: destination, options: .atomic)", runtimeProbe, StringComparison.Ordinal);
+        Assert.Contains("@('-p', $fixture)", workflow, StringComparison.Ordinal);
+        Assert.Contains("PATHSTITCH_MACOS_RUNTIME_PROBE_ACTION", workflow, StringComparison.Ordinal);
+        var bridge = File.ReadAllText(Find("scripts", "macos", "PathstitchMacBridge.swift"));
+        Assert.Contains("pathstitch_prepare_quicklook_runtime_probe", bridge, StringComparison.Ordinal);
+        Assert.Contains("pathstitch_collect_quicklook_runtime_probe", bridge, StringComparison.Ordinal);
     }
 
     [Fact]
