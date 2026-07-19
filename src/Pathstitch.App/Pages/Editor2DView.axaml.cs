@@ -14,6 +14,7 @@ namespace Pathstitch.App.Pages;
 public partial class Editor2DView : EditorInteractionControlBase
 {
     private string? _dimensionExpressionMeasurementId;
+    private DxfCanvasDimensionEditContext _dimensionExpressionEditContext;
     private string? _rejectedDimensionExpressionText;
     private TopLevel? _pointerTopLevel;
 
@@ -254,6 +255,7 @@ public partial class Editor2DView : EditorInteractionControlBase
     private void OnDimensionExpressionRequested(DxfCanvasDimensionExpressionRequest request)
     {
         _dimensionExpressionMeasurementId = request.MeasurementId;
+        _dimensionExpressionEditContext = request.Context;
         _rejectedDimensionExpressionText = null;
         DimensionExpressionInput.Text = request.Text;
         var rawExpression = string.IsNullOrWhiteSpace(request.RawExpression)
@@ -288,6 +290,7 @@ public partial class Editor2DView : EditorInteractionControlBase
     private void OnDimensionExpressionDismissed()
     {
         _dimensionExpressionMeasurementId = null;
+        _dimensionExpressionEditContext = DxfCanvasDimensionEditContext.Selection;
         _rejectedDimensionExpressionText = null;
         DimensionExpressionPill.IsVisible = false;
         if (DataContext is Domain.App.ViewModels.EditorPageViewModel viewModel)
@@ -297,6 +300,7 @@ public partial class Editor2DView : EditorInteractionControlBase
     private void OnDimensionExpressionInputKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key is Key.Tab or Key.Enter
+            && _dimensionExpressionEditContext == DxfCanvasDimensionEditContext.Creation
             && _dimensionExpressionMeasurementId is { } tabMeasurementId
             && DataContext is Domain.App.ViewModels.EditorPageViewModel tabViewModel
             && TryGetCreationPrecisionMeasurement(tabViewModel, tabMeasurementId, out var tabMeasurement))
@@ -334,7 +338,7 @@ public partial class Editor2DView : EditorInteractionControlBase
 
                 var refreshed = tabViewModel.TwoDMeasurements.FirstOrDefault(item =>
                     item.Id.Equals(tabMeasurementId, StringComparison.Ordinal));
-                if (refreshed is null || !TwoDPreviewCanvas.RequestDimensionExpressionInput(refreshed.Id))
+                if (refreshed is null || !TwoDPreviewCanvas.RequestDimensionExpressionInput(refreshed.Id, DxfCanvasDimensionEditContext.Creation))
                 {
                     FinishDimensionExpressionInput(tabViewModel);
                     return;
@@ -349,7 +353,7 @@ public partial class Editor2DView : EditorInteractionControlBase
                 item.IsAutoDimension
                 && string.Equals(item.EntityPathId, tabMeasurement.EntityPathId, StringComparison.Ordinal)
                 && item.DimensionType?.Trim().Equals("height", StringComparison.OrdinalIgnoreCase) == true);
-            if (nextMeasurement is null || !TwoDPreviewCanvas.RequestDimensionExpressionInput(nextMeasurement.Id))
+            if (nextMeasurement is null || !TwoDPreviewCanvas.RequestDimensionExpressionInput(nextMeasurement.Id, DxfCanvasDimensionEditContext.Creation))
             {
                 FinishDimensionExpressionInput(tabViewModel);
                 return;
@@ -362,7 +366,7 @@ public partial class Editor2DView : EditorInteractionControlBase
             && _dimensionExpressionMeasurementId is { } measurementId
             && DataContext is Domain.App.ViewModels.EditorPageViewModel viewModel)
         {
-            var isCreationPrecision = TryGetCreationPrecisionMeasurement(viewModel, measurementId, out _);
+            var isCreationPrecision = _dimensionExpressionEditContext == DxfCanvasDimensionEditContext.Creation;
             if (viewModel.TryCommitTwoDMeasurementExpression(
                     measurementId,
                     DimensionExpressionInput.Text ?? string.Empty,
@@ -489,7 +493,7 @@ public partial class Editor2DView : EditorInteractionControlBase
             var expressionViewModel = DataContext as Domain.App.ViewModels.EditorPageViewModel;
             var isCreationPrecision = _dimensionExpressionMeasurementId is { } measurementId
                 && expressionViewModel is not null
-                && TryGetCreationPrecisionMeasurement(expressionViewModel, measurementId, out _);
+                && _dimensionExpressionEditContext == DxfCanvasDimensionEditContext.Creation;
             if (isCreationPrecision)
                 FinishDimensionExpressionInput(expressionViewModel!);
             else

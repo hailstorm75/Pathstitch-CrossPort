@@ -28,11 +28,19 @@ internal readonly record struct DxfCanvasTransformPrecisionRequest(
     Point Anchor,
     bool Focus);
 
+internal enum DxfCanvasDimensionEditContext
+{
+    Selection,
+    Creation,
+    DimensionTool,
+}
+
 internal readonly record struct DxfCanvasDimensionExpressionRequest(
     string MeasurementId,
     string Text,
     string RawExpression,
-    Point Anchor);
+    Point Anchor,
+    DxfCanvasDimensionEditContext Context);
 
 internal sealed class DxfCanvasSelectionTransformEventArgs(
     Editor2DAffineTransform transform,
@@ -387,6 +395,7 @@ public sealed class DxfPreviewCanvas : Control
     private DxfCanvasTransformPrecisionState _transformPrecisionState = DxfCanvasTransformPrecisionState.Empty;
     private DxfCanvasTransformPrecisionKind _transformPrecisionKind;
     private string? _dimensionExpressionEditingId;
+    private DxfCanvasDimensionEditContext _dimensionExpressionEditContext;
     private string _transformPrecisionSelectionKey = string.Empty;
     private readonly MenuItem _expandRectanglesMenuItem;
     private readonly MenuItem _explodeCompoundMenuItem;
@@ -1318,7 +1327,8 @@ public sealed class DxfPreviewCanvas : Control
         if (change.Property == IsVisibleProperty && IsVisible && Zoom <= 0.0)
             FrameToDocument();
 
-        var editingCreationPrecision = _dimensionExpressionEditingId is { } currentEditingId
+        var editingCreationPrecision = _dimensionExpressionEditContext == DxfCanvasDimensionEditContext.Creation
+            && _dimensionExpressionEditingId is { } currentEditingId
             ? Measurements.FirstOrDefault(item =>
                 item.Id.Equals(currentEditingId, StringComparison.Ordinal)
                 && IsCreationPrecisionMeasurement(item))
@@ -1756,11 +1766,15 @@ public sealed class DxfPreviewCanvas : Control
                 return;
             }
 
-            var hitManualMeasurementId = HitTestManualMeasurementId(point.Position);
-            if (!string.IsNullOrWhiteSpace(hitManualMeasurementId))
+            var hitMeasurementId = ActiveTool == Editor2DTool.Select
+                ? HitTestEditableMeasurementId(point.Position)
+                : HitTestManualMeasurementId(point.Position);
+            if (!string.IsNullOrWhiteSpace(hitMeasurementId))
             {
-                SetCurrentValue(SelectedMeasurementIdProperty, hitManualMeasurementId);
-                SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
+                var hitMeasurement = Measurements.First(item => item.Id.Equals(hitMeasurementId, StringComparison.Ordinal));
+                SelectMeasurementForExpressionEdit(hitMeasurement);
+                if (ActiveTool == Editor2DTool.Select)
+                    RequestDimensionExpressionInput(hitMeasurement.Id, DxfCanvasDimensionEditContext.Selection);
                 e.Handled = true;
                 return;
             }
@@ -3323,10 +3337,19 @@ Selection:
             var nextMeasurements = Measurements.ToList();
             nextMeasurements.Add(referenceMeasurement);
             SetCurrentValue(MeasurementsProperty, nextMeasurements.ToArray());
-            SetCurrentValue(SelectedMeasurementIdProperty, referenceMeasurement.Id);
-            SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
+            SelectMeasurementForExpressionEdit(referenceMeasurement);
             CancelPendingDimension();
-            RequestDimensionExpressionInput(referenceMeasurement.Id);
+            RequestDimensionExpressionInput(referenceMeasurement.Id, DxfCanvasDimensionEditContext.DimensionTool);
+            InvalidateVisual();
+            return;
+        }
+
+        var hitMeasurementId = HitTestEditableMeasurementId(screenPoint);
+        var hitMeasurement = Measurements.FirstOrDefault(item => item.Id.Equals(hitMeasurementId, StringComparison.Ordinal));
+        if (hitMeasurement is not null)
+        {
+            SelectMeasurementForExpressionEdit(hitMeasurement);
+            RequestDimensionExpressionInput(hitMeasurement.Id, DxfCanvasDimensionEditContext.DimensionTool);
             InvalidateVisual();
             return;
         }
@@ -3337,13 +3360,21 @@ Selection:
             var path = Document.Paths.FirstOrDefault(candidate => string.Equals(candidate.Id, hitPathId, StringComparison.Ordinal));
             if (path is not null && TryCreateAttachedDimensionMeasurement(path, worldPoint, out var attachedMeasurement))
             {
+                var existingMeasurement = FindExistingAttachedDrivingDimension(attachedMeasurement);
+                if (existingMeasurement is not null)
+                {
+                    SelectMeasurementForExpressionEdit(existingMeasurement);
+                    RequestDimensionExpressionInput(existingMeasurement.Id, DxfCanvasDimensionEditContext.DimensionTool);
+                    InvalidateVisual();
+                    return;
+                }
+
                 attachedMeasurement = SeedParametricDimension(attachedMeasurement, driven: false);
                 var nextMeasurements = Measurements.ToList();
                 nextMeasurements.Add(attachedMeasurement);
                 SetCurrentValue(MeasurementsProperty, nextMeasurements.ToArray());
-                SetCurrentValue(SelectedMeasurementIdProperty, attachedMeasurement.Id);
-                SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
-                RequestDimensionExpressionInput(attachedMeasurement.Id);
+                SelectMeasurementForExpressionEdit(attachedMeasurement);
+                RequestDimensionExpressionInput(attachedMeasurement.Id, DxfCanvasDimensionEditContext.DimensionTool);
                 InvalidateVisual();
                 return;
             }
@@ -3814,7 +3845,7 @@ Selection:
         return new Editor2DPoint(corner.X + (bisector.X * setback), corner.Y + (bisector.Y * setback));
     }
 
-    private static bool TryCreateAttachedDimensionMeasurement(
+    private bool TryCreateAttachedDimensionMeasurement(
         Editor2DPreviewPath path,
         Editor2DPoint referencePoint,
         out Editor2DMeasurement measurement)
@@ -3857,28 +3888,115 @@ Selection:
             && path.Center is Editor2DPoint center
             && path.Radius is double)
         {
-            var placementAngleDegrees = NormalizeAngleDegrees(Math.Atan2(
-                referencePoint.Y - center.Y,
-                referencePoint.X - center.X) * 180.0 / Math.PI);
-            if (!Editor2DGeometry.TryBuildAttachedMeasurement(path, "radius", 0.0, placementAngleDegrees, out var start, out var end))
-            {
-                measurement = default!;
-                return false;
-            }
+            return TryCreateRadiusMeasurement(path, center, referencePoint, out measurement);
+        }
 
-            measurement = new Editor2DMeasurement(
-                Id: Guid.NewGuid().ToString("N"),
-                Start: start,
-                End: end,
-                IsAutoDimension: false,
-                EntityPathId: path.Id,
-                DimensionType: "radius",
-                PlacementAngleDegrees: placementAngleDegrees);
+        if (path.Center is Editor2DPoint storedPolygonCenter
+            && Editor2DGeometry.TryGetRegularPolygonGeometry(path, out _, out _)
+            && TryCreateRadiusMeasurement(path, storedPolygonCenter, referencePoint, out measurement))
+        {
+            return true;
+        }
+
+        var pathCornerParameters = CornerParameters
+            .Where(parameter => parameter.PathId.Equals(path.Id, StringComparison.Ordinal))
+            .ToArray();
+        if (Editor2DGeometry.TryGetAttachedRectangleCorners(
+                path,
+                pathCornerParameters,
+                out var first,
+                out var opposite))
+        {
+            var minX = Math.Min(first.X, opposite.X);
+            var minY = Math.Min(first.Y, opposite.Y);
+            var maxX = Math.Max(first.X, opposite.X);
+            var maxY = Math.Max(first.Y, opposite.Y);
+            var horizontalDistance = Math.Min(Math.Abs(referencePoint.Y - minY), Math.Abs(referencePoint.Y - maxY));
+            var verticalDistance = Math.Min(Math.Abs(referencePoint.X - minX), Math.Abs(referencePoint.X - maxX));
+            var dimensionType = horizontalDistance <= verticalDistance ? "width" : "height";
+            var size = dimensionType == "width" ? maxX - minX : maxY - minY;
+            var offsetMagnitude = Math.Max(size * 0.12, 8.0);
+            var offsetDistance = dimensionType == "width"
+                ? Math.Abs(referencePoint.Y - minY) <= Math.Abs(referencePoint.Y - maxY) ? -offsetMagnitude : offsetMagnitude
+                : Math.Abs(referencePoint.X - minX) <= Math.Abs(referencePoint.X - maxX) ? -offsetMagnitude : offsetMagnitude;
+            if (Editor2DGeometry.TryBuildAttachedMeasurement(
+                    path,
+                    dimensionType,
+                    offsetDistance,
+                    null,
+                    pathCornerParameters,
+                    out var start,
+                    out var end))
+            {
+                measurement = new Editor2DMeasurement(
+                    Id: Guid.NewGuid().ToString("N"),
+                    Start: start,
+                    End: end,
+                    IsAutoDimension: false,
+                    EntityPathId: path.Id,
+                    DimensionType: dimensionType,
+                    RectP1: first,
+                    RectP2: opposite,
+                    OffsetDistance: offsetDistance);
+                return true;
+            }
+        }
+
+        if (Editor2DGeometry.TryGetRegularPolygonGeometry(path, out var polygonCenter, out _)
+            && TryCreateRadiusMeasurement(path, polygonCenter, referencePoint, out measurement))
+        {
             return true;
         }
 
         measurement = default!;
         return false;
+    }
+
+    private static bool TryCreateRadiusMeasurement(
+        Editor2DPreviewPath path,
+        Editor2DPoint center,
+        Editor2DPoint referencePoint,
+        out Editor2DMeasurement measurement)
+    {
+        var placementAngleDegrees = NormalizeAngleDegrees(Math.Atan2(
+            referencePoint.Y - center.Y,
+            referencePoint.X - center.X) * 180.0 / Math.PI);
+        if (!Editor2DGeometry.TryBuildAttachedMeasurement(path, "radius", 0.0, placementAngleDegrees, out var start, out var end))
+        {
+            measurement = default!;
+            return false;
+        }
+
+        measurement = new Editor2DMeasurement(
+            Id: Guid.NewGuid().ToString("N"),
+            Start: start,
+            End: end,
+            IsAutoDimension: false,
+            EntityPathId: path.Id,
+            DimensionType: "radius",
+            PlacementAngleDegrees: placementAngleDegrees);
+        return true;
+    }
+
+    private Editor2DMeasurement? FindExistingAttachedDrivingDimension(Editor2DMeasurement candidate)
+        => Measurements
+            .Where(item => !item.Driven
+                && string.Equals(item.EntityPathId, candidate.EntityPathId, StringComparison.Ordinal)
+                && item.DimensionType?.Trim().Equals(candidate.DimensionType?.Trim(), StringComparison.OrdinalIgnoreCase) == true)
+            .OrderBy(item => !item.IsAutoDimension && item.IsParametric ? 0 : item.IsAutoDimension ? 1 : 2)
+            .FirstOrDefault();
+
+    private void SelectMeasurementForExpressionEdit(Editor2DMeasurement measurement)
+    {
+        SetCurrentValue(SelectedMeasurementIdProperty, measurement.Id);
+        if (measurement.IsAutoDimension && measurement.EntityPathId is { } pathId)
+        {
+            if (!SelectedPathIds.Contains(pathId, StringComparer.Ordinal))
+                SetCurrentValue(SelectedPathIdsProperty, new[] { pathId });
+            return;
+        }
+
+        SetCurrentValue(SelectedPathIdsProperty, Array.Empty<string>());
     }
 
     private bool TryHitTestCornerHandle(
@@ -4539,7 +4657,7 @@ Selection:
                 SetCurrentValue(DocumentProperty, viewModel.TwoDDocument);
                 SetCurrentValue(SelectedPathIdsProperty, viewModel.TwoDSelectedPathIds);
                 SetCurrentValue(MeasurementsProperty, viewModel.TwoDMeasurements);
-                RequestDimensionExpressionInput($"{newPathId}:length");
+                RequestDimensionExpressionInput($"{newPathId}:length", DxfCanvasDimensionEditContext.Creation);
             }
         }
         else
@@ -4578,7 +4696,7 @@ Selection:
                 SetCurrentValue(SelectedPathIdsProperty, viewModel.TwoDSelectedPathIds);
                 SetCurrentValue(CornerParametersProperty, viewModel.TwoDCornerParameters);
                 SetCurrentValue(MeasurementsProperty, viewModel.TwoDMeasurements);
-                RequestDimensionExpressionInput($"{newPathId}:width");
+                RequestDimensionExpressionInput($"{newPathId}:width", DxfCanvasDimensionEditContext.Creation);
             }
         }
         else
@@ -4616,7 +4734,7 @@ Selection:
                 SetCurrentValue(DocumentProperty, viewModel.TwoDDocument);
                 SetCurrentValue(SelectedPathIdsProperty, viewModel.TwoDSelectedPathIds);
                 SetCurrentValue(MeasurementsProperty, viewModel.TwoDMeasurements);
-                RequestDimensionExpressionInput($"{newPathId}:radius");
+                RequestDimensionExpressionInput($"{newPathId}:radius", DxfCanvasDimensionEditContext.Creation);
             }
         }
         else
@@ -4646,12 +4764,26 @@ Selection:
         }
 
         var centerPoint = _pendingPolygonCenter;
-        var nextDocument = AddPolygonToDocument(centerPoint, worldPoint);
-        if (nextDocument is not null)
+        if (DataContext is EditorPageViewModel viewModel)
         {
-            SetCurrentValue(DocumentProperty, nextDocument);
-            var newPathId = nextDocument.Paths[^1].Id;
-            SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
+            var newPathId = viewModel.CreateTwoDRegularPolygon(centerPoint, worldPoint, PolygonSides);
+            if (newPathId is not null)
+            {
+                SetCurrentValue(DocumentProperty, viewModel.TwoDDocument);
+                SetCurrentValue(SelectedPathIdsProperty, viewModel.TwoDSelectedPathIds);
+                SetCurrentValue(MeasurementsProperty, viewModel.TwoDMeasurements);
+                RequestDimensionExpressionInput($"{newPathId}:radius", DxfCanvasDimensionEditContext.Creation);
+            }
+        }
+        else
+        {
+            var nextDocument = AddPolygonToDocument(centerPoint, worldPoint);
+            if (nextDocument is not null)
+            {
+                SetCurrentValue(DocumentProperty, nextDocument);
+                var newPathId = nextDocument.Paths[^1].Id;
+                SetCurrentValue(SelectedPathIdsProperty, new[] { newPathId });
+            }
         }
 
         CancelPendingPolygon();
@@ -5308,15 +5440,23 @@ Selection:
             SetCurrentValue(ActiveToolProperty, Editor2DTool.Select);
     }
 
-    internal bool RequestDimensionExpressionInput(string measurementId)
+    internal bool RequestDimensionExpressionInput(
+        string measurementId,
+        DxfCanvasDimensionEditContext context = DxfCanvasDimensionEditContext.Creation)
     {
         var measurement = Measurements.FirstOrDefault(item =>
             item.Id == measurementId
             && (!item.IsAutoDimension || IsCreationPrecisionMeasurement(item)));
         if (measurement is null)
             return false;
+        if (context == DxfCanvasDimensionEditContext.Creation
+            && !IsCreationPrecisionMeasurement(measurement))
+        {
+            context = DxfCanvasDimensionEditContext.DimensionTool;
+        }
 
         _dimensionExpressionEditingId = measurementId;
+        _dimensionExpressionEditContext = context;
         var rawExpression = measurement.Expression?.Trim() ?? string.Empty;
         var text = string.IsNullOrWhiteSpace(rawExpression)
             ? (measurement.EvaluatedValue ?? measurement.Distance)
@@ -5329,7 +5469,8 @@ Selection:
             measurementId,
             text,
             rawExpression,
-            WorldToScreen(midpoint, Bounds.Size)));
+            WorldToScreen(midpoint, Bounds.Size),
+            context));
         return true;
     }
 
@@ -5345,6 +5486,7 @@ Selection:
         if (_dimensionExpressionEditingId is null)
             return;
         _dimensionExpressionEditingId = null;
+        _dimensionExpressionEditContext = DxfCanvasDimensionEditContext.Selection;
         DimensionExpressionDismissed?.Invoke();
     }
 
@@ -6252,6 +6394,36 @@ Selection:
         _deleteSelectionMenuItem.IsVisible = hasMeasurementSelection || hasSelection;
     }
 
+    private string? HitTestEditableMeasurementId(Point screenPoint)
+    {
+        const double hitTolerance = 10.0;
+        var bestDistance = double.PositiveInfinity;
+        string? bestMeasurementId = null;
+
+        foreach (var measurement in Measurements)
+        {
+            if (measurement.IsAutoDimension
+                && (measurement.Driven
+                    || measurement.EntityPathId is not { } pathId
+                    || !SelectedPathIds.Contains(pathId, StringComparer.Ordinal)))
+            {
+                continue;
+            }
+
+            var start = WorldToScreen(measurement.Start, Bounds.Size);
+            var end = WorldToScreen(measurement.End, Bounds.Size);
+            var distance = DxfCanvasHitTester.DistanceToSegment(screenPoint, start, end);
+            distance = Math.Min(distance, ScreenDistance(screenPoint, start));
+            distance = Math.Min(distance, ScreenDistance(screenPoint, end));
+            if (distance <= hitTolerance && distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestMeasurementId = measurement.Id;
+            }
+        }
+
+        return bestMeasurementId;
+    }
     private string? HitTestManualMeasurementId(Point screenPoint)
     {
         const double hitTolerance = 10.0;

@@ -70,6 +70,7 @@
         <CheckBox
           AutomationProperties.AutomationId="editor.2d.dimension.driven"
           AutomationProperties.Name="Driven or reference dimension"
+          IsEnabled="{Binding CanToggleTwoDSelectedMeasurementDriven}"
           Content="Driven / reference dimension"
           IsChecked="{Binding TwoDSelectedMeasurementDriven, Mode=TwoWay}" />
       </StackPanel>
@@ -1005,7 +1006,7 @@
           FontSize="10"
           TextWrapping="Wrap"
           Foreground="{StaticResource SecondaryTextBrush}"
-          Text="Click a line for length, a circle for radius, or two points for a distance. Type a value or formula and press Enter."
+          Text="Click an existing dimension to edit it, a line for length, a rectangle edge for width or height, a circle or regular polygon for radius, or two points for a distance."
           AutomationProperties.AutomationId="editor.2d.dimension.hint" />
         <TextBlock
           FontSize="10"
