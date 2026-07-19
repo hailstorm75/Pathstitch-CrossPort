@@ -630,7 +630,9 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("ToolTip.Tip=\"Merge selected layers\"", layers, StringComparison.Ordinal);
         Assert.Contains("OnMergeSelectedLayersClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("editor.layers.active-name", layers, StringComparison.Ordinal);
-        Assert.Contains("OnActiveLayerNameKeyDown", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding TwoDActiveLayer.Name, Mode=OneWay}\"", layers, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnActiveLayerNameKeyDown", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnActiveLayerNameLostFocus", codeBehind, StringComparison.Ordinal);
         Assert.Contains("editor.layers.move-up", layers, StringComparison.Ordinal);
         Assert.Contains("editor.layers.move-down", layers, StringComparison.Ordinal);
         Assert.Contains("editor.layers.assign-selection", layers, StringComparison.Ordinal);

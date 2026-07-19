@@ -120,34 +120,6 @@ public partial class Editor2DLayersPanel : UserControl
     private void OnDeleteActiveLayerClicked(object? sender, RoutedEventArgs e)
         => WithActiveLayer(id => ViewModel?.DeleteTwoDLayer(id));
 
-    private void OnActiveLayerNameKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (sender is not TextBox textBox)
-            return;
-        if (e.Key == Key.Enter)
-        {
-            CommitActiveLayerName(textBox);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Escape)
-        {
-            textBox.Text = ViewModel?.TwoDActiveLayer?.Name ?? string.Empty;
-            e.Handled = true;
-        }
-    }
-
-    private void OnActiveLayerNameLostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (sender is TextBox textBox)
-            CommitActiveLayerName(textBox);
-    }
-
-    private void CommitActiveLayerName(TextBox textBox)
-    {
-        if (ViewModel?.TwoDActiveLayerId is { } layerId)
-            ViewModel.RenameTwoDLayer(layerId, textBox.Text ?? string.Empty);
-    }
-
     private void OnRenameLayerClicked(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is null || sender is not Button { Tag: string layerId })

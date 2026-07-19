@@ -246,12 +246,19 @@
         </ItemsControl>
       </ScrollViewer>
       <Grid Grid.Row="2" Height="32" Margin="0,6,0,0" ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="4">
-        <TextBox
+        <Border
           AutomationProperties.AutomationId="editor.layers.active-name"
-          IsEnabled="{Binding HasTwoDActiveLayer}"
-          Text="{Binding TwoDActiveLayer.Name, Mode=OneWay}"
-          KeyDown="OnActiveLayerNameKeyDown"
-          LostFocus="OnActiveLayerNameLostFocus" />
+          Padding="7,0"
+          Background="{StaticResource InputBackgroundBrush}"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="4">
+          <TextBlock
+            VerticalAlignment="Center"
+            Foreground="{StaticResource PrimaryTextBrush}"
+            TextTrimming="CharacterEllipsis"
+            Text="{Binding TwoDActiveLayer.Name, Mode=OneWay}" />
+        </Border>
         <Button
           Grid.Column="1"
           Classes="layer-icon"
