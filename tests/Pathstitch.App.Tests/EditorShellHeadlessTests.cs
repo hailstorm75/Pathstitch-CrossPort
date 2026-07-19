@@ -455,6 +455,9 @@ public sealed class EditorShellHeadlessTests
             var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
             canvas.SelectedPathIds = [pathId];
             canvas.Measurements = viewModel.TwoDMeasurements;
+            canvas.Zoom = 10;
+            canvas.OffsetX = 0;
+            canvas.OffsetY = 0;
             var midpoint = new Editor2DPoint(
                 (width.Start.X + width.End.X) / 2.0,
                 (width.Start.Y + width.End.Y) / 2.0);
@@ -464,14 +467,10 @@ public sealed class EditorShellHeadlessTests
                 "HitTestEditableMeasurementId",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
             Assert.Equal(width.Id, hitTest.Invoke(canvas, [screenPoint]));
-            var selectForEdit = typeof(DxfPreviewCanvas).GetMethod(
-                "SelectMeasurementForExpressionEdit",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-            selectForEdit.Invoke(canvas, [width]);
-            Assert.True(canvas.RequestDimensionExpressionInput(
-                width.Id, DxfCanvasDimensionEditContext.Selection));
+            var click = canvas.TranslatePoint(screenPoint, session.Window)!.Value;
 
-            canvas.SelectedPathIds = [pathId];
+            session.Window.MouseDown(click, MouseButton.Left, RawInputModifiers.None);
+            session.Window.MouseUp(click, MouseButton.Left, RawInputModifiers.None);
             session.Window.UpdateLayout();
         });
         await _ui.RunAsync(() => { });

@@ -1773,7 +1773,13 @@ public sealed class DxfPreviewCanvas : Control
                 var hitMeasurement = Measurements.First(item => item.Id.Equals(hitMeasurementId, StringComparison.Ordinal));
                 SelectMeasurementForExpressionEdit(hitMeasurement);
                 if (ActiveTool == Editor2DTool.Select)
+                {
+                    _cancelInteractionOnPointerRelease = true;
+                    _pressedPathId = null;
+                    CancelMarqueeSelection();
+                    e.Pointer.Capture(this);
                     RequestDimensionExpressionInput(hitMeasurement.Id, DxfCanvasDimensionEditContext.Selection);
+                }
                 e.Handled = true;
                 return;
             }
