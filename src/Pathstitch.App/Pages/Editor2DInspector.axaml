@@ -35,14 +35,6 @@
         TextWrapping="Wrap"
         Foreground="{StaticResource MutedTextBrush}"
         Text="{Binding TwoDMeasurementSummary}" />
-      <TextBlock
-        AutomationProperties.AutomationId="editor.2d.learn-hint"
-        AutomationProperties.Name="Contextual tool guidance"
-        FontSize="10"
-        TextWrapping="Wrap"
-        Foreground="{StaticResource SecondaryTextBrush}"
-        IsVisible="{Binding LearnModeEnabled}"
-        Text="{Binding TwoDToolHint}" />
       <StackPanel
         Spacing="6"
         IsVisible="{Binding HasTwoDSelectedMeasurement}">

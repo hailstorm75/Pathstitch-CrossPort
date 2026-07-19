@@ -152,17 +152,21 @@ public sealed class EditorShellCompositionTests
     }
 
     [Fact]
-    public void Shell_OffersProjectScopedLearnModeAndContextualTwoDHint()
+    public void Shell_OffersProjectScopedLearnModeAndToolRailContextualHints()
     {
         var shell = ReadPage("EditorShellView.axaml");
         var inspector = ReadPage("Editor2DInspector.axaml");
+        var toolRail = ReadPage("EditorToolRail.axaml");
 
         Assert.Contains("editor.menu.view.learn-mode", shell, StringComparison.Ordinal);
         Assert.Contains("IsChecked=\"{Binding LearnModeEnabled, Mode=OneWay}\"", shell, StringComparison.Ordinal);
         Assert.Contains("OnToggleLearnModeClicked", shell, StringComparison.Ordinal);
-        Assert.Contains("editor.2d.learn-hint", inspector, StringComparison.Ordinal);
-        Assert.Contains("IsVisible=\"{Binding LearnModeEnabled}\"", inspector, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{Binding TwoDToolHint}\"", inspector, StringComparison.Ordinal);
+        Assert.DoesNotContain("TwoDToolHint", inspector, StringComparison.Ordinal);
+        Assert.DoesNotContain("editor.2d.learn-hint", inspector, StringComparison.Ordinal);
+        Assert.Contains(
+            "help:ContextualHelp.Text=\"{Binding ContextualHelpText}\"",
+            toolRail,
+            StringComparison.Ordinal);
     }
 
     [Fact]

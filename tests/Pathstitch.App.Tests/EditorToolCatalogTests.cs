@@ -306,4 +306,19 @@ public sealed class EditorToolCatalogTests
         Assert.Equal(descriptors.Select(descriptor => descriptor.GroupKey), items.Select(item => item.GroupKey));
         Assert.Equal(descriptors.Select(descriptor => descriptor.Order), items.Select(item => item.Order));
     }
+
+    [Fact]
+    public void SidebarItems_ExposeSpecificTwoDToolHintsForContextualHoverHelp()
+    {
+        var descriptors = EditorToolCatalog.ForMode(EditorMode.TwoD);
+        var select = new EditorSidebarToolItemViewModel(
+            Assert.Single(descriptors, descriptor => descriptor.TwoDTool == Editor2DTool.Select));
+        var rectangle = new EditorSidebarToolItemViewModel(
+            Assert.Single(descriptors, descriptor => descriptor.TwoDTool == Editor2DTool.SketchRectangle));
+
+        Assert.Equal(EditorPageViewModel.GetTwoDToolHint(Editor2DTool.Select), select.ContextualHelpText);
+        Assert.Equal(EditorPageViewModel.GetTwoDToolHint(Editor2DTool.SketchRectangle), rectangle.ContextualHelpText);
+        Assert.NotEqual(select.ContextualHelpText, rectangle.ContextualHelpText);
+        Assert.Contains("first corner", rectangle.ContextualHelpText, StringComparison.Ordinal);
+    }
 }

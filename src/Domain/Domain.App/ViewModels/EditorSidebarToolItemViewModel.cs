@@ -23,6 +23,9 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
         _tooltipText = string.IsNullOrWhiteSpace(descriptor.ShortcutText)
             ? $"{descriptor.Label} - {descriptor.Hint}"
             : $"{descriptor.Label} ({descriptor.ShortcutText}) - {descriptor.Hint}";
+        ContextualHelpText = descriptor.TwoDTool is { } twoDTool
+            ? EditorPageViewModel.GetTwoDToolHint(twoDTool)
+            : _tooltipText;
         IconKey = descriptor.IconKey;
         IconPathData = descriptor.IconPathData;
         HasIconPathData = !string.IsNullOrWhiteSpace(descriptor.IconPathData);
@@ -67,6 +70,8 @@ public sealed class EditorSidebarToolItemViewModel : ObservableObject
         get => _tooltipText;
         private set => SetProperty(ref _tooltipText, value);
     }
+
+    public string ContextualHelpText { get; }
 
     public string IconKey { get; }
 

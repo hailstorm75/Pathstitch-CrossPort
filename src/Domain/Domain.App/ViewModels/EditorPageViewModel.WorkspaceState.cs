@@ -301,7 +301,6 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDPngTransparent));
         OnPropertyChanged(nameof(TwoDAutoDimensionCount));
         OnPropertyChanged(nameof(TwoDViewportSummary));
-        OnPropertyChanged(nameof(TwoDToolHint));
         OnPropertyChanged(nameof(ActiveToolLabel));
         NotifyToolbarCollectionsChanged();
         OnPropertyChanged(nameof(CanFrameHome));

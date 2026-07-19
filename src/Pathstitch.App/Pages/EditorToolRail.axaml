@@ -2,6 +2,7 @@
   x:Class="Pathstitch.App.Pages.EditorToolRail"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:help="using:Pathstitch.App.Help"
   xmlns:viewModels="using:Domain.App.ViewModels"
   x:DataType="viewModels:EditorPageViewModel"
   AutomationProperties.AutomationId="editor.tool-rail">
@@ -48,6 +49,7 @@
             Classes.active="{Binding IsActive}"
             IsEnabled="{Binding IsEnabled}"
             Tag="{Binding Key}"
+            help:ContextualHelp.Text="{Binding ContextualHelpText}"
             ToolTip.Tip="{Binding TooltipText}"
             Click="OnSidebarToolClicked">
             <Grid>

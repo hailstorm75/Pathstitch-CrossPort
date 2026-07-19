@@ -350,7 +350,6 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(IsTwoDTextInspectorVisible));
             OnPropertyChanged(nameof(TwoDTextInspectorTitle));
             NotifyTwoDSelectedTextEditorStateChanged();
-            OnPropertyChanged(nameof(TwoDToolHint));
             if (value == Editor2DTool.Offset)
                 QueueTwoDOffsetPreviewRefresh();
             Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
@@ -412,6 +411,7 @@ public sealed partial class EditorPageViewModel
         Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
         return pathId;
     }
+
     public string? CreateTwoDRectangle(Editor2DPoint start, Editor2DPoint end)
     {
         var pathId = _twoDWorkspace.CreateRectangle(start, end, TwoDRectangleFilletRadius);
@@ -538,7 +538,6 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDSelectedRectangleCount));
             OnPropertyChanged(nameof(CanExpandTwoDRectangles));
             OnPropertyChanged(nameof(TwoDSelectionSummary));
-            OnPropertyChanged(nameof(TwoDToolHint));
             OnPropertyChanged(nameof(HasTwoDConvertibleLineSelection));
             OnPropertyChanged(nameof(CanApplyTwoDConvertLines));
             OnPropertyChanged(nameof(TwoDConvertLineSummary));
@@ -600,7 +599,6 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(CanToggleTwoDSelectedMeasurementDriven));
             OnPropertyChanged(nameof(TwoDSelectedMeasurementDriven));
             OnPropertyChanged(nameof(TwoDDimensionParameters));
-            OnPropertyChanged(nameof(TwoDToolHint));
         }
     }
 
@@ -1291,6 +1289,7 @@ public sealed partial class EditorPageViewModel
 
     public bool CanToggleTwoDSelectedMeasurementDriven
         => TwoDMeasurements.FirstOrDefault(item => item.Id == TwoDSelectedMeasurementId)?.IsAutoDimension == false;
+
     public int TwoDAutoDimensionCount => TwoDMeasurements.Count(static measurement => measurement.IsAutoDimension);
 
     public bool HasSingleTwoDTextSelection => TryGetSingleSelectedTwoDTextPath(out _);
@@ -2328,7 +2327,7 @@ public sealed partial class EditorPageViewModel
 
     public string TwoDPolygonSidesSummary => $"Polygon sides: {TwoDPolygonSides}";
 
-    public string TwoDToolHint => TwoDActiveTool switch
+    public static string GetTwoDToolHint(Editor2DTool tool) => tool switch
     {
         Editor2DTool.Select => "Select tool: click linework to select it, or drag a marquee to select multiple paths. Shift-click adds or removes from the selection.",
         Editor2DTool.Move => "Move tool: drag a selected entity set to reposition it directly in the 2D workspace.",
