@@ -1,0 +1,126 @@
+<Window
+  x:Class="Pathstitch.App.Dialogs.PreferencesDialog"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  Title="Preferences"
+  Width="620"
+  Height="700"
+  MinWidth="520"
+  MinHeight="360"
+  ShowInTaskbar="False"
+  WindowStartupLocation="CenterOwner"
+  AutomationProperties.AutomationId="dialog.preferences">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto">
+    <TextBlock FontSize="20" FontWeight="SemiBold" Text="Preferences" />
+    <TextBlock Grid.Row="1" Margin="0,6,0,14"
+               Foreground="Gray"
+               Text="Record app commands and active-mode tool shortcuts. Select a field, then press the desired keys." />
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+      <TextBlock VerticalAlignment="Center" Text="Appearance" />
+      <ComboBox x:Name="AppearanceSelector"
+                Grid.Column="1"
+                Margin="12,0,0,0"
+                AutomationProperties.AutomationId="dialog.preferences.appearance">
+        <ComboBoxItem Content="System" />
+        <ComboBoxItem Content="Light" />
+        <ComboBoxItem Content="Dark" />
+      </ComboBox>
+    </Grid>
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+      <TextBlock VerticalAlignment="Center" Text="App icon" />
+      <ComboBox x:Name="AppIconSelector"
+                Grid.Column="1"
+                Margin="12,0,0,0"
+                AutomationProperties.AutomationId="dialog.preferences.app-icon">
+        <ComboBoxItem Content="Automatic" />
+        <ComboBoxItem Content="Light" />
+        <ComboBoxItem Content="Dark" />
+      </ComboBox>
+    </Grid>
+    <StackPanel Grid.Row="4" Margin="0,0,0,12" Spacing="4">
+      <TextBlock FontWeight="SemiBold" Text="Finder previews" />
+      <WrapPanel>
+        <CheckBox x:Name="FinderPreviewDxf"
+                  Margin="0,0,14,0"
+                  Content="DXF"
+                  AutomationProperties.AutomationId="dialog.preferences.finder-preview-dxf" />
+        <CheckBox x:Name="FinderPreviewStep"
+                  Margin="0,0,14,0"
+                  Content="STEP / STP"
+                  AutomationProperties.AutomationId="dialog.preferences.finder-preview-step" />
+        <CheckBox x:Name="FinderPreviewStch"
+                  Content="STCH"
+                  AutomationProperties.AutomationId="dialog.preferences.finder-preview-stch" />
+      </WrapPanel>
+      <TextBlock
+        FontSize="11"
+        Foreground="Gray"
+        TextWrapping="Wrap"
+        Text="Choose which formats Pathstitch previews in Finder. Disabled formats yield to Finder." />
+    </StackPanel>
+    <Grid Grid.Row="5" Margin="0,0,0,14" ColumnDefinitions="*,Auto,Auto,Auto">
+      <CheckBox
+                x:Name="ReversePanDirection"
+                Content="Reverse pan direction"
+                AutomationProperties.AutomationId="dialog.preferences.reverse-pan" />
+      <Button Grid.Column="1"
+              Padding="8,4"
+              Content="Show Getting Started Again"
+              Click="OnShowGettingStartedClicked"
+              AutomationProperties.AutomationId="dialog.preferences.show-getting-started" />
+      <Button Grid.Column="2"
+              Margin="0,0,0,0"
+              Padding="8,4"
+              Content="Replay Tutorial"
+              Click="OnReplayTutorialClicked"
+              AutomationProperties.AutomationId="dialog.preferences.replay-tutorial" />
+      <Button Grid.Column="3"
+              Margin="0,0,0,0"
+              Padding="8,4"
+              Content="Show Mode Intros Again"
+              Click="OnShowModeIntrosClicked"
+              AutomationProperties.AutomationId="dialog.preferences.show-mode-intros" />
+    </Grid>
+    <CheckBox Grid.Row="6"
+              x:Name="ConsolidateSvgStrokes"
+              Content="Consolidate narrow SVG strokes"
+              AutomationProperties.AutomationId="dialog.preferences.consolidate-svg-strokes" />
+    <Grid Grid.Row="7" ColumnDefinitions="Auto,*" Margin="0,8,0,14">
+      <TextBlock VerticalAlignment="Center" Text="SVG fill mode" />
+      <ComboBox x:Name="SvgFillModeSelector" Grid.Column="1" Margin="12,0,0,0"
+                AutomationProperties.AutomationId="dialog.preferences.svg-fill-mode">
+        <ComboBoxItem Content="Strokes only" Tag="strokes" />
+        <ComboBoxItem Content="Preserve fills" Tag="preserve" />
+      </ComboBox>
+    </Grid>
+    <Grid Grid.Row="8" ColumnDefinitions="Auto,*" Margin="0,0,0,14">
+      <TextBlock VerticalAlignment="Center" Text="SVG import thickness (mm)" />
+      <TextBox x:Name="SvgImportThickness" Grid.Column="1" Margin="12,0,0,0" Width="120"
+               AutomationProperties.AutomationId="dialog.preferences.svg-import-thickness" />
+    </Grid>
+    <ScrollViewer Grid.Row="9" VerticalScrollBarVisibility="Auto">
+      <StackPanel x:Name="ToolRows" Spacing="6" />
+    </ScrollViewer>
+    <Grid Grid.Row="10" Margin="0,10,0,0" ColumnDefinitions="*,Auto">
+      <TextBlock x:Name="StatusText"
+                 Foreground="IndianRed" TextWrapping="Wrap" />
+      <Button x:Name="ResolveConflictButton"
+              Grid.Column="1"
+              Margin="10,0,0,0"
+              Content="Reassign"
+              IsVisible="False"
+              Click="OnResolveConflictClicked"
+              AutomationProperties.AutomationId="dialog.preferences.shortcut-reassign" />
+    </Grid>
+    <StackPanel Grid.Row="11" Margin="0,16,0,0" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button AutomationProperties.AutomationId="dialog.preferences.reset"
+              Content="Reset Toolbar" Click="OnResetClicked" />
+      <Button AutomationProperties.AutomationId="dialog.preferences.reset-all"
+              Content="Reset All Shortcuts" Click="OnResetAllClicked" />
+      <Button AutomationProperties.AutomationId="dialog.preferences.cancel"
+              Content="Cancel" Click="OnCancelClicked" />
+      <Button AutomationProperties.AutomationId="dialog.preferences.apply"
+              Content="Apply" IsDefault="True" Click="OnApplyClicked" />
+    </StackPanel>
+  </Grid>
+</Window>

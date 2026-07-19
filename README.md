@@ -1,20 +1,39 @@
 <h1 align="center">Pathstitch</h1>
 
-<p align="center"><b>A native macOS CAD/CAM studio for leathercraft, pattern making, and sewing.</b></p>
+<p align="center"><b>An Avalonia/.NET CAD/CAM studio for leathercraft, pattern making, and sewing, with the original macOS app kept in-tree.</b></p>
 
 <p align="center">
-  <img alt="Platform: macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white">
-  <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-arm64-0a84ff">
-  <img alt="Built with SwiftUI" src="https://img.shields.io/badge/SwiftUI-orange?logo=swift&logoColor=white">
-  <img alt="Engine: Python" src="https://img.shields.io/badge/engine-Python%20%2B%20OpenCASCADE-3776AB?logo=python&logoColor=white">
+  <img alt="Active port: Avalonia" src="https://img.shields.io/badge/active%20port-Avalonia-7c3aed">
+  <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10-512bd4?logo=dotnet&logoColor=white">
+  <img alt="Engine: OpenGeometry plus OCCT" src="https://img.shields.io/badge/engine-OpenGeometry%20%2B%20OCCT-0f766e">
+  <img alt="Original macOS app" src="https://img.shields.io/badge/original-macOS%20SwiftUI-000000?logo=apple&logoColor=white">
   <img alt="Release v1.0.0" src="https://img.shields.io/badge/release-v1.0.0-success">
 </p>
 
 Pathstitch is for makers who want **CAD precision without CAD overhead**. Sketch a pattern with snapping and
-live dimensions, round corners parametrically, drop in saddle‑stitch holes and glue tabs, then export
-cut‑ready DXF/SVG/PDF — or import a 3D `.step` model and **unfold it into flat panels** you can actually cut
-and sew. It's a fast, native SwiftUI app backed by a real geometry kernel (`ezdxf`, `shapely`, OpenCASCADE),
-not a web wrapper.
+live dimensions, round corners parametrically, drop in saddle-stitch holes and glue tabs, then export
+cut-ready DXF/SVG/PDF. The active Avalonia/.NET port imports DXF, SVG, and PDF vector drawings plus OBJ/STL meshes for 3D projection,
+triangle-preserving flattening, and mesh distortion checks through OpenGeometry-backed workflows, and imports
+STEP through its packaged Python/OCCT geometry worker.
+
+> Repository note: this repo now contains two implementation paths. The original macOS app under
+> [`Pathstitch/`](Pathstitch) still uses the Python/OpenCASCADE worker described below. The active Avalonia/.NET
+> port under [`src/`](src) uses a managed/OpenGeometry OBJ/STL mesh bridge plus an app-owned Python/OCCT worker
+> for STEP. Release builds provision both runtimes from explicit locks and never resolve Node or Python from
+> the user's `PATH`; `Occt.NET` is not used. The OpenGeometry WASM package and Node runtime are restored from
+> pinned, checksummed archives during build.
+
+## Avalonia/.NET port
+
+The active cross-port lives under [`src/`](src), targets `net10.0`, and publishes self-contained `win-x64` and Apple-silicon `osx-arm64` artifacts.
+
+- **3D kernel**: OpenGeometry-facing OBJ/STL mesh bridge plus a packaged Python/OCCT STEP worker; `Occt.NET` has been removed from the Avalonia project
+- **App-owned runtimes**: release verification builds locked `win-x64` and `osx-arm64` Python/OCCT workers; users do not install Python, conda, Node, or npm
+- **OpenGeometry runtime**: the build downloads pinned, checksummed OpenGeometry and Node runtime archives; published applications run the bundled worker without a user-installed Node or npm
+- **Current native editor slice**: STEP/OBJ/STL import, body combination, origin-plane projection, triangle-preserving separate-piece flattening, projection-based mesh distortion metrics, and DXF preview
+- **STEP status**: Avalonia release artifacts include a pinned Python/OCCT worker for B-rep import; missing or invalid packaged runtimes fail with typed diagnostics instead of falling back to a machine-installed Python
+- **Build**: `dotnet build PathstitchCross.slnx`
+- **Release verification**: run the same auditable Windows/macOS gate documented in [`docs/release-readiness.md`](docs/release-readiness.md); a cross-built artifact is not a native-platform sign-off
 
 <img width="1313" height="913" alt="Screenshot 2026-06-15 at 4 52 39 PM" src="https://github.com/user-attachments/assets/63cfbd20-b581-47fe-a3eb-1ff0c9cac5cb" />
 
@@ -136,6 +155,7 @@ https://github.com/user-attachments/assets/903794b1-4d92-4840-8783-a3f5c49ae1bd
 - **Home v2** — press Home to frame all geometry or return to the default startup view if the canvas is empty.
 
 **Export & integrate**
+- **Drawing import** — DXF, SVG, and multi-page PDF vectors, including batch workflows.
 - **Export** — DXF, SVG, PDF, PNG with filters for selected-only or measurements and clear indicator checkmarks.
 - **Projects** — native `.stch` files.
 - **QuickLook Previews** — Finder previews + thumbnails for DXF (full curve support) & STEP (native fast 3D renderer).
@@ -166,7 +186,10 @@ Tools without a default key (Scale, Polygon, Text, Mirror, Patterning, Paper Fol
 
 ---
 
-## Under the hood
+## Legacy macOS architecture
+
+The section below describes the original SwiftUI implementation under [`Pathstitch/`](Pathstitch), not the
+active Avalonia/.NET port.
 
 Pathstitch is a thin, fast SwiftUI front‑end over a persistent Python geometry worker. The UI never blocks on
 geometry: every operation is a JSON request streamed to a long‑lived backend process and rendered back.
@@ -194,6 +217,17 @@ For a packaged build, a trimmed copy of the Python environment and the engine ar
 ## Build from source
 
 You only need this if you want to develop Pathstitch; users just download the `.dmg`.
+
+### Avalonia/.NET port (active)
+
+Restore NuGet packages and build the solution directly for editor development. This does not require a system Python; the complete release procedure provisions the app-owned STEP runtime as documented in [`docs/release-readiness.md`](docs/release-readiness.md):
+
+```powershell
+dotnet build PathstitchCross.slnx
+dotnet run --project src/Pathstitch.App/Pathstitch.App.csproj
+```
+
+### Legacy macOS app
 
 **Requirements**
 

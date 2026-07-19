@@ -11,6 +11,7 @@ import os
 import math
 from typing import Dict, List, Any, Tuple, Optional
 import ezdxf
+from pathstitch_core.dxf_units import new_millimeter_dxf, require_millimeter_dxf
 
 from OCC.Core.STEPControl import STEPControl_Reader
 from OCC.Core.IFSelect import IFSelect_RetDone
@@ -43,15 +44,15 @@ def load_step_shape(file_path: str):
         
     elif ext == ".obj":
         from OCC.Core.gp import gp_Pnt
-        from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
-        from OCC.Core.TopoDS import TopoDS_Compound
-        from OCC.Core.BRep import BRep_Builder
-        
+        from OCC.Core.BRepBuilderAPI import (
+            BRepBuilderAPI_MakePolygon,
+            BRepBuilderAPI_MakeFace,
+            BRepBuilderAPI_Sewing,
+        )
+
         vertices = []
-        builder = BRep_Builder()
-        compound = TopoDS_Compound()
-        builder.MakeCompound(compound)
-        
+        sewing = BRepBuilderAPI_Sewing(1.0e-6, True, True, True, False)
+
         has_faces = False
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
@@ -88,22 +89,26 @@ def load_step_shape(file_path: str):
                     if len(face_vertices) >= 3:
                         try:
                             poly = BRepBuilderAPI_MakePolygon()
-                            for v in face_vertices:
-                                poly.Add(v)
+                            for vertex in face_vertices:
+                                poly.Add(vertex)
                             poly.Close()
                             face_maker = BRepBuilderAPI_MakeFace(poly.Wire())
                             if not face_maker.IsDone():
                                 continue
                             face = face_maker.Face()
                             if not face.IsNull():
-                                builder.Add(compound, face)
+                                sewing.Add(face)
                                 has_faces = True
                         except Exception:
                             pass
         if not has_faces:
             raise ValueError(f"No valid faces could be parsed from OBJ file: {file_path}")
-        return compound
-        
+
+        sewing.Perform()
+        sewn_shape = sewing.SewedShape()
+        if sewn_shape.IsNull():
+            raise ValueError(f"OBJ faces could not be sewn into a transferable shape: {file_path}")
+        return sewn_shape
     else:
         # Default to STEP
         reader = STEPControl_Reader()
@@ -112,31 +117,51 @@ def load_step_shape(file_path: str):
             raise ValueError(f"STEP control reader failed to read. Status code: {status}")
             
         reader.TransferRoots()
-        return reader.OneShape()
+        shape = reader.OneShape()
 
+        # STEP files produced from mixed solid/mesh imports may contain adjacent
+        # free shells whose shared triangulation edges were split by STEP export.
+        # Sewing restores those bodies without changing disconnected solids.
+        from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Sewing
+        sewing = BRepBuilderAPI_Sewing(1.0e-6, True, True, True, False)
+        sewing.Add(shape)
+        sewing.Perform()
+        sewn_shape = sewing.SewedShape()
+        return shape if sewn_shape.IsNull() else sewn_shape
 def get_solid_bodies(shape) -> List[Any]:
-    """Isolates and returns all solid bodies (or shells as fallback)."""
-    bodies = []
-    
-    # 1. Search for Solids
+    """Returns solids plus free shells, without duplicating shells inside solids."""
+    solids = []
     exp = TopExp_Explorer(shape, TopAbs_SOLID)
     while exp.More():
-        bodies.append(exp.Current())
+        solids.append(exp.Current())
         exp.Next()
-        
-    # 2. Search for Shells if no Solids found
-    if not bodies:
-        exp = TopExp_Explorer(shape, TopAbs_SHELL)
-        while exp.More():
-            bodies.append(exp.Current())
-            exp.Next()
-            
-    # 3. Fallback: treat the entire shape as a single body if it contains any faces
+
+    def is_shell_inside_solid(shell) -> bool:
+        for solid in solids:
+            nested = TopExp_Explorer(solid, TopAbs_SHELL)
+            while nested.More():
+                if nested.Current().IsSame(shell):
+                    return True
+                nested.Next()
+        return False
+
+    free_shells = []
+    exp = TopExp_Explorer(shape, TopAbs_SHELL)
+    while exp.More():
+        shell = exp.Current()
+        if not is_shell_inside_solid(shell):
+            free_shells.append(shell)
+        exp.Next()
+
+    bodies = solids + free_shells
+
+    # Loose-face documents have neither solids nor shells. Preserve the source
+    # compound as one body so all faces remain available to projection/unfold.
     if not bodies:
         exp = TopExp_Explorer(shape, TopAbs_FACE)
         if exp.More():
             bodies.append(shape)
-            
+
     return bodies
 
 def op_list_bodies(args: Dict[str, Any]) -> Dict[str, Any]:
@@ -393,6 +418,7 @@ def op_unfold_face(args: Dict[str, Any]) -> Dict[str, Any]:
         # Load or create DXF
         if existing_dxf and os.path.exists(existing_dxf):
             doc = ezdxf.readfile(existing_dxf)
+            require_millimeter_dxf(doc)
             msp = doc.modelspace()
             bounds = get_dxf_bounds(msp)
             if bounds:
@@ -402,7 +428,7 @@ def op_unfold_face(args: Dict[str, Any]) -> Dict[str, Any]:
                 start_x = 0.0
                 start_y = 0.0
         else:
-            doc = ezdxf.new(dxfversion="R2010")
+            doc = new_millimeter_dxf(dxfversion="R2010")
             msp = doc.modelspace()
             start_x = 0.0
             start_y = 0.0
@@ -411,6 +437,7 @@ def op_unfold_face(args: Dict[str, Any]) -> Dict[str, Any]:
             doc.layers.new("UNFOLDED_3D", dxfattribs={"color": 6})
 
         # Translate to correct position and add to layout
+        output_polylines = []
         for poly in polylines:
             translated = []
             for pt in poly:
@@ -455,6 +482,7 @@ def op_unfold_faces(args: Dict[str, Any]) -> Dict[str, Any]:
         # Load or create DXF
         if existing_dxf and os.path.exists(existing_dxf):
             doc = ezdxf.readfile(existing_dxf)
+            require_millimeter_dxf(doc)
             msp = doc.modelspace()
             bounds = get_dxf_bounds(msp)
             if bounds:
@@ -464,7 +492,7 @@ def op_unfold_faces(args: Dict[str, Any]) -> Dict[str, Any]:
                 current_x_offset = 0.0
                 current_y_offset = 0.0
         else:
-            doc = ezdxf.new(dxfversion="R2010")
+            doc = new_millimeter_dxf(dxfversion="R2010")
             msp = doc.modelspace()
             current_x_offset = 0.0
             current_y_offset = 0.0
@@ -692,6 +720,68 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
             origin[1] + normal[1] * offset,
             origin[2] + normal[2] * offset
         )
+
+        def _project_point(point):
+            dx, dy, dz = point.X() - origin[0], point.Y() - origin[1], point.Z() - origin[2]
+            return [
+                float(dx * u_axis[0] + dy * u_axis[1] + dz * u_axis[2]),
+                float(dx * v_axis[0] + dy * v_axis[1] + dz * v_axis[2]),
+            ]
+
+        def _exact_curve_2d(edge):
+            from OCC.Core.BRepAdaptor import BRepAdaptor_Curve
+            from OCC.Core.GeomAbs import GeomAbs_Line, GeomAbs_Circle, GeomAbs_BSplineCurve
+            curve = BRepAdaptor_Curve(edge)
+            first, last = float(curve.FirstParameter()), float(curve.LastParameter())
+            geometry = {"scalars": {"firstParameter": first, "lastParameter": last},
+                        "poles": [], "knots": [], "multiplicities": [], "weights": []}
+            kind, closed = "other", False
+            if curve.GetType() == GeomAbs_Line:
+                line = curve.Line()
+                location = _project_point(line.Location())
+                direction = line.Direction()
+                geometry["scalars"].update({
+                    "originX": location[0], "originY": location[1],
+                    "directionX": float(direction.X() * u_axis[0] + direction.Y() * u_axis[1] + direction.Z() * u_axis[2]),
+                    "directionY": float(direction.X() * v_axis[0] + direction.Y() * v_axis[1] + direction.Z() * v_axis[2]),
+                })
+                kind = "line"
+            elif curve.GetType() == GeomAbs_Circle:
+                circle = curve.Circle()
+                center = _project_point(circle.Location())
+                position = circle.Position()
+                x_direction, y_direction = position.XDirection(), position.YDirection()
+                radius = float(circle.Radius())
+                x_axis = [radius * (x_direction.X() * u_axis[0] + x_direction.Y() * u_axis[1] + x_direction.Z() * u_axis[2]),
+                          radius * (x_direction.X() * v_axis[0] + x_direction.Y() * v_axis[1] + x_direction.Z() * v_axis[2])]
+                y_axis = [radius * (y_direction.X() * u_axis[0] + y_direction.Y() * u_axis[1] + y_direction.Z() * u_axis[2]),
+                          radius * (y_direction.X() * v_axis[0] + y_direction.Y() * v_axis[1] + y_direction.Z() * v_axis[2])]
+                x_length, y_length = math.hypot(*x_axis), math.hypot(*y_axis)
+                orthogonality = x_axis[0] * y_axis[0] + x_axis[1] * y_axis[1]
+                if abs(x_length - y_length) <= 1e-7 * max(1.0, radius) and abs(orthogonality) <= 1e-7 * max(1.0, radius * radius):
+                    geometry["scalars"].update({"centerX": center[0], "centerY": center[1], "radius": 0.5 * (x_length + y_length)})
+                    kind = "circle"
+                else:
+                    geometry["scalars"].update({
+                        "centerX": center[0], "centerY": center[1],
+                        "xAxisX": float(x_axis[0]), "xAxisY": float(x_axis[1]),
+                        "yAxisX": float(y_axis[0]), "yAxisY": float(y_axis[1]),
+                    })
+                    kind = "ellipse"
+                closed = abs((last - first) - 2.0 * math.pi) <= 1e-6
+            elif curve.GetType() == GeomAbs_BSplineCurve:
+                spline = curve.BSpline()
+                geometry["scalars"].update({
+                    "degree": float(spline.Degree()), "periodic": 1.0 if spline.IsPeriodic() else 0.0,
+                    "rational": 1.0 if spline.IsRational() else 0.0,
+                })
+                geometry["poles"] = [{"x": point[0], "y": point[1]}
+                                     for point in (_project_point(spline.Pole(i)) for i in range(1, spline.NbPoles() + 1))]
+                geometry["knots"] = [float(spline.Knot(i)) for i in range(1, spline.NbKnots() + 1)]
+                geometry["multiplicities"] = [int(spline.Multiplicity(i)) for i in range(1, spline.NbKnots() + 1)]
+                geometry["weights"] = [float(spline.Weight(i)) for i in range(1, spline.NbPoles() + 1)]
+                kind, closed = "bspline", bool(spline.IsClosed())
+            return {"kind": kind, "closed": closed, "geometry": geometry}
         
         from OCC.Core.gp import gp_Ax2, gp_Pnt, gp_Dir, gp_Pln
         from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Section
@@ -719,6 +809,7 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
                 pass
                 
         polylines = []
+        exact_curves = []
         seen_projections = set()
         
         if section_edges:
@@ -747,6 +838,7 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
                         continue
                     seen_projections.add(key)
                     polylines.append(pts2d)
+                    exact_curves.append(_exact_curve_2d(edge))
                 except Exception:
                     pass
                     
@@ -804,6 +896,7 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
                             continue
                         seen_projections.add(key)
                         polylines.append(pts2d)
+                        exact_curves.append(_exact_curve_2d(edge))
                     except Exception:
                         pass
                         
@@ -815,6 +908,7 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
         
         if existing_dxf and os.path.exists(existing_dxf):
             doc = ezdxf.readfile(existing_dxf)
+            require_millimeter_dxf(doc)
             msp = doc.modelspace()
             bounds = get_dxf_bounds(msp)
             if bounds:
@@ -824,14 +918,15 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
                 start_x = 0.0
                 start_y = 0.0
         else:
-            doc = ezdxf.new(dxfversion="R2010")
+            doc = new_millimeter_dxf(dxfversion="R2010")
             msp = doc.modelspace()
             start_x = 0.0
             start_y = 0.0
             
         if "PROJECTED_SKETCH" not in doc.layers:
             doc.layers.new("PROJECTED_SKETCH", dxfattribs={"color": 5})
-            
+
+        output_polylines = []
         for poly in polylines:
             translated = []
             for pt in poly:
@@ -839,13 +934,19 @@ def op_project_edges(args: Dict[str, Any]) -> Dict[str, Any]:
                 ty = pt[1] - min_y + start_y
                 translated.append((tx, ty))
             msp.add_lwpolyline(translated, dxfattribs={"layer": "PROJECTED_SKETCH"})
+            output_polylines.append([[float(x), float(y)] for x, y in translated])
             
         doc.saveas(output_path)
+        for curve, approximation in zip(exact_curves, output_polylines):
+            curve["display_approximation"] = approximation
         return {
             "status": "ok",
             "data": {
                 "output": output_path,
-                "polylines_count": len(polylines)
+                "polylines_count": len(polylines),
+                "projection_mode": "section" if any_intersection else "silhouette",
+                "polylines": output_polylines,
+                "exact_curves": exact_curves,
             }
         }
     except Exception as e:

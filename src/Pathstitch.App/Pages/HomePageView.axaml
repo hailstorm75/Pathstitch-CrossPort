@@ -1,0 +1,510 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.HomePageView"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:help="using:Pathstitch.App.Help"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:pages="using:Pathstitch.App.Pages"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:HomePageViewModel"
+  AutomationProperties.AutomationId="home.page"
+  DragDrop.AllowDrop="True"
+  d:DesignHeight="720"
+  d:DesignWidth="1180"
+  mc:Ignorable="d">
+  <UserControl.Resources>
+    <pages:RecentProjectThumbnailConverter x:Key="RecentProjectThumbnailConverter" />
+    <pages:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+    <SolidColorBrush x:Key="BaseBackgroundBrush" Color="#0D0D10" />
+    <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#141418" />
+    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#1C1C22" />
+    <SolidColorBrush x:Key="PrimaryTextBrush" Color="#E4E4EA" />
+    <SolidColorBrush x:Key="SecondaryTextBrush" Color="#6A6A74" />
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#3E3E48" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#4D7FFF" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#1FFFFFFF" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#D95555" />
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <Style Selector="Button.sidebar-button">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="MinHeight" Value="38" />
+    </Style>
+
+    <Style Selector="Button.sidebar-button:pointerover">
+      <Setter Property="Background" Value="#1C1C22" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.primary-action">
+      <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+
+    <Style Selector="Button.secondary-action">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+
+    <Style Selector="Border.recent-card">
+      <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <Style Selector="Border.recent-card.active > StackPanel > Border">
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+
+    <Style Selector="Border.recent-card.active > StackPanel > TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid Background="{StaticResource BaseBackgroundBrush}" ColumnDefinitions="176,*">
+    <Border
+      Grid.Column="0"
+      Background="{StaticResource PanelBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      BorderThickness="0,0,1,0"
+      Padding="12">
+      <StackPanel Spacing="20">
+        <StackPanel Spacing="6" Margin="0,16,0,0">
+          <Border
+            Width="48"
+            Height="48"
+            CornerRadius="12"
+            Background="{StaticResource InputBackgroundBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1">
+            <TextBlock
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              FontSize="14"
+              FontWeight="Bold"
+              Foreground="{StaticResource AccentBrush}"
+              Text="PS" />
+          </Border>
+
+          <TextBlock
+            FontSize="14"
+            FontWeight="Bold"
+            Foreground="{StaticResource PrimaryTextBrush}"
+            Text="Pathstitch" />
+          <TextBlock
+            x:Name="VersionText"
+            AutomationProperties.AutomationId="home.version"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Version" />
+        </StackPanel>
+
+        <Border
+          Height="1"
+          Margin="0,2,0,0"
+          Background="{StaticResource BorderBrush}" />
+
+        <StackPanel Spacing="8">
+          <Button
+            AutomationProperties.AutomationId="home.action.new-project"
+            Classes="sidebar-button"
+            Command="{Binding CreateTemplateProjectCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="9">
+              <TextBlock Width="16" HorizontalAlignment="Center" FontSize="16" Foreground="{StaticResource AccentBrush}" Text="＋" />
+              <TextBlock VerticalAlignment="Center" Text="New Project" />
+            </StackPanel>
+          </Button>
+          <Button
+            AutomationProperties.AutomationId="home.dialog.open-file"
+            Classes="sidebar-button"
+            Command="{Binding OpenWorkspaceFilesCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="9">
+              <TextBlock Width="16" HorizontalAlignment="Center" FontSize="14" Foreground="{StaticResource AccentBrush}" Text="↗" />
+              <TextBlock VerticalAlignment="Center" Text="Open File..." />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+
+        <Border
+          Height="1"
+          Margin="0,2,0,0"
+          Background="{StaticResource BorderBrush}" />
+
+        <StackPanel Spacing="6">
+          <TextBlock
+            FontSize="10"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="CURRENT SESSION" />
+          <TextBlock
+            FontSize="11"
+            Foreground="{StaticResource PrimaryTextBrush}"
+            Text="{Binding CurrentSession.ProjectName}" />
+          <TextBlock
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            TextWrapping="Wrap"
+            Text="{Binding CurrentSession.ProjectFilePath}" />
+        </StackPanel>
+
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Column="1" RowDefinitions="*,Auto,Auto">
+      <Border
+        Background="{StaticResource BaseBackgroundBrush}"
+        ClipToBounds="True">
+        <Grid RowDefinitions="Auto,*">
+          <TextBlock
+            Margin="24,24,24,0"
+            FontSize="14"
+            FontWeight="Bold"
+            Foreground="{StaticResource PrimaryTextBrush}"
+            Text="Recent Projects" />
+
+          <Grid Grid.Row="1" Margin="0,0,0,8">
+            <ScrollViewer
+              HorizontalScrollBarVisibility="Auto"
+              VerticalScrollBarVisibility="Disabled"
+              IsVisible="{Binding HasRecentProjects}">
+              <ItemsControl
+                x:CompileBindings="False"
+                ItemsSource="{Binding RecentProjects}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Margin="24,0,24,0" Spacing="16" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border
+                      Width="210"
+                      Classes="recent-card"
+                      Classes.active="{Binding IsSelected}"
+                      PointerPressed="OnRecentProjectPressed"
+                      DoubleTapped="OnRecentProjectDoubleTapped"
+                      Background="Transparent">
+                      <Border.ContextMenu>
+                        <ContextMenu>
+                          <MenuItem Header="Open" IsEnabled="{Binding IsAvailable}" Click="OnOpenRecentProjectClicked" />
+                          <MenuItem Header="Reveal in Folder" Click="OnRevealRecentProjectClicked" />
+                          <Separator />
+                          <MenuItem
+                            Header="Remove from Recent"
+                            Foreground="{StaticResource DangerBrush}"
+                            Click="OnRemoveRecentProjectClicked" />
+                        </ContextMenu>
+                      </Border.ContextMenu>
+                      <StackPanel Spacing="6">
+                        <Border
+                          Height="122"
+                          Background="{StaticResource PanelBackgroundBrush}"
+                          BorderBrush="{StaticResource BorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="8">
+                          <Grid>
+                            <Image
+                              Source="{Binding ThumbnailDataBase64, Converter={StaticResource RecentProjectThumbnailConverter}}"
+                              Stretch="UniformToFill"
+                              IsVisible="{Binding HasThumbnail}" />
+                            <TextBlock
+                              IsVisible="{Binding HasThumbnail, Converter={StaticResource InverseBooleanConverter}}"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              FontSize="20"
+                              FontWeight="Bold"
+                              Foreground="{StaticResource MutedTextBrush}"
+                              Text="STCH" />
+                            <Border
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Top"
+                              Margin="8"
+                              Padding="6,3"
+                              Background="#D94B2020"
+                              CornerRadius="10"
+                              IsVisible="{Binding IsMissing}">
+                              <TextBlock
+                                FontSize="9"
+                                FontWeight="SemiBold"
+                                Foreground="White"
+                                Text="Missing" />
+                            </Border>
+                          </Grid>
+                        </Border>
+
+                        <TextBlock
+                          FontSize="11"
+                          FontWeight="SemiBold"
+                          Foreground="{StaticResource PrimaryTextBrush}"
+                          TextTrimming="CharacterEllipsis"
+                          Text="{Binding ProjectName}" />
+                        <TextBlock
+                          FontSize="9"
+                          Foreground="{StaticResource SecondaryTextBrush}"
+                          Text="{Binding LastOpenedLabel}" />
+
+                        <TextBlock
+                          FontSize="9"
+                          Foreground="{StaticResource SecondaryTextBrush}"
+                          TextTrimming="CharacterEllipsis"
+                          Text="{Binding ProjectFileName}" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+
+            <StackPanel
+              Margin="24,24,24,0"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Spacing="12"
+              IsVisible="{Binding HasNoRecentProjects}">
+              <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="30"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="?" />
+              <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="12"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource PrimaryTextBrush}"
+                Text="No Recent Projects" />
+              <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="10"
+                TextAlignment="Center"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="Your recently opened `.stch` projects will appear here." />
+            </StackPanel>
+          </Grid>
+        </Grid>
+      </Border>
+
+      <Grid
+        Grid.Row="1"
+        Margin="24,16,24,16"
+        ColumnDefinitions="*,320"
+        ColumnSpacing="16">
+        <Border
+          x:Name="FileDropSurface"
+          AutomationProperties.AutomationId="home.file-drop"
+          help:ContextualHelp.Text="Drop a Pathstitch project, drawing, reference image, or 3D model to continue."
+          Padding="20"
+          Background="{StaticResource PanelBackgroundBrush}"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="10"
+          DragDrop.AllowDrop="True">
+          <StackPanel
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Spacing="12">
+            <TextBlock
+              HorizontalAlignment="Center"
+              FontSize="26"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="[" />
+            <TextBlock
+              HorizontalAlignment="Center"
+              FontSize="12"
+              FontWeight="SemiBold"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="Drop files to open" />
+            <TextBlock
+              HorizontalAlignment="Center"
+              FontSize="10"
+              TextAlignment="Center"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="Supports .stch, .dxf, .svg, .obj, .stl, and STEP. Drag files here or browse from disk." />
+            <Button
+              AutomationProperties.AutomationId="home.dialog.open-files"
+              Classes="primary-action"
+              Command="{Binding OpenWorkspaceFilesCommand}">
+              Open Files...
+            </Button>
+          </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Column="1" Spacing="16">
+          <Border
+            x:Name="GettingStartedCard"
+            AutomationProperties.AutomationId="home.getting-started"
+            Padding="16"
+            Background="{StaticResource PanelBackgroundBrush}"
+            BorderBrush="{StaticResource AccentBrush}"
+            BorderThickness="1"
+            CornerRadius="10">
+            <StackPanel Spacing="8">
+              <DockPanel>
+                <Button
+                  DockPanel.Dock="Right"
+                  AutomationProperties.AutomationId="home.getting-started.dismiss"
+                  Classes="secondary-action"
+                  Padding="8,4"
+                  Content="Dismiss"
+                  Click="OnDismissGettingStartedClicked" />
+                <TextBlock
+                  VerticalAlignment="Center"
+                  FontSize="14"
+                  FontWeight="SemiBold"
+                  Foreground="{StaticResource PrimaryTextBrush}"
+                  Text="Getting Started" />
+              </DockPanel>
+              <TextBlock
+                FontSize="10"
+                TextWrapping="Wrap"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="Start in 2D to draw a pattern, use 3D to unfold model faces, or choose Batch to arrange multiple pieces." />
+              <StackPanel Spacing="3">
+                <TextBlock FontSize="10" Text="1. Create or open a project." />
+                <TextBlock FontSize="10" Text="2. Edit geometry, layers, and sewing details." />
+                <TextBlock FontSize="10" Text="3. Save, unfold, or export your finished pattern." />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border
+            x:Name="SupportCard"
+            AutomationProperties.AutomationId="home.support-card"
+            Padding="10,7"
+            Background="{StaticResource PanelBackgroundBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <DockPanel>
+              <Button
+                DockPanel.Dock="Right"
+                AutomationProperties.AutomationId="home.support-card.dismiss"
+                Classes="secondary-action"
+                Padding="6,2"
+                Content="×"
+                Click="OnDismissSupportCardClicked" />
+              <Button
+                AutomationProperties.AutomationId="home.support-card.open"
+                Classes="secondary-action"
+                Content="☕  Buy me a coffee"
+                HorizontalContentAlignment="Left"
+                Click="OnSupportCardClicked" />
+            </DockPanel>
+          </Border>
+
+          <Border
+            AutomationProperties.AutomationId="home.dialog.new-project"
+            Padding="16"
+            Background="{StaticResource PanelBackgroundBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10">
+            <StackPanel Spacing="10">
+              <TextBlock
+                FontSize="12"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource PrimaryTextBrush}"
+                Text="New Template Project" />
+
+              <StackPanel Spacing="6">
+                <TextBlock
+                  FontSize="10"
+                  Foreground="{StaticResource SecondaryTextBrush}"
+                  Text="Template" />
+                <ComboBox
+                  AutomationProperties.AutomationId="home.new-project.template"
+                  ItemsSource="{Binding AvailableTemplates}"
+                  SelectedItem="{Binding SelectedTemplate}"
+                  DisplayMemberBinding="{Binding DisplayName}" />
+              </StackPanel>
+
+              <StackPanel Spacing="6">
+                <TextBlock
+                  FontSize="10"
+                  Foreground="{StaticResource SecondaryTextBrush}"
+                  Text="Project name" />
+                <TextBox
+                  AutomationProperties.AutomationId="home.new-project.name"
+                  Text="{Binding ProjectName}" />
+              </StackPanel>
+
+              <TextBlock
+                FontSize="10"
+                TextWrapping="Wrap"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="{Binding SelectedTemplate.Description}" />
+
+              <Button
+                AutomationProperties.AutomationId="home.new-project.create"
+                Classes="primary-action"
+                HorizontalAlignment="Left"
+                Command="{Binding CreateTemplateProjectCommand}">
+                Create Project
+              </Button>
+            </StackPanel>
+          </Border>
+
+          <Border
+            AutomationProperties.AutomationId="home.dialog.open-project"
+            Padding="16"
+            Background="{StaticResource PanelBackgroundBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10">
+            <StackPanel Spacing="8">
+              <TextBlock
+                FontSize="12"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource PrimaryTextBrush}"
+                Text="Open Existing Project" />
+              <TextBlock
+                FontSize="10"
+                TextWrapping="Wrap"
+                Foreground="{StaticResource SecondaryTextBrush}"
+                Text="Open an existing `.stch` project and continue in the Avalonia editor." />
+              <Button
+                AutomationProperties.AutomationId="home.open-project.choose"
+                Classes="secondary-action"
+                HorizontalAlignment="Left"
+                Command="{Binding OpenTemplateProjectCommand}">
+                Open Template Project
+              </Button>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Grid>
+
+      <Border
+        Grid.Row="2"
+        Background="{StaticResource PanelBackgroundBrush}"
+        BorderBrush="{StaticResource BorderBrush}"
+        BorderThickness="0,1,0,0"
+        Padding="18,10">
+        <DockPanel>
+          <ProgressBar
+            DockPanel.Dock="Right"
+            IsVisible="{Binding IsLoading}"
+            Width="140"
+            IsIndeterminate="True" />
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="11"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding HomeStatusText}" />
+        </DockPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

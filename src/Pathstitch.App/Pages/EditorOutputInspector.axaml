@@ -1,0 +1,160 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorOutputInspector"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.inspector.output"
+  IsVisible="{Binding ShowOutputPanel}">
+  <StackPanel IsVisible="{Binding ShowOutputPanel}" Spacing="8">
+    <TextBlock
+      FontSize="13"
+      FontWeight="SemiBold"
+      Foreground="{StaticResource SecondaryTextBrush}"
+      Text="OUTPUT" />
+    <Border
+      Padding="10"
+      Background="{StaticResource InputBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      BorderThickness="1"
+      CornerRadius="6">
+      <StackPanel Spacing="8">
+        <TextBlock
+          FontSize="11"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="{Binding OutputStatusSummary}" />
+        <TextBlock
+          FontSize="11"
+          IsVisible="{Binding HasGeneratedOutput}"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="{Binding GeneratedOutputFileName}" />
+        <TextBlock
+          FontSize="10"
+          IsVisible="{Binding HasGeneratedOutput}"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding GeneratedOutputFolder}" />
+
+        <Border
+          IsVisible="{Binding HasGeneratedOutputContext}"
+          Padding="8"
+          Background="#11000000"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="4">
+          <StackPanel Spacing="4">
+            <TextBlock
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="GENERATED FROM" />
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="{Binding GeneratedOutputSourceSummary}" />
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding GeneratedOutputScopeSummary}" />
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource MutedTextBrush}"
+              Text="{Binding GeneratedOutputConfigurationSummary}" />
+            <TextBlock
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding GeneratedOutputCreatedSummary}" />
+          </StackPanel>
+        </Border>
+
+        <Border
+          IsVisible="{Binding HasGeneratedOutputInspection}"
+          Padding="8"
+          Background="#11000000"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="4">
+          <StackPanel Spacing="4">
+            <TextBlock
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="INSPECTOR" />
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="{Binding GeneratedOutputFileHealthSummary}" />
+            <TextBlock
+              FontSize="10"
+              IsVisible="{Binding HasGeneratedOutputFileOnDisk}"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding GeneratedOutputFileSizeSummary}" />
+            <TextBlock
+              FontSize="10"
+              IsVisible="{Binding HasGeneratedOutputFileOnDisk}"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding GeneratedOutputLastModifiedSummary}" />
+            <TextBlock
+              FontSize="10"
+              IsVisible="{Binding HasGeneratedOutputFileOnDisk}"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="{Binding GeneratedOutputPreviewGeometrySummary}" />
+            <TextBlock
+              FontSize="10"
+              IsVisible="{Binding HasGeneratedOutputFileOnDisk}"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding GeneratedOutputEntityMixSummary}" />
+            <TextBlock
+              FontSize="10"
+              IsVisible="{Binding HasGeneratedOutputFileOnDisk}"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource MutedTextBrush}"
+              Text="{Binding GeneratedOutputUnsupportedEntitySummary}" />
+            <TextBlock
+              FontSize="10"
+              IsVisible="{Binding HasGeneratedOutputGeometry}"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding GeneratedOutputBoundsSummary}" />
+          </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+          <Button
+            Grid.Column="0"
+            Classes="panel-button"
+            Content="{Binding OutputPreviewButtonLabel}"
+            Click="OnShowTwoDWorkspaceClicked" />
+          <Button
+            Grid.Column="1"
+            Classes="panel-button"
+            IsEnabled="{Binding HasGeneratedOutputFileOnDisk}"
+            Content="Open DXF"
+            Click="OnOpenTwoDClicked" />
+        </Grid>
+
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+          <Button
+            Grid.Column="0"
+            Classes="panel-button"
+            IsEnabled="{Binding CanRefreshGeneratedOutput}"
+            Content="Refresh"
+            Click="OnRefreshTwoDClicked"
+            AutomationProperties.AutomationId="editor.output.refresh-generated" />
+          <Button
+            Grid.Column="1"
+            Classes="panel-button"
+            IsEnabled="{Binding HasGeneratedOutputFileOnDisk}"
+            Content="Reveal File"
+            Click="OnRevealTwoDClicked" />
+        </Grid>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+
+</UserControl>

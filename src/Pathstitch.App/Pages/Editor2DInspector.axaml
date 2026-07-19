@@ -1,0 +1,1203 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.Editor2DInspector"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:help="using:Pathstitch.App.Help"
+  xmlns:controls="using:Pathstitch.App.Controls"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.inspector.2d">
+  <UserControl.Styles>
+    <Style Selector="TextBox.dimension-expression-error">
+      <Setter Property="BorderBrush" Value="#FF5C6C" />
+      <Setter Property="Foreground" Value="#FF7A88" />
+    </Style>
+  </UserControl.Styles>
+  <Border
+    Padding="10"
+    Background="#E6141418"
+    BorderBrush="{StaticResource BorderBrush}"
+    BorderThickness="1"
+    CornerRadius="8">
+    <StackPanel Spacing="8">
+      <TextBlock
+        FontSize="11"
+        Foreground="{StaticResource PrimaryTextBrush}"
+        Text="2D Selection" />
+      <TextBlock
+        FontSize="10"
+        TextWrapping="Wrap"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="{Binding TwoDSelectionSummary}" />
+      <TextBlock
+        FontSize="10"
+        TextWrapping="Wrap"
+        Foreground="{StaticResource MutedTextBrush}"
+        Text="{Binding TwoDMeasurementSummary}" />
+      <StackPanel
+        Spacing="6"
+        IsVisible="{Binding HasTwoDSelectedMeasurement}">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="Selected dimension expression" />
+        <TextBox
+          x:Name="SelectedDimensionExpressionInput"
+          AutomationProperties.AutomationId="editor.2d.dimension.selected-expression"
+          AutomationProperties.Name="Selected dimension expression"
+          help:ContextualHelp.Text="{Binding TwoDSelectedMeasurementExpressionText}"
+          Classes.dimension-expression-error="{Binding HasTwoDMeasurementExpressionError}"
+          ToolTip.Tip="{Binding TwoDSelectedMeasurementExpressionText}"
+          Text="{Binding TwoDSelectedMeasurementExpressionText, Mode=OneWay}"
+          TextChanged="OnTwoDMeasurementExpressionTextChanged"
+          KeyDown="OnTwoDMeasurementExpressionKeyDown" />
+        <TextBlock
+          AutomationProperties.AutomationId="editor.2d.dimension.selected-expression-error"
+          IsVisible="{Binding HasTwoDMeasurementExpressionError}"
+          FontSize="9"
+          Foreground="#FF7A88"
+          TextWrapping="Wrap"
+          Text="{Binding TwoDMeasurementExpressionError}" />
+        <CheckBox
+          AutomationProperties.AutomationId="editor.2d.dimension.driven"
+          AutomationProperties.Name="Driven or reference dimension"
+          IsEnabled="{Binding CanToggleTwoDSelectedMeasurementDriven}"
+          Content="Driven / reference dimension"
+          IsChecked="{Binding TwoDSelectedMeasurementDriven, Mode=TwoWay}" />
+      </StackPanel>
+      <Button
+        AutomationProperties.AutomationId="editor.2d.export-dxf"
+        Classes="chip-button"
+        IsEnabled="{Binding HasTwoDWorkspaceDocument}"
+        Content="Export DXF"
+        Click="OnExportTwoDDxfClicked" />
+      <Button
+        AutomationProperties.AutomationId="editor.2d.export-svg"
+        Classes="chip-button"
+        IsEnabled="{Binding CanExportTwoDSvg}"
+        Content="Export SVG"
+        Click="OnExportTwoDSvgClicked" />
+      <Button
+        AutomationProperties.AutomationId="editor.2d.export-png"
+        Classes="chip-button"
+        IsEnabled="{Binding CanExportTwoDPng}"
+        Content="Export PNG"
+        Click="OnExportTwoDPngClicked" />
+      <Button
+        AutomationProperties.AutomationId="editor.2d.export-pdf"
+        Classes="chip-button"
+        IsEnabled="{Binding CanExportTwoDPdf}"
+        Content="Export PDF"
+        Click="OnExportTwoDPdfClicked" />
+      <CheckBox
+        AutomationProperties.AutomationId="editor.2d.export-selected-only"
+        Content="Export selected paths only"
+        IsEnabled="{Binding HasTwoDSelection}"
+        IsChecked="{Binding TwoDExportSelectedOnly, Mode=TwoWay}" />
+      <CheckBox
+        AutomationProperties.AutomationId="editor.2d.export-measurement-lines"
+        Content="Include measurement lines"
+        IsEnabled="{Binding HasTwoDMeasurements}"
+        IsChecked="{Binding TwoDExportMeasurementLines, Mode=TwoWay}" />
+      <StackPanel Spacing="4">
+        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Export options" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock VerticalAlignment="Center" FontSize="10" Text="DXF" />
+          <ComboBox Width="70" ItemsSource="{Binding TwoDDxfVersionOptions}" SelectedItem="{Binding TwoDDxfVersion, Mode=TwoWay}" />
+          <TextBlock VerticalAlignment="Center" FontSize="10" Text="Precision" />
+          <TextBox Width="48" Text="{Binding TwoDSvgPrecisionText, Mode=TwoWay}" />
+          <TextBlock VerticalAlignment="Center" FontSize="10" Text="Stroke" />
+          <TextBox Width="60" Text="{Binding TwoDSvgStrokeWidthText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock VerticalAlignment="Center" FontSize="10" Text="PNG edge" />
+          <TextBox Width="64" Text="{Binding TwoDPngLongestEdgeText, Mode=TwoWay}" />
+          <CheckBox Content="Transparent" IsChecked="{Binding TwoDPngTransparent, Mode=TwoWay}" />
+        </StackPanel>
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding HasTwoDSelection}"
+          Content="Clear Selection"
+          Click="OnClearTwoDSelectionClicked" />
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding CanExpandTwoDRectangles}"
+          Content="Expand Rectangles"
+          Click="OnExpandTwoDRectanglesClicked" />
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding HasTwoDMeasurements}"
+          Content="Clear Measures"
+          Click="OnClearTwoDMeasurementsClicked" />
+      </StackPanel>
+      <StackPanel Spacing="8">
+        <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Fill / Stroke" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Button Classes="chip-button" Content="Stroke to Fill"
+                  IsEnabled="{Binding CanApplyTwoDStrokeToFill}" Click="OnApplyTwoDStrokeToFillClicked" />
+          <Button Classes="chip-button" Content="Fill to Stroke"
+                  IsEnabled="{Binding CanApplyTwoDFillToStroke}" Click="OnApplyTwoDFillToStrokeClicked" />
+        </StackPanel>
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDRectangleToolActive}">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="Rectangle" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="Initial fillet radius (mm)" />
+        <controls:AutomationSafeNumericUpDown
+          AutomationProperties.AutomationId="editor.2d.rectangle.fillet-radius"
+          Minimum="0"
+          Increment="0.5"
+          Value="{Binding TwoDRectangleFilletRadius, Mode=TwoWay}" />
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDPolygonToolActive}">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="Polygon" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDPolygonSidesSummary}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button
+            Width="32"
+            Classes="chip-button"
+            Content="−"
+            Click="OnDecreaseTwoDPolygonSidesClicked" />
+          <TextBlock
+            MinWidth="32"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            TextAlignment="Center"
+            Text="{Binding TwoDPolygonSides}" />
+          <Button
+            Width="32"
+            Classes="chip-button"
+            Content="+"
+            Click="OnIncreaseTwoDPolygonSidesClicked" />
+        </StackPanel>
+      </StackPanel>
+      <StackPanel
+        x:DataType="viewModels:Editor2DWorkspaceViewModel"
+        DataContext="{Binding TwoDWorkspace}"
+        Spacing="8"
+        IsVisible="{Binding IsSewingHoleInspectorVisible}"
+        AutomationProperties.AutomationId="editor.2d.sewing.inspector">
+        <TextBlock FontSize="11" Foreground="{StaticResource PrimaryTextBrush}" Text="Add Holes / Sewing" />
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="Preview is non-destructive. Commit adds editable circle geometry while preserving the source paths." />
+        <ComboBox
+          ItemsSource="{Binding SewingHoleOperations}"
+          SelectedItem="{Binding SelectedSewingHoleOperation, Mode=TwoWay}"
+          PlaceholderText="Edit committed sewing operation"
+          AutomationProperties.AutomationId="editor.2d.sewing.operation">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="models:Editor2DSewingHoleOperation">
+              <TextBlock Text="{Binding DisplayName}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="6">
+          <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Diameter (mm)" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="0" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.diameter" MinWidth="160" Minimum="0.02" Increment="0.1" Value="{Binding SewingHoleDiameter, Mode=TwoWay}" />
+          <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Pitch (mm)" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="1" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.pitch" MinWidth="160" Minimum="0.1" Increment="0.5" Value="{Binding SewingHolePitch, Mode=TwoWay}" />
+          <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Distribution" />
+          <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding SewingDistributionModes}" SelectedItem="{Binding SewingDistributionMode, Mode=TwoWay}" />
+          <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Count (Count mode)" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="3" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.count" MinWidth="160" Minimum="1" Increment="1" Value="{Binding SewingHoleCount, Mode=TwoWay}" />
+          <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="Margin (mm)" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="4" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.margin" MinWidth="160" Increment="0.5" Value="{Binding SewingHoleMargin, Mode=TwoWay}" />
+          <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="Corner clearance" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="5" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.corner-clearance" MinWidth="160" Minimum="0" Increment="0.5" Value="{Binding SewingCornerClearance, Mode=TwoWay}" />
+        </Grid>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock VerticalAlignment="Center" Text="Corners" />
+          <ComboBox
+            Width="150"
+            ItemsSource="{Binding SewingCornerModes}"
+            SelectedItem="{Binding SewingCornerMode, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock VerticalAlignment="Center" Text="Pattern Style" />
+          <ComboBox
+            Width="150"
+            ItemsSource="{Binding SewingPatterns}"
+            SelectedItem="{Binding SewingPattern, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.sewing.pattern" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock VerticalAlignment="Center" Text="Side" />
+          <ComboBox
+            Width="180"
+            ItemsSource="{Binding SewingSideOptionItems}"
+            SelectedItem="{Binding SewingSideSelection, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.sewing.side" />
+        </StackPanel>
+        <Grid
+          ColumnDefinitions="Auto,*"
+          ColumnSpacing="10"
+          IsVisible="{Binding IsSaddleSewingPattern}">
+          <TextBlock VerticalAlignment="Center" Text="Saddle Row Distance (mm)" />
+          <controls:AutomationSafeNumericUpDown
+            Grid.Column="1"
+            AutomationProperties.AutomationId="editor.sewing.saddle-spacing"
+            MinWidth="160"
+            Minimum="0"
+            Increment="0.5"
+            Value="{Binding SewingSaddleSpacing, Mode=TwoWay}" />
+        </Grid>
+        <CheckBox Content="Symmetric distribution" IsChecked="{Binding SewingSymmetricDistribution, Mode=TwoWay}" />
+        <CheckBox Content="Keep pitch within range" IsChecked="{Binding SewingVariableSpacingEnabled, Mode=TwoWay}" />
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4" IsVisible="{Binding SewingVariableSpacingEnabled}">
+          <TextBlock VerticalAlignment="Center" Text="Min pitch (mm)" />
+          <controls:AutomationSafeNumericUpDown Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.variable-min" MinWidth="160" Minimum="0.1" Increment="0.5" Value="{Binding SewingVariableSpacingMin, Mode=TwoWay}" />
+          <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Max pitch (mm)" />
+          <controls:AutomationSafeNumericUpDown Grid.Row="1" Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.variable-max" MinWidth="160" Minimum="0.1" Increment="0.5" Value="{Binding SewingVariableSpacingMax, Mode=TwoWay}" />
+        </Grid>
+        <Expander Header="Advanced geometry filters">
+          <StackPanel Spacing="6" Margin="8,6,0,0">
+            <CheckBox Content="Rounded offset corners" IsChecked="{Binding SewingOffsetCornerFillet, Mode=TwoWay}" />
+            <CheckBox Content="Interpolate corner placement (compatibility)" IsChecked="{Binding SewingCornerInterpolationEnabled, Mode=TwoWay}" />
+            <CheckBox Content="Merge nearby holes" IsChecked="{Binding SewingProximityFilterEnabled, Mode=TwoWay}" />
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding SewingProximityFilterEnabled}">
+              <TextBlock VerticalAlignment="Center" Text="Merge distance (mm)" />
+              <controls:AutomationSafeNumericUpDown Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.proximity-distance" MinWidth="160" Minimum="0" Increment="0.25" Value="{Binding SewingProximityFilterDistance, Mode=TwoWay}" />
+            </Grid>
+            <CheckBox Content="Reject holes near crossing lines" IsChecked="{Binding SewingLineProximityFilterEnabled, Mode=TwoWay}" />
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding SewingLineProximityFilterEnabled}">
+              <TextBlock VerticalAlignment="Center" Text="Line clearance (mm)" />
+              <controls:AutomationSafeNumericUpDown Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.line-proximity-threshold" MinWidth="160" Minimum="0" Increment="0.25" Value="{Binding SewingLineProximityThreshold, Mode=TwoWay}" />
+            </Grid>
+          </StackPanel>
+        </Expander>
+        <CheckBox Content="Avoid tagged geometry" IsChecked="{Binding SewingAvoidanceEnabled, Mode=TwoWay}" />
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4" IsVisible="{Binding SewingAvoidanceEnabled}">
+          <TextBlock VerticalAlignment="Center" Text="Clearance" />
+          <controls:AutomationSafeNumericUpDown Grid.Column="1" AutomationProperties.AutomationId="editor.sewing.avoidance-clearance" MinWidth="160" Minimum="0" Increment="0.5" Value="{Binding SewingAvoidanceClearance, Mode=TwoWay}" />
+          <TextBlock Grid.Row="1" Grid.ColumnSpan="2" VerticalAlignment="Center" Text="{Binding SewingAvoidPathCount, StringFormat='Tagged: {0}'}" />
+        </Grid>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Classes="chip-button" Content="Tag Selection" Click="OnTagSewingAvoidanceClicked" />
+          <Button Classes="chip-button" Content="Clear Tags" Click="OnClearSewingAvoidanceClicked" />
+        </StackPanel>
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding SewingHolePreviewCount, StringFormat='Preview holes: {0}'}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button
+            Classes="chip-button"
+            IsEnabled="{Binding CanPreviewSewingHoles}"
+            Content="Preview"
+            Click="OnPreviewSewingHolesClicked"
+            AutomationProperties.AutomationId="editor.2d.sewing.preview" />
+          <Button
+            Classes="chip-button"
+            IsEnabled="{Binding CanCommitSewingHoles}"
+            Content="Commit Holes"
+            Click="OnCommitSewingHolesClicked"
+            AutomationProperties.AutomationId="editor.2d.sewing.commit" />
+        </StackPanel>
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDOffsetToolActive}">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="Offset" />
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDOffsetSummary}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Mode" />
+          <ComboBox
+            Width="100"
+            ItemsSource="{Binding TwoDOffsetModeOptionItems}"
+            SelectedItem="{Binding TwoDOffsetMode, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDCurveOffsetMode}">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Distance (mm)" />
+          <TextBox
+            AutomationProperties.AutomationId="editor.2d.offset.distance"
+            Width="88"
+            Text="{Binding TwoDOffsetDistanceText, Mode=TwoWay}"
+            KeyDown="OnTwoDOffsetDistanceKeyDown" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDCurveOffsetMode}">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Side" />
+          <ComboBox
+            Width="100"
+            ItemsSource="{Binding TwoDOffsetSideOptionItems}"
+            SelectedItem="{Binding TwoDOffsetSide, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDCurveOffsetMode}">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Geometry type" />
+          <ToggleSwitch
+            AutomationProperties.AutomationId="editor.2d.offset.construction"
+            Content="{Binding TwoDOffsetGeometryTypeLabel}"
+            IsChecked="{Binding TwoDOffsetConstruction, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDBBoxOffsetMode}">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="BBox Distance (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDOffsetBBoxDistanceText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDBBoxOffsetMode}">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Corner Fillet (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDOffsetBBoxFilletText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="6"
+          IsVisible="{Binding IsTwoDCurveOffsetMode}">
+          <Button
+            AutomationProperties.AutomationId="editor.2d.offset.flip"
+            Classes="chip-button"
+            Content="Flip"
+            Click="OnFlipTwoDOffsetClicked" />
+          <Button
+            AutomationProperties.AutomationId="editor.2d.offset.ok"
+            Classes="chip-button"
+            IsEnabled="{Binding CanApplyTwoDOffset}"
+            Content="OK"
+            Click="OnConfirmTwoDOffsetClicked" />
+          <Button
+            AutomationProperties.AutomationId="editor.2d.offset.cancel"
+            Classes="chip-button"
+            Content="Cancel"
+            Click="OnCancelTwoDOffsetClicked" />
+        </StackPanel>
+        <Button
+          AutomationProperties.AutomationId="editor.2d.offset.apply"
+          Classes="chip-button"
+          IsEnabled="{Binding CanApplyTwoDOffset}"
+          Content="Apply Offset"
+          Click="OnApplyTwoDOffsetClicked" />
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDAddThicknessToolActive}">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="Add Thickness" />
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDAddThicknessSummary}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Width (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDAddThicknessWidthText, Mode=TwoWay}" />
+        </StackPanel>
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding CanApplyTwoDAddThickness}"
+          Content="Apply Thickness"
+          Click="OnApplyTwoDAddThicknessClicked" />
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDCleanupToolActive}">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="Join/Cleanup" />
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDCleanupSummary}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Tolerance (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDCleanupToleranceText, Mode=TwoWay}" />
+        </StackPanel>
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding CanApplyTwoDCleanup}"
+          Content="Apply Cleanup"
+          Click="OnApplyTwoDCleanupClicked" />
+      </StackPanel>
+      <StackPanel Spacing="8">
+        <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Boolean" />
+        <TextBlock FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource SecondaryTextBrush}"
+                   Text="Combine two or more closed paths" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Button Classes="chip-button" Content="Union" Tag="Union"
+                  IsEnabled="{Binding CanApplyTwoDBoolean}" Click="OnApplyTwoDBooleanClicked" />
+          <Button Classes="chip-button" Content="Subtract" Tag="Subtract"
+                  IsEnabled="{Binding CanApplyTwoDBoolean}" Click="OnApplyTwoDBooleanClicked" />
+          <Button Classes="chip-button" Content="Intersect" Tag="Intersect"
+                  IsEnabled="{Binding CanApplyTwoDBoolean}" Click="OnApplyTwoDBooleanClicked" />
+        </StackPanel>
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDPatternToolActive}">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="Pattern" />
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDPatternSummary}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Mode" />
+          <ComboBox
+            Width="120"
+            ItemsSource="{Binding TwoDPatternModeOptionItems}"
+            SelectedItem="{Binding TwoDPatternMode, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDRectangularPatternMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Distance Type" />
+          <ComboBox
+            Width="88"
+            ItemsSource="{Binding TwoDPatternDistanceModeOptionItems}"
+            SelectedItem="{Binding TwoDPatternDistanceMode, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.pattern.distance-mode" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDRectangularPatternMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Count X" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternCopiesXText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDRectangularPatternMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Count Y" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternCopiesYText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDPatternSpacingMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Spacing X (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternSpacingXText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDPatternSpacingMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Spacing Y (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternSpacingYText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDPatternExtentMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Extent X (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternExtentXText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDPatternExtentMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Extent Y (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternExtentYText, Mode=TwoWay}" />
+        </StackPanel>
+        <TextBlock
+          IsVisible="{Binding IsTwoDRectangularPatternMode}"
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDPatternEffectiveSpacingSummary}"
+          TextWrapping="Wrap" />
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDCircularPatternMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Count" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternCircularCountText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDCircularPatternMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Angle (deg)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternCircularAngleText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsTwoDCircularPatternMode}" Spacing="4">
+          <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDPatternPivotSummary}" />
+          <Button Classes="chip-button" Content="Pick Pivot" Click="OnPickTwoDPatternPivotClicked" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDPathPatternMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Copies" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternPathCopiesText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding IsTwoDPathPatternMode}">
+          <TextBlock
+            Width="96"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Spacing (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDPatternPathSpacingText, Mode=TwoWay}" />
+        </StackPanel>
+        <TextBlock
+          IsVisible="{Binding IsTwoDPathPatternMode}"
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDPatternGuideSummary}" />
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding CanApplyTwoDPattern}"
+          Content="Apply Pattern"
+          Click="OnApplyTwoDPatternClicked" />
+      </StackPanel>
+      <StackPanel Spacing="8" IsVisible="{Binding IsTwoDMoveToolActive}">
+        <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Precision transform" />
+        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Apply exact translation and rotation to the selected geometry." TextWrapping="Wrap" />
+        <CheckBox
+          Content="Create copy (move duplicates)"
+          IsChecked="{Binding TwoDMoveCreateCopy, Mode=TwoWay}"
+          AutomationProperties.AutomationId="editor.2d.move.create-copy" />
+        <Border Height="1" Background="{StaticResource BorderBrush}" />
+        <TextBlock FontSize="10" Foreground="{StaticResource AccentBrush}" Text="POINT TO POINT" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDMovePointToPointSummary}"
+          TextWrapping="Wrap" />
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding HasTwoDSelection}"
+          Content="{Binding TwoDMovePointToPointActionLabel}"
+          Click="OnToggleTwoDMovePointToPointClicked"
+          AutomationProperties.AutomationId="editor.2d.move.point-to-point" />
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="6">
+          <TextBlock VerticalAlignment="Center" Text="ΔX (mm)" />
+          <TextBox Grid.Column="1" Text="{Binding TwoDPrecisionDeltaXText, Mode=TwoWay}" />
+          <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="ΔY (mm)" />
+          <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding TwoDPrecisionDeltaYText, Mode=TwoWay}" />
+          <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Rotation (deg)" />
+          <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TwoDPrecisionRotationText, Mode=TwoWay}" />
+        </Grid>
+        <Button Classes="chip-button" Content="Apply Exact Transform" Click="OnApplyTwoDPreciseTransformClicked" />
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDScaleToolActive}"
+        AutomationProperties.AutomationId="editor.2d.scale.inspector">
+        <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Scale" />
+        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Drag the corner handle or enter an exact scale factor." TextWrapping="Wrap" />
+        <CheckBox
+          Content="From center (off = lower-left corner)"
+          IsChecked="{Binding TwoDScaleFromCenter, Mode=TwoWay}"
+          AutomationProperties.AutomationId="editor.2d.scale.from-center" />
+        <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding TwoDScalePivotSummary}" />
+        <Button
+          Classes="chip-button"
+          Content="Pick Pivot"
+          Click="OnPickTwoDScalePivotClicked"
+          AutomationProperties.AutomationId="editor.2d.scale.pick-pivot" />
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+          <TextBlock VerticalAlignment="Center" Text="Factor" />
+          <TextBox
+            Grid.Column="1"
+            Text="{Binding TwoDScaleFactorText, Mode=TwoWay}"
+            KeyDown="OnTwoDScaleFactorKeyDown"
+            AutomationProperties.AutomationId="editor.2d.scale.factor" />
+        </Grid>
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding CanApplyTwoDScale}"
+          Content="Apply Scale"
+          Click="OnApplyTwoDScaleClicked"
+          AutomationProperties.AutomationId="editor.2d.scale.apply" />
+      </StackPanel>
+      <StackPanel Spacing="8" IsVisible="{Binding IsTwoDMirrorToolActive}">
+        <TextBlock FontSize="10" Foreground="{StaticResource PrimaryTextBrush}" Text="Mirror" />
+        <CheckBox
+          Content="Mirror Line mode"
+          IsChecked="{Binding TwoDMirrorLineMode, Mode=TwoWay}"
+          AutomationProperties.AutomationId="editor.2d.mirror.line-mode" />
+        <CheckBox
+          Content="Mirror (flip) copy"
+          IsChecked="{Binding TwoDMirrorFlipCopy, Mode=TwoWay}"
+          AutomationProperties.AutomationId="editor.2d.mirror.flip-copy" />
+        <CheckBox
+          Content="Keep live link"
+          IsChecked="{Binding TwoDMirrorKeepLink, Mode=TwoWay}"
+          AutomationProperties.AutomationId="editor.2d.mirror.keep-live-link" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="Objects mode selects geometry. Mirror Line mode picks an existing line or two axis points."
+          TextWrapping="Wrap" />
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+          <TextBlock Text="{Binding TwoDMirrorObjectSummary}" />
+          <Button Grid.Column="1" Classes="chip-button" Content="Clear" Click="OnClearTwoDMirrorObjectsClicked" />
+          <TextBlock Grid.Row="1" Text="{Binding TwoDMirrorAxisSummary}" />
+          <Button Grid.Row="1" Grid.Column="1" Classes="chip-button" Content="Clear" Click="OnClearTwoDMirrorAxisClicked" />
+        </Grid>
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDMirrorStageHint}"
+          TextWrapping="Wrap" />
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+          <Button
+            Classes="chip-button"
+            IsEnabled="{Binding CanConfirmTwoDMirror}"
+            Content="OK"
+            Click="OnConfirmTwoDMirrorClicked"
+            AutomationProperties.AutomationId="editor.2d.mirror.confirm" />
+          <Button
+            Grid.Column="1"
+            Classes="chip-button"
+            Content="Cancel"
+            Click="OnCancelTwoDMirrorClicked"
+            AutomationProperties.AutomationId="editor.2d.mirror.cancel" />
+        </Grid>
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDPaperFoldingToolActive}">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="Paper Folding" />
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDPaperFoldingSummary}" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource AccentBrush}"
+          Text="Crease Pattern" />
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding CanApplyTwoDPaperFoldingCreases}"
+          Content="Apply Dashed Creases"
+          Click="OnApplyTwoDPaperFoldingCreasesClicked" />
+        <Border
+          Height="1"
+          Background="{StaticResource BorderBrush}" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource AccentBrush}"
+          Text="Glue Tabs" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            Width="108"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Height (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDGlueTabHeightText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            Width="108"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Tab Type" />
+          <ComboBox
+            Width="120"
+            ItemsSource="{Binding TwoDGlueTabTypeOptionItems}"
+            SelectedItem="{Binding TwoDGlueTabType, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            Width="108"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Side" />
+          <ComboBox
+            Width="120"
+            ItemsSource="{Binding TwoDGlueTabSideOptionItems}"
+            SelectedItem="{Binding TwoDGlueTabSide, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            Width="108"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Start Offset (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDGlueTabStartOffsetText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            Width="108"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="End Offset (mm)" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDGlueTabEndOffsetText, Mode=TwoWay}" />
+        </StackPanel>
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding CanApplyTwoDGlueTabs}"
+          Content="Apply Glue Tabs"
+          Click="OnApplyTwoDGlueTabsClicked" />
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDConvertLinesInspectorVisible}"
+        AutomationProperties.AutomationId="editor.2d.convert-lines.inspector">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="Convert Lines" />
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDConvertLineSummary}"
+          AutomationProperties.AutomationId="editor.2d.convert-lines.summary" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Style" />
+          <ComboBox
+            Width="140"
+            ItemsSource="{Binding TwoDConvertLineStyleOptions}"
+            SelectedItem="{Binding TwoDConvertLineStyle, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.convert-lines.style" />
+        </StackPanel>
+        <controls:Editor2DConvertLinePreview
+          Height="56"
+          Paths="{Binding TwoDConvertLinePreviewPaths}"
+          AutomationProperties.AutomationId="editor.2d.convert-lines.preview" />
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding HasTwoDConvertLineFirstParameter}">
+          <TextBlock
+            Width="128"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding TwoDConvertLineFirstParameterLabel}" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDConvertLineFirstParameterText, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.convert-lines.parameter-1"
+            AutomationProperties.Name="{Binding TwoDConvertLineFirstParameterLabel}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding HasTwoDConvertLineSecondParameter}">
+          <TextBlock
+            Width="128"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding TwoDConvertLineSecondParameterLabel}" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDConvertLineSecondParameterText, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.convert-lines.parameter-2"
+            AutomationProperties.Name="{Binding TwoDConvertLineSecondParameterLabel}" />
+        </StackPanel>
+        <StackPanel
+          Orientation="Horizontal"
+          Spacing="8"
+          IsVisible="{Binding HasTwoDConvertLineThirdParameter}">
+          <TextBlock
+            Width="128"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding TwoDConvertLineThirdParameterLabel}" />
+          <TextBox
+            Width="88"
+            Text="{Binding TwoDConvertLineThirdParameterText, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.convert-lines.parameter-3"
+            AutomationProperties.Name="{Binding TwoDConvertLineThirdParameterLabel}" />
+        </StackPanel>
+        <Button
+          Classes="chip-button"
+          IsEnabled="{Binding CanApplyTwoDConvertLines}"
+          Content="{Binding TwoDConvertLineActionLabel}"
+          AutomationProperties.AutomationId="editor.2d.convert-lines.action"
+          Click="OnApplyTwoDConvertLinesClicked" />
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDDimensionToolActive}"
+        AutomationProperties.AutomationId="editor.2d.dimension.inspector">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="Dimension" />
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="Click an existing dimension to edit it, a line for length, a rectangle edge for width or height, a circle or regular polygon for radius, or two points for a distance."
+          AutomationProperties.AutomationId="editor.2d.dimension.hint" />
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource MutedTextBrush}"
+          Text="Formulas: 20*2, d1*0.5+10, sqrt(d2^2+d3^2). Units: 50, 2.54cm, 1 inch."
+          AutomationProperties.AutomationId="editor.2d.dimension.formula-hint" />
+        <ItemsControl
+          ItemsSource="{Binding TwoDDimensionParameters}"
+          AutomationProperties.AutomationId="editor.2d.dimension.parameters">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="models:Editor2DDimensionParameterItem">
+              <Grid
+                ColumnDefinitions="Auto,*,Auto"
+                ColumnSpacing="6"
+                Margin="0,2"
+                AutomationProperties.AutomationId="{Binding Name, StringFormat=editor.2d.dimension.parameter.{0}}">
+                <TextBlock
+                  MinWidth="24"
+                  FontFamily="Cascadia Mono,Consolas"
+                  FontWeight="Bold"
+                  Foreground="{StaticResource AccentBrush}"
+                  Text="{Binding Name}" />
+                <TextBlock
+                  Grid.Column="1"
+                  FontFamily="Cascadia Mono,Consolas"
+                  FontSize="10"
+                  Foreground="{StaticResource SecondaryTextBrush}"
+                  TextTrimming="CharacterEllipsis"
+                  Text="{Binding ExpressionDisplay}" />
+                <TextBlock
+                  Grid.Column="2"
+                  FontFamily="Cascadia Mono,Consolas"
+                  FontSize="10"
+                  FontWeight="SemiBold"
+                  Foreground="{StaticResource PrimaryTextBrush}"
+                  Text="{Binding ValueDisplay}" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDTextInspectorVisible}">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="{Binding TwoDTextInspectorTitle}" />
+        <TextBox
+          AutomationProperties.AutomationId="editor.text.selected-draft"
+          MinWidth="240"
+          MinHeight="68"
+          AcceptsReturn="True"
+          TextWrapping="Wrap"
+          Loaded="OnTwoDSelectedTextLoaded"
+          GotFocus="OnTwoDSelectedTextGotFocus"
+          KeyDown="OnTwoDSelectedTextKeyDown"
+          Text="{Binding TwoDSelectedTextDraft, Mode=TwoWay}" />
+        <ComboBox
+          x:Name="InstalledFontSelector"
+          AutomationProperties.AutomationId="editor.text.font-family"
+          PlaceholderText="System Default"
+          SelectedItem="{Binding TwoDSelectedTextFontFamily, Mode=TwoWay}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <Border PointerEntered="OnFontPreviewEntered" PointerExited="OnFontPreviewExited">
+                <TextBlock Text="{Binding}" />
+              </Border>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Height (mm)" />
+          <TextBox
+            AutomationProperties.AutomationId="editor.text.height"
+            Width="76"
+            Text="{Binding TwoDSelectedTextHeightText, Mode=TwoWay}" />
+          <Button
+            Classes="chip-button"
+            IsVisible="{Binding HasSingleTwoDTextSelection}"
+            IsEnabled="{Binding CanApplyTwoDSelectedText}"
+            Content="Apply Text"
+            Click="OnApplyTwoDSelectedTextClicked" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Character spacing (mm)" />
+          <TextBox
+            AutomationProperties.AutomationId="editor.text.character-spacing"
+            Width="76"
+            Text="{Binding TwoDSelectedTextCharacterSpacingText, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Fit to box" />
+          <ComboBox
+            AutomationProperties.AutomationId="editor.text.fit-mode"
+            Width="120"
+            ItemsSource="{Binding TwoDSelectedTextFitModeOptions}"
+            SelectedItem="{Binding TwoDSelectedTextFitMode, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <ToggleSwitch AutomationProperties.AutomationId="editor.text.bold" Content="Bold" IsChecked="{Binding TwoDSelectedTextBold, Mode=TwoWay}" />
+          <ToggleSwitch AutomationProperties.AutomationId="editor.text.italic" Content="Italic" IsChecked="{Binding TwoDSelectedTextItalic, Mode=TwoWay}" />
+          <ToggleSwitch AutomationProperties.AutomationId="editor.text.underline" Content="Underline" IsChecked="{Binding TwoDSelectedTextUnderline, Mode=TwoWay}" />
+        </StackPanel>
+        <TextBlock
+          FontSize="10"
+          Foreground="#FFB85C"
+          IsVisible="{Binding IsTwoDSelectedTextHeightInvalid}"
+          Text="Enter a valid numeric text height." />
+      </StackPanel>
+      <StackPanel
+        Spacing="8"
+        IsVisible="{Binding IsTwoDCornerToolActive}"
+        AutomationProperties.AutomationId="editor.2d.corner.inspector">
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="{Binding TwoDActiveCornerLabel}" />
+        <StackPanel
+          Spacing="4"
+          IsVisible="{Binding IsTwoDFilletToolActive}">
+          <TextBlock
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Continuity" />
+          <ComboBox
+            ItemsSource="{Binding TwoDFilletContinuityOptions}"
+            SelectedItem="{Binding TwoDFilletContinuity, Mode=TwoWay}"
+            AutomationProperties.AutomationId="editor.2d.corner.continuity" />
+          <TextBlock
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="G1 uses a circular arc. G2 uses the legacy smoother four-arc blend."
+            TextWrapping="Wrap" />
+        </StackPanel>
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding TwoDCornerSelectionSummary}"
+          TextWrapping="Wrap" />
+        <ItemsControl ItemsSource="{Binding TwoDActiveCornerParameters}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="models:Editor2DCornerParameter">
+              <Button
+                Margin="0,0,0,4"
+                Padding="6,4"
+                HorizontalContentAlignment="Left"
+                Tag="{Binding Id}"
+                Click="OnSelectTwoDCornerParameterClicked">
+                <TextBlock Text="{Binding Kind, StringFormat={}{0} corner}" />
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <StackPanel Spacing="4" IsVisible="{Binding HasTwoDSelectedCornerParameter}">
+          <TextBlock
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding TwoDCornerValueLabel}" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBox
+              Width="88"
+              Text="{Binding TwoDCornerValueText, Mode=TwoWay}"
+              AutomationProperties.AutomationId="editor.2d.corner.value" />
+            <Button
+              Classes="chip-button"
+              Content="Update"
+              Click="OnApplyTwoDCornerParameterClicked"
+              AutomationProperties.AutomationId="editor.2d.corner.update" />
+          </StackPanel>
+          <TextBlock
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding TwoDCornerLimitHint}"
+            TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button
+            Classes="chip-button"
+            Content="OK"
+            Click="OnConfirmTwoDCornerSessionClicked"
+            AutomationProperties.AutomationId="editor.2d.corner.ok" />
+          <Button
+            Classes="chip-button"
+            Content="Cancel"
+            Click="OnCancelTwoDCornerSessionClicked"
+            AutomationProperties.AutomationId="editor.2d.corner.cancel" />
+        </StackPanel>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+
+</UserControl>

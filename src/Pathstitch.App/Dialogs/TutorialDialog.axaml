@@ -1,0 +1,25 @@
+<Window
+  x:Class="Pathstitch.App.Dialogs.TutorialDialog"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  Title="Getting Started"
+  Width="500"
+  Height="350"
+  CanResize="False"
+  ShowInTaskbar="False"
+  WindowStartupLocation="CenterOwner"
+  AutomationProperties.AutomationId="dialog.tutorial">
+  <Grid Margin="26" RowDefinitions="Auto,Auto,*,Auto">
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBlock FontSize="12" Foreground="#4D7FFF" Text="Getting Started" />
+      <Button Grid.Column="1" Content="Skip" Click="OnSkipClicked" />
+    </Grid>
+    <TextBlock Grid.Row="1" x:Name="StepTitle" Margin="0,18,0,6" FontSize="20" FontWeight="SemiBold" />
+    <TextBlock Grid.Row="2" x:Name="StepBody" TextWrapping="Wrap" FontSize="13" />
+    <Grid Grid.Row="3" Margin="0,22,0,0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+      <TextBlock x:Name="ProgressText" VerticalAlignment="Center" Foreground="Gray" />
+      <Button Grid.Column="1" x:Name="BackButton" MinWidth="78" Content="Back" Click="OnBackClicked" />
+      <Button Grid.Column="2" x:Name="NextButton" MinWidth="78" Content="Next" IsDefault="True" Click="OnNextClicked" />
+    </Grid>
+  </Grid>
+</Window>

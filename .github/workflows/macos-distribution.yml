@@ -1,0 +1,131 @@
+name: macOS Developer ID distribution
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  distribute-osx-arm64:
+    if: github.ref == 'refs/heads/main'
+    environment: macos-distribution
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: mamba-org/setup-micromamba@v3
+        with:
+          micromamba-version: 2.8.1-0
+          init-shell: powershell
+          generate-run-shell: false
+
+      - name: Build release-ready native inputs
+        shell: pwsh
+        run: ./scripts/verify-release-readiness.ps1 -EvidenceLabel macos-distribution -PruneNativePublish
+
+      - name: Configure temporary Developer ID keychain
+        shell: pwsh
+        env:
+          MACOS_DEVELOPER_ID_P12_BASE64: ${{ secrets.MACOS_DEVELOPER_ID_P12_BASE64 }}
+          MACOS_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_P12_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ vars.MACOS_SIGNING_IDENTITY }}
+        run: |
+          foreach ($name in "MACOS_DEVELOPER_ID_P12_BASE64", "MACOS_DEVELOPER_ID_P12_PASSWORD", "MACOS_SIGNING_IDENTITY") {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "$name is required by the protected macos-distribution environment."
+            }
+          }
+          if ($env:MACOS_SIGNING_IDENTITY -notmatch '^Developer ID Application: .+ \([A-Z0-9]+\)$') {
+            throw "MACOS_SIGNING_IDENTITY must be an exact Developer ID Application identity."
+          }
+
+          $certificatePath = Join-Path $env:RUNNER_TEMP "pathstitch-developer-id.p12"
+          $keychainPath = Join-Path $env:RUNNER_TEMP "pathstitch-signing.keychain-db"
+          $keychainPassword = [Guid]::NewGuid().ToString("N")
+          "PATHSTITCH_SIGNING_KEYCHAIN=$keychainPath" >> $env:GITHUB_ENV
+          "PATHSTITCH_SIGNING_CERTIFICATE=$certificatePath" >> $env:GITHUB_ENV
+          [IO.File]::WriteAllBytes(
+            $certificatePath,
+            [Convert]::FromBase64String($env:MACOS_DEVELOPER_ID_P12_BASE64))
+
+          & security create-keychain -p $keychainPassword $keychainPath
+          if ($LASTEXITCODE -ne 0) { throw "Temporary keychain creation failed." }
+          & security set-keychain-settings -lut 21600 $keychainPath
+          & security unlock-keychain -p $keychainPassword $keychainPath
+          & security import $certificatePath -k $keychainPath -P $env:MACOS_DEVELOPER_ID_P12_PASSWORD -T /usr/bin/codesign -T /usr/bin/security
+          if ($LASTEXITCODE -ne 0) { throw "Developer ID certificate import failed." }
+          & security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k $keychainPassword $keychainPath
+          if ($LASTEXITCODE -ne 0) { throw "Developer ID private-key ACL setup failed." }
+          & security list-keychains -d user -s $keychainPath
+
+          $identities = (& security find-identity -v -p codesigning $keychainPath 2>&1) -join [Environment]::NewLine
+          if ($LASTEXITCODE -ne 0 -or
+              -not $identities.Contains('"' + $env:MACOS_SIGNING_IDENTITY + '"', [StringComparison]::Ordinal)) {
+            throw "Exact Developer ID identity was not imported."
+          }
+
+      - name: Sign, notarize, staple, and assess
+        shell: pwsh
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ vars.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          ./scripts/package-avalonia-macos.ps1 `
+            -SigningIdentity $env:MACOS_SIGNING_IDENTITY `
+            -Notarize `
+            -PruneNativeInputsBeforeArchive
+
+      - name: Verify retained distribution evidence
+        shell: pwsh
+        run: |
+          $root = "artifacts/macos/distribution-evidence"
+          $manifest = Get-Content (Join-Path $root "distribution-evidence.json") -Raw | ConvertFrom-Json
+          if ($manifest.schemaVersion -ne 1 -or $manifest.status -ne "passed") {
+            throw "Distribution evidence did not pass."
+          }
+          if (-not $manifest.secureTimestamp -or
+              -not $manifest.hardenedRuntime -or
+              -not $manifest.staplerValidated -or
+              -not $manifest.gatekeeperAccepted -or
+              $manifest.notarization.status -ne "Accepted") {
+            throw "Distribution security gate is incomplete."
+          }
+          foreach ($name in "notarytool-submit.json", "notarytool-log.json", "codesign-details.txt", "codesign-verification.txt", "gatekeeper-assessment.txt") {
+            $path = Join-Path $root $name
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or
+                (Get-Item -LiteralPath $path).Length -le 0) {
+              throw "Distribution evidence is missing: $name"
+            }
+          }
+          & unzip -t "artifacts/macos/Pathstitch-osx-arm64.zip"
+          if ($LASTEXITCODE -ne 0) { throw "Distribution ZIP is unreadable." }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Pathstitch-Developer-ID-osx-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/macos/Pathstitch-osx-arm64.zip
+            artifacts/macos/distribution-evidence
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Remove temporary signing material
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not [string]::IsNullOrWhiteSpace($env:PATHSTITCH_SIGNING_KEYCHAIN) -and
+              (Test-Path -LiteralPath $env:PATHSTITCH_SIGNING_KEYCHAIN)) {
+            & security delete-keychain $env:PATHSTITCH_SIGNING_KEYCHAIN
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:PATHSTITCH_SIGNING_CERTIFICATE) -and
+              (Test-Path -LiteralPath $env:PATHSTITCH_SIGNING_CERTIFICATE)) {
+            Remove-Item -LiteralPath $env:PATHSTITCH_SIGNING_CERTIFICATE -Force
+          }

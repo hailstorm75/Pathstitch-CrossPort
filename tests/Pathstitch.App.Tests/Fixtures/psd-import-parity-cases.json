@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "coordinateSystem": "canvas-centred, positive-y-up pixels",
+  "cases": [
+    {
+      "name": "nested-raster-vector-visibility",
+      "canvas": [200, 100],
+      "composite": [200, 100],
+      "layers": [
+        {
+          "name": "Hidden Group",
+          "visible": false,
+          "children": [
+            {
+              "name": "Ink",
+              "visible": true,
+              "bbox": [10, 20, 50, 40],
+              "image": [40, 20]
+            }
+          ]
+        },
+        {
+          "name": "Ink",
+          "visible": true,
+          "bbox": [60, 10, 100, 50],
+          "image": [40, 40]
+        },
+        {
+          "name": "Cut",
+          "visible": true,
+          "bbox": [100, 10, 180, 90],
+          "image": [80, 80],
+          "smartSvg": true
+        },
+        {
+          "name": "Empty",
+          "visible": true,
+          "bbox": [0, 0, 0, 0],
+          "image": [0, 0]
+        }
+      ],
+      "expected": [
+        {
+          "name": "Ink",
+          "kind": "raster",
+          "visible": false,
+          "center": [-70, 20],
+          "size": [40, 20]
+        },
+        {
+          "name": "Ink 2",
+          "kind": "raster",
+          "visible": true,
+          "center": [-20, 20],
+          "size": [40, 40]
+        },
+        {
+          "name": "Cut",
+          "kind": "vector",
+          "visible": true,
+          "entityCount": 1
+        }
+      ]
+    },
+    {
+      "name": "flattened-fallback",
+      "canvas": [64, 48],
+      "composite": [64, 48],
+      "layers": [],
+      "expected": [
+        {
+          "name": "Layer 1",
+          "kind": "raster",
+          "visible": true,
+          "center": [0, 0],
+          "size": [64, 48]
+        }
+      ]
+    }
+  ]
+}

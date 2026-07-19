@@ -1,0 +1,257 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorUnfoldInspector"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.inspector.unfold"
+  IsVisible="{Binding ShowUnfoldPanel}">
+  <StackPanel IsVisible="{Binding ShowUnfoldPanel}" Spacing="8">
+    <TextBlock
+      FontSize="13"
+      FontWeight="SemiBold"
+      Foreground="{StaticResource SecondaryTextBrush}"
+      Text="UNFOLD" />
+    <Border
+      Padding="10"
+      Background="{StaticResource InputBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      BorderThickness="1"
+      CornerRadius="6">
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto" ColumnSpacing="8" RowSpacing="8">
+          <TextBlock
+            Grid.Row="0"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Distort" />
+          <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding DistortionModeIndex}">
+            <ComboBoxItem Content="Conformal" />
+            <ComboBoxItem Content="Equal-Area" />
+            <ComboBoxItem Content="Equidistant" />
+            <ComboBoxItem Content="Balanced" />
+          </ComboBox>
+        </Grid>
+
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+          <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Layout" />
+          <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding NetLayoutIndex}">
+            <ComboBoxItem Content="Connected Net" />
+            <ComboBoxItem Content="Separate Pieces" />
+          </ComboBox>
+          <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" IsVisible="{Binding IsConnectedNetLayout}" Text="Unroll" />
+          <ComboBox Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsConnectedNetLayout}" SelectedIndex="{Binding UnrollModeIndex}">
+            <ComboBoxItem Content="Radial" />
+            <ComboBoxItem Content="Strip" />
+            <ComboBoxItem Content="Spanning Tree" />
+          </ComboBox>
+        </Grid>
+
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding IsConnectedNetLayout}" RowSpacing="6">
+          <TextBlock
+            Grid.Row="0"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Seams" />
+          <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding SeamControlModeIndex}">
+            <ComboBoxItem Content="Auto" />
+            <ComboBoxItem Content="Manual (Cuts)" />
+            <ComboBoxItem Content="Hybrid (Folds)" />
+          </ComboBox>
+          <TextBlock
+            Grid.Row="1"
+            Grid.Column="1"
+            FontSize="10"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding SeamOverrideSummary}" />
+          <Button
+            Grid.Row="2"
+            Grid.Column="1"
+            HorizontalAlignment="Left"
+            Classes="panel-button"
+            IsVisible="{Binding CanClearActiveSeamOverrides}"
+            Content="Clear seam overrides"
+            Click="OnClearActiveSeamOverridesClicked" />
+        </Grid>
+
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding IsConnectedNetLayout}" RowSpacing="6">
+          <TextBlock
+            Grid.Row="0"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="Decoration" />
+          <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding GlobalSeamDecorationIndex}">
+            <ComboBoxItem Content="Plain" />
+            <ComboBoxItem Content="Glue Tabs" />
+            <ComboBoxItem Content="Sew Holes" />
+          </ComboBox>
+          <TextBlock
+            Grid.Row="1"
+            Grid.Column="1"
+            FontSize="10"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding AnchorFaceSummary}" />
+          <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="6">
+            <Button
+              Classes="panel-button"
+              IsEnabled="{Binding CanSetSelectedFaceAsAnchor}"
+              Content="Set selected anchor"
+              Click="OnSetSelectedFaceAsAnchorClicked" />
+            <Button
+              Classes="panel-button"
+              IsVisible="{Binding HasAnchorFace}"
+              Content="Clear anchor"
+              Click="OnClearAnchorFaceClicked" />
+          </StackPanel>
+          <StackPanel Grid.Row="3" Grid.Column="1" IsVisible="{Binding HasSelectedSeamEdge}" Spacing="4">
+            <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="Selected edge decoration" />
+            <ComboBox SelectedIndex="{Binding SelectedSeamDecorationIndex}">
+              <ComboBoxItem Content="Default (Use Global)" />
+              <ComboBoxItem Content="Plain (Cut)" />
+              <ComboBoxItem Content="Glue Tab" />
+              <ComboBoxItem Content="Sew Holes" />
+            </ComboBox>
+          </StackPanel>
+        </Grid>
+
+        <Border
+          Padding="8"
+          Background="#11000000"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="4"
+          IsVisible="{Binding IsSeparatePiecesLayout}">
+          <StackPanel Spacing="4">
+            <TextBlock
+              FontSize="10"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="NATIVE SEPARATE PIECES" />
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding UnfoldModeDescription}" />
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="{Binding SeparateFlattenSelectionSummary}" />
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="{Binding SeparateFlattenWholeBodySummary}" />
+            <TextBlock
+              FontSize="10"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource MutedTextBrush}"
+              Text="{Binding UnfoldEngineSummary}" />
+          </StackPanel>
+        </Border>
+
+        <Border
+          Padding="8"
+          Background="#11000000"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="4">
+          <StackPanel Spacing="4">
+            <TextBlock
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="CURRENT CONFIGURATION" />
+            <TextBlock
+              FontSize="11"
+              TextWrapping="Wrap"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="{Binding UnfoldConfigurationSummary}" />
+          </StackPanel>
+        </Border>
+
+        <CheckBox
+          IsEnabled="{Binding CanUseLiveRecompute}"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          IsChecked="{Binding LiveRecomputeEnabled}"
+          Content="Live Recompute" />
+
+        <StackPanel Spacing="6">
+          <TextBlock
+            FontSize="10"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="PREVIEW SCOPE" />
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+            <Button
+              Grid.Column="0"
+              Classes="chip-button"
+              Classes.active="{Binding IsSelectedUnfoldPreviewScope}"
+              Content="Selected Faces"
+              Click="OnSelectedUnfoldPreviewScopeClicked" />
+            <Button
+              Grid.Column="1"
+              Classes="chip-button"
+              Classes.active="{Binding IsWholeBodyUnfoldPreviewScope}"
+              Content="Visible Bodies"
+              Click="OnWholeBodyUnfoldPreviewScopeClicked" />
+          </Grid>
+          <TextBlock
+            FontSize="10"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding UnfoldPreviewScopeSummary}" />
+        </StackPanel>
+
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource MutedTextBrush}"
+          Text="{Binding UnfoldPreviewModeSummary}" />
+
+        <Button
+          Classes="panel-button"
+          IsEnabled="{Binding CanRefreshActiveUnfoldPreview}"
+          Content="{Binding UnfoldPreviewRefreshButtonText}"
+          Click="OnRefreshUnfoldPreviewClicked" />
+
+        <Button
+          Classes="panel-button"
+          IsEnabled="{Binding CanUnfoldSelected}"
+          Content="{Binding UnfoldSelectedButtonText}"
+          Click="OnUnfoldSelectedClicked" />
+
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource MutedTextBrush}"
+          Text="{Binding UnfoldSelectedExecutionSummary}" />
+
+        <Button
+          Classes="panel-button"
+          IsEnabled="{Binding CanUnfoldEntireBody}"
+          Content="{Binding WholeBodyActionLabel}"
+          Click="OnUnfoldEntireBodyClicked" />
+
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource MutedTextBrush}"
+          Text="{Binding WholeBodyActionExecutionSummary}" />
+
+        <TextBlock
+          FontSize="10"
+          TextWrapping="Wrap"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding UnfoldHintText}" />
+      </StackPanel>
+    </Border>
+  </StackPanel>
+
+</UserControl>

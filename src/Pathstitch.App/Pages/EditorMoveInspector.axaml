@@ -1,0 +1,214 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorMoveInspector"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.inspector.move"
+  IsVisible="{Binding ShowMoveBodiesPanel}">
+  <StackPanel IsVisible="{Binding ShowMoveBodiesPanel}" Spacing="8">
+    <TextBlock
+      FontSize="13"
+      FontWeight="SemiBold"
+      Foreground="{StaticResource SecondaryTextBrush}"
+      Text="MOVE BODIES" />
+    <Border
+      Padding="10"
+      Background="{StaticResource InputBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      BorderThickness="1"
+      CornerRadius="6">
+      <StackPanel Spacing="8">
+        <ToggleSwitch
+          Content="Move Tool"
+          IsChecked="{Binding IsMoveToolActive}"
+          IsCheckedChanged="OnMoveToolIsCheckedChanged" />
+        <TextBlock
+          FontSize="11"
+          Foreground="{StaticResource PrimaryTextBrush}"
+          Text="{Binding SelectedBodySummary}" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource SecondaryTextBrush}"
+          Text="{Binding SelectedBodyOffsetSummary}" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource MutedTextBrush}"
+          Text="{Binding SelectedBodyOffsetMagnitudeText}" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource MutedTextBrush}"
+          Text="{Binding MoveBodiesHint}" />
+        <TextBlock
+          FontSize="10"
+          Foreground="{StaticResource MutedTextBrush}"
+          Text="{Binding BodyOffsetsSummary}" />
+
+        <Border
+          IsVisible="{Binding HasAnyBodyOffsets}"
+          Padding="8"
+          Background="#11000000"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="4">
+          <StackPanel Spacing="6">
+            <TextBlock
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="MOVED BODIES" />
+            <ItemsControl ItemsSource="{Binding MovedBodyOffsets}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="models:MovedBodyOffsetSummary">
+                  <Border
+                    Margin="0,0,0,6"
+                    Padding="8"
+                    Background="#16000000"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4">
+                    <StackPanel Spacing="6">
+                      <DockPanel LastChildFill="False">
+                        <StackPanel DockPanel.Dock="Left" Spacing="2">
+                          <TextBlock
+                            FontSize="11"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource PrimaryTextBrush}"
+                            Text="{Binding BodyName}" />
+                          <TextBlock
+                            FontSize="10"
+                            Foreground="{StaticResource SecondaryTextBrush}"
+                            Text="{Binding OffsetSummary}" />
+                          <TextBlock
+                            FontSize="10"
+                            Foreground="{StaticResource MutedTextBrush}"
+                            Text="{Binding DistanceText}" />
+                        </StackPanel>
+                        <TextBlock
+                          DockPanel.Dock="Right"
+                          FontSize="10"
+                          Foreground="{StaticResource AccentBrush}"
+                          IsVisible="{Binding IsSelected}"
+                          Text="Selected" />
+                      </DockPanel>
+
+                      <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Button
+                          Grid.Column="0"
+                          Classes="panel-button"
+                          Tag="{Binding BodyIndex}"
+                          Content="Select"
+                          Click="OnSelectMovedBodyClicked" />
+                        <Button
+                          Grid.Column="1"
+                          Classes="panel-button"
+                          Tag="{Binding BodyIndex}"
+                          Content="Reset"
+                          Click="OnResetMovedBodyClicked" />
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+          <Button
+            Grid.Column="0"
+            Classes="panel-button"
+            IsVisible="{Binding HasSelectedBody}"
+            Content="Clear Selected Body"
+            Click="OnClearSelectedBodyClicked" />
+          <Button
+            Grid.Column="1"
+            Classes="panel-button"
+            IsEnabled="{Binding CanResetAllBodyPositions}"
+            Content="Reset All Moved"
+            Click="OnResetAllBodiesClicked" />
+        </Grid>
+
+        <StackPanel IsVisible="{Binding CanEditSelectedBodyOffset}" Spacing="8">
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+            <TextBlock
+              Grid.Row="0"
+              Grid.Column="0"
+              VerticalAlignment="Center"
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="X (mm)" />
+            <TextBox
+              Grid.Row="0"
+              Grid.Column="1"
+              IsEnabled="{Binding CanEditSelectedBodyOffsetValues}"
+              Text="{Binding SelectedBodyOffsetXText}" />
+
+            <TextBlock
+              Grid.Row="1"
+              Grid.Column="0"
+              VerticalAlignment="Center"
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="Y (mm)" />
+            <TextBox
+              Grid.Row="1"
+              Grid.Column="1"
+              IsEnabled="{Binding CanEditSelectedBodyOffsetValues}"
+              Text="{Binding SelectedBodyOffsetYText}" />
+
+            <TextBlock
+              Grid.Row="2"
+              Grid.Column="0"
+              VerticalAlignment="Center"
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="Z (mm)" />
+            <TextBox
+              Grid.Row="2"
+              Grid.Column="1"
+              IsEnabled="{Binding CanEditSelectedBodyOffsetValues}"
+              Text="{Binding SelectedBodyOffsetZText}" />
+
+            <TextBlock
+              Grid.Row="3"
+              Grid.Column="0"
+              VerticalAlignment="Center"
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="Step" />
+            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding BodyMoveStepText}" />
+          </Grid>
+
+          <TextBlock
+            FontSize="10"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource MutedTextBrush}"
+            Text="{Binding SelectedBodyOffsetInputHint}" />
+
+          <TextBlock
+            FontSize="10"
+            TextWrapping="Wrap"
+            Foreground="{StaticResource MutedTextBrush}"
+            Text="{Binding BodyMoveStepSummary}" />
+
+          <UniformGrid Columns="2" Rows="3" IsEnabled="{Binding CanNudgeSelectedBody}">
+            <Button Classes="panel-button" Content="-X" Tag="0:-1" Click="OnBodyNudgeClicked" />
+            <Button Classes="panel-button" Content="+X" Tag="0:1" Click="OnBodyNudgeClicked" />
+            <Button Classes="panel-button" Content="-Y" Tag="1:-1" Click="OnBodyNudgeClicked" />
+            <Button Classes="panel-button" Content="+Y" Tag="1:1" Click="OnBodyNudgeClicked" />
+            <Button Classes="panel-button" Content="-Z" Tag="2:-1" Click="OnBodyNudgeClicked" />
+            <Button Classes="panel-button" Content="+Z" Tag="2:1" Click="OnBodyNudgeClicked" />
+          </UniformGrid>
+
+          <Button
+            Classes="panel-button"
+            IsEnabled="{Binding CanResetSelectedBodyPosition}"
+            Content="Reset Position"
+            Click="OnBodyResetClicked" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+
+</UserControl>

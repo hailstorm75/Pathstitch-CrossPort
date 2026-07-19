@@ -1,6 +1,8 @@
 import Foundation
 import CoreGraphics
+#if canImport(ZIPFoundation)
 import ZIPFoundation
+#endif
 
 // MARK: - Per-format Finder preview settings (MAS-155)
 

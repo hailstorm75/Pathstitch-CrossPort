@@ -1,0 +1,78 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorBatchView"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:controls="using:Pathstitch.App.Controls"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorBatchWorkspaceViewModel"
+  AutomationProperties.AutomationId="editor.workspace.batch"
+  DragDrop.AllowDrop="True">
+  <Grid x:Name="BatchDropSurface" Margin="28" RowDefinitions="Auto,*">
+    <StackPanel Spacing="4">
+      <TextBlock
+        FontSize="20"
+        FontWeight="SemiBold"
+        Foreground="{StaticResource PrimaryTextBrush}"
+        Text="Batch inputs" />
+      <TextBlock
+        AutomationProperties.AutomationId="editor.batch.summary"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="{Binding Summary}" />
+      <TextBlock
+        AutomationProperties.AutomationId="editor.batch.drop-target"
+        FontSize="10"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="Drop DXF, SVG, PDF, or Pathstitch project files here" />
+    </StackPanel>
+    <ListBox Grid.Row="1" Margin="0,18,0,0" ItemsSource="{Binding Items}" Background="Transparent" BorderThickness="0">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="models:EditorBatchItem">
+            <Border
+              AutomationProperties.AutomationId="{Binding FilePath, StringFormat=batch.item.{0}}"
+              Margin="0,0,0,10"
+              Padding="14"
+              Background="{StaticResource PanelBackgroundBrush}"
+              BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8"
+              AttachedToVisualTree="OnBatchItemAttachedToVisualTree">
+              <Grid ColumnDefinitions="132,*,Auto" ColumnSpacing="12">
+                <Border
+                  AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.batch.thumbnail.{0}}"
+                  Height="92"
+                  Background="{StaticResource BaseBackgroundBrush}"
+                  BorderBrush="{StaticResource BorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="4">
+                  <controls:DxfPreviewCanvas
+                    Document="{Binding Document}"
+                    Focusable="False"
+                    IsHitTestVisible="False"
+                    GridVisible="False" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <CheckBox Content="Process this file" IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                  <TextBlock Foreground="{StaticResource PrimaryTextBrush}" Text="{Binding FileName}" />
+                  <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding FilePath}" />
+                  <TextBlock FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding Message}" />
+                  <TextBlock FontSize="10" Foreground="{StaticResource SecondaryTextBrush}" Text="{Binding OutputPath}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="6">
+                  <TextBlock Foreground="{StaticResource AccentBrush}" Text="{Binding Status}" />
+                  <Button
+                    AutomationProperties.AutomationId="{Binding Id, StringFormat=editor.batch.edit.{0}}"
+                    Content="Edit"
+                    Click="OnEditBatchItemClicked" />
+                  <Button
+                    AutomationProperties.AutomationId="{Binding FilePath, StringFormat=editor.batch.remove.{0}}"
+                    Content="Remove"
+                    Click="OnRemoveBatchItemClicked" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+    </ListBox>
+  </Grid>
+</UserControl>

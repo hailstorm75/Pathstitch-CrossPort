@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "node": {
+    "version": "22.22.0",
+    "archives": {
+      "win-x64": {
+        "file": "node-v22.22.0-win-x64.zip",
+        "sha256": "c97fa376d2becdc8863fcd3ca2dd9a83a9f3468ee7ccf7a6d076ec66a645c77a"
+      },
+      "osx-arm64": {
+        "file": "node-v22.22.0-darwin-arm64.tar.gz",
+        "sha256": "5ed4db0fcf1eaf84d91ad12462631d73bf4576c1377e192d222e48026a902640"
+      }
+    }
+  },
+  "openGeometry": {
+    "version": "2.0.11",
+    "package": "opengeometry-2.0.11.tgz",
+    "sha512": "566a5862a6c21761899433713d42a23a014ae112ca88a24b95e03212a1781129be502a5b0809692f7a4a14f3f1263f751eb063767211defc24bfb5cd2d516163"
+  },
+  "scope": "Mesh and 2D WASM worker runtime only. STEP/B-rep remains assigned to the selected OCCT worker architecture."
+}

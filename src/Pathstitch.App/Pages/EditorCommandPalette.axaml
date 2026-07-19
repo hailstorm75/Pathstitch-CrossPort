@@ -1,0 +1,94 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorCommandPalette"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.command-search">
+  <UserControl.Styles>
+    <Style Selector="Button.command-result.selected">
+      <Setter Property="Background" Value="{DynamicResource AccentDimBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+  </UserControl.Styles>
+  <Grid Width="240">
+    <TextBox
+      x:Name="CommandSearchInput"
+      VerticalAlignment="Center"
+      AutomationProperties.AutomationId="editor.command-search.input"
+      Background="{StaticResource InputBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      Foreground="{StaticResource PrimaryTextBrush}"
+      KeyDown="OnSearchKeyDown"
+      PlaceholderText="Search tools and commands…"
+      Text="{Binding CommandSearchQuery, Mode=TwoWay}"
+      TextChanged="OnSearchTextChanged" />
+    <Popup
+      IsOpen="{Binding IsCommandSearchOpen}"
+      Placement="Bottom"
+      PlacementTarget="{Binding #CommandSearchInput}">
+      <Border
+        Width="240"
+        MaxHeight="360"
+        Margin="0,4,0,0"
+        Padding="6"
+        Background="{StaticResource PanelBackgroundBrush}"
+        BorderBrush="{StaticResource BorderBrush}"
+        BorderThickness="1"
+        CornerRadius="8">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="4">
+            <ItemsControl x:Name="CommandSearchResults" ItemsSource="{Binding CommandSearchResults}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="viewModels:EditorSidebarToolItemViewModel">
+                  <Button
+                    Margin="0,2"
+                    Padding="8,6"
+                    HorizontalContentAlignment="Stretch"
+                    AutomationProperties.AutomationId="{Binding Identifier, StringFormat=command.{0}}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Classes="command-result"
+                    Classes.selected="{Binding IsCommandSearchSelected}"
+                    Click="OnCommandClicked"
+                    IsEnabled="{Binding IsEnabled}"
+                    PointerEntered="OnCommandPointerEntered"
+                    Tag="{Binding Identifier}">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Spacing="2">
+                        <TextBlock
+                          FontSize="9"
+                          Foreground="{StaticResource SecondaryTextBrush}"
+                          Text="{Binding GroupKey}" />
+                        <TextBlock Foreground="{StaticResource PrimaryTextBrush}" Text="{Binding Label}" />
+                        <TextBlock
+                          FontSize="10"
+                          Foreground="{StaticResource SecondaryTextBrush}"
+                          Text="{Binding Hint}"
+                          TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <TextBlock
+                        Grid.Column="1"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="{Binding ShortcutText}" />
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock
+              Margin="0,8,0,4"
+              HorizontalAlignment="Center"
+              FontSize="12"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              IsVisible="{Binding IsCommandSearchEmpty}"
+              Text="No matching commands" />
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Popup>
+  </Grid>
+</UserControl>

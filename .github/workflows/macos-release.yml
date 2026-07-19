@@ -1,0 +1,382 @@
+name: macOS release readiness
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  package-osx-arm64:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: mamba-org/setup-micromamba@v3
+        with:
+          micromamba-version: 2.8.1-0
+          init-shell: powershell
+          generate-run-shell: false
+      - name: Run unified release-readiness gate
+        shell: pwsh
+        run: |
+          Get-PSDrive -Name / | Format-List Used,Free
+          ./scripts/verify-release-readiness.ps1 -EvidenceLabel macos-ci -PruneNativePublish
+          Get-PSDrive -Name / | Format-List Used,Free
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pathstitch-readiness-osx-arm64
+          path: artifacts/readiness
+      - name: Build application bundle
+        shell: pwsh
+        run: |
+          Get-PSDrive -Name / | Format-List Used,Free
+          ./scripts/package-avalonia-macos.ps1 -SigningIdentity "-" -PruneNativeInputsBeforeArchive
+          Get-PSDrive -Name / | Format-List Used,Free
+      - name: Verify package contents
+        shell: pwsh
+        run: |
+          $app = "artifacts/macos/Pathstitch.app"
+          @(
+            "$app/Contents/Info.plist",
+            "$app/Contents/MacOS/Pathstitch.App",
+            "$app/Contents/MacOS/libAvaloniaNative.dylib",
+            "$app/Contents/Frameworks/libPathstitchMacBridge.dylib",
+            "$app/Contents/Resources/AppIconLight.png",
+            "$app/Contents/Resources/AppIconDark.png",
+            "$app/Contents/Resources/Pathstitch.icns",
+            "$app/Contents/MacOS/Assets/OpenGeometry/runtime/node",
+            "$app/Contents/MacOS/GeometryWorker/osx-arm64/bin/python3.11",
+            "$app/Contents/MacOS/GeometryWorker/osx-arm64/pathstitch_core/geometry_worker.py",
+            "$app/Contents/MacOS/GeometryWorker/osx-arm64/runtime-manifest.json",
+            "$app/Contents/MacOS/GeometryWorker/osx-arm64/environment.lock",
+            "$app/Contents/MacOS/GeometryWorker/osx-arm64/runtime-spec.json",
+            "$app/Contents/MacOS/GeometryWorker/osx-arm64/sitecustomize.py",
+            "$app/Contents/MacOS/GeometryWorker/osx-arm64/sbom.spdx.json",
+            "$app/Contents/MacOS/GeometryWorker/osx-arm64/third-party-notices.json",
+            "$app/Contents/PlugIns/PathstitchQuickLook.appex/Contents/MacOS/PathstitchQuickLook",
+            "$app/Contents/PlugIns/PathstitchThumbnail.appex/Contents/MacOS/PathstitchThumbnail"
+          ) | ForEach-Object { if (-not (Test-Path -LiteralPath $_)) { throw "Missing package item: $_" } }
+          & plutil -lint "$app/Contents/Info.plist"
+          & plutil -extract CFBundleDocumentTypes xml1 -o - "$app/Contents/Info.plist" | Select-String "com.pathstitch.project|com.pathstitch.dxf|com.pathstitch.step"
+          & plutil -extract NSExtension.NSExtensionAttributes.QLSupportedContentTypes xml1 -o - "$app/Contents/PlugIns/PathstitchQuickLook.appex/Contents/Info.plist"
+          & plutil -extract NSExtension.NSExtensionAttributes.QLSupportedContentTypes xml1 -o - "$app/Contents/PlugIns/PathstitchThumbnail.appex/Contents/Info.plist"
+          foreach ($binary in @(
+            "$app/Contents/MacOS/Pathstitch.App",
+            "$app/Contents/Frameworks/libPathstitchMacBridge.dylib",
+            "$app/Contents/MacOS/Assets/OpenGeometry/runtime/node",
+            "$app/Contents/MacOS/GeometryWorker/osx-arm64/bin/python3.11",
+            "$app/Contents/PlugIns/PathstitchQuickLook.appex/Contents/MacOS/PathstitchQuickLook",
+            "$app/Contents/PlugIns/PathstitchThumbnail.appex/Contents/MacOS/PathstitchThumbnail"
+          )) {
+            $architectures = (& lipo -archs $binary) -join " "
+            if ($architectures -notmatch '(^|\s)arm64(\s|$)') { throw "$binary is not an arm64 executable: $architectures" }
+          }
+          & codesign --verify --deep --strict --verbose=2 $app
+          $appEntitlements = (& codesign -d --entitlements :- $app 2>&1) -join [Environment]::NewLine
+          $previewEntitlements = (& codesign -d --entitlements :- "$app/Contents/PlugIns/PathstitchQuickLook.appex" 2>&1) -join [Environment]::NewLine
+          $thumbnailEntitlements = (& codesign -d --entitlements :- "$app/Contents/PlugIns/PathstitchThumbnail.appex" 2>&1) -join [Environment]::NewLine
+          if ($appEntitlements -notmatch 'group\.com\.pathstitch\.crossport') { throw "Application signature lacks the Pathstitch app group." }
+          foreach ($extensionEntitlements in @($previewEntitlements, $thumbnailEntitlements)) {
+            if ($extensionEntitlements -notmatch 'group\.com\.pathstitch\.crossport' -or
+                $extensionEntitlements -notmatch 'com\.apple\.security\.app-sandbox') {
+              throw "Quick Look extension signature lacks sandbox or app-group entitlement."
+            }
+          }
+      - name: Packaged app WebView, file-dialog, and project round-trip acceptance
+        shell: pwsh
+        run: |
+          $evidence = (Resolve-Path "artifacts/macos").Path + "/packaged-app-acceptance"
+          New-Item -ItemType Directory -Force $evidence | Out-Null
+          $meshFixtures = Join-Path $evidence "mesh-fixtures"
+          New-Item -ItemType Directory -Force $meshFixtures | Out-Null
+          @'
+          v 0 0 0
+          v 10 0 0
+          v 10 10 0
+          v 0 10 0
+          f 1 2 3
+          f 1 3 4
+          '@ | Set-Content (Join-Path $meshFixtures "connected-square.obj") -Encoding utf8NoBOM
+          @'
+          solid square
+          facet normal 0 0 1
+          outer loop
+          vertex 0 0 0
+          vertex 10 0 0
+          vertex 10 10 0
+          endloop
+          endfacet
+          facet normal 0 0 1
+          outer loop
+          vertex 0 0 0
+          vertex 10 10 0
+          vertex 0 10 0
+          endloop
+          endfacet
+          endsolid square
+          '@ | Set-Content (Join-Path $meshFixtures "connected-square.stl") -Encoding utf8NoBOM
+          $env:PATHSTITCH_MACOS_ACCEPTANCE_STEP_FIXTURE = (Resolve-Path "tests/Pathstitch.App.Tests/Fixtures/box-cylinder.step").Path
+          $env:PATHSTITCH_MACOS_ACCEPTANCE_OBJ_FIXTURE = (Resolve-Path (Join-Path $meshFixtures "connected-square.obj")).Path
+          $env:PATHSTITCH_MACOS_ACCEPTANCE_STL_FIXTURE = (Resolve-Path (Join-Path $meshFixtures "connected-square.stl")).Path
+          $env:PATHSTITCH_MACOS_ACCEPTANCE_OUTPUT = $evidence
+          $process = Start-Process "artifacts/macos/Pathstitch.app/Contents/MacOS/Pathstitch.App" -PassThru
+          Wait-Process -Id $process.Id -Timeout 45 -ErrorAction Stop
+          if ($process.ExitCode -ne 0) { throw "Packaged acceptance exited with $($process.ExitCode)" }
+          $result = Get-Content "$evidence/packaged-app-acceptance.json" -Raw | ConvertFrom-Json
+          if ($result.status -ne "passed" -or
+              -not $result.webView.navigationCompleted -or
+              -not $result.fileDialogs.CanOpen -or
+              -not $result.fileDialogs.CanSave -or
+              -not $result.macIntegration.independentFinderPatternApplied -or
+              -not $result.macIntegration.independentFinderPatternReadBack -or
+              -not $result.macIntegration.finderDefaultsRestored -or
+              -not $result.macIntegration.finderDefaultsReadBack -or
+              -not $result.stepWorkflow.imported -or
+              -not $result.stepWorkflow.projected -or
+              -not $result.stepWorkflow.unfolded -or
+              -not $result.meshWorkflow.objImported -or
+              -not $result.meshWorkflow.stlImported -or
+              -not $result.meshWorkflow.mixedCombined -or
+              $result.meshWorkflow.mixedBodyCount -ne 4 -or
+              -not $result.meshWorkflow.projected -or
+              -not $result.meshWorkflow.connectedUnfolded -or
+              -not $result.meshWorkflow.separateUnfolded -or
+              -not $result.meshWorkflow.tabsDecorated -or
+              -not $result.meshWorkflow.holesDecorated -or
+              -not $result.projectRoundTrip.viewportPreserved -or
+              -not $result.projectRoundTrip.topologyPreserved -or
+              -not $result.projectRoundTrip.sourceModelPreserved -or
+              -not $result.projectRoundTrip.generatedOutputPreserved) {
+            throw "Packaged acceptance evidence did not satisfy WebView/dialog/project requirements."
+          }
+          if (-not (Test-Path "$evidence/packaged-roundtrip.stch")) { throw "Packaged app did not create the .stch round-trip artifact." }
+          foreach ($output in @(
+            "packaged-projection.dxf",
+            "packaged-unfold.dxf",
+            "packaged-mixed.step",
+            "packaged-obj-projection.dxf",
+            "packaged-obj-connected.dxf",
+            "packaged-obj-separate.dxf",
+            "packaged-obj-tabs.dxf",
+            "packaged-obj-holes.dxf"
+          )) {
+            if (-not (Test-Path "$evidence/$output") -or (Get-Item "$evidence/$output").Length -le 100) {
+              throw "Packaged 3D acceptance did not produce meaningful $output."
+            }
+          }
+          & unzip -t "$evidence/packaged-roundtrip.stch"
+          if ($LASTEXITCODE -ne 0) { throw "Packaged .stch is not a valid project archive." }
+      - name: Running app Finder file-activation acceptance
+        shell: pwsh
+        run: |
+          $app = (Resolve-Path "artifacts/macos/Pathstitch.app").Path
+          $fixture = (Resolve-Path "scripts/macos/quicklook/Fixtures/preview-smoke.dxf").Path
+          $evidence = (Resolve-Path "artifacts/macos").Path + "/file-activation-acceptance"
+          New-Item -ItemType Directory -Force $evidence | Out-Null
+          $env:PATHSTITCH_MACOS_FILE_ACTIVATION_OUTPUT = $evidence
+          $process = Start-Process "$app/Contents/MacOS/Pathstitch.App" -PassThru
+          try {
+            $deadline = (Get-Date).AddSeconds(30)
+            while (-not (Test-Path "$evidence/file-activation-ready.txt")) {
+              if ((Get-Date) -ge $deadline) { throw "Packaged app did not become ready for file activation." }
+              Start-Sleep -Milliseconds 250
+            }
+            & open -a $app $fixture
+            if ($LASTEXITCODE -ne 0) { throw "LaunchServices failed to open the DXF in the running app." }
+            $deadline = (Get-Date).AddSeconds(45)
+            while (-not (Test-Path "$evidence/file-activation-acceptance.json")) {
+              if ((Get-Date) -ge $deadline) { throw "Running app did not receive the Finder file activation." }
+              Start-Sleep -Milliseconds 250
+            }
+            $result = Get-Content "$evidence/file-activation-acceptance.json" -Raw | ConvertFrom-Json
+            if ($result.status -ne "passed" -or
+                $result.files.Count -ne 1 -or
+                $result.files[0] -ne $fixture -or
+                $result.activePage -notmatch 'EditorPageViewModel') {
+              throw "Finder activation evidence did not contain the routed DXF editor session."
+            }
+          }
+          finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+          }
+      - name: Finder Quick Look smoke test
+        shell: pwsh
+        run: |
+          $fixtures = "artifacts/macos/quicklook-fixtures"
+          $previews = "artifacts/macos/quicklook-previews"
+          New-Item -ItemType Directory -Force $fixtures, $previews | Out-Null
+          Copy-Item "scripts/macos/quicklook/Fixtures/preview-smoke.dxf" "$fixtures/sample.dxf"
+          Copy-Item "tests/Pathstitch.App.Tests/Fixtures/analytic-multibody-hole.step" "$fixtures/sample.step"
+          Copy-Item "artifacts/macos/packaged-app-acceptance/packaged-roundtrip.stch" "$fixtures/sample.stch"
+          @("dxf-preview.png", "step-preview.png", "stch-preview.png") | ForEach-Object {
+            $rendered = "artifacts/macos/preview-smoke/$_"
+            if (-not (Test-Path $rendered) -or (Get-Item $rendered).Length -lt 1024) {
+              throw "Geometry preview smoke did not render meaningful $_ output."
+            }
+          }
+          if ((Get-FileHash "artifacts/macos/preview-smoke/dxf-preview.png").Hash -eq
+              (Get-FileHash "artifacts/macos/preview-smoke/step-preview.png").Hash) {
+            throw "DXF and STEP preview renders unexpectedly match."
+          }
+          & "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister" -f "artifacts/macos/Pathstitch.app"
+          $plugins = (& pluginkit -m -A -D) -join "`n"
+          foreach ($identifier in @("com.pathstitch.crossport.quicklook", "com.pathstitch.crossport.thumbnail")) {
+            if ($plugins -notmatch [regex]::Escape($identifier)) { throw "Packaged extension was not registered: $identifier" }
+          }
+          & qlmanage -r cache
+          $plugins | Set-Content "$previews/pluginkit-inventory.txt" -Encoding utf8
+          $thumbnailEvidence = [System.Collections.Generic.List[object]]::new()
+          foreach ($fixture in Get-ChildItem $fixtures -File | Where-Object { $_.Extension -in @('.dxf','.step','.stch') }) {
+            $before = @(Get-ChildItem $previews -Filter '*.png' | ForEach-Object FullName)
+            $qlmanageOutput = (& qlmanage -t -s 256 -o $previews $fixture.FullName 2>&1) -join [Environment]::NewLine
+            $qlmanageOutput | Set-Content "$previews/$($fixture.BaseName)-$($fixture.Extension.TrimStart('.'))-qlmanage.log" -Encoding utf8
+            if ($LASTEXITCODE -ne 0) { throw "Quick Look failed for $($fixture.Name)" }
+            $generated = @(
+              Get-ChildItem $previews -Filter '*.png' |
+                Where-Object { $_.FullName -notin $before }
+            )
+            if ($generated.Count -ne 1) {
+              throw "Quick Look did not produce exactly one attributable thumbnail for $($fixture.Name)."
+            }
+            $thumbnailEvidence.Add([ordered]@{
+              fixture = $fixture.Name
+              output = $generated[0].Name
+              bytes = $generated[0].Length
+              sha256 = (Get-FileHash $generated[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            })
+          }
+          $thumbnailEvidence | ConvertTo-Json -Depth 4 |
+            Set-Content "$previews/quicklook-output-map.json" -Encoding utf8
+          $quickLookImages = @(Get-ChildItem $previews -Filter '*.png')
+          if ($quickLookImages.Count -ne 3) { throw "Quick Look did not generate exactly one STCH, DXF, and STEP fixture thumbnail" }
+          if ($quickLookImages | Where-Object Length -LT 1024) { throw "Quick Look generated an empty or trivial thumbnail" }
+      - name: Quick Look preview and app-group runtime probe
+        shell: pwsh
+        run: |
+          $app = (Resolve-Path "artifacts/macos/Pathstitch.app").Path
+          $fixture = (Resolve-Path "tests/Pathstitch.App.Tests/Fixtures/analytic-multibody-hole.step").Path
+          $runtime = (Resolve-Path "artifacts/macos").Path + "/runtime-probes"
+          New-Item -ItemType Directory -Force $runtime | Out-Null
+          Copy-Item -LiteralPath $fixture -Destination (Join-Path $runtime "runtime-probe.step")
+          $fixture = (Resolve-Path (Join-Path $runtime "runtime-probe.step")).Path
+          $nonce = [Convert]::ToHexString(
+            [Security.Cryptography.RandomNumberGenerator]::GetBytes(16)).ToLowerInvariant()
+          $env:PATHSTITCH_MACOS_RUNTIME_PROBE_NONCE = $nonce
+          $env:PATHSTITCH_MACOS_RUNTIME_PROBE_OUTPUT = $runtime
+          function Invoke-RuntimeProbeApp([string]$Action, [int]$TimeoutSeconds) {
+            $env:PATHSTITCH_MACOS_RUNTIME_PROBE_ACTION = $Action
+            $process = Start-Process "$app/Contents/MacOS/Pathstitch.App" -PassThru
+            Wait-Process -Id $process.Id -Timeout $TimeoutSeconds -ErrorAction Stop
+            if ($process.ExitCode -ne 0) {
+              throw "Packaged runtime-probe $Action exited with $($process.ExitCode)."
+            }
+          }
+          Invoke-RuntimeProbeApp "prepare" 20
+          $writer = Get-Content "$runtime/app-group-writer-probe.json" -Raw | ConvertFrom-Json
+          if ($writer.status -ne 'passed' -or
+              $writer.action -ne 'prepare' -or
+              $writer.nonce -ne $nonce -or
+              $writer.processIdentifier -le 0 -or
+              $writer.expectedPreferences.dxf -ne $false -or
+              $writer.expectedPreferences.step -ne $true -or
+              $writer.expectedPreferences.stch -ne $false -or
+              $writer.observedPreferences.dxf -ne $false -or
+              $writer.observedPreferences.step -ne $true -or
+              $writer.observedPreferences.stch -ne $false) {
+            throw "Packaged app did not prepare exact app-group runtime-probe values."
+          }
+
+          & "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister" -f $app
+          & qlmanage -r cache
+          $previewOut = Join-Path $runtime "step-preview-qlmanage.stdout.log"
+          $previewError = Join-Path $runtime "step-preview-qlmanage.stderr.log"
+          $previewProcess = Start-Process /usr/bin/qlmanage `
+            -ArgumentList @('-p', $fixture) `
+            -RedirectStandardOutput $previewOut `
+            -RedirectStandardError $previewError `
+            -PassThru
+          try {
+            Start-Sleep -Seconds 3
+            $thumbnailOutput = (& qlmanage -t -s 256 -o $runtime $fixture 2>&1) -join [Environment]::NewLine
+            $thumbnailOutput | Set-Content "$runtime/step-thumbnail-qlmanage.log" -Encoding utf8
+            if ($LASTEXITCODE -ne 0) { throw "Quick Look thumbnail runtime probe failed." }
+            Invoke-RuntimeProbeApp "collect" 40
+
+            $preview = Get-Content "$runtime/quicklook-preview-runtime-probe.json" -Raw | ConvertFrom-Json
+            $thumbnail = Get-Content "$runtime/quicklook-thumbnail-runtime-probe.json" -Raw | ConvertFrom-Json
+            $collector = Get-Content "$runtime/app-group-collector-probe.json" -Raw | ConvertFrom-Json
+            $fixtureHash = (Get-FileHash $fixture -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($preview.status -ne 'passed' -or
+                $preview.providerKind -ne 'preview' -or
+                $preview.bundleIdentifier -ne 'com.pathstitch.crossport.quicklook' -or
+                $preview.processIdentifier -le 0 -or
+                $preview.nonce -ne $nonce -or
+                $preview.fixtureSha256 -ne $fixtureHash -or
+                $preview.observedPreferences.dxf -ne $false -or
+                $preview.observedPreferences.step -ne $true -or
+                $preview.observedPreferences.stch -ne $false -or
+                -not $preview.rendered -or
+                -not $preview.interactiveSceneKit -or
+                -not $preview.sceneViewInstalled -or
+                -not $preview.cameraControlEnabled -or
+                $preview.fallbackImageInstalled -or
+                $preview.vertexCount -le 0 -or
+                $preview.triangleCount -le 0) {
+              throw "Quick Look preview extension did not attest an interactive SceneKit STEP preview."
+            }
+            if ($thumbnail.status -ne 'passed' -or
+                $thumbnail.providerKind -ne 'thumbnail' -or
+                $thumbnail.bundleIdentifier -ne 'com.pathstitch.crossport.thumbnail' -or
+                $thumbnail.processIdentifier -le 0 -or
+                $thumbnail.nonce -ne $nonce -or
+                $thumbnail.fixtureSha256 -ne $fixtureHash -or
+                $thumbnail.observedPreferences.dxf -ne $false -or
+                $thumbnail.observedPreferences.step -ne $true -or
+                $thumbnail.observedPreferences.stch -ne $false -or
+                -not $thumbnail.rendered) {
+              throw "Quick Look thumbnail extension did not attest app-group preferences and rendering."
+            }
+            if ($collector.status -ne 'passed' -or
+                $collector.action -ne 'collect' -or
+                $collector.nonce -ne $nonce -or
+                @($collector.collectedFiles).Count -ne 2) {
+              throw "Packaged app did not collect both extension attestations from app-group storage."
+            }
+          }
+          finally {
+            if (-not $previewProcess.HasExited) { Stop-Process -Id $previewProcess.Id -Force }
+            Remove-Item Env:PATHSTITCH_MACOS_RUNTIME_PROBE_ACTION -ErrorAction SilentlyContinue
+            Remove-Item Env:PATHSTITCH_MACOS_RUNTIME_PROBE_NONCE -ErrorAction SilentlyContinue
+            Remove-Item Env:PATHSTITCH_MACOS_RUNTIME_PROBE_OUTPUT -ErrorAction SilentlyContinue
+          }
+      - name: Collect and validate native macOS evidence
+        if: always()
+        shell: pwsh
+        run: |
+          ./scripts/collect-native-macos-evidence.ps1 `
+            -AppPath "artifacts/macos/Pathstitch.app" `
+            -EvidenceRoot "artifacts/macos/native-evidence" `
+            -PackageAcceptanceDirectory "artifacts/macos/packaged-app-acceptance" `
+            -FileActivationDirectory "artifacts/macos/file-activation-acceptance" `
+            -QuickLookDirectory "artifacts/macos/quicklook-previews" `
+            -RuntimeProbeDirectory "artifacts/macos/runtime-probes" `
+            -PackageZip "artifacts/macos/Pathstitch-osx-arm64.zip" `
+            -ExpectedActivationFixture (Resolve-Path "scripts/macos/quicklook/Fixtures/preview-smoke.dxf").Path
+      - name: Upload native macOS evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pathstitch-native-evidence-osx-arm64
+          path: artifacts/macos/native-evidence
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pathstitch-osx-arm64
+          path: artifacts/macos/Pathstitch-osx-arm64.zip

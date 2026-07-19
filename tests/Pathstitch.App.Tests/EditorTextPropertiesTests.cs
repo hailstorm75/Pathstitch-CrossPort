@@ -1,0 +1,174 @@
+using Domain.App.Models;
+using Domain.App.Services;
+
+namespace Pathstitch.App.Tests;
+
+public sealed class EditorTextPropertiesTests
+{
+    [Fact]
+    public async Task TextToolDefaultsStyleNextBoxAndRemainOneUndoStep()
+    {
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests();
+        await editor.SetActiveEditorModeAsync(EditorMode.TwoD);
+        editor.ActivateTwoDTextTool();
+
+        Assert.True(editor.IsTwoDTextInspectorVisible);
+        Assert.Equal("Text Tool", editor.TwoDTextInspectorTitle);
+        Assert.Equal("Label", editor.TwoDSelectedTextDraft);
+        Assert.Equal("5", editor.TwoDSelectedTextHeightText);
+        Assert.Equal(string.Empty, editor.TwoDSelectedTextFontFamily);
+        Assert.Equal("None", editor.TwoDSelectedTextFitMode);
+
+        editor.TwoDSelectedTextDraft = "ABCD";
+        editor.TwoDSelectedTextFontFamily = "Segoe UI";
+        editor.TwoDSelectedTextCharacterSpacingText = "1.25";
+        editor.TwoDSelectedTextBold = true;
+        editor.TwoDSelectedTextItalic = true;
+        editor.TwoDSelectedTextUnderline = true;
+        editor.TwoDSelectedTextFitMode = "Both";
+
+        var pathId = editor.CreateTwoDText(new(24, 8), new(0, 0));
+
+        Assert.NotNull(pathId);
+        var text = Assert.Single(editor.TwoDDocument!.Paths);
+        Assert.Equal("ABCD", text.Text);
+        Assert.Equal(new Editor2DPoint(0, 0), text.Start);
+        Assert.Equal(8, text.TextHeight);
+        Assert.Equal(1.25, text.WidthFactor!.Value, 8);
+        Assert.Equal("Segoe UI", text.FontFamily);
+        Assert.Equal(1.25, text.CharacterSpacing);
+        Assert.True(text.IsBold && text.IsItalic && text.IsUnderline);
+        Assert.True(editor.UndoTwoDWorkspace());
+        Assert.Empty(editor.TwoDDocument!.Paths);
+        Assert.True(editor.RedoTwoDWorkspace());
+        Assert.Single(editor.TwoDDocument!.Paths);
+    }
+
+    [Fact]
+    public async Task SelectedText_AppliesMultilineTypographyAndPersistsIt()
+    {
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests();
+        await editor.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var text = new Editor2DPreviewPath(
+            "text",
+            "TEXT",
+            Editor2DGeometry.BuildTextBoundsPoints(new Editor2DPoint(2, 3), "Old", 5),
+            true,
+            Start: new Editor2DPoint(2, 3),
+            Text: "Old",
+            TextHeight: 5);
+        editor.TwoDDocument = editor.TwoDDocument! with { Paths = [text] };
+        editor.TwoDSelectedPathIds = [text.Id];
+        editor.TwoDSelectedTextDraft = "First line\nSecond line";
+        editor.TwoDSelectedTextHeightText = "8";
+        editor.TwoDSelectedTextFontFamily = "Segoe UI";
+        editor.TwoDSelectedTextCharacterSpacingText = "1.25";
+        editor.TwoDSelectedTextBold = true;
+        editor.TwoDSelectedTextItalic = true;
+        editor.TwoDSelectedTextUnderline = true;
+
+        Assert.True(editor.ApplyTwoDSelectedText());
+        var updated = Assert.Single(editor.TwoDDocument.Paths);
+        Assert.Equal("First line\nSecond line", updated.Text);
+        Assert.Equal(8, updated.TextHeight);
+        Assert.Equal("Segoe UI", updated.FontFamily);
+        Assert.Equal(1.25, updated.CharacterSpacing);
+        Assert.True(updated.IsBold);
+        Assert.True(updated.IsItalic);
+        Assert.True(updated.IsUnderline);
+
+        var directory = Path.Combine(Path.GetTempPath(), "Pathstitch-TextTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var projectPath = Path.Combine(directory, "text.stch");
+            var state = Editor2DWorkspaceState.Empty with
+            {
+                IsInitialized = true,
+                Document = editor.TwoDDocument,
+            };
+            var service = new Project3DStateService();
+            await service.SaveAsync(projectPath, new Project3DState(null, [], [], TwoDWorkspaceState: state));
+            var restored = await service.LoadAsync(projectPath);
+            var restoredText = Assert.Single(restored.TwoDWorkspaceState!.Document.Paths);
+            Assert.Equal(updated.Text, restoredText.Text);
+            Assert.Equal(updated.FontFamily, restoredText.FontFamily);
+            Assert.Equal(updated.CharacterSpacing, restoredText.CharacterSpacing);
+            Assert.True(restoredText.IsBold && restoredText.IsItalic && restoredText.IsUnderline);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TextUi_UsesInstalledFontsAndRendererConsumesStyleProperties()
+    {
+        var inspector = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DInspector.axaml");
+        var codeBehind = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DPersistentPanels.axaml.cs");
+        var interactionBase = ReadRepositoryFile("src", "Pathstitch.App", "Pages", "EditorInteractionControlBase.cs");
+        var canvas = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
+
+        Assert.Contains("InstalledFontSelector", inspector, StringComparison.Ordinal);
+        Assert.Contains("PointerEntered=\"OnFontPreviewEntered\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("PointerExited=\"OnFontPreviewExited\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDTextFontPreview", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("FontManager.Current.SystemFonts", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("TextFontPreview=\"{Binding TwoDTextFontPreview}\"", ReadRepositoryFile("src", "Pathstitch.App", "Pages", "Editor2DView.axaml"), StringComparison.Ordinal);
+        Assert.Contains("path.IsBold", canvas, StringComparison.Ordinal);
+        Assert.Contains("path.IsItalic", canvas, StringComparison.Ordinal);
+        Assert.Contains("path.IsUnderline", canvas, StringComparison.Ordinal);
+        Assert.Contains("path.CharacterSpacing", canvas, StringComparison.Ordinal);
+        Assert.Contains("TwoDSelectedTextFitModeOptions", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.text.selected-draft\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("Loaded=\"OnTwoDSelectedTextLoaded\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("GotFocus=\"OnTwoDSelectedTextGotFocus\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("KeyDown=\"OnTwoDSelectedTextKeyDown\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("OnTwoDSelectedTextKeyDown", interactionBase, StringComparison.Ordinal);
+        Assert.Contains("IsTwoDTextInspectorVisible", inspector, StringComparison.Ordinal);
+        Assert.Contains("TwoDTextInspectorTitle", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.text.height\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.text.character-spacing\"", inspector, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.AutomationId=\"editor.text.fit-mode\"", inspector, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TextFitMode_PersistsAcrossSelectionReEditAndNonePreservesWarp()
+    {
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests();
+        await editor.SetActiveEditorModeAsync(EditorMode.TwoD);
+        var text = new Editor2DPreviewPath(
+            "text",
+            "TEXT",
+            Editor2DGeometry.BuildTextBoundsPoints(new Editor2DPoint(0, 0), "AB", 5, widthFactor: 3),
+            true,
+            Start: new Editor2DPoint(0, 0),
+            Text: "AB",
+            TextHeight: 5,
+            WidthFactor: 3);
+        editor.TwoDDocument = editor.TwoDDocument! with { Paths = [text] };
+        editor.TwoDSelectedPathIds = [text.Id];
+        editor.TwoDSelectedTextFitMode = "Width";
+        editor.TwoDSelectedPathIds = [];
+        editor.TwoDSelectedPathIds = [text.Id];
+
+        Assert.Equal("Width", editor.TwoDSelectedTextFitMode);
+        editor.TwoDSelectedTextFitMode = "None";
+        editor.TwoDSelectedTextDraft = "AB!";
+        Assert.True(editor.ApplyTwoDSelectedText());
+        Assert.Equal(3, Assert.Single(editor.TwoDDocument.Paths).WidthFactor);
+    }
+
+    private static string ReadRepositoryFile(params string[] pathParts)
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            var candidate = Path.Combine([directory.FullName, .. pathParts]);
+            if (File.Exists(candidate))
+                return File.ReadAllText(candidate);
+        }
+
+        throw new FileNotFoundException(Path.Combine(pathParts));
+    }
+}

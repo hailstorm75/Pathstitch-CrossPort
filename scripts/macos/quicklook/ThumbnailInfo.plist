@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleDisplayName</key><string>Pathstitch Thumbnails</string>
+  <key>CFBundleExecutable</key><string>PathstitchThumbnail</string>
+  <key>CFBundleIdentifier</key><string>com.pathstitch.crossport.thumbnail</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundlePackageType</key><string>XPC!</string>
+  <key>CFBundleShortVersionString</key><string>1.0.0</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>NSExtension</key><dict>
+    <key>NSExtensionPointIdentifier</key><string>com.apple.quicklook.thumbnail</string>
+    <key>NSExtensionPrincipalClass</key><string>PathstitchThumbnail.ThumbnailProvider</string>
+    <key>NSExtensionAttributes</key><dict>
+      <key>QLSupportedContentTypes</key><array>
+        <string>com.pathstitch.dxf</string><string>com.pathstitch.step</string><string>com.pathstitch.project</string>
+      </array>
+    </dict>
+  </dict>
+</dict></plist>

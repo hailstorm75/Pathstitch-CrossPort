@@ -1,0 +1,108 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorSelectionInspector"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.inspector.selection"
+  IsVisible="{Binding ShowSelectionPanel}">
+  <StackPanel IsVisible="{Binding ShowSelectionPanel}" Spacing="8">
+    <TextBlock
+      FontSize="13"
+      FontWeight="SemiBold"
+      Foreground="{StaticResource SecondaryTextBrush}"
+      Text="SELECTED FACES" />
+    <Border
+      Padding="10"
+      Background="{StaticResource InputBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      BorderThickness="1"
+      CornerRadius="6">
+      <StackPanel Spacing="6">
+        <DockPanel LastChildFill="False">
+          <StackPanel DockPanel.Dock="Left" Spacing="2">
+            <TextBlock
+              FontSize="11"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="{Binding SelectedFacesQueueSummary}" />
+            <TextBlock
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding SelectionSummary}" />
+            <TextBlock
+              FontSize="10"
+              Foreground="{StaticResource MutedTextBrush}"
+              Text="{Binding LastViewportEvent}" />
+          </StackPanel>
+          <Button
+            DockPanel.Dock="Right"
+            Classes="panel-button"
+            IsVisible="{Binding HasFaceSelection}"
+            Content="Clear All"
+            Click="OnClearSelectionClicked" />
+        </DockPanel>
+
+        <ItemsControl ItemsSource="{Binding SelectedFaceDetails}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="models:SelectedFaceDetails">
+              <Border
+                Margin="0,4,0,0"
+                Padding="8"
+                Background="#11000000"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="4">
+                <StackPanel Spacing="6">
+                  <DockPanel LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left" Spacing="2">
+                      <TextBlock
+                        FontSize="11"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource AccentBrush}"
+                        Text="{Binding QueueLabel}" />
+                      <TextBlock
+                        FontSize="10"
+                        Foreground="{StaticResource SecondaryTextBrush}"
+                        Text="{Binding BodyName}" />
+                    </StackPanel>
+                    <Button
+                      DockPanel.Dock="Right"
+                      Classes="panel-button"
+                      MinWidth="0"
+                      Padding="8,4"
+                      Tag="{Binding SelectionKey}"
+                      Content="Remove"
+                      Click="OnRemoveSelectedFaceClicked" />
+                  </DockPanel>
+
+                  <DockPanel LastChildFill="False">
+                    <Border
+                      DockPanel.Dock="Left"
+                      Padding="6,2"
+                      Background="#16000000"
+                      BorderBrush="{StaticResource BorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="3">
+                      <TextBlock
+                        FontSize="10"
+                        Foreground="{StaticResource PrimaryTextBrush}"
+                        Text="{Binding FaceType}" />
+                    </Border>
+                    <TextBlock
+                      DockPanel.Dock="Right"
+                      VerticalAlignment="Center"
+                      FontSize="10"
+                      Foreground="{StaticResource MutedTextBrush}"
+                      Text="{Binding AreaLabel}" />
+                  </DockPanel>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+
+</UserControl>

@@ -1,0 +1,572 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorShellView"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:help="using:Pathstitch.App.Help"
+  xmlns:pages="using:Pathstitch.App.Pages"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.shell"
+  Focusable="True">
+  <UserControl.Resources>
+    <SolidColorBrush x:Key="BaseBackgroundBrush" Color="#0D0D10" />
+    <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#141418" />
+    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#1C1C22" />
+    <SolidColorBrush x:Key="PrimaryTextBrush" Color="#E4E4EA" />
+    <SolidColorBrush x:Key="SecondaryTextBrush" Color="#6A6A74" />
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#3E3E48" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#4D7FFF" />
+    <SolidColorBrush x:Key="AccentDimBrush" Color="#1F2D52" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#1FFFFFFF" />
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <Style Selector="Button.tool-button">
+      <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <Style Selector="Button.tool-button:pointerover">
+      <Setter Property="Background" Value="#23232A" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+    </Style>
+
+    <Style Selector="Button.tool-button.active">
+      <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.panel-button">
+      <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="Padding" Value="10,8" />
+    </Style>
+
+    <Style Selector="Button.panel-button:pointerover">
+      <Setter Property="Background" Value="#23232A" />
+    </Style>
+
+    <Style Selector="Button.face-row">
+      <Setter Property="Background" Value="#11000000" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="Padding" Value="8,6" />
+    </Style>
+
+    <Style Selector="Button.face-row:pointerover">
+      <Setter Property="Background" Value="#23232A" />
+    </Style>
+
+    <Style Selector="Button.face-row.active">
+      <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.body-select">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+
+    <Style Selector="Button.body-select.active">
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+
+    <Style Selector="Border.body-card.active">
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+    </Style>
+
+    <Style Selector="Button.chip-button">
+      <Setter Property="Background" Value="#11000000" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+      <Setter Property="Padding" Value="10,6" />
+    </Style>
+
+    <Style Selector="Button.chip-button.active">
+      <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+  </UserControl.Styles>
+  <Grid Background="{StaticResource BaseBackgroundBrush}" RowDefinitions="Auto,Auto,*,Auto">
+    <Menu
+      AutomationProperties.AutomationId="editor.menu-strip"
+      Background="{StaticResource PanelBackgroundBrush}"
+      Foreground="{StaticResource PrimaryTextBrush}">
+      <MenuItem AutomationProperties.AutomationId="editor.menu.file" Header="_File">
+        <MenuItem
+          x:Name="NewProjectMenuItem"
+          AutomationProperties.AutomationId="editor.menu.file.new"
+          Command="{Binding NewProjectCommand}"
+          Header="_New Project"
+          HotKey="Ctrl+N" />
+        <MenuItem
+          x:Name="OpenProjectMenuItem"
+          AutomationProperties.AutomationId="editor.menu.file.open"
+          Command="{Binding OpenProjectCommand}"
+          Header="_Open Project…"
+          HotKey="Ctrl+O" />
+        <MenuItem
+          x:Name="ImportFilesMenuItem"
+          AutomationProperties.AutomationId="editor.menu.file.import"
+          Command="{Binding ImportFilesCommand}"
+          Header="_Import…"
+          HotKey="Ctrl+Shift+I" />
+        <Separator />
+        <MenuItem
+          x:Name="SaveMenuItem"
+          AutomationProperties.AutomationId="editor.menu.file.save"
+          Command="{Binding SaveDocumentCommand}"
+          Header="_Save"
+          HotKey="Ctrl+S" />
+        <MenuItem
+          x:Name="SaveAsMenuItem"
+          AutomationProperties.AutomationId="editor.menu.file.save-as"
+          Command="{Binding SaveDocumentAsCommand}"
+          Header="Save _As…"
+          HotKey="Ctrl+Shift+S" />
+        <MenuItem
+          x:Name="SaveAndCloseMenuItem"
+          AutomationProperties.AutomationId="editor.menu.file.save-and-close"
+          Command="{Binding SaveAndCloseDocumentCommand}"
+          Header="Save and _Close"
+          HotKey="Ctrl+Shift+W" />
+        <Separator />
+        <MenuItem AutomationProperties.AutomationId="editor.menu.file.export" Header="_Export">
+          <MenuItem
+            x:Name="ExportDxfMenuItem"
+            AutomationProperties.AutomationId="editor.menu.file.export.dxf"
+            Command="{Binding ExportDxfCommand}"
+            Header="AutoCAD DXF (.dxf)" />
+          <MenuItem
+            x:Name="ExportSvgMenuItem"
+            AutomationProperties.AutomationId="editor.menu.file.export.svg"
+            Command="{Binding ExportSvgCommand}"
+            Header="Scalable Vector Graphics (.svg)" />
+          <MenuItem
+            x:Name="ExportPngMenuItem"
+            AutomationProperties.AutomationId="editor.menu.file.export.png"
+            Command="{Binding ExportPngCommand}"
+            Header="Raster Image (.png)" />
+          <MenuItem
+            x:Name="ExportPdfMenuItem"
+            AutomationProperties.AutomationId="editor.menu.file.export.pdf"
+            Command="{Binding ExportPdfCommand}"
+            Header="Document PDF (.pdf)" />
+        </MenuItem>
+        <Separator />
+        <MenuItem
+          x:Name="CloseDocumentMenuItem"
+          AutomationProperties.AutomationId="editor.menu.file.close-document"
+          Command="{Binding CloseDocumentCommand}"
+          Header="_Close Document"
+          HotKey="Ctrl+W" />
+      </MenuItem>
+      <MenuItem AutomationProperties.AutomationId="editor.menu.edit" Header="_Edit">
+        <MenuItem
+          x:Name="UndoMenuItem"
+          AutomationProperties.AutomationId="editor.menu.edit.undo"
+          Command="{Binding UndoCommand}"
+          Header="_Undo" />
+        <MenuItem
+          x:Name="RedoMenuItem"
+          AutomationProperties.AutomationId="editor.menu.edit.redo"
+          Command="{Binding RedoCommand}"
+          Header="_Redo" />
+        <Separator />
+        <MenuItem
+          x:Name="DeleteMenuItem"
+          AutomationProperties.AutomationId="editor.menu.edit.delete"
+          Command="{Binding DeleteCommand}"
+          Header="_Delete" />
+      </MenuItem>
+      <MenuItem
+        x:Name="ToolsMenu"
+        AutomationProperties.AutomationId="editor.menu.tools"
+        Header="_Tools"
+        SubmenuOpened="OnToolsSubmenuOpened">
+        <MenuItem
+          x:Name="SearchCommandsMenuItem"
+          AutomationProperties.AutomationId="editor.menu.tools.search"
+          Click="OnSearchCommandsClicked"
+          Header="_Search Commands…"
+          HotKey="Ctrl+K" />
+        <Separator />
+      </MenuItem>
+      <MenuItem
+        x:Name="ModifyMenu"
+        AutomationProperties.AutomationId="editor.menu.modify"
+        Header="_Modify"
+        SubmenuOpened="OnModifySubmenuOpened" />
+      <MenuItem AutomationProperties.AutomationId="editor.menu.view" Header="_View">
+        <MenuItem
+          x:Name="ZoomInMenuItem"
+          AutomationProperties.AutomationId="editor.menu.view.zoom-in"
+          Click="OnZoomInClicked"
+          Header="Zoom _In"
+          HotKey="Ctrl+OemPlus"
+          IsEnabled="{Binding IsShowingTwoDWorkspace}" />
+        <MenuItem
+          x:Name="ZoomOutMenuItem"
+          AutomationProperties.AutomationId="editor.menu.view.zoom-out"
+          Click="OnZoomOutClicked"
+          Header="Zoom _Out"
+          HotKey="Ctrl+OemMinus"
+          IsEnabled="{Binding IsShowingTwoDWorkspace}" />
+        <MenuItem
+          x:Name="ZoomToFitMenuItem"
+          AutomationProperties.AutomationId="editor.menu.view.zoom-to-fit"
+          Click="OnZoomToFitClicked"
+          Header="Zoom to _Fit"
+          HotKey="Ctrl+D0"
+          IsEnabled="{Binding IsShowingTwoDWorkspace}" />
+        <Separator />
+        <MenuItem
+          x:Name="ActivityLogMenuItem"
+          help:ContextualHelp.Text="{Binding ActivityLogToggleHelpText}"
+          AutomationProperties.AutomationId="editor.menu.view.log-tray"
+          Click="OnToggleActivityLogClicked"
+          Header="{Binding ActivityLogToggleLabel}" />
+        <MenuItem
+          x:Name="LearnModeMenuItem"
+          help:ContextualHelp.Text="{Binding LearnModeToggleHelpText}"
+          AutomationProperties.AutomationId="editor.menu.view.learn-mode"
+          Click="OnToggleLearnModeClicked"
+          Header="_Learn Mode"
+          IsChecked="{Binding LearnModeEnabled, Mode=OneWay}"
+          ToggleType="CheckBox" />
+      </MenuItem>
+      <MenuItem AutomationProperties.AutomationId="editor.menu.help" Header="_Help">
+        <MenuItem
+          x:Name="DocumentationMenuItem"
+          AutomationProperties.AutomationId="editor.menu.help.documentation"
+          Click="OnDocumentationClicked"
+          Header="_Documentation" />
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.help.check-updates"
+          Click="OnCheckForUpdatesClicked"
+          Header="_Download Updates Manually…" />
+        <MenuItem
+          x:Name="StartScreenMenuItem"
+          AutomationProperties.AutomationId="editor.menu.help.start-screen"
+          Click="OnShowStartScreenClicked"
+          Header="_Start Screen" />
+        <MenuItem
+          x:Name="PreferencesMenuItem"
+          AutomationProperties.AutomationId="editor.menu.help.preferences"
+          Click="OnPreferencesClicked"
+          Header="_Preferences" />
+        <MenuItem
+          AutomationProperties.AutomationId="editor.menu.help.about"
+          Click="OnAboutClicked"
+          Header="_About Pathstitch" />
+      </MenuItem>
+    </Menu>
+    <Border
+      Grid.Row="1"
+      Padding="18,14"
+      AutomationProperties.AutomationId="editor.header"
+      Background="{StaticResource PanelBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      BorderThickness="0,0,0,1">
+      <DockPanel LastChildFill="True">
+        <StackPanel Spacing="3">
+          <TextBlock
+            FontSize="18"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource PrimaryTextBrush}"
+            Text="{Binding ProjectTitle}" />
+          <TextBlock
+            FontSize="11"
+            Foreground="{StaticResource SecondaryTextBrush}"
+            Text="{Binding ProjectSubtitle}" />
+        </StackPanel>
+
+        <StackPanel
+          VerticalAlignment="Center"
+          DockPanel.Dock="Right"
+          Orientation="Horizontal"
+          Spacing="10">
+          <pages:EditorCommandPalette x:Name="CommandPalette" />
+
+          <Border
+            Padding="10,6"
+            Background="{StaticResource InputBackgroundBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <TextBlock
+              FontSize="11"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding StatusText}" />
+          </Border>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+    <Grid Grid.Row="2" AutomationProperties.AutomationId="editor.regions">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition
+          Width="56"
+          MinWidth="56"
+          MaxWidth="180" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="4" />
+        <ColumnDefinition
+          Width="360"
+          MinWidth="300"
+          MaxWidth="640" />
+      </Grid.ColumnDefinitions>
+      <pages:EditorToolRail Grid.Column="0" AutomationProperties.AutomationId="editor.tool-rail" />
+      <GridSplitter
+        Grid.Column="1"
+        Width="4"
+        AutomationProperties.AutomationId="editor.tool-rail.resize"
+        Background="{StaticResource BorderBrush}"
+        IsVisible="{Binding !IsShowingTwoDWorkspace}"
+        ResizeDirection="Columns" />
+      <Grid
+        Grid.Column="2"
+        Width="220"
+        AutomationProperties.AutomationId="editor.context-panel"
+        IsVisible="{Binding !IsShowingTwoDWorkspace}">
+        <pages:Editor3DBodiesPanel AutomationProperties.AutomationId="editor.context.3d-bodies" IsVisible="{Binding IsShowing3DWorkspace}" />
+        <Grid IsVisible="{Binding IsShowingBatchWorkspace}">
+          <pages:EditorBatchContextPanel AutomationProperties.AutomationId="editor.context.batch" DataContext="{Binding BatchWorkspace}" />
+        </Grid>
+      </Grid>
+      <Grid
+        Grid.Column="3"
+        AutomationProperties.AutomationId="editor.workspace-host"
+        Background="{StaticResource BaseBackgroundBrush}">
+        <pages:Editor3DView
+          x:Name="ThreeDWorkspace"
+          AutomationProperties.AutomationId="editor.workspace.3d"
+          IsVisible="{Binding IsShowing3DWorkspace}" />
+        <pages:Editor2DView
+          x:Name="TwoDWorkspace"
+          AutomationProperties.AutomationId="editor.workspace.2d"
+          IsVisible="{Binding IsShowingTwoDWorkspace}" />
+        <Grid IsVisible="{Binding IsShowingBatchWorkspace}">
+          <pages:EditorBatchView AutomationProperties.AutomationId="editor.workspace.batch" DataContext="{Binding BatchWorkspace}" />
+        </Grid>
+        <Border
+          Margin="12"
+          Padding="10,8"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Top"
+          AutomationProperties.AutomationId="editor.batch.edit-banner"
+          Background="{StaticResource PanelBackgroundBrush}"
+          BorderBrush="{StaticResource AccentBrush}"
+          BorderThickness="1"
+          CornerRadius="6"
+          IsVisible="{Binding IsBatchItemEditActive}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock
+              VerticalAlignment="Center"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="{Binding BatchItemEditTitle}" />
+            <Button
+              AutomationProperties.AutomationId="editor.batch.save-return"
+              Click="OnSaveBatchItemEditClicked"
+              Content="Save &amp; Return" />
+            <Button
+              AutomationProperties.AutomationId="editor.batch.cancel-return"
+              Click="OnCancelBatchItemEditClicked"
+              Content="Cancel" />
+          </StackPanel>
+        </Border>
+        <StackPanel
+          Margin="12"
+          HorizontalAlignment="Right"
+          VerticalAlignment="Top"
+          Orientation="Horizontal"
+          Spacing="8">
+          <Button
+            Width="34"
+            Height="34"
+            Padding="0"
+            AutomationProperties.AutomationId="editor.workspace.snap"
+            Classes="chip-button"
+            Classes.active="{Binding TwoDSnapEnabled}"
+            Click="OnToggleSnappingClicked"
+            IsVisible="{Binding IsShowingTwoDWorkspace}"
+            ToolTip.Tip="{Binding TwoDSnappingSummary}">
+            <TextBlock
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              FontSize="15"
+              Text="◎" />
+          </Button>
+          <Button
+            Width="34"
+            Height="34"
+            Padding="0"
+            AutomationProperties.AutomationId="editor.workspace.grid"
+            Classes="chip-button"
+            Classes.active="{Binding TwoDGridVisible}"
+            Click="OnToggleGridClicked"
+            IsVisible="{Binding IsShowingTwoDWorkspace}"
+            ToolTip.Tip="{Binding TwoDGridSummary}">
+            <TextBlock
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              FontSize="15"
+              Text="#" />
+          </Button>
+          <Button
+            Width="34"
+            Height="34"
+            Padding="0"
+            AutomationProperties.AutomationId="editor.workspace.chain"
+            Classes="chip-button"
+            Classes.active="{Binding TwoDChainSelectionEnabled}"
+            Click="OnToggleChainSelectionClicked"
+            IsVisible="{Binding IsShowingTwoDWorkspace}"
+            ToolTip.Tip="{Binding TwoDChainSelectionSummary}">
+            <TextBlock
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              FontSize="15"
+              Text="∿" />
+          </Button>
+          <Button
+            Name="HomeFrameButton"
+            Width="34"
+            Height="34"
+            Padding="0"
+            AutomationProperties.AutomationId="editor.workspace.frame-home"
+            Background="#E6141418"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            Click="OnHomeFrameClicked"
+            IsVisible="{Binding CanFrameHome}">
+            <TextBlock
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              FontSize="13"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="⌂" />
+          </Button>
+          <Button
+            Width="34"
+            Height="34"
+            Padding="0"
+            help:ContextualHelp.Text="{Binding ActivityLogToggleHelpText}"
+            AutomationProperties.AutomationId="editor.workspace.log-tray"
+            AutomationProperties.Name="{Binding ActivityLogToggleLabel}"
+            Classes="chip-button"
+            Classes.active="{Binding IsActivityLogExpanded}"
+            Click="OnToggleActivityLogClicked"
+            IsVisible="{Binding !IsShowingBatchWorkspace}"
+            ToolTip.Tip="{Binding ActivityLogToggleLabel}">
+            <TextBlock
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              FontSize="14"
+              Text="≡" />
+          </Button>
+        </StackPanel>
+
+        <Border
+          Margin="12"
+          Padding="8"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Top"
+          AutomationProperties.AutomationId="editor.mode-switcher"
+          Background="#E6141418"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="8">
+          <StackPanel Spacing="8">
+            <TextBlock
+              FontSize="11"
+              Foreground="{StaticResource PrimaryTextBrush}"
+              Text="{Binding WorkspaceSurfaceTitle}" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button
+                AutomationProperties.AutomationId="editor.mode.3d"
+                Classes="chip-button"
+                Classes.active="{Binding IsShowing3DWorkspace}"
+                Click="OnShow3DWorkspaceClicked"
+                Content="3D" />
+              <Button
+                AutomationProperties.AutomationId="editor.mode.2d"
+                Classes="chip-button"
+                Classes.active="{Binding IsShowingTwoDWorkspace}"
+                Click="OnShowTwoDWorkspaceClicked"
+                Content="2D Workspace" />
+              <Button
+                AutomationProperties.AutomationId="editor.mode.batch"
+                Classes="chip-button"
+                Classes.active="{Binding IsShowingBatchWorkspace}"
+                Click="OnShowBatchWorkspaceClicked"
+                Content="Batch" />
+            </StackPanel>
+            <TextBlock
+              FontSize="10"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding WorkspaceModeHint}"
+              TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+        <Border
+          Padding="14,10"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+          Background="#DD141418"
+          BorderBrush="{StaticResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="10"
+          IsVisible="{Binding IsLoading}">
+          <StackPanel Spacing="8">
+            <ProgressBar Width="180" IsIndeterminate="True" />
+            <TextBlock
+              HorizontalAlignment="Center"
+              FontSize="11"
+              Foreground="{StaticResource SecondaryTextBrush}"
+              Text="{Binding ViewportStateText}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+      <GridSplitter
+        Grid.Column="4"
+        AutomationProperties.AutomationId="editor.inspector.resize"
+        Background="{StaticResource BorderBrush}"
+        Cursor="SizeWestEast"
+        ResizeBehavior="PreviousAndNext"
+        ResizeDirection="Columns" />
+      <Grid
+        Grid.Column="5"
+        AutomationProperties.AutomationId="editor.right-panel"
+        RowDefinitions="*,Auto">
+        <pages:EditorInspectorHost AutomationProperties.AutomationId="editor.inspector-host" />
+        <pages:Editor2DLayersPanel
+          Grid.Row="1"
+          Height="360"
+          AutomationProperties.AutomationId="editor.context.2d-layers"
+          IsVisible="{Binding IsShowingTwoDWorkspace}" />
+      </Grid>
+    </Grid>
+    <pages:EditorActivityLogTray Grid.Row="3" />
+  </Grid>
+</UserControl>

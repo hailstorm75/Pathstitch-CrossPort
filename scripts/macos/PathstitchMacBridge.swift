@@ -1,0 +1,336 @@
+import AppKit
+import Foundation
+
+private enum PathstitchMacBridge {
+    static let appGroupIdentifier = "group.com.pathstitch.crossport"
+    static let dxfPreviewKey = "quicklook.preview.enabled.dxf"
+    static let stepPreviewKey = "quicklook.preview.enabled.step"
+    static let stchPreviewKey = "quicklook.preview.enabled.stch"
+    static let runtimeProbeNonceKey = "quicklook.runtimeProbe.nonce"
+    static let runtimeProbeOriginalPreferencesKey = "quicklook.runtimeProbe.originalPreferences"
+    static let runtimeEvidenceDirectory = "Library/Application Support/Pathstitch/NativeEvidence"
+}
+
+private final class PathstitchDockIconState {
+    private static var choice = "automatic"
+    private static var appearanceObservation: NSKeyValueObservation?
+
+    static func apply(_ rawChoice: String) -> Bool {
+        switch rawChoice.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "light":
+            choice = "light"
+        case "dark":
+            choice = "dark"
+        default:
+            choice = "automatic"
+        }
+
+        appearanceObservation = nil
+        if choice == "automatic" {
+            appearanceObservation = NSApp.observe(
+                \NSApplication.effectiveAppearance,
+                options: [.new]
+            ) { _, _ in
+                DispatchQueue.main.async {
+                    _ = refresh()
+                }
+            }
+        }
+        return refresh()
+    }
+
+    private static func refresh() -> Bool {
+        let useDarkIcon: Bool
+        switch choice {
+        case "light":
+            useDarkIcon = false
+        case "dark":
+            useDarkIcon = true
+        default:
+            useDarkIcon = NSApp.effectiveAppearance.bestMatch(
+                from: [.darkAqua, .aqua]
+            ) == .darkAqua
+        }
+
+        let resourceName = useDarkIcon ? "AppIconDark" : "AppIconLight"
+        guard
+            let path = Bundle.main.path(forResource: resourceName, ofType: "png"),
+            let image = NSImage(contentsOfFile: path)
+        else {
+            return false
+        }
+
+        NSApp.applicationIconImage = image
+        return true
+    }
+}
+
+@_cdecl("pathstitch_set_quicklook_preferences")
+public func pathstitchSetQuickLookPreferences(
+    _ dxfEnabled: Int32,
+    _ stepEnabled: Int32,
+    _ stchEnabled: Int32
+) -> Int32 {
+    guard let defaults = UserDefaults(
+        suiteName: PathstitchMacBridge.appGroupIdentifier
+    ) else {
+        return 0
+    }
+
+    defaults.set(dxfEnabled != 0, forKey: PathstitchMacBridge.dxfPreviewKey)
+    defaults.set(stepEnabled != 0, forKey: PathstitchMacBridge.stepPreviewKey)
+    defaults.set(stchEnabled != 0, forKey: PathstitchMacBridge.stchPreviewKey)
+    return defaults.synchronize() ? 1 : 0
+}
+
+@_cdecl("pathstitch_get_quicklook_preference")
+public func pathstitchGetQuickLookPreference(
+    _ format: Int32
+) -> Int32 {
+    guard let defaults = UserDefaults(
+        suiteName: PathstitchMacBridge.appGroupIdentifier
+    ) else {
+        return -1
+    }
+
+    let key: String
+    switch format {
+    case 0:
+        key = PathstitchMacBridge.dxfPreviewKey
+    case 1:
+        key = PathstitchMacBridge.stepPreviewKey
+    case 2:
+        key = PathstitchMacBridge.stchPreviewKey
+    default:
+        return -1
+    }
+    guard defaults.object(forKey: key) != nil else { return -1 }
+    return defaults.bool(forKey: key) ? 1 : 0
+}
+
+private func pathstitchRuntimeProbePreferenceKeys() -> [String] {
+    [
+        PathstitchMacBridge.dxfPreviewKey,
+        PathstitchMacBridge.stepPreviewKey,
+        PathstitchMacBridge.stchPreviewKey,
+    ]
+}
+
+private func pathstitchCaptureRuntimeProbePreferences(_ defaults: UserDefaults) {
+    var snapshot: [String: [String: Bool]] = [:]
+    for key in pathstitchRuntimeProbePreferenceKeys() {
+        let present = defaults.object(forKey: key) != nil
+        snapshot[key] = [
+            "present": present,
+            "value": present ? defaults.bool(forKey: key) : false,
+        ]
+    }
+    defaults.set(
+        snapshot,
+        forKey: PathstitchMacBridge.runtimeProbeOriginalPreferencesKey)
+}
+
+@discardableResult
+private func pathstitchCleanupRuntimeProbe(
+    _ defaults: UserDefaults,
+    _ container: URL,
+    _ nonce: String
+) -> Bool {
+    var restored = true
+    if let snapshot = defaults.dictionary(
+        forKey: PathstitchMacBridge.runtimeProbeOriginalPreferencesKey)
+    {
+        for key in pathstitchRuntimeProbePreferenceKeys() {
+            guard
+                let state = snapshot[key] as? [String: Any],
+                let present = state["present"] as? Bool
+            else {
+                restored = false
+                continue
+            }
+            if present {
+                guard let value = state["value"] as? Bool else {
+                    restored = false
+                    continue
+                }
+                defaults.set(value, forKey: key)
+            } else {
+                defaults.removeObject(forKey: key)
+            }
+        }
+    }
+
+    defaults.removeObject(forKey: PathstitchMacBridge.runtimeProbeNonceKey)
+    defaults.removeObject(
+        forKey: PathstitchMacBridge.runtimeProbeOriginalPreferencesKey)
+    let directory = container.appendingPathComponent(
+        PathstitchMacBridge.runtimeEvidenceDirectory,
+        isDirectory: true)
+    for providerKind in ["preview", "thumbnail"] {
+        let evidence = directory.appendingPathComponent(
+            "\(nonce)-\(providerKind).json")
+        do {
+            if FileManager.default.fileExists(atPath: evidence.path) {
+                try FileManager.default.removeItem(at: evidence)
+            }
+        } catch {
+            restored = false
+        }
+    }
+    return defaults.synchronize() && restored
+}
+
+@_cdecl("pathstitch_prepare_quicklook_runtime_probe")
+public func pathstitchPrepareQuickLookRuntimeProbe(
+    _ rawNonce: UnsafePointer<CChar>?
+) -> Int32 {
+    guard let rawNonce else { return 0 }
+    let nonce = String(cString: rawNonce)
+    guard nonce.range(
+        of: "^[0-9a-f]{32}$",
+        options: .regularExpression) != nil,
+        let defaults = UserDefaults(
+            suiteName: PathstitchMacBridge.appGroupIdentifier),
+        let container = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier:
+                PathstitchMacBridge.appGroupIdentifier)
+    else {
+        return 0
+    }
+
+    if let staleNonce = defaults.string(
+        forKey: PathstitchMacBridge.runtimeProbeNonceKey)
+    {
+        guard pathstitchCleanupRuntimeProbe(defaults, container, staleNonce)
+        else {
+            return 0
+        }
+    }
+
+    pathstitchCaptureRuntimeProbePreferences(defaults)
+    defaults.set(false, forKey: PathstitchMacBridge.dxfPreviewKey)
+    defaults.set(true, forKey: PathstitchMacBridge.stepPreviewKey)
+    defaults.set(false, forKey: PathstitchMacBridge.stchPreviewKey)
+    defaults.set(nonce, forKey: PathstitchMacBridge.runtimeProbeNonceKey)
+    guard defaults.synchronize() else {
+        _ = pathstitchCleanupRuntimeProbe(defaults, container, nonce)
+        return 0
+    }
+
+    do {
+        let directory = container.appendingPathComponent(
+            PathstitchMacBridge.runtimeEvidenceDirectory,
+            isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true)
+        for providerKind in ["preview", "thumbnail"] {
+            let existing = directory.appendingPathComponent(
+                "\(nonce)-\(providerKind).json")
+            if FileManager.default.fileExists(atPath: existing.path) {
+                try FileManager.default.removeItem(at: existing)
+            }
+        }
+        return 1
+    } catch {
+        _ = pathstitchCleanupRuntimeProbe(defaults, container, nonce)
+        return 0
+    }
+}
+
+@_cdecl("pathstitch_collect_quicklook_runtime_probe")
+public func pathstitchCollectQuickLookRuntimeProbe(
+    _ rawNonce: UnsafePointer<CChar>?,
+    _ rawOutputDirectory: UnsafePointer<CChar>?
+) -> Int32 {
+    guard let rawNonce, let rawOutputDirectory else { return -1 }
+    let nonce = String(cString: rawNonce)
+    let outputDirectory = URL(
+        fileURLWithPath: String(cString: rawOutputDirectory),
+        isDirectory: true)
+    guard nonce.range(
+        of: "^[0-9a-f]{32}$",
+        options: .regularExpression) != nil,
+        let defaults = UserDefaults(
+            suiteName: PathstitchMacBridge.appGroupIdentifier),
+        defaults.string(forKey: PathstitchMacBridge.runtimeProbeNonceKey) == nonce,
+        let container = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier:
+                PathstitchMacBridge.appGroupIdentifier)
+    else {
+        return -1
+    }
+
+    let directory = container.appendingPathComponent(
+        PathstitchMacBridge.runtimeEvidenceDirectory,
+        isDirectory: true)
+    let sources = [
+        "preview": directory.appendingPathComponent("\(nonce)-preview.json"),
+        "thumbnail": directory.appendingPathComponent("\(nonce)-thumbnail.json"),
+    ]
+    guard sources.values.allSatisfy({
+        FileManager.default.fileExists(atPath: $0.path)
+    }) else {
+        return 0
+    }
+
+    do {
+        try FileManager.default.createDirectory(
+            at: outputDirectory,
+            withIntermediateDirectories: true)
+        for (providerKind, source) in sources {
+            let destination = outputDirectory.appendingPathComponent(
+                "quicklook-\(providerKind)-runtime-probe.json")
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.copyItem(at: source, to: destination)
+        }
+        return pathstitchCleanupRuntimeProbe(defaults, container, nonce) ? 1 : -1
+    } catch {
+        _ = pathstitchCleanupRuntimeProbe(defaults, container, nonce)
+        return -1
+    }
+}
+
+@_cdecl("pathstitch_cancel_quicklook_runtime_probe")
+public func pathstitchCancelQuickLookRuntimeProbe(
+    _ rawNonce: UnsafePointer<CChar>?
+) -> Int32 {
+    guard let rawNonce else { return 0 }
+    let nonce = String(cString: rawNonce)
+    guard nonce.range(
+        of: "^[0-9a-f]{32}$",
+        options: .regularExpression) != nil,
+        let defaults = UserDefaults(
+            suiteName: PathstitchMacBridge.appGroupIdentifier),
+        defaults.string(forKey: PathstitchMacBridge.runtimeProbeNonceKey) == nonce,
+        let container = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier:
+                PathstitchMacBridge.appGroupIdentifier)
+    else {
+        return 0
+    }
+
+    return pathstitchCleanupRuntimeProbe(defaults, container, nonce) ? 1 : 0
+}
+
+@_cdecl("pathstitch_apply_app_icon")
+public func pathstitchApplyAppIcon(
+    _ rawChoice: UnsafePointer<CChar>?
+) -> Int32 {
+    guard let rawChoice else {
+        return 0
+    }
+
+    let choice = String(cString: rawChoice)
+    let applied: Bool
+    if Thread.isMainThread {
+        applied = PathstitchDockIconState.apply(choice)
+    } else {
+        applied = DispatchQueue.main.sync {
+            PathstitchDockIconState.apply(choice)
+        }
+    }
+    return applied ? 1 : 0
+}

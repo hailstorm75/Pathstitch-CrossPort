@@ -1,0 +1,28 @@
+<UserControl
+  x:Class="Pathstitch.App.Pages.EditorErrorInspector"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:models="using:Domain.App.Models"
+  xmlns:viewModels="using:Domain.App.ViewModels"
+  x:DataType="viewModels:EditorPageViewModel"
+  AutomationProperties.AutomationId="editor.inspector.errors">
+  <StackPanel Spacing="8">
+    <TextBlock
+      FontSize="13"
+      FontWeight="SemiBold"
+      Foreground="{StaticResource SecondaryTextBrush}"
+      Text="ERRORS" />
+    <Border
+      Padding="10"
+      Background="{StaticResource InputBackgroundBrush}"
+      BorderBrush="{StaticResource BorderBrush}"
+      BorderThickness="1"
+      CornerRadius="6">
+      <TextBlock
+        FontSize="11"
+        TextWrapping="Wrap"
+        Foreground="{StaticResource SecondaryTextBrush}"
+        Text="{Binding ErrorMessage}" />
+    </Border>
+  </StackPanel>
+</UserControl>
