@@ -39,6 +39,13 @@ public sealed record Editor2DWorkspaceState(
             new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
             []),
         IsInitialized: false);
+
+    public static Editor2DWorkspaceState NewProject { get; } = Empty with
+    {
+        IsInitialized = true,
+        Layers = [new Editor2DLayer("layer-1", "Layer 1", [], ColorHex: "#4D7FFF")],
+        ActiveLayerId = "layer-1",
+    };
 }
 
 public sealed record Editor2DExportPreferences(

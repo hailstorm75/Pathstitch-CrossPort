@@ -844,6 +844,24 @@ public sealed class EditorShellHeadlessTests
     }
 
     [Fact]
+    public async Task LiveShell_BlankTwoDWorkspaceFramesImmediatelyWithVisibleGrid()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            Assert.True(canvas.GridVisible);
+            Assert.True(canvas.Zoom > 0.0);
+            Assert.True(canvas.Bounds.Width > 1.0);
+            Assert.True(canvas.Bounds.Height > 1.0);
+        });
+    }
+
+    [Fact]
     public async Task LiveShell_GridToggleIsVisibleInTwoDAndUpdatesPersistedWorkspaceState()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();

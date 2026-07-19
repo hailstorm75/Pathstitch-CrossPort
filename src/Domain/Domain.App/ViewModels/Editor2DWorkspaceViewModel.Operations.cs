@@ -942,7 +942,12 @@ public sealed partial class Editor2DWorkspaceViewModel
         var appendedPaths = new List<Editor2DPreviewPath>();
         var appendedLayers = new List<Editor2DLayer>();
         var groups = new List<Editor2DImportGroup>();
-        var nextLayerOrder = Layers.Select(layer => layer.Order).DefaultIfEmpty(-1).Max() + 1;
+        var existingLayers = Document.Paths.Count == 0
+            && ImportGroups.Count == 0
+            && Layers is [{ Id: "layer-1", PathIds.Count: 0 }]
+                ? []
+                : Layers;
+        var nextLayerOrder = existingLayers.Select(layer => layer.Order).DefaultIfEmpty(-1).Max() + 1;
         foreach (var drawing in valid)
         {
             var groupId = Guid.NewGuid().ToString("N");
@@ -992,8 +997,10 @@ public sealed partial class Editor2DWorkspaceViewModel
             Document = RebuildDocument(
                 Document with { UnsupportedEntityTypes = unsupportedEntityTypes },
                 Document.Paths.Concat(appendedPaths).ToArray()),
-            Layers = Layers.Concat(appendedLayers).ToArray(),
-            ActiveLayerId = ActiveLayerId ?? appendedLayers[0].Id,
+            Layers = existingLayers.Concat(appendedLayers).ToArray(),
+            ActiveLayerId = existingLayers.Any(layer => layer.Id == ActiveLayerId)
+                ? ActiveLayerId
+                : appendedLayers[0].Id,
             ImportGroups = ImportGroups.Concat(groups).ToArray(),
             BaseUnsupportedEntityTypes = _state.BaseUnsupportedEntityTypes ?? Document.UnsupportedEntityTypes,
             SelectedPathIds = selectedIds,

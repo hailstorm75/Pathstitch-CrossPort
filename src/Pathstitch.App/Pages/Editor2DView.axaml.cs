@@ -83,6 +83,7 @@ public partial class Editor2DView : EditorInteractionControlBase
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
+        TwoDPreviewCanvas.FrameToDocument();
         if (DataContext is Domain.App.ViewModels.EditorPageViewModel viewModel)
             UpdateTwoDViewportSize(viewModel);
         _pointerTopLevel = TopLevel.GetTopLevel(this);
@@ -97,6 +98,19 @@ public partial class Editor2DView : EditorInteractionControlBase
     {
         _pointerTopLevel?.RemoveHandler(InputElement.PointerPressedEvent, OnWorkspacePointerPressed);
         _pointerTopLevel = null;
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property != IsVisibleProperty || !IsVisible)
+            return;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (IsVisible && TwoDPreviewCanvas.Zoom <= 0.0)
+                TwoDPreviewCanvas.FrameToDocument();
+        }, DispatcherPriority.Input);
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)

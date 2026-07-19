@@ -3012,8 +3012,19 @@ public sealed partial class EditorPageViewModel
     private Task EnsureTwoDWorkspaceDocumentAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var document = TwoDDocument ?? CreateEmptyTwoDDocument();
-        SetTwoDDocument(document, activatePreviewWorkspace: false);
+        if (TwoDDocument is null)
+        {
+            _twoDWorkspace.Apply(
+                _twoDWorkspace.State with
+                {
+                    Document = CreateEmptyTwoDDocument(),
+                    IsInitialized = true,
+                },
+                recordHistory: false);
+            ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+            _twoDWorkspace.ClearHistory();
+            TwoDFrameRequestToken++;
+        }
         Request3DStatePersistence(TimeSpan.FromMilliseconds(150));
         return Task.CompletedTask;
     }

@@ -139,6 +139,20 @@ public sealed class Editor2DWorkspaceViewModelTests
     }
 
     [Fact]
+    public void NewProjectState_StartsWithOneActiveColorCodedLayer()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        workspace.Apply(Editor2DWorkspaceState.NewProject, recordHistory: false);
+
+        Assert.True(workspace.IsInitialized);
+        var layer = Assert.Single(workspace.Layers);
+        Assert.Equal("layer-1", layer.Id);
+        Assert.Equal("Layer 1", layer.Name);
+        Assert.Equal("#4D7FFF", layer.ColorHex);
+        Assert.Equal(layer.Id, workspace.ActiveLayerId);
+    }
+
+    [Fact]
     public void GridVisibility_DefaultsOnAndPersistsWithoutPollutingUndoHistory()
     {
         var workspace = new Editor2DWorkspaceViewModel();

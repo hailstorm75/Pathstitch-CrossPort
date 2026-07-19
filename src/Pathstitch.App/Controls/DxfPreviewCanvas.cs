@@ -1317,6 +1317,9 @@ public sealed class DxfPreviewCanvas : Control
     {
         base.OnPropertyChanged(change);
 
+        if (change.Property == IsVisibleProperty && IsVisible && Zoom <= 0.0)
+            FrameToDocument();
+
         var editingCreationPrecision = _dimensionExpressionEditingId is { } currentEditingId
             ? Measurements.FirstOrDefault(item =>
                 item.Id.Equals(currentEditingId, StringComparison.Ordinal)
@@ -1448,11 +1451,19 @@ public sealed class DxfPreviewCanvas : Control
         }
     }
 
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        var arranged = base.ArrangeOverride(finalSize);
+        if (Document is not null && Zoom <= 0.0 && finalSize.Width > 1.0 && finalSize.Height > 1.0)
+            FrameToDocument();
+        return arranged;
+    }
+
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         base.OnSizeChanged(e);
 
-        if (_pendingFrameToDocument && Document is not null)
+        if (Document is not null && (_pendingFrameToDocument || Zoom <= 0.0))
             FrameToDocument();
     }
 
