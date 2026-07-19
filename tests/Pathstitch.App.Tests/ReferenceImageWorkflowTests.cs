@@ -876,7 +876,6 @@ public sealed class ReferenceImageWorkflowTests
         var view = ReadPage("Editor2DView.axaml");
         var canvasSource = ReadRepositoryFile("src", "Pathstitch.App", "Controls", "DxfPreviewCanvas.cs");
         Assert.Contains("ReferenceImages=\"{Binding TwoDReferenceImages}\"", view, StringComparison.Ordinal);
-        var paperDraw = canvasSource.IndexOf("DrawPaperBounds(context, size, Document.Bounds)", StringComparison.Ordinal);
         var backDraw = canvasSource.IndexOf(
             "DrawReferenceImages(context, size, Editor2DReferenceImageDepth.Back)",
             StringComparison.Ordinal);
@@ -887,12 +886,12 @@ public sealed class ReferenceImageWorkflowTests
         var referenceGizmoDraw = canvasSource.IndexOf("DrawReferenceImageGizmo(context, size)", StringComparison.Ordinal);
         var firstOverlayDraw = canvasSource.IndexOf("DrawTranslationGizmo(context, size)", StringComparison.Ordinal);
         Assert.True(
-            paperDraw >= 0
-            && paperDraw < backDraw
+            backDraw >= 0
             && backDraw < geometryDraw
             && geometryDraw < frontDraw
             && frontDraw < referenceGizmoDraw
             && referenceGizmoDraw < firstOverlayDraw);
+        Assert.DoesNotContain("DrawPaperBounds", canvasSource, StringComparison.Ordinal);
         var images = new[]
         {
             image with { Id = "back-1", Depth = Editor2DReferenceImageDepth.Back },

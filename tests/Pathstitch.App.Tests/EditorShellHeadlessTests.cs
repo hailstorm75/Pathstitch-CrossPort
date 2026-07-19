@@ -289,7 +289,7 @@ public sealed class EditorShellHeadlessTests
     }
 
     [Fact]
-    public async Task RectanglePrecision_EnterCommitsWidthAndFinishes()
+    public async Task RectanglePrecision_EnterAdvancesWidthToHeightThenFinishes()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
         var pathId = viewModel.CreateTwoDRectangle(new(20, 10), new(0, 0))!;
@@ -305,9 +305,22 @@ public sealed class EditorShellHeadlessTests
             var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
             input.Text = "25";
             input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        });
+        await _ui.RunAsync(() => { });
+        await _ui.RunAsync(() => { });
 
+        await _ui.RunAsync(() =>
+        {
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
             Assert.Equal(25, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:width").Distance, 8);
-            Assert.Equal(10, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:height").Distance, 8);
+            Assert.Equal($"{pathId}:height", viewModel.TwoDSelectedMeasurementId);
+            Assert.Equal("10", input.Text);
+            Assert.True(input.IsFocused);
+
+            input.Text = "12";
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+
+            Assert.Equal(12, viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:height").Distance, 8);
             Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
             Assert.False(_ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression").IsVisible);
         });
