@@ -790,11 +790,11 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("Mode=OneWay", inspector, StringComparison.Ordinal);
         Assert.Contains("TryCommitTwoDMeasurementExpression", codeBehind, StringComparison.Ordinal);
         Assert.Contains("TwoDSelectedMeasurementId = null", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("RequestDimensionExpressionInput(referenceMeasurement.Id)", canvas, StringComparison.Ordinal);
-        Assert.Contains("RequestDimensionExpressionInput(attachedMeasurement.Id)", canvas, StringComparison.Ordinal);
-        Assert.Contains("RequestDimensionExpressionInput($\"{newPathId}:length\")", canvas, StringComparison.Ordinal);
-        Assert.Contains("RequestDimensionExpressionInput($\"{newPathId}:radius\")", canvas, StringComparison.Ordinal);
-        Assert.Contains("RequestDimensionExpressionInput($\"{newPathId}:width\")", canvas, StringComparison.Ordinal);
+        Assert.Contains("RequestDimensionExpressionInput(referenceMeasurement.Id, DxfCanvasDimensionEditContext.DimensionTool)", canvas, StringComparison.Ordinal);
+        Assert.Contains("RequestDimensionExpressionInput(attachedMeasurement.Id, DxfCanvasDimensionEditContext.DimensionTool)", canvas, StringComparison.Ordinal);
+        Assert.Contains("RequestDimensionExpressionInput($\"{newPathId}:length\", DxfCanvasDimensionEditContext.Creation)", canvas, StringComparison.Ordinal);
+        Assert.Contains("RequestDimensionExpressionInput($\"{newPathId}:radius\", DxfCanvasDimensionEditContext.Creation)", canvas, StringComparison.Ordinal);
+        Assert.Contains("RequestDimensionExpressionInput($\"{newPathId}:width\", DxfCanvasDimensionEditContext.Creation)", canvas, StringComparison.Ordinal);
         Assert.Contains("e.Key is Key.Tab or Key.Enter", codeBehind, StringComparison.Ordinal);
         Assert.Contains("TryGetCreationPrecisionMeasurement", codeBehind, StringComparison.Ordinal);
         Assert.Contains("L: {Math.Sqrt", canvas, StringComparison.Ordinal);

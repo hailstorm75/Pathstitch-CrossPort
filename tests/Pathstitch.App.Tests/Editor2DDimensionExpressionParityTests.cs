@@ -666,6 +666,104 @@ public sealed class Editor2DDimensionExpressionParityTests
     }
 
     [Fact]
+    public void AutoDirectShapeExpressions_UseSharedGraphAndAppearAsParameters()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var lineId = workspace.CreateLine(new(0, 0), new(10, 0), "line")!;
+        var polygonId = workspace.CreateRegularPolygon(new(5, 5), new(10, 5), 6, "polygon")!;
+        var lineMeasurement = workspace.Measurements.Single(item => item.EntityPathId == lineId);
+        var polygonMeasurement = workspace.Measurements.Single(item => item.EntityPathId == polygonId);
+
+        Assert.True(workspace.TrySetMeasurementExpression(lineMeasurement.Id, "1 inch", out var lineError), lineError);
+        lineMeasurement = workspace.Measurements.Single(item => item.Id == lineMeasurement.Id);
+        var line = workspace.Document.Paths.Single(path => path.Id == lineId);
+        Assert.Equal(25.4, lineMeasurement.EvaluatedValue!.Value, 8);
+        Assert.Equal(25.4, Math.Sqrt(Math.Pow(line.Points[^1].X - line.Points[0].X, 2) + Math.Pow(line.Points[^1].Y - line.Points[0].Y, 2)), 8);
+
+        Assert.True(workspace.TrySetMeasurementExpression(
+            polygonMeasurement.Id, $"{lineMeasurement.VarName} / 2", out var polygonError), polygonError);
+        polygonMeasurement = workspace.Measurements.Single(item => item.Id == polygonMeasurement.Id);
+        var polygon = workspace.Document.Paths.Single(path => path.Id == polygonId);
+        Assert.Equal(12.7, polygonMeasurement.EvaluatedValue!.Value, 8);
+        Assert.Equal(12.7, polygon.Radius!.Value, 8);
+        Assert.True(Editor2DGeometry.TryGetRegularPolygonGeometry(polygon, out var center, out var radius));
+        Assert.Equal(new Editor2DPoint(5, 5), center);
+        Assert.Equal(12.7, radius, 8);
+
+        var beforeCircularEdit = workspace.State;
+        Assert.False(workspace.TrySetMeasurementExpression(
+            lineMeasurement.Id, polygonMeasurement.VarName!, out var circularError));
+        Assert.Contains("Circular", circularError, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(beforeCircularEdit, workspace.State);
+
+        var editor = EditorPageViewModelModeTests.CreateViewModelForTests();
+        editor.TwoDDocument = workspace.Document;
+        editor.TwoDMeasurements = workspace.Measurements;
+        Assert.Contains(editor.TwoDDimensionParameters, item => item.Id == lineMeasurement.Id);
+        Assert.Contains(editor.TwoDDimensionParameters, item => item.Id == polygonMeasurement.Id);
+        editor.TwoDSelectedMeasurementId = lineMeasurement.Id;
+        Assert.False(editor.CanToggleTwoDSelectedMeasurementDriven);
+    }
+
+    [Fact]
+    public void RegularPolygonRadiusResize_PreservesShapeAndRecoversLegacyButRejectsPen()
+    {
+        var center = new Editor2DPoint(7, -3);
+        var edge = new Editor2DPoint(12, 2);
+        var points = Editor2DGeometry.BuildRegularPolygonPoints(center, edge, 7);
+        var path = new Editor2DPreviewPath(
+            "polygon", "LWPOLYLINE", points, IsClosed: true, Center: center, Radius: Math.Sqrt(50));
+
+        Assert.True(Editor2DGeometry.TryResizeForAttachedDimension(path, "radius", 25, out var resized));
+        Assert.Equal(center, resized.Center);
+        Assert.Equal(25, resized.Radius!.Value, 8);
+        Assert.Equal(points.Length, resized.Points.Count);
+        Assert.Equal(
+            Math.Atan2(points[0].Y - center.Y, points[0].X - center.X),
+            Math.Atan2(resized.Points[0].Y - center.Y, resized.Points[0].X - center.X), 8);
+        Assert.All(resized.Points, point => Assert.Equal(
+            25, Math.Sqrt(Math.Pow(point.X - center.X, 2) + Math.Pow(point.Y - center.Y, 2)), 8));
+
+        var legacy = path with { Center = null, Radius = null };
+        Assert.True(Editor2DGeometry.TryGetRegularPolygonGeometry(legacy, out var recoveredCenter, out var recoveredRadius));
+        Assert.Equal(center.X, recoveredCenter.X, 8);
+        Assert.Equal(center.Y, recoveredCenter.Y, 8);
+        Assert.Equal(Math.Sqrt(50), recoveredRadius, 8);
+        Assert.True(Editor2DGeometry.TryResizeForAttachedDimension(legacy, "radius", 18, out var resizedLegacy));
+        Assert.Equal(18, resizedLegacy.Radius!.Value, 8);
+
+        var pen = legacy with
+        {
+            Id = "pen",
+            BezierAnchors = points.Select(point => new Editor2DBezierAnchor(point)).ToArray(),
+        };
+        Assert.False(Editor2DGeometry.TryGetRegularPolygonGeometry(pen, out _, out _));
+        Assert.False(Editor2DGeometry.TryResizeForAttachedDimension(pen, "radius", 18, out _));
+    }
+
+    [Fact]
+    public void RegularPolygonExpressionResize_IsOneUndoableTransaction()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var pathId = workspace.CreateRegularPolygon(new(3, 4), new(13, 4), 5, "polygon")!;
+        var measurement = Assert.Single(workspace.Measurements);
+        var original = workspace.State;
+        workspace.ClearHistory();
+
+        Assert.True(workspace.TrySetMeasurementExpression(measurement.Id, "30", out var error), error);
+        var resized = Assert.Single(workspace.Document.Paths);
+        Assert.Equal(new Editor2DPoint(3, 4), resized.Center);
+        Assert.Equal(30, resized.Radius!.Value, 8);
+        Assert.Equal(pathId, Assert.Single(workspace.SelectedPathIds));
+        Assert.True(workspace.CanUndo);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal(original, workspace.State);
+        Assert.False(workspace.CanUndo);
+        Assert.True(workspace.Redo());
+        Assert.Equal(30, Assert.Single(workspace.Document.Paths).Radius!.Value, 8);
+    }
+    [Fact]
     public void InvalidatedCache_SurvivesUnrelatedWorkspaceStateChanges()
     {
         var measurement = new Editor2DMeasurement(

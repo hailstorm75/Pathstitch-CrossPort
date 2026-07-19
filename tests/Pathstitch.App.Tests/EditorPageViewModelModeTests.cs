@@ -539,7 +539,7 @@ public sealed class EditorPageViewModelModeTests
 
         var initial = viewModel.TwoDDimensionParameters;
 
-        Assert.Equal(["d1", "d2", "d4"], initial.Select(item => item.Name).ToArray());
+        Assert.Equal(["d1", "d2", "d4", "d3"], initial.Select(item => item.Name).ToArray());
         Assert.Equal(string.Empty, initial[0].ExpressionDisplay);
         Assert.Equal("10.00", initial[0].ValueDisplay);
         Assert.Equal("= d1 * 2", initial[1].ExpressionDisplay);

@@ -174,6 +174,46 @@ public sealed class Editor2DSelectionTransformTests
     }
 
     [Fact]
+    public void ApplySelectionTransform_PreservesPolygonCenterRadiusAndClonesAttachedMeasurement()
+    {
+        var workspace = new Editor2DWorkspaceViewModel();
+        var pathId = workspace.CreateRegularPolygon(new(10, 5), new(13, 5), 5, "polygon")!;
+        workspace.ClearHistory();
+
+        Assert.True(workspace.ApplySelectionTransform(Editor2DAffineTransform.CreateTranslation(4, -2)));
+        var polygon = Assert.Single(workspace.Document.Paths);
+        var radius = Assert.Single(workspace.Measurements);
+        AssertPoint(new(14, 3), polygon.Center!);
+        Assert.Equal(3, polygon.Radius!.Value, 8);
+        AssertPoint(new(14, 3), radius.Start);
+        AssertPoint(new(17, 3), radius.End);
+
+        Assert.True(workspace.ApplySelectionTransform(Editor2DAffineTransform.CreateRotation(new(0, 0), 90)));
+        polygon = Assert.Single(workspace.Document.Paths);
+        radius = Assert.Single(workspace.Measurements);
+        AssertPoint(new(-3, 14), polygon.Center!);
+        AssertPoint(new(-3, 17), radius.End);
+        Assert.True(Editor2DGeometry.TryGetRegularPolygonGeometry(polygon, out _, out var recoveredRadius));
+        Assert.Equal(3, recoveredRadius, 8);
+
+        Assert.True(workspace.ApplySelectionTransform(Editor2DAffineTransform.CreateScale(new(-3, 14), 2)));
+        Assert.Equal(6, Assert.Single(workspace.Document.Paths).Radius!.Value, 8);
+        Assert.Equal(6, Assert.Single(workspace.Measurements).Distance, 8);
+
+        Assert.True(workspace.ApplySelectionTransform(
+            Editor2DAffineTransform.CreateTranslation(20, 0), createCopy: true));
+        Assert.Equal(2, workspace.Document.Paths.Count);
+        Assert.Equal(2, workspace.Measurements.Count);
+        var copyId = Assert.Single(workspace.SelectedPathIds);
+        Assert.NotEqual(pathId, copyId);
+        var copy = workspace.Document.Paths.Single(item => item.Id == copyId);
+        var copyMeasurement = workspace.Measurements.Single(item => item.EntityPathId == copyId);
+        AssertPoint(new(17, 14), copy.Center!);
+        Assert.Equal(6, copy.Radius!.Value, 8);
+        Assert.Equal($"{copyId}:radius", copyMeasurement.Id);
+        Assert.Equal(6, copyMeasurement.Distance, 8);
+    }
+    [Fact]
     public void ApplySelectionTransform_RebuildsRectangleAutoEndpointsAndRectMetadata()
     {
         var workspace = new Editor2DWorkspaceViewModel();

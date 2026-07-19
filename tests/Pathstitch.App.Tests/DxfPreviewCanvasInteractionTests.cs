@@ -490,6 +490,152 @@ public sealed class DxfPreviewCanvasInteractionTests
         });
     }
 
+    [Fact]
+    public async Task DimensionClickRouting_RectangleEdgesReuseCreationDimensions()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var workspace = new Domain.App.ViewModels.Editor2DWorkspaceViewModel();
+            var pathId = workspace.CreateRectangle(new(0, 0), new(20, 10), pathId: "rectangle")!;
+            var canvas = Canvas(workspace.Document);
+            canvas.Measurements = workspace.Measurements;
+            canvas.SelectedPathIds = [pathId];
+            DxfCanvasDimensionExpressionRequest? request = null;
+            canvas.DimensionExpressionRequested += value => request = value;
+
+            InvokeDimensionClick(canvas, Screen(canvas, new(10, 0)));
+
+            Assert.Equal(2, canvas.Measurements.Count);
+            Assert.Equal($"{pathId}:width", request?.MeasurementId);
+            Assert.Equal(DxfCanvasDimensionEditContext.DimensionTool, request?.Context);
+
+            InvokeDimensionClick(canvas, Screen(canvas, new(20, 5)));
+
+            Assert.Equal(2, canvas.Measurements.Count);
+            Assert.Equal($"{pathId}:height", request?.MeasurementId);
+        });
+    }
+
+    [Theory]
+    [InlineData(Editor2DCornerKind.Fillet)]
+    [InlineData(Editor2DCornerKind.Chamfer)]
+    public async Task DimensionClickRouting_ReverseRoundedRectangleMapsOriginalHorizontalAndVerticalEdges(
+        Editor2DCornerKind cornerKind)
+    {
+        await _ui.RunAsync(() =>
+        {
+            var workspace = new Domain.App.ViewModels.Editor2DWorkspaceViewModel();
+            var pathId = workspace.CreateRectangle(new(30, 40), new(10, 20), initialFilletRadius: 2, pathId: "rectangle")!;
+            var corners = workspace.CornerParameters
+                .Select(parameter => parameter with { Kind = cornerKind })
+                .ToArray();
+            var path = workspace.Document.Paths.Single(item => item.Id == pathId);
+            var rendered = Editor2DCornerGeometry.Apply(path with { Points = corners[0].SourcePoints }, corners);
+            var document = workspace.Document with { Paths = [rendered] };
+            var canvas = Canvas(document);
+            canvas.CornerParameters = corners;
+            canvas.Measurements = workspace.Measurements;
+            canvas.SelectedPathIds = [pathId];
+            DxfCanvasDimensionExpressionRequest? request = null;
+            canvas.DimensionExpressionRequested += value => request = value;
+
+            InvokeDimensionClick(canvas, Screen(canvas, new(20, 20)));
+            Assert.Equal($"{pathId}:width", request?.MeasurementId);
+            Assert.Equal(2, canvas.Measurements.Count);
+
+            InvokeDimensionClick(canvas, Screen(canvas, new(10, 30)));
+            Assert.Equal($"{pathId}:height", request?.MeasurementId);
+            Assert.Equal(2, canvas.Measurements.Count);
+        });
+    }
+    [Fact]
+    public async Task DimensionClickRouting_DirectPrimitivesReuseCreationDimensions()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var lineWorkspace = new Domain.App.ViewModels.Editor2DWorkspaceViewModel();
+            var lineId = lineWorkspace.CreateLine(new(0, 0), new(20, 0), "line")!;
+            AssertReuses(lineWorkspace, lineId, new(10, 0), "length");
+
+            var circleWorkspace = new Domain.App.ViewModels.Editor2DWorkspaceViewModel();
+            var circleId = circleWorkspace.CreateCircle(new(0, 0), new(10, 0), "circle")!;
+            AssertReuses(circleWorkspace, circleId, new(10, 0), "radius");
+
+            var polygonWorkspace = new Domain.App.ViewModels.Editor2DWorkspaceViewModel();
+            var polygonId = polygonWorkspace.CreateRegularPolygon(new(0, 0), new(10, 0), 5, "polygon")!;
+            AssertReuses(polygonWorkspace, polygonId, new(10, 0), "radius");
+        });
+
+        static void AssertReuses(
+            Domain.App.ViewModels.Editor2DWorkspaceViewModel workspace,
+            string pathId,
+            Editor2DPoint click,
+            string dimensionType)
+        {
+            var canvas = Canvas(workspace.Document);
+            canvas.Measurements = workspace.Measurements;
+            canvas.SelectedPathIds = [pathId];
+            DxfCanvasDimensionExpressionRequest? request = null;
+            canvas.DimensionExpressionRequested += value => request = value;
+            var originalCount = canvas.Measurements.Count;
+
+            InvokeDimensionClick(canvas, Screen(canvas, click));
+
+            Assert.Equal(originalCount, canvas.Measurements.Count);
+            Assert.Equal($"{pathId}:{dimensionType}", request?.MeasurementId);
+        }
+    }
+
+    [Fact]
+    public async Task DimensionClickRouting_PenRegularPolygonRemainsReferenceOnly()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var anchors = Enumerable.Range(0, 5)
+                .Select(index => index * Math.PI * 2.0 / 5.0)
+                .Select(angle => new Editor2DBezierAnchor(new(
+                    10 * Math.Cos(angle),
+                    10 * Math.Sin(angle))))
+                .ToArray();
+            var penPath = new Editor2DPreviewPath(
+                "pen",
+                "LWPOLYLINE",
+                anchors.Select(anchor => anchor.Point).ToArray(),
+                IsClosed: true,
+                BezierAnchors: anchors);
+            var canvas = Canvas(Document([penPath]));
+
+            InvokeDimensionClick(canvas, Screen(canvas, anchors[0].Point));
+
+            Assert.Empty(canvas.Measurements);
+            Assert.NotNull(InteractionSession(canvas).PendingDimensionStart);
+        });
+    }
+
+    [Fact]
+    public async Task EditableMeasurementHitTest_IncludesVisibleAutoDimensionOnlyWhileOwnerSelected()
+    {
+        await _ui.RunAsync(() =>
+        {
+            var workspace = new Domain.App.ViewModels.Editor2DWorkspaceViewModel();
+            var pathId = workspace.CreateRectangle(new(0, 0), new(20, 10), pathId: "rectangle")!;
+            var width = workspace.Measurements.Single(item => item.DimensionType == "width");
+            var canvas = Canvas(workspace.Document);
+            canvas.Measurements = workspace.Measurements;
+            var midpoint = new Editor2DPoint(
+                (width.Start.X + width.End.X) / 2.0,
+                (width.Start.Y + width.End.Y) / 2.0);
+
+            Assert.Null(InvokeEditableMeasurementHitTest(canvas, Screen(canvas, midpoint)));
+            canvas.SelectedPathIds = [pathId];
+            Assert.Equal(width.Id, InvokeEditableMeasurementHitTest(canvas, Screen(canvas, midpoint)));
+        });
+    }
+
+    private static string? InvokeEditableMeasurementHitTest(DxfPreviewCanvas canvas, Point point)
+        => (string?)typeof(DxfPreviewCanvas)
+            .GetMethod("HitTestEditableMeasurementId", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(canvas, [point]);
     private static DxfPreviewCanvas Canvas(Editor2DPreviewDocument document)
     {
         var canvas = new DxfPreviewCanvas { Document = document, SnapEnabled = false, Zoom = 1 };
