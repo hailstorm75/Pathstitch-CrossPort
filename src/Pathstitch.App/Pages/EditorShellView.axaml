@@ -352,8 +352,8 @@
     <Grid Grid.Row="2" AutomationProperties.AutomationId="editor.regions">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="56" MinWidth="56" MaxWidth="180" />
-        <ColumnDefinition Width="4" />
-        <ColumnDefinition Width="220" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="4" />
         <ColumnDefinition Width="360" MinWidth="300" MaxWidth="640" />
@@ -362,11 +362,12 @@
       <GridSplitter
         Grid.Column="1"
         AutomationProperties.AutomationId="editor.tool-rail.resize"
+        Width="4"
+        IsVisible="{Binding !IsShowingTwoDWorkspace}"
         Background="{StaticResource BorderBrush}"
         ResizeDirection="Columns" />
-      <Grid Grid.Column="2" AutomationProperties.AutomationId="editor.context-panel">
+      <Grid Grid.Column="2" Width="220" IsVisible="{Binding !IsShowingTwoDWorkspace}" AutomationProperties.AutomationId="editor.context-panel">
         <pages:Editor3DBodiesPanel AutomationProperties.AutomationId="editor.context.3d-bodies" IsVisible="{Binding IsShowing3DWorkspace}" />
-        <pages:Editor2DLayersPanel AutomationProperties.AutomationId="editor.context.2d-layers" IsVisible="{Binding IsShowingTwoDWorkspace}" />
         <Grid IsVisible="{Binding IsShowingBatchWorkspace}">
           <pages:EditorBatchContextPanel AutomationProperties.AutomationId="editor.context.batch" DataContext="{Binding BatchWorkspace}" />
         </Grid>
@@ -547,7 +548,14 @@
         Cursor="SizeWestEast"
         ResizeBehavior="PreviousAndNext"
         ResizeDirection="Columns" />
-      <pages:EditorInspectorHost Grid.Column="5" AutomationProperties.AutomationId="editor.inspector-host" />
+      <Grid Grid.Column="5" RowDefinitions="*,Auto" AutomationProperties.AutomationId="editor.right-panel">
+        <pages:EditorInspectorHost AutomationProperties.AutomationId="editor.inspector-host" />
+        <pages:Editor2DLayersPanel
+          Grid.Row="1"
+          Height="360"
+          AutomationProperties.AutomationId="editor.context.2d-layers"
+          IsVisible="{Binding IsShowingTwoDWorkspace}" />
+      </Grid>
     </Grid>
     <pages:EditorActivityLogTray Grid.Row="3" />
   </Grid>

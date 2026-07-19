@@ -35,6 +35,7 @@
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Left" />
       <Setter Property="Padding" Value="10,8" />
+      <Setter Property="MinHeight" Value="38" />
     </Style>
 
     <Style Selector="Button.sidebar-button:pointerover">
@@ -58,6 +59,12 @@
       <Setter Property="CornerRadius" Value="6" />
     </Style>
 
+    <Style Selector="Button.recent-action">
+      <Setter Property="Padding" Value="6,5" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="MinHeight" Value="30" />
+    </Style>
+
     <Style Selector="Border.recent-card">
       <Setter Property="Padding" Value="0" />
     </Style>
@@ -72,7 +79,7 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid Background="{StaticResource BaseBackgroundBrush}" ColumnDefinitions="120,*">
+  <Grid Background="{StaticResource BaseBackgroundBrush}" ColumnDefinitions="176,*">
     <Border
       Grid.Column="0"
       Background="{StaticResource PanelBackgroundBrush}"
@@ -120,13 +127,19 @@
             AutomationProperties.AutomationId="home.action.new-project"
             Classes="sidebar-button"
             Command="{Binding CreateTemplateProjectCommand}">
-            <TextBlock Text="New Project" />
+            <StackPanel Orientation="Horizontal" Spacing="9">
+              <TextBlock Width="16" HorizontalAlignment="Center" FontSize="16" Foreground="{StaticResource AccentBrush}" Text="＋" />
+              <TextBlock VerticalAlignment="Center" Text="New Project" />
+            </StackPanel>
           </Button>
           <Button
             AutomationProperties.AutomationId="home.dialog.open-file"
             Classes="sidebar-button"
             Command="{Binding OpenWorkspaceFilesCommand}">
-            <TextBlock Text="Open File..." />
+            <StackPanel Orientation="Horizontal" Spacing="9">
+              <TextBlock Width="16" HorizontalAlignment="Center" FontSize="14" Foreground="{StaticResource AccentBrush}" Text="↗" />
+              <TextBlock VerticalAlignment="Center" Text="Open File..." />
+            </StackPanel>
           </Button>
         </StackPanel>
 
@@ -183,7 +196,7 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
                     <Border
-                      Width="166"
+                      Width="210"
                       Classes="recent-card"
                       Classes.active="{Binding IsSelected}"
                       PointerPressed="OnRecentProjectPressed"
@@ -191,7 +204,7 @@
                       Background="Transparent">
                       <StackPanel Spacing="6">
                         <Border
-                          Height="114"
+                          Height="122"
                           Background="{StaticResource PanelBackgroundBrush}"
                           BorderBrush="{StaticResource BorderBrush}"
                           BorderThickness="1"
@@ -246,24 +259,31 @@
                         <Grid ColumnDefinitions="*,*,*" ColumnSpacing="5" Margin="0,4,0,0">
                           <Button
                             Grid.Column="0"
-                            Classes="primary-action"
+                            Classes="primary-action recent-action"
                             IsEnabled="{Binding IsAvailable}"
                             Command="{Binding DataContext.OpenRecentProjectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             CommandParameter="{Binding}">
-                            Open
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                              <TextBlock Text="▶" />
+                              <TextBlock Text="Open" />
+                            </StackPanel>
                           </Button>
                           <Button
                             Grid.Column="1"
-                            Classes="secondary-action"
-                            Content="Reveal"
+                            Classes="secondary-action recent-action"
+                            ToolTip.Tip="Show this project in its folder"
+                            Content="⌖ Reveal"
                             Click="OnRevealRecentProjectClicked" />
                           <Button
                             Grid.Column="2"
-                            Classes="secondary-action"
+                            Classes="secondary-action recent-action"
                             Foreground="{StaticResource DangerBrush}"
                             Command="{Binding DataContext.RemoveRecentProjectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             CommandParameter="{Binding}">
-                            Remove
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                              <TextBlock Text="×" />
+                              <TextBlock Text="Remove" />
+                            </StackPanel>
                           </Button>
                         </Grid>
                       </StackPanel>

@@ -13,7 +13,9 @@ public sealed record Editor2DLayerHierarchyItem(
 {
     public bool IsLayer => !IsFolder;
 
-    public double IndentWidth => Depth * 14.0;
+    public string HierarchyGuide => Depth == 0
+        ? string.Empty
+        : string.Concat(Enumerable.Repeat("│  ", Math.Max(0, Depth - 1))) + "└─";
 
     public string ExpansionGlyph => IsExpanded ? "▾" : "▸";
 }

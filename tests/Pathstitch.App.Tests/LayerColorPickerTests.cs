@@ -1,28 +1,10 @@
 using Avalonia.Media;
 using Pathstitch.App.Converters;
-using Pathstitch.App.Pages;
 
 namespace Pathstitch.App.Tests;
 
 public sealed class LayerColorPickerTests
 {
-    [Theory]
-    [InlineData("#ff8800", "#FF8800")]
-    [InlineData("  #123abc  ", "#123ABC")]
-    public void ManualHex_NormalizesOpaqueRgb(string input, string expected)
-    {
-        Assert.True(Editor2DLayersPanel.TryNormalizeLayerColorHex(input, out var normalized));
-        Assert.Equal(expected, normalized);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("#FFF")]
-    [InlineData("#GG0000")]
-    [InlineData("#11223380")]
-    public void ManualHex_RejectsInvalidOrAlphaValues(string input)
-        => Assert.False(Editor2DLayersPanel.TryNormalizeLayerColorHex(input, out _));
-
     [Fact]
     public void Converter_ParsesRgbUsesFallbackAndDropsPickerAlpha()
     {

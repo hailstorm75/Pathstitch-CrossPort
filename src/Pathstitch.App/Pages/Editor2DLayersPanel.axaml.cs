@@ -54,23 +54,6 @@ public partial class Editor2DLayersPanel : UserControl
 
     private void OnDeleteFolderClicked(object? sender, RoutedEventArgs e) => WithFolder(sender, id => ViewModel?.DeleteTwoDFolder(id));
 
-    private void OnMoveFolderUpClicked(object? sender, RoutedEventArgs e)
-        => WithFolder(sender, id => ViewModel?.MoveTwoDFolder(id, -1));
-
-    private void OnMoveFolderDownClicked(object? sender, RoutedEventArgs e)
-        => WithFolder(sender, id => ViewModel?.MoveTwoDFolder(id, 1));
-
-    private void OnMoveFolderToRootClicked(object? sender, RoutedEventArgs e)
-        => WithFolder(sender, id => ViewModel?.MoveTwoDFolderToFolder(id, null));
-
-    private void OnFolderParentChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (ViewModel is not null
-            && sender is ComboBox { Tag: string folderId }
-            && e.AddedItems.Count > 0)
-            ViewModel.MoveTwoDFolderToFolder(folderId, (e.AddedItems[0] as Editor2DLayerFolder)?.Id);
-    }
-
     private void OnMoveLayerToRootClicked(object? sender, RoutedEventArgs e)
         => WithLayer(sender, id => ViewModel?.MoveTwoDLayerToFolder(id, null));
 
@@ -101,14 +84,6 @@ public partial class Editor2DLayersPanel : UserControl
             && sender is Control { DataContext: Editor2DLayerHierarchyItem target }
             && !string.IsNullOrWhiteSpace(sourceId))
             ViewModel.ReorderTwoDHierarchyItem(sourceId, target.Id);
-    }
-
-    private void OnLayerFolderChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (ViewModel is not null
-            && sender is ComboBox { Tag: string layerId } combo
-            && e.AddedItems.Count > 0)
-            ViewModel.MoveTwoDLayerToFolder(layerId, (e.AddedItems[0] as Editor2DLayerFolder)?.Id);
     }
 
     private void OnMergeSelectedLayersClicked(object? sender, RoutedEventArgs e) => ViewModel?.MergeTwoDSelectedLayers();
@@ -144,17 +119,6 @@ public partial class Editor2DLayersPanel : UserControl
     }
 
     private void OnDeleteLayerClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.DeleteTwoDLayer(id));
-
-    private void OnSetLayerColorClicked(object? sender, RoutedEventArgs e)
-    {
-        if (ViewModel is null || sender is not Button { Tag: string layerId })
-            return;
-        var textBox = (sender as Control)?.GetLogicalAncestors().OfType<Border>().FirstOrDefault()?
-            .GetLogicalDescendants().OfType<TextBox>().FirstOrDefault(control => Equals(control.Tag, layerId)
-                && control.Width < 100);
-        if (textBox is not null)
-            CommitLayerColorText(textBox, layerId);
-    }
 
     private async void OnLayerColorChanged(object? sender, ColorChangedEventArgs e)
     {
@@ -193,42 +157,6 @@ public partial class Editor2DLayersPanel : UserControl
         }
     }
 
-    private void OnLayerColorTextKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (sender is not TextBox { Tag: string layerId } textBox)
-            return;
-        if (e.Key == Key.Enter)
-        {
-            CommitLayerColorText(textBox, layerId);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Escape && ViewModel?.TwoDLayers.FirstOrDefault(layer => layer.Id == layerId) is { } layer)
-        {
-            textBox.Text = layer.ColorHex;
-            SetLayerColorTextValidity(textBox, true);
-            e.Handled = true;
-        }
-    }
-
-    private void OnLayerColorTextLostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (sender is TextBox { Tag: string layerId } textBox)
-            CommitLayerColorText(textBox, layerId);
-    }
-
-    private void CommitLayerColorText(TextBox textBox, string layerId)
-    {
-        CommitPendingLayerColorEdit();
-        if (!TryNormalizeLayerColorHex(textBox.Text, out var normalized))
-        {
-            SetLayerColorTextValidity(textBox, false);
-            return;
-        }
-        ViewModel?.SetTwoDLayerColor(layerId, normalized);
-        textBox.Text = ViewModel?.TwoDLayers.FirstOrDefault(layer => layer.Id == layerId)?.ColorHex ?? normalized;
-        SetLayerColorTextValidity(textBox, true);
-    }
-
     private void CommitPendingLayerColorEdit()
     {
         _layerColorCommitCancellation?.Cancel();
@@ -237,20 +165,6 @@ public partial class Editor2DLayersPanel : UserControl
         var editingLayerColorId = _editingLayerColorId;
         _editingLayerColorId = null;
         ViewModel?.CommitTwoDLayerColorEdit(editingLayerColorId);
-    }
-
-    private static void SetLayerColorTextValidity(TextBox textBox, bool isValid)
-    {
-        textBox.Classes.Set("invalid", !isValid);
-        ToolTip.SetTip(textBox, isValid ? null : "Use an opaque color in #RRGGBB format");
-    }
-
-    internal static bool TryNormalizeLayerColorHex(string? value, out string normalized)
-    {
-        normalized = value?.Trim().ToUpperInvariant() ?? string.Empty;
-        return normalized.Length == 7
-            && normalized[0] == '#'
-            && normalized.Skip(1).All(Uri.IsHexDigit);
     }
 
     private void OnReferencePositionTextKeyDown(object? sender, KeyEventArgs e)

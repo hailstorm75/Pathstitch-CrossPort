@@ -71,7 +71,13 @@ public sealed record Editor2DLayer(
     public string VisibilityLabel => IsVisible ? "Visible" : "Hidden";
 
     [JsonIgnore]
+    public string VisibilityGlyph => IsVisible ? "◉" : "○";
+
+    [JsonIgnore]
     public string LockLabel => IsLocked ? "Locked" : "Unlocked";
+
+    [JsonIgnore]
+    public string LockGlyph => IsLocked ? "🔒" : "🔓";
 }
 
 public sealed record Editor2DLayerFolder(
