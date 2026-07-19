@@ -9,7 +9,8 @@ public sealed record Editor2DLayerHierarchyItem(
     bool IsFolder,
     bool IsExpanded,
     Editor2DLayer? Layer = null,
-    Editor2DLayerFolder? Folder = null)
+    Editor2DLayerFolder? Folder = null,
+    bool IsActive = false)
 {
     public bool IsLayer => !IsFolder;
 

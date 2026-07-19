@@ -276,6 +276,8 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDFolders));
         OnPropertyChanged(nameof(TwoDLayerHierarchyItems));
         OnPropertyChanged(nameof(TwoDActiveLayerId));
+        OnPropertyChanged(nameof(TwoDActiveLayer));
+        OnPropertyChanged(nameof(HasTwoDActiveLayer));
         OnPropertyChanged(nameof(TwoDHiddenPathIds));
         OnPropertyChanged(nameof(TwoDCornerParameters));
         OnPropertyChanged(nameof(HasTwoDWorkspaceDocument));

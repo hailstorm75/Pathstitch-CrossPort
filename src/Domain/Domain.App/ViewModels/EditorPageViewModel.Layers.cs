@@ -16,6 +16,10 @@ public sealed partial class EditorPageViewModel
 
     public string? TwoDActiveLayerId => _twoDWorkspace.ActiveLayerId;
 
+    public Editor2DLayer? TwoDActiveLayer => _twoDWorkspace.ActiveLayer;
+
+    public bool HasTwoDActiveLayer => TwoDActiveLayer is not null;
+
     public bool TwoDReferenceImageTransformEditActive => _twoDWorkspace.IsReferenceImageTransformEditActive;
 
     public IReadOnlyList<Editor2DReferenceImage> TwoDReferenceImages => TwoDLayers
@@ -612,6 +616,8 @@ public sealed partial class EditorPageViewModel
         OnPropertyChanged(nameof(TwoDFolders));
         OnPropertyChanged(nameof(TwoDLayerHierarchyItems));
         OnPropertyChanged(nameof(TwoDActiveLayerId));
+        OnPropertyChanged(nameof(TwoDActiveLayer));
+        OnPropertyChanged(nameof(HasTwoDActiveLayer));
         OnPropertyChanged(nameof(TwoDHiddenPathIds));
         OnPropertyChanged(nameof(TwoDReferenceImages));
         OnPropertyChanged(nameof(TwoDActiveReferenceImage));
@@ -677,7 +683,14 @@ public sealed partial class EditorPageViewModel
             }
 
             foreach (var layer in TwoDLayers.Where(item => item.ParentFolderId == parentFolderId))
-                rows.Add(new(layer.Id, layer.Name, depth, false, false, Layer: layer));
+                rows.Add(new(
+                    layer.Id,
+                    layer.Name,
+                    depth,
+                    false,
+                    false,
+                    Layer: layer,
+                    IsActive: string.Equals(layer.Id, TwoDActiveLayerId, StringComparison.Ordinal)));
         }
 
         AddChildren(null, 0);
