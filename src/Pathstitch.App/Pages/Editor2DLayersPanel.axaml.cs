@@ -1,13 +1,12 @@
 using System;
 using System.Globalization;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
+using Avalonia.Threading;
 using Domain.App.Models;
 using Domain.App.ViewModels;
 using Pathstitch.App.Converters;
@@ -16,8 +15,9 @@ namespace Pathstitch.App.Pages;
 
 public partial class Editor2DLayersPanel : UserControl
 {
-    private CancellationTokenSource? _layerColorCommitCancellation;
     private string? _editingLayerColorId;
+    private string? _pendingLayerColorId;
+    private string? _pendingLayerColorHex;
     private string? _editingReferenceOpacityLayerId;
     private Button? _pressedReferenceNudgeButton;
     private KeyModifiers _pressedReferenceNudgeModifiers;
@@ -132,18 +132,76 @@ public partial class Editor2DLayersPanel : UserControl
 
     private void OnDeleteLayerClicked(object? sender, RoutedEventArgs e) => WithLayer(sender, id => ViewModel?.DeleteTwoDLayer(id));
 
-    private async void OnLayerColorChanged(object? sender, ColorChangedEventArgs e)
+    private void OnLayerColorChanged(object? sender, ColorChangedEventArgs e)
     {
         if (ViewModel is not { } viewModel
-            || sender is not ColorPicker { Tag: string layerId } colorPicker
-            || (!colorPicker.IsKeyboardFocusWithin && !colorPicker.IsPointerOver))
+            || sender is not ColorPicker { Tag: string layerId })
             return;
         var colorHex = LayerColorHexToColorConverter.ToHex(e.NewColor);
         if (string.Equals(
                 viewModel.TwoDLayers.FirstOrDefault(layer => layer.Id == layerId)?.ColorHex,
                 colorHex,
                 StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(_pendingLayerColorId, layerId, StringComparison.Ordinal))
+            {
+                _pendingLayerColorId = null;
+                _pendingLayerColorHex = null;
+            }
             return;
+        }
+
+        _pendingLayerColorId = layerId;
+        _pendingLayerColorHex = colorHex;
+    }
+
+    private void OnLayerColorPickerLoaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is ColorPicker colorPicker)
+        {
+            colorPicker.AddHandler(
+                InputElement.PointerReleasedEvent,
+                OnLayerColorPickerPointerReleased,
+                RoutingStrategies.Tunnel,
+                handledEventsToo: true);
+        }
+    }
+
+    private void OnLayerColorPickerUnloaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is ColorPicker colorPicker)
+            colorPicker.RemoveHandler(InputElement.PointerReleasedEvent, OnLayerColorPickerPointerReleased);
+    }
+
+    private void OnLayerColorPickerPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (sender is ColorPicker { Tag: string layerId })
+        {
+            Dispatcher.UIThread.Post(
+                () => ApplyPendingLayerColor(layerId),
+                DispatcherPriority.Input);
+        }
+    }
+
+    private void OnLayerColorPickerKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (sender is ColorPicker { Tag: string layerId })
+        {
+            Dispatcher.UIThread.Post(
+                () => ApplyPendingLayerColor(layerId),
+                DispatcherPriority.Input);
+        }
+    }
+
+    private void ApplyPendingLayerColor(string layerId)
+    {
+        if (ViewModel is not { } viewModel
+            || !string.Equals(_pendingLayerColorId, layerId, StringComparison.Ordinal)
+            || _pendingLayerColorHex is not { } colorHex)
+            return;
+
+        _pendingLayerColorId = null;
+        _pendingLayerColorHex = null;
         if (!string.Equals(_editingLayerColorId, layerId, StringComparison.Ordinal))
         {
             CommitPendingLayerColorEdit();
@@ -151,29 +209,12 @@ public partial class Editor2DLayersPanel : UserControl
                 return;
             _editingLayerColorId = layerId;
         }
-        if (!viewModel.PreviewTwoDLayerColor(layerId, colorHex))
-            return;
-
-        _layerColorCommitCancellation?.Cancel();
-        _layerColorCommitCancellation?.Dispose();
-        var cancellation = new CancellationTokenSource();
-        _layerColorCommitCancellation = cancellation;
-        try
-        {
-            await Task.Delay(350, cancellation.Token);
-            if (!cancellation.IsCancellationRequested)
-                CommitPendingLayerColorEdit();
-        }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-        {
-        }
+        viewModel.PreviewTwoDLayerColor(layerId, colorHex);
+        CommitPendingLayerColorEdit();
     }
 
     private void CommitPendingLayerColorEdit()
     {
-        _layerColorCommitCancellation?.Cancel();
-        _layerColorCommitCancellation?.Dispose();
-        _layerColorCommitCancellation = null;
         var editingLayerColorId = _editingLayerColorId;
         _editingLayerColorId = null;
         ViewModel?.CommitTwoDLayerColorEdit(editingLayerColorId);

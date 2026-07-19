@@ -182,7 +182,10 @@
                                   Color="{Binding ColorHex, Converter={StaticResource LayerColorConverter}, Mode=OneWay}"
                                   IsAlphaEnabled="False"
                                   Tag="{Binding Id}"
-                                  ColorChanged="OnLayerColorChanged" />
+                                  ColorChanged="OnLayerColorChanged"
+                                  Loaded="OnLayerColorPickerLoaded"
+                                  Unloaded="OnLayerColorPickerUnloaded"
+                                  KeyUp="OnLayerColorPickerKeyUp" />
                               </Flyout>
                             </Button.Flyout>
                             <Border

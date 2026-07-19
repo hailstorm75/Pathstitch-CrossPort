@@ -658,6 +658,14 @@ public sealed class EditorShellCompositionTests
         Assert.Contains("OnToggleLockClicked", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Avalonia.Controls.ColorPicker", layers, StringComparison.Ordinal);
         Assert.Contains("ColorChanged=\"OnLayerColorChanged\"", layers, StringComparison.Ordinal);
+        Assert.Contains("Loaded=\"OnLayerColorPickerLoaded\"", layers, StringComparison.Ordinal);
+        Assert.Contains("Unloaded=\"OnLayerColorPickerUnloaded\"", layers, StringComparison.Ordinal);
+        Assert.Contains("KeyUp=\"OnLayerColorPickerKeyUp\"", layers, StringComparison.Ordinal);
+        Assert.Contains("_pendingLayerColorHex = colorHex", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ApplyPendingLayerColor(layerId)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("InputElement.PointerReleasedEvent", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("handledEventsToo: true", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("colorPicker.IsKeyboardFocusWithin", codeBehind, StringComparison.Ordinal);
         Assert.Contains("editor.layer.color.{0}", layers, StringComparison.Ordinal);
         Assert.Contains("IsAlphaEnabled=\"False\"", layers, StringComparison.Ordinal);
         Assert.Contains("IsVisible=\"{Binding !IsReferenceImage}\"", layers, StringComparison.Ordinal);
