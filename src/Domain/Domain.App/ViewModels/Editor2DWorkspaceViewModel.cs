@@ -609,6 +609,57 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
         return id;
     }
 
+    public string? CreateRegularPolygon(
+        Editor2DPoint center,
+        Editor2DPoint edge,
+        int sides,
+        string? pathId = null)
+    {
+        var id = string.IsNullOrWhiteSpace(pathId) ? $"polygon-{Guid.NewGuid():N}" : pathId.Trim();
+        var radius = Math.Sqrt(Math.Pow(edge.X - center.X, 2) + Math.Pow(edge.Y - center.Y, 2));
+        var points = Editor2DGeometry.BuildRegularPolygonPoints(center, edge, sides);
+        if (!double.IsFinite(center.X)
+            || !double.IsFinite(center.Y)
+            || !double.IsFinite(edge.X)
+            || !double.IsFinite(edge.Y)
+            || !double.IsFinite(radius)
+            || radius <= 1e-6
+            || points.Length < 3
+            || Document.Paths.Any(path => path.Id.Equals(id, StringComparison.Ordinal))
+            || Measurements.Any(measurement => measurement.Id.Equals($"{id}:radius", StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
+        var placementAngleDegrees = Math.Atan2(
+            points[0].Y - center.Y,
+            points[0].X - center.X) * 180.0 / Math.PI;
+        var path = new Editor2DPreviewPath(
+            id,
+            "LWPOLYLINE",
+            points,
+            IsClosed: true,
+            Center: center,
+            Radius: radius);
+        var measurement = new Editor2DMeasurement(
+            $"{id}:radius",
+            center,
+            points[0],
+            IsAutoDimension: true,
+            EntityPathId: id,
+            DimensionType: "radius",
+            PlacementAngleDegrees: placementAngleDegrees);
+        ClearSewingHolePreview();
+        Apply(_state with
+        {
+            Document = RebuildDocument(Document, [.. Document.Paths, path]),
+            IsInitialized = true,
+            SelectedPathIds = [id],
+            Measurements = Measurements.Append(measurement).ToArray(),
+        });
+        return id;
+    }
+
     public string? CreateRectangle(
         Editor2DPoint start,
         Editor2DPoint end,
@@ -793,10 +844,10 @@ public sealed partial class Editor2DWorkspaceViewModel : ObservableObject
     public bool TrySetMeasurementExpression(string measurementId, string expression, out string error)
     {
         error = string.Empty;
-        var measurement = Measurements.FirstOrDefault(item => item.Id == measurementId && !item.IsAutoDimension);
+        var measurement = Measurements.FirstOrDefault(item => item.Id == measurementId);
         if (measurement is null)
         {
-            error = "Select a manual measurement first";
+            error = "Select a measurement first";
             return false;
         }
 

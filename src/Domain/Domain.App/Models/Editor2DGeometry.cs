@@ -349,6 +349,18 @@ public static class Editor2DGeometry
                     return true;
                 }
 
+                if (TryGetRegularPolygonGeometry(path, out center, out radius))
+                {
+                    var angleDegrees = placementAngleDegrees
+                        ?? Math.Atan2(path.Points[0].Y - center.Y, path.Points[0].X - center.X) * 180.0 / Math.PI;
+                    var angleRadians = angleDegrees * Math.PI / 180.0;
+                    start = center;
+                    end = new Editor2DPoint(
+                        center.X + (radius * Math.Cos(angleRadians)),
+                        center.Y + (radius * Math.Sin(angleRadians)));
+                    return true;
+                }
+
                 break;
         }
 
@@ -464,31 +476,44 @@ public static class Editor2DGeometry
             return true;
         }
 
-        if (normalizedType != "radius"
-            || path.Center is not Editor2DPoint center
-            || path.Radius is null)
-        {
+        if (normalizedType != "radius")
             return false;
+
+        if (path.Center is Editor2DPoint center && path.Radius is not null)
+        {
+            if (path.EntityType.Equals("CIRCLE", StringComparison.OrdinalIgnoreCase))
+            {
+                updatedPath = path with
+                {
+                    Radius = value,
+                    Points = BuildCirclePoints(center, value),
+                };
+                return true;
+            }
+
+            if (path.EntityType.Equals("ARC", StringComparison.OrdinalIgnoreCase)
+                && path.StartAngleDegrees is double startAngleDegrees
+                && path.EndAngleDegrees is double endAngleDegrees)
+            {
+                updatedPath = path with
+                {
+                    Radius = value,
+                    Points = BuildArcPoints(center, value, startAngleDegrees, endAngleDegrees),
+                };
+                return true;
+            }
         }
 
-        if (path.EntityType.Equals("CIRCLE", StringComparison.OrdinalIgnoreCase))
+        if (TryGetRegularPolygonGeometry(path, out var polygonCenter, out var polygonRadius))
         {
+            var scale = value / polygonRadius;
             updatedPath = path with
             {
+                Center = polygonCenter,
                 Radius = value,
-                Points = BuildCirclePoints(center, value),
-            };
-            return true;
-        }
-
-        if (path.EntityType.Equals("ARC", StringComparison.OrdinalIgnoreCase)
-            && path.StartAngleDegrees is double startAngleDegrees
-            && path.EndAngleDegrees is double endAngleDegrees)
-        {
-            updatedPath = path with
-            {
-                Radius = value,
-                Points = BuildArcPoints(center, value, startAngleDegrees, endAngleDegrees),
+                Points = path.Points.Select(point => new Editor2DPoint(
+                    polygonCenter.X + ((point.X - polygonCenter.X) * scale),
+                    polygonCenter.Y + ((point.Y - polygonCenter.Y) * scale))).ToArray(),
             };
             return true;
         }
@@ -570,6 +595,68 @@ public static class Editor2DGeometry
         }
 
         return points;
+    }
+
+    public static Editor2DPoint[] BuildRegularPolygonPoints(
+        Editor2DPoint center,
+        Editor2DPoint edge,
+        int sides)
+    {
+        var radius = DistanceBetween(center, edge);
+        var resolvedSides = Math.Clamp(sides, 3, 64);
+        if (radius <= MeasurementTolerance)
+            return [];
+
+        var rotation = Math.Atan2(edge.Y - center.Y, edge.X - center.X);
+        return Enumerable.Range(0, resolvedSides)
+            .Select(index => rotation + (index * Math.PI * 2.0 / resolvedSides))
+            .Select(angle => new Editor2DPoint(
+                center.X + (radius * Math.Cos(angle)),
+                center.Y + (radius * Math.Sin(angle))))
+            .ToArray();
+    }
+
+    public static bool TryGetRegularPolygonGeometry(
+        Editor2DPreviewPath path,
+        out Editor2DPoint center,
+        out double radius)
+    {
+        center = default!;
+        radius = 0.0;
+        if (!path.IsClosed
+            || path.Points.Count is < 3 or > 64
+            || path.BezierAnchors is not null
+            || (!path.EntityType.Equals("LWPOLYLINE", StringComparison.OrdinalIgnoreCase)
+                && !path.EntityType.Equals("POLYLINE", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var hasStoredGeometry = path.Center is Editor2DPoint && path.Radius is > MeasurementTolerance;
+        if (!hasStoredGeometry && path.IsAxisAlignedRectangle)
+            return false;
+
+        var resolvedCenter = path.Center ?? new Editor2DPoint(
+            path.Points.Average(static point => point.X),
+            path.Points.Average(static point => point.Y));
+        var radii = path.Points.Select(point => DistanceBetween(resolvedCenter, point)).ToArray();
+        var resolvedRadius = path.Radius ?? radii.Average();
+        if (!double.IsFinite(resolvedRadius) || resolvedRadius <= MeasurementTolerance)
+            return false;
+
+        var radialTolerance = Math.Max(MeasurementTolerance, resolvedRadius * 1e-5);
+        if (radii.Any(candidate => Math.Abs(candidate - resolvedRadius) > radialTolerance))
+            return false;
+
+        center = resolvedCenter;
+        radius = resolvedRadius;
+
+        var edgeLengths = path.Points.Select((point, index) =>
+            DistanceBetween(point, path.Points[(index + 1) % path.Points.Count])).ToArray();
+        var averageEdge = edgeLengths.Average();
+        var edgeTolerance = Math.Max(MeasurementTolerance, averageEdge * 1e-5);
+        return averageEdge > MeasurementTolerance
+            && edgeLengths.All(candidate => Math.Abs(candidate - averageEdge) <= edgeTolerance);
     }
 
     public static Editor2DPoint[] BuildArcPoints(

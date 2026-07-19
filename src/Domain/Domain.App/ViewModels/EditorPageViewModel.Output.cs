@@ -402,6 +402,16 @@ public sealed partial class EditorPageViewModel
         return pathId;
     }
 
+    public string? CreateTwoDRegularPolygon(Editor2DPoint center, Editor2DPoint edge, int sides)
+    {
+        var pathId = _twoDWorkspace.CreateRegularPolygon(center, edge, sides);
+        if (pathId is null)
+            return null;
+
+        ApplyTwoDWorkspaceSnapshot(_twoDWorkspace.State);
+        Request3DStatePersistence(TimeSpan.FromMilliseconds(80));
+        return pathId;
+    }
     public string? CreateTwoDRectangle(Editor2DPoint start, Editor2DPoint end)
     {
         var pathId = _twoDWorkspace.CreateRectangle(start, end, TwoDRectangleFilletRadius);
@@ -587,6 +597,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged(nameof(TwoDAutoDimensionCount));
             OnPropertyChanged(nameof(TwoDMeasurementSummary));
             OnPropertyChanged(nameof(TwoDSelectedMeasurementExpressionText));
+            OnPropertyChanged(nameof(CanToggleTwoDSelectedMeasurementDriven));
             OnPropertyChanged(nameof(TwoDSelectedMeasurementDriven));
             OnPropertyChanged(nameof(TwoDDimensionParameters));
             OnPropertyChanged(nameof(TwoDToolHint));
@@ -595,8 +606,7 @@ public sealed partial class EditorPageViewModel
 
     public IReadOnlyList<Editor2DDimensionParameterItem> TwoDDimensionParameters
         => TwoDMeasurements
-            .Where(static measurement => !measurement.IsAutoDimension
-                && measurement.IsParametric
+            .Where(static measurement => measurement.IsParametric
                 && !string.IsNullOrWhiteSpace(measurement.VarName))
             .Select(static measurement =>
             {
@@ -631,6 +641,7 @@ public sealed partial class EditorPageViewModel
             OnPropertyChanged();
 
             OnPropertyChanged(nameof(HasTwoDSelectedMeasurement));
+            OnPropertyChanged(nameof(CanToggleTwoDSelectedMeasurementDriven));
             OnPropertyChanged(nameof(TwoDSelectedMeasurementExpressionText));
             OnPropertyChanged(nameof(TwoDSelectedMeasurementDriven));
             OnPropertyChanged(nameof(TwoDMeasurementSummary));
@@ -672,21 +683,7 @@ public sealed partial class EditorPageViewModel
         string expression,
         out string error)
     {
-        var measurement = TwoDMeasurements.FirstOrDefault(item => item.Id == measurementId);
-        var normalizedDimensionType = measurement?.DimensionType?.Trim();
-        var isAutoDrivingDimension = measurement?.IsAutoDimension == true
-            && (normalizedDimensionType?.Equals("length", StringComparison.OrdinalIgnoreCase) == true
-                || normalizedDimensionType?.Equals("radius", StringComparison.OrdinalIgnoreCase) == true
-                || normalizedDimensionType?.Equals("width", StringComparison.OrdinalIgnoreCase) == true
-                || normalizedDimensionType?.Equals("height", StringComparison.OrdinalIgnoreCase) == true);
-        var committed = isAutoDrivingDimension
-            ? Editor2DDimensionExpression.TryEvaluate(
-                expression,
-                new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
-                out var value,
-                out error)
-              && _twoDWorkspace.TrySetMeasurementValue(measurementId, value, out error)
-            : _twoDWorkspace.TrySetMeasurementExpression(measurementId, expression, out error);
+        var committed = _twoDWorkspace.TrySetMeasurementExpression(measurementId, expression, out error);
         if (!committed)
         {
             TwoDMeasurementExpressionError = error;
@@ -1292,6 +1289,8 @@ public sealed partial class EditorPageViewModel
 
     public bool HasTwoDSelectedMeasurement => !string.IsNullOrWhiteSpace(TwoDSelectedMeasurementId);
 
+    public bool CanToggleTwoDSelectedMeasurementDriven
+        => TwoDMeasurements.FirstOrDefault(item => item.Id == TwoDSelectedMeasurementId)?.IsAutoDimension == false;
     public int TwoDAutoDimensionCount => TwoDMeasurements.Count(static measurement => measurement.IsAutoDimension);
 
     public bool HasSingleTwoDTextSelection => TryGetSingleSelectedTwoDTextPath(out _);
@@ -2335,7 +2334,7 @@ public sealed partial class EditorPageViewModel
         Editor2DTool.Move => "Move tool: drag a selected entity set to reposition it directly in the 2D workspace.",
         Editor2DTool.Pan => "Pan tool: left-drag to move the 2D workspace. Mouse wheel zoom stays available on every tool.",
         Editor2DTool.Measure => "Measure tool: click once to place the start point, click again to place the end point, and press Escape to cancel the in-progress measurement.",
-        Editor2DTool.Dimension => "Dimension tool: click a line to place an attached length dimension, click a circle or arc to place an attached radius dimension, or click empty space twice for a reference distance. Press Escape to cancel an in-progress reference dimension.",
+        Editor2DTool.Dimension => "Dimension tool: click an existing dimension to edit it, a line for length, a rectangle edge for width or height, a circle, arc, or regular polygon for radius, or empty space twice for a reference distance. Press Escape to cancel an in-progress reference dimension.",
         Editor2DTool.Scale => "Scale tool: select entities, choose center or corner scaling, pick an optional custom pivot, then drag the handle or enter an exact factor.",
         Editor2DTool.Mirror => "Mirror tool: select entities, click once to place the mirror axis start, then click again to place the axis end and mirror the selection.",
         Editor2DTool.Offset => "Offset tool: keep geometry selected, choose Curve or BBox mode in the lower 2D panel, and apply an OpenGeometry offset copy. Open paths offset relative to their point order.",
