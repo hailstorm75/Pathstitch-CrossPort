@@ -45,7 +45,7 @@ public sealed partial class EditorPageViewModel
             RestoreActivityLog([]);
             IsActivityLogExpanded = false;
             LearnModeEnabled = true;
-            ActiveEditorMode = EditorMode.ThreeD;
+            ActiveEditorMode = EditorMode.TwoD;
             ActiveTool = Editor3DTool.Select;
             ThreeDOrthographic = false;
             IsPlaneSelectionActive = false;
@@ -242,6 +242,10 @@ public sealed partial class EditorPageViewModel
                 TwoDExportMeasurementLines = includeMeasurementLines;
             }
             ApplyPersistedEditorWorkspaceState(state.WorkspaceState);
+            if (state.WorkspaceState is null)
+                ActiveEditorMode = EditorMode.TwoD;
+            if (ActiveEditorMode == EditorMode.TwoD && TwoDDocument is null)
+                await EnsureTwoDWorkspaceDocumentAsync(token).ConfigureAwait(true);
             await _batchWorkspace
                 .RestoreStateAsync(state.BatchWorkspaceState, ProjectSession.ProjectFilePath, token)
                 .ConfigureAwait(true);

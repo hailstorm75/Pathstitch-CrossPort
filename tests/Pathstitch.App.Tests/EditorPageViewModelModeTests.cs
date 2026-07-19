@@ -17,6 +17,52 @@ public sealed class EditorPageViewModelModeTests
             .Select(descriptor => new object[] { descriptor });
 
     [Fact]
+    public void Editor_DefaultsToTwoDWorkspace()
+    {
+        var viewModel = CreateViewModel();
+
+        Assert.Equal(EditorMode.TwoD, viewModel.ActiveEditorMode);
+        Assert.True(viewModel.IsShowingTwoDWorkspace);
+        Assert.False(viewModel.IsShowing3DWorkspace);
+    }
+
+    [Fact]
+    public async Task NewBlankSession_StartsWithUsableTwoDWorkspace()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"pathstitch-default-2d-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var projectPath = Path.Combine(directory, "blank.stch");
+        await File.WriteAllTextAsync(projectPath, "{}");
+        var session = new ProjectSession(
+            Guid.NewGuid(),
+            "Blank",
+            projectPath,
+            new ProjectTemplateDefinition("blank", "Blank", "Untitled"),
+            ProjectSessionOrigin.Created,
+            DateTimeOffset.UtcNow);
+        var viewModel = CreateViewModel();
+
+        try
+        {
+            Assert.True(await viewModel.ConfigureParametersAsync(
+                new Dictionary<string, object> { [EditorNavigationParameterKeys.ProjectSession] = session },
+                CancellationToken.None));
+            await ((INavigablePageViewModel)viewModel).LoadAsync(CancellationToken.None);
+
+            Assert.Equal(EditorMode.TwoD, viewModel.ActiveEditorMode);
+            Assert.True(viewModel.IsShowingTwoDWorkspace);
+            Assert.NotNull(viewModel.TwoDDocument);
+            Assert.Empty(viewModel.TwoDDocument.Paths);
+            Assert.True(viewModel.TwoDWorkspace.IsInitialized);
+        }
+        finally
+        {
+            viewModel.Dispose();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void EditorMode_HasStableValuesIncludingReservedBatchMode()
     {
         Assert.Equal(0, (int)EditorMode.TwoD);
@@ -1470,7 +1516,7 @@ public sealed class EditorPageViewModelModeTests
             viewModel.IsShowingBatchWorkspace,
         }.Count(static isVisible => isVisible));
 
-        if (mode != EditorMode.ThreeD)
+        if (mode != EditorMode.TwoD)
         {
             Assert.Contains(nameof(EditorPageViewModel.ActiveEditorMode), changes);
             Assert.Contains(nameof(EditorPageViewModel.IsShowingTwoDWorkspace), changes);
@@ -2019,6 +2065,7 @@ public sealed class EditorPageViewModelModeTests
     {
         var viewModel = CreateViewModel();
 
+        await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
         Assert.True(viewModel.TryActivateEditorShortcut("3"));
         Assert.Equal(Editor3DTool.Plane, viewModel.ActiveTool);
 
@@ -2463,21 +2510,21 @@ public sealed class EditorPageViewModelModeTests
     {
         var viewModel = CreateViewModel();
 
-        Assert.NotEmpty(viewModel.SidebarTools);
-        Assert.All(viewModel.SidebarTools, item => Assert.Equal(EditorMode.ThreeD, item.Mode));
-        Assert.Contains(viewModel.SidebarTools, item => item.Tool == Editor3DTool.Select);
-        Assert.Contains(viewModel.SidebarTools, item => item.Tool == Editor3DTool.Move);
-        Assert.Contains(viewModel.SidebarTools, item => item.Tool == Editor3DTool.Plane);
-        Assert.DoesNotContain(viewModel.SidebarTools, item => item.TwoDTool is not null);
-
-        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
-
         Assert.Equal(EditorToolCatalog.ForMode(EditorMode.TwoD).Count, viewModel.SidebarTools.Count);
         Assert.All(viewModel.SidebarTools, item => Assert.Equal(EditorMode.TwoD, item.Mode));
         Assert.DoesNotContain(viewModel.SidebarTools, item => item.Tool is not null);
 
         viewModel.ActivateSidebarItem("circle");
         Assert.Equal(Editor2DTool.SketchCircle, viewModel.TwoDActiveTool);
+
+        await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
+
+        Assert.NotEmpty(viewModel.SidebarTools);
+        Assert.All(viewModel.SidebarTools, item => Assert.Equal(EditorMode.ThreeD, item.Mode));
+        Assert.Contains(viewModel.SidebarTools, item => item.Tool == Editor3DTool.Select);
+        Assert.Contains(viewModel.SidebarTools, item => item.Tool == Editor3DTool.Move);
+        Assert.Contains(viewModel.SidebarTools, item => item.Tool == Editor3DTool.Plane);
+        Assert.DoesNotContain(viewModel.SidebarTools, item => item.TwoDTool is not null);
 
         await viewModel.SetActiveEditorModeAsync(EditorMode.Batch);
         Assert.Empty(viewModel.SidebarTools);
@@ -2490,7 +2537,7 @@ public sealed class EditorPageViewModelModeTests
         var changes = new List<string?>();
         viewModel.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
 
-        await viewModel.SetActiveEditorModeAsync(EditorMode.TwoD);
+        await viewModel.SetActiveEditorModeAsync(EditorMode.ThreeD);
 
         Assert.Contains(nameof(EditorPageViewModel.SidebarTools), changes);
     }

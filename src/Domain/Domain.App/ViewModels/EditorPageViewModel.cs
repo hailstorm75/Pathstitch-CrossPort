@@ -84,7 +84,7 @@ public sealed partial class EditorPageViewModel(
     private string? _preservableGeneratedDxfVersion;
     private EditorGeneratedOutputSummary? _generatedOutputSummary;
     private long _generatedOutputPreviewGeneration;
-    private EditorMode _activeEditorMode = EditorMode.ThreeD;
+    private EditorMode _activeEditorMode = EditorMode.TwoD;
     private StepGeometryDocument? _stepTopology;
     private bool _suppressTwoDDocumentPersistence;
     private bool _suppressTwoDViewportPersistence;
