@@ -59,12 +59,6 @@
       <Setter Property="CornerRadius" Value="6" />
     </Style>
 
-    <Style Selector="Button.recent-action">
-      <Setter Property="Padding" Value="6,5" />
-      <Setter Property="FontSize" Value="10" />
-      <Setter Property="MinHeight" Value="30" />
-    </Style>
-
     <Style Selector="Border.recent-card">
       <Setter Property="Padding" Value="0" />
     </Style>
@@ -202,6 +196,17 @@
                       PointerPressed="OnRecentProjectPressed"
                       DoubleTapped="OnRecentProjectDoubleTapped"
                       Background="Transparent">
+                      <Border.ContextMenu>
+                        <ContextMenu>
+                          <MenuItem Header="Open" IsEnabled="{Binding IsAvailable}" Click="OnOpenRecentProjectClicked" />
+                          <MenuItem Header="Reveal in Folder" Click="OnRevealRecentProjectClicked" />
+                          <Separator />
+                          <MenuItem
+                            Header="Remove from Recent"
+                            Foreground="{StaticResource DangerBrush}"
+                            Click="OnRemoveRecentProjectClicked" />
+                        </ContextMenu>
+                      </Border.ContextMenu>
                       <StackPanel Spacing="6">
                         <Border
                           Height="122"
@@ -255,37 +260,6 @@
                           Foreground="{StaticResource SecondaryTextBrush}"
                           TextTrimming="CharacterEllipsis"
                           Text="{Binding ProjectFileName}" />
-
-                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="5" Margin="0,4,0,0">
-                          <Button
-                            Grid.Column="0"
-                            Classes="primary-action recent-action"
-                            IsEnabled="{Binding IsAvailable}"
-                            Command="{Binding DataContext.OpenRecentProjectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                            CommandParameter="{Binding}">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                              <TextBlock Text="▶" />
-                              <TextBlock Text="Open" />
-                            </StackPanel>
-                          </Button>
-                          <Button
-                            Grid.Column="1"
-                            Classes="secondary-action recent-action"
-                            ToolTip.Tip="Show this project in its folder"
-                            Content="⌖ Reveal"
-                            Click="OnRevealRecentProjectClicked" />
-                          <Button
-                            Grid.Column="2"
-                            Classes="secondary-action recent-action"
-                            Foreground="{StaticResource DangerBrush}"
-                            Command="{Binding DataContext.RemoveRecentProjectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                            CommandParameter="{Binding}">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                              <TextBlock Text="×" />
-                              <TextBlock Text="Remove" />
-                            </StackPanel>
-                          </Button>
-                        </Grid>
                       </StackPanel>
                     </Border>
                   </DataTemplate>

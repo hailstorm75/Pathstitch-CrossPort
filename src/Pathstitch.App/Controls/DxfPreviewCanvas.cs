@@ -330,7 +330,6 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly Pen MinorGridPen = new(new SolidColorBrush(Color.Parse("#13161D")), 1);
     private static readonly Pen MajorGridPen = new(new SolidColorBrush(Color.Parse("#1D2430")), 1);
     private static readonly Pen AxisPen = new(new SolidColorBrush(Color.Parse("#2D3B55")), 1.25);
-    private static readonly Pen PaperBorderPen = new(new SolidColorBrush(Color.Parse("#243042")), 1);
     private static readonly Pen ClosedPathPen = new(new SolidColorBrush(Color.Parse("#E8ECF6")), 1.4);
     private static readonly Pen OpenPathPen = new(new SolidColorBrush(Color.Parse("#F5B35C")), 1.4);
     private static readonly Pen ConstructionPathPen = new(new SolidColorBrush(Color.Parse("#8A909B")), 1.2, dashStyle: new DashStyle([6, 4], 0));
@@ -355,7 +354,6 @@ public sealed class DxfPreviewCanvas : Control
     private static readonly Pen CornerToolHandlePen = new(new SolidColorBrush(Color.Parse("#FFFFFF")), 1.2);
     private static readonly Pen MarqueePen = new(new SolidColorBrush(Color.Parse("#6F96FF")), 1.2, dashStyle: new DashStyle([4, 4], 0));
     private static readonly Typeface MeasurementLabelTypeface = new("Inter, Segoe UI, Arial", FontStyle.Normal, FontWeight.Medium, FontStretch.Normal);
-    private static readonly IBrush PaperFillBrush = new SolidColorBrush(Color.Parse("#11161F"));
     private static readonly IBrush FilledPathBrush = new SolidColorBrush(Color.Parse("#334D7FFF"));
     private static readonly IBrush AutoDimensionTextBrush = new SolidColorBrush(Color.Parse("#D8F5FF"));
     private static readonly IBrush AutoDimensionLabelFillBrush = new SolidColorBrush(Color.Parse("#C0121F2B"));
@@ -1536,8 +1534,6 @@ public sealed class DxfPreviewCanvas : Control
             if (pivot is not null)
                 visiblePaths = ScalePaths(Document with { Paths = visiblePaths }, SelectedPathIds, pivot, scalePreviewFactor).Paths;
         }
-        if (visiblePaths.Count > 0)
-            DrawPaperBounds(context, size, Document.Bounds);
         DrawReferenceImages(context, size, Editor2DReferenceImageDepth.Back);
         DrawPaths(context, size, visiblePaths);
         DrawReferenceImages(context, size, Editor2DReferenceImageDepth.Front);
@@ -2418,15 +2414,6 @@ Selection:
             SnapLabelFillBrush,
             new Rect(labelPosition.X - 3.0, labelPosition.Y - 2.0, text.Width + 6.0, text.Height + 4.0));
         context.DrawText(text, labelPosition);
-    }
-
-    private void DrawPaperBounds(DrawingContext context, Size size, Editor2DBounds bounds)
-    {
-        const double padding = 18.0;
-        var topLeft = WorldToScreen(new Editor2DPoint(bounds.MinX - padding, bounds.MaxY + padding), size);
-        var bottomRight = WorldToScreen(new Editor2DPoint(bounds.MaxX + padding, bounds.MinY - padding), size);
-        var rect = new Rect(topLeft, bottomRight);
-        context.DrawRectangle(PaperFillBrush, PaperBorderPen, rect);
     }
 
     internal static Rect GetReferenceImageLocalRect(Editor2DReferenceImage image, double zoom)

@@ -137,12 +137,31 @@ public partial class HomePageView : BasePageView
         await viewModel.OpenRecentProjectCardAsync(recentProject);
     }
 
+    private async void OnOpenRecentProjectClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not HomePageViewModel viewModel
+            || sender is not Control { DataContext: RecentProjectSummary recentProject })
+            return;
+
+        viewModel.SelectRecentProjectCard(recentProject);
+        await viewModel.OpenRecentProjectCardAsync(recentProject);
+    }
+
     private async void OnRevealRecentProjectClicked(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control control || control.DataContext is not RecentProjectSummary recentProject)
             return;
 
         await _fileIntegrationService.RevealFileAsync(recentProject.ProjectFilePath);
+    }
+
+    private void OnRemoveRecentProjectClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not HomePageViewModel viewModel
+            || sender is not Control { DataContext: RecentProjectSummary recentProject })
+            return;
+
+        viewModel.RemoveRecentProjectCommand.Execute(recentProject);
     }
 
     private void OnLoaded(object? sender, EventArgs e)

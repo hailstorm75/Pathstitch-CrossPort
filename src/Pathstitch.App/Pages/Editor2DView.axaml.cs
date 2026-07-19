@@ -296,12 +296,13 @@ public partial class Editor2DView : EditorInteractionControlBase
 
     private void OnDimensionExpressionInputKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Tab
+        if (e.Key is Key.Tab or Key.Enter
             && _dimensionExpressionMeasurementId is { } tabMeasurementId
             && DataContext is Domain.App.ViewModels.EditorPageViewModel tabViewModel
             && TryGetCreationPrecisionMeasurement(tabViewModel, tabMeasurementId, out var tabMeasurement))
         {
             e.Handled = true;
+            var submitKey = e.Key;
             var submittedExpression = DimensionExpressionInput.Text ?? string.Empty;
             if (!tabViewModel.TryCommitTwoDMeasurementExpression(
                     tabMeasurementId,
@@ -320,37 +321,40 @@ public partial class Editor2DView : EditorInteractionControlBase
                 return;
             }
 
-            Dispatcher.UIThread.Post(() =>
+            TwoDPreviewCanvas.SetCurrentValue(
+                DxfPreviewCanvas.MeasurementsProperty,
+                tabViewModel.TwoDMeasurements);
+            if (!dimensionType.Equals("width", StringComparison.OrdinalIgnoreCase))
             {
-                if (!dimensionType.Equals("width", StringComparison.OrdinalIgnoreCase))
-                {
-                    Dispatcher.UIThread.Post(() =>
-                    {
-                        var refreshed = tabViewModel.TwoDMeasurements.FirstOrDefault(item =>
-                            item.Id.Equals(tabMeasurementId, StringComparison.Ordinal));
-                        if (refreshed is null || !TwoDPreviewCanvas.RequestDimensionExpressionInput(refreshed.Id))
-                        {
-                            FinishDimensionExpressionInput(tabViewModel);
-                            return;
-                        }
-                        tabViewModel.TwoDSelectedMeasurementId = refreshed.Id;
-                        DimensionExpressionInput.Text = submittedExpression;
-                        DimensionExpressionInput.SelectAll();
-                    }, DispatcherPriority.Input);
-                    return;
-                }
-
-                var nextMeasurement = tabViewModel.TwoDMeasurements.FirstOrDefault(item =>
-                        item.IsAutoDimension
-                        && string.Equals(item.EntityPathId, tabMeasurement.EntityPathId, StringComparison.Ordinal)
-                        && item.DimensionType?.Trim().Equals("height", StringComparison.OrdinalIgnoreCase) == true);
-                if (nextMeasurement is null || !TwoDPreviewCanvas.RequestDimensionExpressionInput(nextMeasurement.Id))
+                if (submitKey == Key.Enter)
                 {
                     FinishDimensionExpressionInput(tabViewModel);
                     return;
                 }
-                tabViewModel.TwoDSelectedMeasurementId = nextMeasurement.Id;
-            }, DispatcherPriority.Input);
+
+                var refreshed = tabViewModel.TwoDMeasurements.FirstOrDefault(item =>
+                    item.Id.Equals(tabMeasurementId, StringComparison.Ordinal));
+                if (refreshed is null || !TwoDPreviewCanvas.RequestDimensionExpressionInput(refreshed.Id))
+                {
+                    FinishDimensionExpressionInput(tabViewModel);
+                    return;
+                }
+                tabViewModel.TwoDSelectedMeasurementId = refreshed.Id;
+                DimensionExpressionInput.Text = submittedExpression;
+                DimensionExpressionInput.SelectAll();
+                return;
+            }
+
+            var nextMeasurement = tabViewModel.TwoDMeasurements.FirstOrDefault(item =>
+                item.IsAutoDimension
+                && string.Equals(item.EntityPathId, tabMeasurement.EntityPathId, StringComparison.Ordinal)
+                && item.DimensionType?.Trim().Equals("height", StringComparison.OrdinalIgnoreCase) == true);
+            if (nextMeasurement is null || !TwoDPreviewCanvas.RequestDimensionExpressionInput(nextMeasurement.Id))
+            {
+                FinishDimensionExpressionInput(tabViewModel);
+                return;
+            }
+            tabViewModel.TwoDSelectedMeasurementId = nextMeasurement.Id;
             return;
         }
 
