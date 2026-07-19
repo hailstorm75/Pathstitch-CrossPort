@@ -70,6 +70,35 @@ public sealed class DxfCanvasCollaboratorTests
     }
 
     [Fact]
+    public async Task AttachedDimensionExpression_SurvivesOwnerSelectionSynchronization()
+    {
+        var path = Path("line", false, new(0, 0), new(10, 0));
+        var measurement = new Editor2DMeasurement(
+            "line:length", new(0, 0), new(10, 0), IsAutoDimension: true,
+            EntityPathId: path.Id, DimensionType: "length");
+        await _ui.RunAsync(() =>
+        {
+            var canvas = new DxfPreviewCanvas
+            {
+                Document = Document(path),
+                Measurements = [measurement],
+                SelectedPathIds = [path.Id],
+            };
+            var dismissals = 0;
+            canvas.DimensionExpressionDismissed += () => dismissals++;
+
+            Assert.True(canvas.RequestDimensionExpressionInput(
+                measurement.Id, DxfCanvasDimensionEditContext.Selection));
+            canvas.SelectedPathIds = [path.Id];
+
+            Assert.Equal(0, dismissals);
+            Assert.Equal(path.Id, Assert.Single(canvas.SelectedPathIds));
+
+            canvas.SelectedPathIds = ["other"];
+            Assert.Equal(1, dismissals);
+        });
+    }
+    [Fact]
     public void ViewportTransform_RoundTripsWorldCoordinatesAndCalculatesStableGridStep()
     {
         var size = new Size(800, 600);

@@ -439,6 +439,56 @@ public sealed class EditorShellHeadlessTests
     }
 
     [Fact]
+    public async Task SelectedRectangleDimensionClick_KeepsOwnerSelectedAndExpressionFocused()
+    {
+        var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();
+        var pathId = viewModel.CreateTwoDRectangle(new(0, 0), new(20, 10))!;
+        var width = viewModel.TwoDMeasurements.Single(item => item.Id == $"{pathId}:width");
+        var shell = await _ui.RunAsync(() => new EditorShellView { DataContext = viewModel });
+        await using var session = await _ui.MountAsync(shell);
+        await SetModeAndLayoutAsync(session, viewModel, EditorMode.TwoD);
+
+        await _ui.RunAsync(() =>
+        {
+            viewModel.TwoDActiveTool = Editor2DTool.Select;
+            viewModel.TwoDSelectedPathIds = [pathId];
+            var canvas = _ui.FindByAutomationId<DxfPreviewCanvas>(shell, "editor.canvas.2d");
+            canvas.SelectedPathIds = [pathId];
+            canvas.Measurements = viewModel.TwoDMeasurements;
+            var midpoint = new Editor2DPoint(
+                (width.Start.X + width.End.X) / 2.0,
+                (width.Start.Y + width.End.Y) / 2.0);
+            var screenPoint = DxfCanvasViewportTransform.WorldToScreen(
+                midpoint, canvas.Bounds.Size, canvas.Zoom, canvas.OffsetX, canvas.OffsetY);
+            var hitTest = typeof(DxfPreviewCanvas).GetMethod(
+                "HitTestEditableMeasurementId",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            Assert.Equal(width.Id, hitTest.Invoke(canvas, [screenPoint]));
+            var selectForEdit = typeof(DxfPreviewCanvas).GetMethod(
+                "SelectMeasurementForExpressionEdit",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            selectForEdit.Invoke(canvas, [width]);
+            Assert.True(canvas.RequestDimensionExpressionInput(
+                width.Id, DxfCanvasDimensionEditContext.Selection));
+
+            canvas.SelectedPathIds = [pathId];
+            session.Window.UpdateLayout();
+        });
+        await _ui.RunAsync(() => { });
+        await _ui.RunAsync(() => { });
+
+        await _ui.RunAsync(() =>
+        {
+            var pill = _ui.FindByAutomationId<Border>(shell, "editor.canvas.2d.dimension-expression");
+            var input = _ui.FindByAutomationId<TextBox>(shell, "editor.canvas.2d.dimension-expression-input");
+            Assert.True(pill.IsVisible);
+            Assert.True(input.IsFocused);
+            Assert.Equal($"{pathId}:width", viewModel.TwoDSelectedMeasurementId);
+            Assert.Equal(pathId, Assert.Single(viewModel.TwoDSelectedPathIds));
+            Assert.Equal(Editor2DTool.Select, viewModel.TwoDActiveTool);
+        });
+    }
+    [Fact]
     public async Task ReferenceImageDepthSegments_UpdateDepthAndHistoryByStableAutomationId()
     {
         var viewModel = EditorPageViewModelModeTests.CreateViewModelForTests();

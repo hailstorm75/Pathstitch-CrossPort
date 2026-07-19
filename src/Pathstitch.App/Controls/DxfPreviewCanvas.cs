@@ -1327,18 +1327,17 @@ public sealed class DxfPreviewCanvas : Control
         if (change.Property == IsVisibleProperty && IsVisible && Zoom <= 0.0)
             FrameToDocument();
 
-        var editingCreationPrecision = _dimensionExpressionEditContext == DxfCanvasDimensionEditContext.Creation
-            && _dimensionExpressionEditingId is { } currentEditingId
+        var editingAttachedDimension = _dimensionExpressionEditingId is { } currentEditingId
             ? Measurements.FirstOrDefault(item =>
                 item.Id.Equals(currentEditingId, StringComparison.Ordinal)
-                && IsCreationPrecisionMeasurement(item))
+                && !string.IsNullOrWhiteSpace(item.EntityPathId))
             : null;
-        var canRetainCreationPrecision = editingCreationPrecision?.EntityPathId is { } targetPathId
+        var canRetainAttachedDimension = editingAttachedDimension?.EntityPathId is { } targetPathId
             && Document?.Paths.Any(path => path.Id.Equals(targetPathId, StringComparison.Ordinal)) == true
             && SelectedPathIds.Contains(targetPathId, StringComparer.Ordinal);
         if (_dimensionExpressionEditingId is { } editingDimensionId
             && (((change.Property == DocumentProperty || change.Property == SelectedPathIdsProperty)
-                    && !canRetainCreationPrecision)
+                    && !canRetainAttachedDimension)
                 || (change.Property == SelectedMeasurementIdProperty
                     && !string.Equals(SelectedMeasurementId, editingDimensionId, StringComparison.Ordinal))
                 || (change.Property == MeasurementsProperty
@@ -3989,7 +3988,7 @@ Selection:
     private void SelectMeasurementForExpressionEdit(Editor2DMeasurement measurement)
     {
         SetCurrentValue(SelectedMeasurementIdProperty, measurement.Id);
-        if (measurement.IsAutoDimension && measurement.EntityPathId is { } pathId)
+        if (measurement.EntityPathId is { } pathId)
         {
             if (!SelectedPathIds.Contains(pathId, StringComparer.Ordinal))
                 SetCurrentValue(SelectedPathIdsProperty, new[] { pathId });
